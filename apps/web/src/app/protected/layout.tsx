@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { redirect, unstable_rethrow } from "next/navigation";
+import { unstable_rethrow } from "next/navigation";
 import { ACCESS_COOKIE } from "@/core/auth/cookies";
 import { getServerApiBase } from "@/core/http/getServerApiBase";
 import { fetchUpstream } from "@/core/http/upstream";
@@ -30,7 +30,10 @@ async function getCurrentUser() {
             cache: "no-store",
         });
 
-        if (res.status === 401) return "unauthenticated" as const;
+        // Avoid forcing a logout during the first protected render.
+        // Client-side auth routes already know how to refresh the session
+        // and clear cookies only when the browser really lost auth state.
+        if (res.status === 401) return null;
         if (!res.ok) return null;
 
         const data = (await res.json()) as MeResponse;
@@ -44,10 +47,6 @@ async function getCurrentUser() {
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
     const me = await getCurrentUser();
-
-    if (me === "unauthenticated") {
-        redirect("/api/auth/logout");
-    }
 
     return (
         <div className="min-h-screen bg-io-light md:h-screen md:overflow-hidden">
