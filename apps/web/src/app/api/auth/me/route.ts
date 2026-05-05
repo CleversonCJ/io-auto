@@ -42,10 +42,12 @@ export async function GET() {
         let token = cookieStore.get(ACCESS_COOKIE)?.value ?? null;
 
         if (!token) {
+            console.error("[auth/me] io_access cookie is MISSING! Attempting to refresh using refresh token...");
             token = await refreshAccessToken(apiBase);
         }
 
         if (!token) {
+            console.error("[auth/me] Both access and refresh failed/missing. Returning 401.");
             return NextResponse.json({ message: "Sessao expirada" }, { status: 401 });
         }
 

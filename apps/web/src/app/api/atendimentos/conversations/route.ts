@@ -19,6 +19,7 @@ async function refreshAccessToken(apiBase: string) {
     });
 
     if (!refreshRes.ok) {
+        console.error(`[auth/me] refreshAccessToken POST /auth/refresh failed with status: ${refreshRes.status}`);
         c.set(ACCESS_COOKIE, "", { path: "/", maxAge: 0 });
         c.set(REFRESH_COOKIE, "", { path: "/", maxAge: 0 });
         return null;
