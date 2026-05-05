@@ -61,12 +61,11 @@ export async function middleware(req: NextRequest) {
         return NextResponse.next();
     } catch (error) {
         console.error("[Middleware] JWT verification failed:", error);
-        const url = req.nextUrl.clone();
-        url.pathname = "/login";
-        const res = NextResponse.redirect(url);
-        res.cookies.set(ACCESS_COOKIE, "", { path: "/", maxAge: 0 });
-        res.cookies.set(REFRESH_COOKIE, "", { path: "/", maxAge: 0 });
-        return res;
+        // Don't clear auth cookies during page navigation. The browser-facing
+        // auth routes already know how to refresh or expire the session safely,
+        // and being aggressive here can wipe a valid session during client
+        // transitions in App Router.
+        return NextResponse.next();
     }
 }
 
