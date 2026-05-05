@@ -29,20 +29,23 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiError> handleBusiness(BusinessException ex) {
+        log.error("Business exception: {} - {}", ex.code(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiError(ex.code(), ex.getMessage(), Instant.now()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex) {
+        log.error("Validation error: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(new ApiError("VALIDATION_ERROR", "Dados invÃ¡lidos", Instant.now()));
+                .body(new ApiError("VALIDATION_ERROR", "Dados inválidos", Instant.now()));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiError> handleInvalidJson(HttpMessageNotReadableException ex) {
+        log.error("Invalid JSON error: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ApiError("INVALID_JSON", "JSON invÃ¡lido", Instant.now()));
+                .body(new ApiError("INVALID_JSON", "JSON inválido", Instant.now()));
     }
 
     @ExceptionHandler(Exception.class)
