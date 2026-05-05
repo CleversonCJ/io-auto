@@ -847,7 +847,7 @@ export function AiAgentsStudio() {
 
     return (
         <section className="grid gap-4">
-            <header className="sticky top-0 z-20 rounded-b-2xl border border-black/10 border-t-0 bg-white/95 shadow-soft backdrop-blur">
+            <header className="sticky top-0 z-20 rounded-b-2xl border border-black/10 border-t-0 bg-white shadow-soft">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 px-4 py-4 md:px-5">
                     <div>
                         <h1 className="text-2xl font-semibold text-io-dark">Studio de Agentes de IA</h1>
@@ -879,7 +879,7 @@ export function AiAgentsStudio() {
                                 type="button"
                                 onClick={() => setTab(value)}
                                 className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
-                                    tab === value ? "bg-white text-io-dark shadow-sm" : "text-black/65 hover:bg-white/70"
+                                    tab === value ? "bg-white text-io-dark shadow-sm" : "text-black/65 hover:bg-white"
                                 }`}
                             >
                                 {label}

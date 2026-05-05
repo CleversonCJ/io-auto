@@ -32,6 +32,7 @@ public class CorsConfig {
         webhookConfig.setAllowedHeaders(List.of("*"));
         webhookConfig.setAllowCredentials(false);
         source.registerCorsConfiguration("/webhooks/**", webhookConfig);
+        source.registerCorsConfiguration("/api/webhooks/**", webhookConfig);
 
         CorsConfiguration appConfig = new CorsConfiguration();
         // Use origin patterns so local development origins are matched reliably,

@@ -13,10 +13,10 @@ import {
     Plus,
     Save,
     Search,
-    Sparkles,
     X,
 } from "lucide-react";
-import type { IntegrationRecord, VehiclePublication, VehicleRecord } from "@/modules/ioauto/types";
+import { OlxVehiclePanel, emptyOlxVehicleForm, type OlxVehicleFormState } from "@/modules/ioauto/components/OlxVehiclePanel";
+import type { IntegrationRecord, OlxVehicleMapping, VehiclePublication, VehicleRecord } from "@/modules/ioauto/types";
 import { formatDateTime, formatMoney, platformLabel, statusLabel } from "@/modules/ioauto/formatters";
 
 type VehicleFormState = {
@@ -36,6 +36,7 @@ type VehicleFormState = {
     featured: boolean;
     status: string;
     targetIntegrations: string[];
+    olx: OlxVehicleFormState;
 };
 
 function emptyForm(): VehicleFormState {
@@ -55,6 +56,7 @@ function emptyForm(): VehicleFormState {
         featured: false,
         status: "DRAFT",
         targetIntegrations: [],
+        olx: emptyOlxVehicleForm(),
     };
 }
 
@@ -80,6 +82,7 @@ function vehicleToForm(vehicle: VehicleRecord): VehicleFormState {
         featured: vehicle.featured,
         status: vehicle.status,
         targetIntegrations: vehicle.publications.map((publication) => publication.providerKey),
+        olx: emptyOlxVehicleForm(),
     };
 }
 
@@ -131,7 +134,7 @@ function getPublicationBadgeConfig(publication: VehiclePublication) {
     const normalized = publication.providerKey.trim().toUpperCase();
     if (normalized === "WEBMOTORS") return { shortLabel: "WM", label: "Webmotors", className: "border-transparent bg-[#e52629] text-white" };
     if (normalized === "ICARROS") return { shortLabel: "IC", label: "iCarros", className: "border-transparent bg-[#171717] text-white" };
-    if (normalized === "OLX" || normalized === "OLX_AUTOS") return { shortLabel: "OLX", label: "OLX Autos", className: "border-transparent bg-[#f57c00] text-white" };
+    if (normalized === "OLX" || normalized === "OLX_AUTOS") return { shortLabel: "OLX", label: "OLX", className: "border-transparent bg-[#f57c00] text-white" };
     if (normalized === "MERCADOLIVRE" || normalized === "MERCADO_LIVRE") {
         return { shortLabel: "ML", label: "Mercado Livre", className: "border-[#d5c228] bg-[#ffe84e] text-[#2f2a05]" };
     }
@@ -197,6 +200,61 @@ export function InventoryStudio() {
 
     function updateField<K extends keyof VehicleFormState>(key: K, value: VehicleFormState[K]) {
         setForm((current) => ({ ...current, [key]: value }));
+    }
+
+    function hydrateOlxMapping(mapping: OlxVehicleMapping) {
+        setForm((current) => ({
+            ...current,
+            olx: {
+                brandId: mapping.brandId ?? "",
+                modelId: mapping.modelId ?? "",
+                versionId: mapping.versionId ?? "",
+                fuelCode: mapping.fuelCode ?? "",
+                gearboxCode: mapping.gearboxCode ?? "",
+                doorsCode: mapping.doorsCode ?? "",
+                colorCode: mapping.colorCode ?? "",
+                featureCodes: mapping.featureCodes ?? [],
+                plate: mapping.plate ?? "",
+                phone: mapping.phone ?? "",
+                zipcode: mapping.zipcode ?? "",
+                ad: mapping.ad ?? null,
+            },
+        }));
+    }
+
+    function updateOlxField(partial: Partial<OlxVehicleFormState>) {
+        setForm((current) => ({
+            ...current,
+            olx: {
+                ...current.olx,
+                ...partial,
+            },
+        }));
+    }
+
+    async function saveOlxMapping(vehicleId: string) {
+        const response = await fetch(`/api/integrations/olx/vehicles/${vehicleId}/mapping`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                brandId: form.olx.brandId || null,
+                modelId: form.olx.modelId || null,
+                versionId: form.olx.versionId || null,
+                fuelCode: form.olx.fuelCode || null,
+                gearboxCode: form.olx.gearboxCode || null,
+                doorsCode: form.olx.doorsCode || null,
+                colorCode: form.olx.colorCode || null,
+                featureCodes: form.olx.featureCodes,
+                plate: form.olx.plate || null,
+                phone: form.olx.phone || null,
+                zipcode: form.olx.zipcode || null,
+            }),
+        });
+        const payload = (await response.json().catch(() => null)) as OlxVehicleMapping | { message?: string } | null;
+        if (!response.ok) {
+            throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuracao OLX do veiculo.");
+        }
+        hydrateOlxMapping(payload as OlxVehicleMapping);
     }
 
     async function loadInventory() {
@@ -368,6 +426,7 @@ export function InventoryStudio() {
             }
 
             const savedVehicle = responseBody as VehicleRecord;
+            await saveOlxMapping(savedVehicle.id);
             await loadInventory();
             setSelectedId(savedVehicle.id);
             setIsEditorOpen(false);
@@ -383,50 +442,44 @@ export function InventoryStudio() {
     return (
         <>
             <div className="grid gap-6">
-                <section className="overflow-hidden rounded-[34px] border border-black/10 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.96),_rgba(246,244,240,0.98)_45%,_rgba(239,236,230,0.96)_100%)] p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)] md:p-6">
-                    <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-                        <div className="max-w-3xl">
-                            <p className="inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-black/55 shadow-sm">
-                                <Sparkles className="h-4 w-4" />
-                                Estoque de veiculos
-                            </p>
-                            <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-io-dark md:text-4xl">
-                                Estoque de veiculos cadastrados
-                            </h1>
-                        </div>
+                <header>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">Módulo Estoque</p>
+                    <h1 className="mt-2 font-display text-[1.75rem] font-bold leading-tight text-io-dark">Estoque de veículos</h1>
+                    <p className="mt-1.5 text-sm text-black/55">Gerencie todos os veículos cadastrados, publique em plataformas e acompanhe o estoque em tempo real.</p>
+                </header>
 
-                        <div className="flex w-full flex-col gap-3 xl:max-w-[560px] xl:flex-row xl:items-center">
-                            <label className="flex h-14 flex-1 items-center gap-3 rounded-full border border-black/10 bg-white px-5 shadow-[0_12px_24px_rgba(15,23,42,0.06)]">
-                                <Search className="h-5 w-5 text-black/40" />
-                                <input
-                                    value={search}
-                                    onChange={(event) => setSearch(event.target.value)}
-                                    placeholder="Pesquisar por marca, modelo, motor ou plataforma"
-                                    className="w-full bg-transparent text-sm text-io-dark outline-none placeholder:text-black/35"
-                                />
-                            </label>
+                <section className="overflow-hidden rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)] md:p-6">
+                    <div className="flex w-full flex-col gap-3 xl:flex-row xl:items-center">
+                        <label className="flex h-14 flex-1 items-center gap-3 rounded-full border border-black/10 bg-[#fafafa] px-5">
+                            <Search className="h-5 w-5 text-black/40" />
+                            <input
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder="Pesquisar por marca, modelo, motor ou plataforma"
+                                className="w-full bg-transparent text-sm text-io-dark outline-none placeholder:text-black/35"
+                            />
+                        </label>
 
-                            <button
-                                type="button"
-                                onClick={openCreateEditor}
-                                className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white transition hover:bg-black/85"
-                            >
-                                <Plus className="h-4 w-4" />
-                                Novo veiculo
-                            </button>
-                            <Link
-                                href="/protected/links-publicos"
-                                className="inline-flex h-14 items-center justify-center gap-2 rounded-full border border-black/12 bg-white px-5 text-sm font-semibold text-black/72 transition hover:border-black/20 hover:text-black"
-                            >
-                                <Link2 className="h-4 w-4" />
-                                Gerenciar links
-                            </Link>
-                        </div>
+                        <button
+                            type="button"
+                            onClick={openCreateEditor}
+                            className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-io-purple px-5 text-sm font-semibold text-white transition hover:bg-black/85"
+                        >
+                            <Plus className="h-4 w-4" />
+                            Novo veículo
+                        </button>
+                        <Link
+                            href="/protected/links-publicos"
+                            className="inline-flex h-14 items-center justify-center gap-2 rounded-full border border-black/12 bg-white px-5 text-sm font-semibold text-black/72 transition hover:border-black/20 hover:text-io-dark"
+                        >
+                            <Link2 className="h-4 w-4" />
+                            Gerenciar links
+                        </Link>
                     </div>
 
                     <div className="mt-5 grid gap-3 md:grid-cols-2">
-                        <MetricCard label="Veiculos cadastrados" value={String(vehicles.length)} detail={`${visibleVehicles.length} visiveis na busca`} />
-                        <MetricCard label="Com publicacao ativa" value={String(publishedVehicles)} detail={`${connectedIntegrations.length} plataformas conectadas`} />
+                        <MetricCard label="Veículos cadastrados" value={String(vehicles.length)} detail={`${visibleVehicles.length} visíveis na busca`} />
+                        <MetricCard label="Com publicação ativa" value={String(publishedVehicles)} detail={`${connectedIntegrations.length} plataformas conectadas`} />
                     </div>
                 </section>
 
@@ -457,7 +510,7 @@ export function InventoryStudio() {
             </div>
 
             {isEditorOpen ? (
-                <div className="fixed inset-0 z-50 bg-black/55 px-4 py-6 backdrop-blur-sm">
+                <div className="fixed inset-0 z-50 bg-black/55 px-4 py-6">
                     <div className="mx-auto flex h-full max-w-6xl items-start justify-center">
                         <div className="flex max-h-full w-full flex-col overflow-hidden rounded-[34px] border border-white/15 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
                             <div className="flex items-center justify-between gap-4 border-b border-black/8 px-6 py-5 md:px-8">
@@ -470,7 +523,7 @@ export function InventoryStudio() {
                                 <button
                                     type="button"
                                     onClick={closeEditor}
-                                    className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 text-black/65 transition hover:border-black/20 hover:text-black"
+                                    className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 text-black/65 transition hover:border-black/20 hover:text-io-dark"
                                     aria-label="Fechar editor"
                                 >
                                     <X className="h-5 w-5" />
@@ -482,7 +535,7 @@ export function InventoryStudio() {
 
                                 <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 md:px-8">
                                     <div className="grid gap-6">
-                                        <section className="rounded-[30px] border border-black/10 bg-[#faf8f4] p-5">
+                                        <section className="rounded-[30px] border border-black/10 bg-white p-5">
                                             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                                                 <Field label="Nome" value={form.title} onChange={(value) => updateField("title", value)} required />
                                                 <Field label="Marca" value={form.brand} onChange={(value) => updateField("brand", value)} required />
@@ -494,7 +547,7 @@ export function InventoryStudio() {
                                             </div>
                                         </section>
 
-                                        <section className="rounded-[30px] border border-[#c8d8ff] bg-[linear-gradient(180deg,_#ffffff,_#f8fbff)] p-5 shadow-[0_10px_30px_rgba(49,89,184,0.08)]">
+                                        <section className="rounded-[30px] border border-[#c8d8ff] bg-white p-5 shadow-[0_10px_30px_rgba(49,89,184,0.08)]">
                                             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                                                 <div>
                                                     <p className="text-sm font-extrabold uppercase tracking-[0.22em] text-[#2b57d9]">Condicoes de financiamento</p>
@@ -544,7 +597,7 @@ export function InventoryStudio() {
                                                     <button
                                                         type="button"
                                                         onClick={openImagePicker}
-                                                        className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-black/10 px-4 text-sm font-semibold text-black/72 transition hover:border-black/20 hover:text-black"
+                                                        className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-black/10 px-4 text-sm font-semibold text-black/72 transition hover:border-black/20 hover:text-io-dark"
                                                     >
                                                         <Plus className="h-4 w-4" />
                                                         Selecionar
@@ -555,7 +608,7 @@ export function InventoryStudio() {
                                                     onDragOver={handleImageDragOver}
                                                     onDragLeave={handleImageDragLeave}
                                                     onDrop={handleImageDrop}
-                                                    className={`mt-4 rounded-[26px] border border-dashed px-5 py-8 text-center transition ${isImageDragActive ? "border-[#2b57d9] bg-[#eef4ff]" : "border-black/14 bg-[#faf8f4]"}`}
+                                                    className={`mt-4 rounded-[26px] border border-dashed px-5 py-8 text-center transition ${isImageDragActive ? "border-[#2b57d9] bg-[#eef4ff]" : "border-black/14 bg-white"}`}
                                                 >
                                                     <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
                                                         <CarFront className="h-6 w-6 text-black/55" />
@@ -569,20 +622,20 @@ export function InventoryStudio() {
                                                 {form.imageUrls.length ? (
                                                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                                                         {form.imageUrls.map((imageUrl, index) => (
-                                                            <div key={imageUrl} className="overflow-hidden rounded-[24px] border border-black/10 bg-[#faf8f4]">
+                                                            <div key={imageUrl} className="overflow-hidden rounded-[24px] border border-black/10 bg-white">
                                                                 <img src={imageUrl} alt={`Imagem ${index + 1}`} className="h-40 w-full object-cover" />
                                                                 <div className="flex items-center justify-between gap-2 px-3 py-3">
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => promoteImage(imageUrl)}
-                                                                        className={`rounded-full px-3 py-2 text-xs font-semibold transition ${index === 0 ? "bg-black text-white" : "bg-white text-black/70 hover:text-black"}`}
+                                                                        className={`rounded-full px-3 py-2 text-xs font-semibold transition ${index === 0 ? "bg-black text-white" : "bg-white text-black/70 hover:text-io-dark"}`}
                                                                     >
                                                                         {index === 0 ? "Capa" : "Definir capa"}
                                                                     </button>
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => removeImage(imageUrl)}
-                                                                        className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-black/60 transition hover:border-black/20 hover:text-black"
+                                                                        className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-black/60 transition hover:border-black/20 hover:text-io-dark"
                                                                     >
                                                                         Remover
                                                                     </button>
@@ -605,10 +658,11 @@ export function InventoryStudio() {
                                                     <label className="grid gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/82">
                                                         <span>Status do veiculo</span>
                                                         <select value={form.status} onChange={(event) => updateField("status", event.target.value)} className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white outline-none">
-                                                            <option value="DRAFT" className="text-black">Rascunho</option>
-                                                            <option value="READY" className="text-black">Pronto</option>
-                                                            <option value="PUBLISHED" className="text-black">Publicado</option>
-                                                            <option value="ARCHIVED" className="text-black">Arquivado</option>
+                                                            <option value="DRAFT" className="text-io-dark">Rascunho</option>
+                                                            <option value="READY" className="text-io-dark">Pronto</option>
+                                                            <option value="PUBLISHED" className="text-io-dark">Publicado</option>
+                                                            <option value="SOLD" className="text-io-dark">Vendido</option>
+                                                            <option value="ARCHIVED" className="text-io-dark">Arquivado</option>
                                                         </select>
                                                     </label>
                                                 </div>
@@ -621,7 +675,7 @@ export function InventoryStudio() {
                                                         publicationIntegrations.map((integration) => {
                                                             const selected = form.targetIntegrations.includes(integration.providerKey);
                                                             return (
-                                                                <label key={integration.providerKey} className={`rounded-2xl border px-4 py-3 text-sm transition ${selected ? "border-black bg-black text-white" : "border-black/10 bg-[#f7f7f7] text-black/70 hover:border-black/20"}`}>
+                                                                <label key={integration.providerKey} className={`rounded-2xl border px-4 py-3 text-sm transition ${selected ? "border-white bg-black text-white" : "border-black/10 bg-[#f7f7f7] text-black/70 hover:border-black/20"}`}>
                                                                     <div className="flex items-center gap-3">
                                                                         <input
                                                                             type="checkbox"
@@ -646,6 +700,20 @@ export function InventoryStudio() {
                                                 </div>
                                             </section>
                                         </div>
+
+                                        <OlxVehiclePanel
+                                            vehicleId={form.id}
+                                            value={form.olx}
+                                            onHydrate={hydrateOlxMapping}
+                                            onChange={updateOlxField}
+                                            mainSummary={{
+                                                year: form.year,
+                                                mileage: form.mileage,
+                                                priceCents: form.priceCents,
+                                                description: form.description,
+                                                imageCount: form.imageUrls.length,
+                                            }}
+                                        />
                                     </div>
                                 </div>
 
@@ -655,14 +723,14 @@ export function InventoryStudio() {
                                         <button
                                             type="button"
                                             onClick={closeEditor}
-                                            className="inline-flex h-12 items-center justify-center rounded-full border border-black/12 px-5 text-sm font-semibold text-black/68 transition hover:border-black/20 hover:text-black"
+                                            className="inline-flex h-12 items-center justify-center rounded-full border border-black/12 px-5 text-sm font-semibold text-black/68 transition hover:border-black/20 hover:text-io-dark"
                                         >
                                             Cancelar
                                         </button>
                                         <button
                                             type="submit"
                                             disabled={saving}
-                                            className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:bg-black/30"
+                                            className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-io-purple px-5 text-sm font-semibold text-white transition hover:bg-[#212121] disabled:cursor-not-allowed disabled:bg-black/30"
                                         >
                                             {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                                             Salvar cadastro
@@ -682,12 +750,12 @@ function InventoryVehicleCard({ vehicle, onEdit }: { vehicle: VehicleRecord; onE
     const imageUrl = getVehicleImage(vehicle);
 
     return (
-        <article className="group overflow-hidden rounded-[30px] border border-black/10 bg-white p-3 shadow-[0_18px_45px_rgba(15,23,42,0.06)] transition hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
+        <article className="group flex h-full flex-col overflow-hidden rounded-[30px] border border-black/10 bg-white p-3 shadow-[0_18px_45px_rgba(15,23,42,0.06)] transition hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
             <div className="relative overflow-hidden rounded-[24px] bg-[#f1eee8]">
                 {imageUrl ? (
                     <img src={imageUrl} alt={vehicle.title} className="h-60 w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
                 ) : (
-                    <div className="flex h-60 w-full items-center justify-center bg-[linear-gradient(135deg,_rgba(17,17,17,0.96),_rgba(64,64,64,0.9))] text-white">
+                    <div className="flex h-60 w-full items-center justify-center bg-white text-white">
                         <div className="text-center">
                             <CarFront className="mx-auto h-10 w-10 text-white/75" />
                             <p className="mt-3 text-sm text-white/65">Sem imagem principal</p>
@@ -695,17 +763,16 @@ function InventoryVehicleCard({ vehicle, onEdit }: { vehicle: VehicleRecord; onE
                     </div>
                 )}
 
-                <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3">
-                    <span className={`rounded-full px-3 py-2 text-[11px] font-semibold shadow-sm ${vehicle.featured ? "bg-[#f9425f] text-white" : "bg-white text-black/70"}`}>
-                        {vehicle.featured ? "Patrocinado" : "Em estoque"}
-                    </span>
+                <div className="absolute inset-x-0 top-0 flex flex-wrap gap-1.5 p-3">
+                    {vehicle.publications.map((publication) => (
+                        <PublicationBadge key={publication.id} publication={publication} size="sm" />
+                    ))}
                 </div>
             </div>
 
-            <div className="px-2 pb-2 pt-4">
+            <div className="flex flex-1 flex-col px-2 pb-2 pt-4">
                 <div className="flex items-start justify-between gap-3">
                     <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/36">Cadastro simplificado</p>
                         <h3 className="mt-2 font-display text-[1.65rem] font-bold uppercase leading-[1.12] tracking-tight text-io-dark">{vehicle.title}</h3>
                         <p className="mt-2 text-sm leading-6 text-black/58">{buildVehicleSubtitle(vehicle)}</p>
                     </div>
@@ -715,35 +782,20 @@ function InventoryVehicleCard({ vehicle, onEdit }: { vehicle: VehicleRecord; onE
                 <div className="mt-4 flex flex-wrap gap-3 text-sm text-black/56">
                     <MetaItem icon={<CalendarDays className="h-4 w-4" />} text={formatVehicleYears(vehicle)} />
                     <MetaItem icon={<Gauge className="h-4 w-4" />} text={formatMileage(vehicle.mileage)} />
-                    <MetaItem icon={<CarFront className="h-4 w-4" />} text={vehicle.engine ?? vehicle.version ?? "Motor nao informado"} />
                 </div>
 
-                <div className="mt-5 rounded-[24px] bg-[#faf8f4] px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/36">Financiamento</p>
-                    <p className="mt-2 text-sm text-black/62">{formatFinancingSummary(vehicle)}</p>
-                </div>
 
-                <div className="mt-5 rounded-[24px] bg-[#faf8f4] px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/36">Plataformas</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                        {vehicle.publications.length ? (
-                            vehicle.publications.map((publication) => <PublicationBadge key={publication.id} publication={publication} size="sm" />)
-                        ) : (
-                            <span className="inline-flex items-center rounded-full bg-white px-3 py-2 text-xs text-black/48">Nenhuma ativa</span>
-                        )}
-                    </div>
-                </div>
 
-                <div className="mt-5 flex items-end justify-between gap-3">
+                <div className="mt-auto flex flex-col gap-5 pt-6">
                     <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/36">Preco</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/36">Preço</p>
                         <p className="mt-1 text-3xl font-bold tracking-tight text-io-dark">{formatMoney(vehicle.priceCents)}</p>
-                        <p className="mt-1 text-xs text-black/45">Atualizado em {formatDateTime(vehicle.updatedAt)}</p>
+                        <p className="mt-1 text-[10px] text-black/35 font-medium">Atualizado em {formatDateTime(vehicle.updatedAt)}</p>
                     </div>
 
-                    <button type="button" onClick={onEdit} className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#202028] px-5 text-sm font-semibold text-white transition hover:bg-[#111111]">
+                    <button type="button" onClick={onEdit} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-black text-sm font-semibold text-white transition hover:bg-black/85 shadow-sm">
                         <PencilLine className="h-4 w-4" />
-                        Editar cadastro
+                        Editar veículo
                     </button>
                 </div>
             </div>
@@ -753,7 +805,7 @@ function InventoryVehicleCard({ vehicle, onEdit }: { vehicle: VehicleRecord; onE
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
     return (
-        <div className="rounded-[28px] border border-black/8 bg-white/92 px-5 py-4 shadow-[0_12px_24px_rgba(15,23,42,0.05)]">
+        <div className="rounded-[28px] border border-black/8 bg-white px-5 py-4 shadow-[0_12px_24px_rgba(15,23,42,0.05)]">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/35">{label}</p>
             <div className="mt-2 flex items-center justify-between gap-3">
                 <p className="text-3xl font-bold tracking-tight text-io-dark">{value}</p>

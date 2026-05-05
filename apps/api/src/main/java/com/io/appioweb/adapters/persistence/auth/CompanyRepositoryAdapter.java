@@ -30,6 +30,8 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
                 entity.getBusinessHoursStart(),
                 entity.getBusinessHoursEnd(),
                 entity.getBusinessHoursWeeklyJson(),
+                entity.getPublicStockBannerMode(),
+                entity.getPublicStockBannerImagesJson(),
                 entity.getCreatedAt()
         ));
     }
@@ -51,6 +53,8 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
                 entity.getBusinessHoursStart(),
                 entity.getBusinessHoursEnd(),
                 entity.getBusinessHoursWeeklyJson(),
+                entity.getPublicStockBannerMode(),
+                entity.getPublicStockBannerImagesJson(),
                 entity.getCreatedAt()
         ));
     }
@@ -72,6 +76,8 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
                 entity.getBusinessHoursStart(),
                 entity.getBusinessHoursEnd(),
                 entity.getBusinessHoursWeeklyJson(),
+                entity.getPublicStockBannerMode(),
+                entity.getPublicStockBannerImagesJson(),
                 entity.getCreatedAt()
         ));
     }
@@ -94,6 +100,8 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
                         entity.getBusinessHoursStart(),
                         entity.getBusinessHoursEnd(),
                         entity.getBusinessHoursWeeklyJson(),
+                        entity.getPublicStockBannerMode(),
+                        entity.getPublicStockBannerImagesJson(),
                         entity.getCreatedAt()
                 ))
                 .toList();
@@ -121,6 +129,8 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
         entity.setBusinessHoursStart(company.businessHoursStart());
         entity.setBusinessHoursEnd(company.businessHoursEnd());
         entity.setBusinessHoursWeeklyJson(company.businessHoursWeeklyJson());
+        entity.setPublicStockBannerMode(company.publicStockBannerMode());
+        entity.setPublicStockBannerImagesJson(company.publicStockBannerImagesJson());
         entity.setCreatedAt(company.createdAt());
         jpa.save(entity);
     }

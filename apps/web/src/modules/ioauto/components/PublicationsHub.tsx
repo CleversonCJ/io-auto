@@ -40,13 +40,16 @@ export function PublicationsHub() {
 
     return (
         <div className="grid gap-6">
+            <header>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">Módulo Publicações</p>
+                <h1 className="mt-2 font-display text-[1.75rem] font-bold leading-tight text-io-dark">Fila de publicações</h1>
+                <p className="mt-1.5 text-sm text-black/55">Acompanhe em quais canais cada carro está pronto, publicado ou aguardando configuração.</p>
+            </header>
+
             <section className="rounded-[34px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                 <div className="flex items-center justify-between gap-3">
-                    <div>
-                        <h1 className="font-display text-3xl font-bold text-io-dark">Fila de publicações</h1>
-                        <p className="mt-1 text-sm text-black/55">Acompanhe em quais canais cada carro está pronto, publicado ou aguardando configuração.</p>
-                    </div>
-                    <div className="inline-flex items-center gap-2 rounded-full bg-black px-4 py-2 text-sm font-semibold text-white">
+                    <p className="text-sm font-semibold text-black/55">Status de cada publicação</p>
+                    <div className="inline-flex items-center gap-2 rounded-full bg-io-purple px-4 py-2 text-sm font-semibold text-white">
                         <Layers3 className="h-4 w-4" />
                         {publications.length} itens
                     </div>
@@ -70,7 +73,7 @@ export function PublicationsHub() {
                                         <span>Publicado em {formatDateTime(item.publishedAt)}</span>
                                         {item.lastError ? <span className="text-red-600">{item.lastError}</span> : null}
                                         {item.externalUrl ? (
-                                            <a href={item.externalUrl} target="_blank" rel="noreferrer" className="text-black underline">
+                                            <a href={item.externalUrl} target="_blank" rel="noreferrer" className="text-io-dark underline">
                                                 Abrir anúncio
                                             </a>
                                         ) : null}

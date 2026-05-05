@@ -19,6 +19,9 @@ export type DashboardResponse = {
     publicationCount: number;
     leadCount: number;
     connectedIntegrations: number;
+    inventoryValueCents: number;
+    totalSalesCount: number;
+    totalSalesRevenueCents: number;
     billing: BillingSnapshot;
     periodFilter: {
         preset: string;
@@ -99,6 +102,84 @@ export type VehicleRecord = {
     updatedAt: string | null;
 };
 
+export type OlxAdRecord = {
+    id: string;
+    vehicleId: string;
+    localAdId: string;
+    olxListId: string | null;
+    olxUrl: string | null;
+    importToken: string | null;
+    operation: string | null;
+    status: string | null;
+    lastStatusMessage: string | null;
+    publishedAt: string | null;
+    deletedAt: string | null;
+    createdAt: string | null;
+    updatedAt: string | null;
+};
+
+export type OlxVehicleMapping = {
+    vehicleId: string;
+    plate: string | null;
+    phone: string | null;
+    zipcode: string | null;
+    brandId: string | null;
+    modelId: string | null;
+    versionId: string | null;
+    fuelCode: string | null;
+    gearboxCode: string | null;
+    doorsCode: string | null;
+    colorCode: string | null;
+    featureCodes: string[];
+    ad: OlxAdRecord | null;
+};
+
+export type OlxCatalogOption = {
+    id: string;
+    name: string;
+};
+
+export type OlxIntegrationStatus = {
+    connected: boolean;
+    integrationStatus: string;
+    userName: string | null;
+    userEmail: string | null;
+    connectedAt: string | null;
+    updatedAt: string | null;
+    webhookConfigured: boolean;
+    webhookNotificationId: string | null;
+};
+
+export type OlxCounterSnapshot = {
+    performed: number | null;
+    available: number | null;
+    total: number | null;
+};
+
+export type OlxBalanceSnapshot = {
+    available: boolean;
+    id: string | null;
+    name: string | null;
+    ads: OlxCounterSnapshot | null;
+    bumps: {
+        plan: OlxCounterSnapshot | null;
+        additional: OlxCounterSnapshot | null;
+    } | null;
+    lastRenewDate: string | null;
+    nextRenewDate: string | null;
+    reason: string | null;
+    message: string | null;
+};
+
+export type OlxWebhookConfig = {
+    id: string | null;
+    configured: boolean;
+    method: string | null;
+    url: string | null;
+    mediaType: string | null;
+    type: string | null;
+};
+
 export type IntegrationRecord = {
     providerKey: string;
     displayName: string;
@@ -112,6 +193,43 @@ export type IntegrationRecord = {
     lastSyncAt: string | null;
     lastError: string | null;
     settings: Record<string, string>;
+};
+
+export type WebmotorsFeatureFlags = {
+    soapAdsEnabled: boolean;
+    restLeadsEnabled: boolean;
+    catalogSyncEnabled: boolean;
+    leadPullEnabled: boolean;
+    callbackEnabled: boolean;
+};
+
+export type WebmotorsSettingsRecord = {
+    id: string;
+    companyId: string;
+    storeKey: string;
+    storeName: string;
+    featureFlags: WebmotorsFeatureFlags;
+    soapBaseUrl: string;
+    soapAuthPath: string;
+    soapInventoryPath: string;
+    soapCatalogPath: string;
+    soapCnpj: string;
+    soapEmail: string;
+    soapPassword: string;
+    restTokenUrl: string;
+    restApiBaseUrl: string;
+    restUsername: string;
+    restPassword: string;
+    restClientId: string;
+    restClientSecret: string;
+    callbackSecret: string;
+};
+
+export type WebmotorsValidationResult = {
+    success: boolean;
+    statusCode: number;
+    expiresInSeconds: number;
+    message: string;
 };
 
 export type PublicationRecord = {
@@ -202,8 +320,12 @@ export type PublicInventoryCompany = {
     whatsappNumber: string | null;
 };
 
+export type PublicCatalogBannerMode = "VEHICLES" | "CUSTOM_IMAGES";
+
 export type PublicInventoryBanner = {
-    vehicleId: string;
+    id: string;
+    kind: "VEHICLE" | "CUSTOM_IMAGE";
+    vehicleId: string | null;
     title: string;
     subtitle: string;
     imageUrl: string | null;
@@ -248,6 +370,11 @@ export type PublicInventoryCatalog = {
     company: PublicInventoryCompany;
     banners: PublicInventoryBanner[];
     vehicles: PublicInventoryVehicle[];
+};
+
+export type PublicCatalogSettings = {
+    bannerMode: PublicCatalogBannerMode;
+    customImageUrls: string[];
 };
 
 export type PublicVehicleDetail = {

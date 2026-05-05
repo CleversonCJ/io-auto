@@ -216,7 +216,7 @@ export function ModalFrame({
                         <h2 className="text-lg font-semibold text-io-dark">{title}</h2>
                         {description ? <p className="mt-1 text-sm text-black/60">{description}</p> : null}
                     </div>
-                    <button type="button" onClick={onClose} className="rounded-lg px-2 py-1 text-sm text-black/55 transition hover:bg-black/5 hover:text-black">
+                    <button type="button" onClick={onClose} className="rounded-lg px-2 py-1 text-sm text-black/55 transition hover:bg-black/5 hover:text-io-dark">
                         Fechar
                     </button>
                 </div>

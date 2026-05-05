@@ -155,8 +155,8 @@ export function CrmFollowUpsManager({
     const totalPendingNotifications = Array.from(pendingNotificationsByRule.values()).reduce((sum, value) => sum + value, 0);
 
     return (
-        <div className="fixed inset-0 z-[75] grid place-items-center bg-black/45 p-4 backdrop-blur-sm">
-            <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[32px] border border-white/15 bg-[#f6f1e8] shadow-[0_24px_80px_rgba(0,0,0,0.24)]">
+        <div className="fixed inset-0 z-[75] grid place-items-center bg-black/45 p-4">
+            <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[32px] border border-white/15 bg-io-light shadow-[0_24px_80px_rgba(0,0,0,0.24)]">
                 <div className="flex items-start justify-between gap-4 border-b border-black/10 bg-white px-6 py-5">
                     <div>
                         <h2 className="text-2xl font-semibold text-io-dark">Follow ups</h2>
@@ -178,7 +178,7 @@ export function CrmFollowUpsManager({
                 <div className="grid min-h-0 flex-1 gap-5 overflow-y-auto p-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
                     <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
                         <div className="mb-5 flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-black px-3 py-1 text-xs font-semibold text-white">{activeFollowUpsCount} ativos</span>
+                            <span className="rounded-full bg-io-purple px-3 py-1 text-xs font-semibold text-white">{activeFollowUpsCount} ativos</span>
                             <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">{totalPendingNotifications} alertas pendentes</span>
                         </div>
 
@@ -241,7 +241,7 @@ export function CrmFollowUpsManager({
                                 <button
                                     type="button"
                                     onClick={handleSaveDraft}
-                                    className="rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-black/85"
+                                    className="rounded-full bg-io-purple px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-black/85"
                                 >
                                     {draft.id ? "Salvar alterações" : "Criar follow-up"}
                                 </button>
@@ -276,7 +276,7 @@ export function CrmFollowUpsManager({
                                     return (
                                         <div
                                             key={rule.id}
-                                            className={`rounded-[24px] border p-4 transition ${isSelected ? "border-black/20 bg-[#faf7f2]" : "border-black/10 bg-white"}`}
+                                            className={`rounded-[24px] border p-4 transition ${isSelected ? "border-black/20 bg-io-light" : "border-black/10 bg-white"}`}
                                         >
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="min-w-0">
@@ -307,7 +307,7 @@ export function CrmFollowUpsManager({
                                                 <button
                                                     type="button"
                                                     onClick={() => handleToggleRule(rule, !rule.isActive)}
-                                                    className={`rounded-full px-3 py-2 text-xs font-semibold ${rule.isActive ? "bg-black/5 text-black/70" : "bg-[#f6f1e8] text-black/60"}`}
+                                                    className={`rounded-full px-3 py-2 text-xs font-semibold ${rule.isActive ? "bg-black/5 text-black/70" : "bg-io-light text-black/60"}`}
                                                 >
                                                     {rule.isActive ? "Desativar" : "Ativar"}
                                                 </button>

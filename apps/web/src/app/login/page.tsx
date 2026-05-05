@@ -9,11 +9,7 @@ export default async function LoginPage() {
     if (token) redirect("/protected/dashboard");
 
     return (
-        <main className="min-h-screen bg-[#f3f3f3]">
-            <div className="pointer-events-none fixed inset-0 overflow-hidden">
-                <div className="absolute -left-20 top-0 h-72 w-72 rounded-full bg-black/10 blur-3xl" />
-                <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-white blur-3xl" />
-            </div>
+        <main className="min-h-screen bg-io-light">
 
             <div className="relative mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-6 py-10">
                 <div className="grid w-full grid-cols-1 gap-10 lg:grid-cols-[1.15fr_0.85fr]">
@@ -29,7 +25,7 @@ export default async function LoginPage() {
                         </div>
 
                         <div className="grid gap-3">
-                            <div className="rounded-[28px] bg-black p-5 text-white">
+                            <div className="rounded-[28px] bg-io-purple p-5 text-white">
                                 <p className="text-xs uppercase tracking-[0.28em] text-white/45">Operacao</p>
                                 <p className="mt-3 text-lg font-semibold">Atendimento 100% humano com origem do lead visivel</p>
                             </div>

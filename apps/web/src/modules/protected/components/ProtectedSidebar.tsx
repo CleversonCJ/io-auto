@@ -4,18 +4,27 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+    Building2,
     Cable,
     CarFront,
+    ChartColumnBig,
     ChevronLeft,
     ChevronRight,
+    CreditCard,
+    HandCoins,
     LayoutDashboard,
+    Lightbulb,
     Link2,
+    MapPinned,
     MessageSquareText,
+    MonitorCog,
+    PackageSearch,
+    Rocket,
     Settings2,
     Users2,
     Workflow,
 } from "lucide-react";
-import { BrandMark } from "@/modules/ioauto/components/BrandMark";
+import { superAdminNavItems } from "@/modules/superadmin/data";
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "ioauto.sidebar.collapsed";
 
@@ -31,7 +40,25 @@ type CurrentUser = {
 type NavItem = {
     label: string;
     href: string;
-    icon: "dashboard" | "conversas" | "crm" | "estoque" | "links" | "publicacoes" | "integracoes" | "equipe";
+    icon:
+        | "dashboard"
+        | "conversas"
+        | "crm"
+        | "estoque"
+        | "financeiro"
+        | "links"
+        | "publicacoes"
+        | "integracoes"
+        | "equipe"
+        | "superadmin"
+        | "clientes"
+        | "produto"
+        | "marketplaces"
+        | "crescimento"
+        | "cobranca"
+        | "operacional"
+        | "insights"
+        | "tenants";
 };
 
 function getInitials(fullName?: string | null, email?: string | null) {
@@ -53,20 +80,62 @@ function hasAdminRole(roles?: string[] | null) {
     });
 }
 
+function hasSuperAdminRole(roles?: string[] | null) {
+    return (roles ?? []).some((role) => role.toUpperCase() === "SUPERADMIN");
+}
+
 function NavIcon({ icon }: { icon: NavItem["icon"] }) {
     if (icon === "dashboard") return <LayoutDashboard className="h-5 w-5" strokeWidth={2} />;
     if (icon === "conversas") return <MessageSquareText className="h-5 w-5" strokeWidth={2} />;
     if (icon === "crm") return <Users2 className="h-5 w-5" strokeWidth={2} />;
     if (icon === "estoque") return <CarFront className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "financeiro") return <HandCoins className="h-5 w-5" strokeWidth={2} />;
     if (icon === "links") return <Link2 className="h-5 w-5" strokeWidth={2} />;
     if (icon === "publicacoes") return <Workflow className="h-5 w-5" strokeWidth={2} />;
     if (icon === "integracoes") return <Cable className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "superadmin") return <Building2 className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "clientes") return <Users2 className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "produto") return <PackageSearch className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "marketplaces") return <ChartColumnBig className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "crescimento") return <Rocket className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "cobranca") return <CreditCard className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "operacional") return <MonitorCog className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "insights") return <Lightbulb className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "tenants") return <MapPinned className="h-5 w-5" strokeWidth={2} />;
     return <Users2 className="h-5 w-5" strokeWidth={2} />;
+}
+
+function getDefaultSidebarItems(): NavItem[] {
+    return [
+        { label: "Dashboard", href: "/protected/dashboard", icon: "dashboard" },
+        { label: "Leads", href: "/protected/conversas", icon: "conversas" },
+        { label: "CRM", href: "/protected/crm", icon: "crm" },
+        { label: "Estoque", href: "/protected/estoque", icon: "estoque" },
+        { label: "Financeiro", href: "/protected/financeiro", icon: "financeiro" },
+        { label: "Links", href: "/protected/links-publicos", icon: "links" },
+        { label: "Publicações", href: "/protected/publicacoes", icon: "publicacoes" },
+        { label: "Integrações", href: "/protected/integracoes", icon: "integracoes" },
+    ];
+}
+
+function getSuperAdminSidebarItems(): NavItem[] {
+    return superAdminNavItems.map((item) => {
+        if (item.href.endsWith("/financeiro")) return { label: item.label, href: item.href, icon: "financeiro" };
+        if (item.href.endsWith("/clientes")) return { label: item.label, href: item.href, icon: "clientes" };
+        if (item.href.endsWith("/produto")) return { label: item.label, href: item.href, icon: "produto" };
+        if (item.href.endsWith("/marketplaces")) return { label: item.label, href: item.href, icon: "marketplaces" };
+        if (item.href.endsWith("/crescimento")) return { label: item.label, href: item.href, icon: "crescimento" };
+        if (item.href.endsWith("/cobranca")) return { label: item.label, href: item.href, icon: "cobranca" };
+        if (item.href.endsWith("/operacional")) return { label: item.label, href: item.href, icon: "operacional" };
+        if (item.href.endsWith("/insights")) return { label: item.label, href: item.href, icon: "insights" };
+        return { label: item.label, href: item.href, icon: "tenants" };
+    });
 }
 
 export function ProtectedSidebar({ user }: { user: CurrentUser | null }) {
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState(false);
+    const isSuperAdmin = hasSuperAdminRole(user?.roles);
 
     useEffect(() => {
         const storedValue = window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
@@ -77,24 +146,15 @@ export function ProtectedSidebar({ user }: { user: CurrentUser | null }) {
         window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(collapsed));
     }, [collapsed]);
 
-    const items: NavItem[] = [
-        { label: "Dashboard", href: "/protected/dashboard", icon: "dashboard" },
-        { label: "Leads", href: "/protected/conversas", icon: "conversas" },
-        { label: "CRM", href: "/protected/crm", icon: "crm" },
-        { label: "Estoque", href: "/protected/estoque", icon: "estoque" },
-        { label: "Links", href: "/protected/links-publicos", icon: "links" },
-        { label: "Publicações", href: "/protected/publicacoes", icon: "publicacoes" },
-        { label: "Integrações", href: "/protected/integracoes", icon: "integracoes" },
-    ];
+    const items: NavItem[] = isSuperAdmin ? getSuperAdminSidebarItems() : getDefaultSidebarItems();
 
-    if (hasAdminRole(user?.roles)) {
+    if (!isSuperAdmin && hasAdminRole(user?.roles)) {
         items.push({ label: "Equipe", href: "/protected/configuracoes", icon: "equipe" });
     }
 
     return (
         <aside className={`bg-io-dark text-white md:h-screen md:border-r md:border-white/10 ${collapsed ? "md:w-[96px]" : "md:w-[304px]"}`}>
             <div className="flex items-center justify-between px-5 py-5">
-                <BrandMark href="/protected/dashboard" compact={collapsed} variant="white" />
                 <button
                     type="button"
                     onClick={() => setCollapsed((value) => !value)}
@@ -105,21 +165,27 @@ export function ProtectedSidebar({ user }: { user: CurrentUser | null }) {
                 </button>
             </div>
 
-            <div className={`relative mx-4 rounded-[28px] border border-white/10 bg-white/5 px-4 py-4 text-white shadow-none ${collapsed ? "grid place-items-center" : ""}`}>
-                <Link
-                    href="/protected/perfil"
-                    className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white/75 transition hover:border-white/30 hover:bg-white/20 hover:text-white"
-                    aria-label="Abrir perfil"
-                    title="Perfil"
-                >
-                    <Settings2 className="h-4 w-4" strokeWidth={2} />
-                </Link>
+            <div className={`relative mx-4 rounded-[28px] border border-white/10 bg-white/5 text-white shadow-none transition-all ${collapsed ? "grid place-items-center p-2" : "px-4 py-4"}`}>
+                {!collapsed && (
+                    <Link
+                        href="/protected/perfil"
+                        className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white/75 transition hover:border-white/30 hover:bg-white/20 hover:text-white"
+                        aria-label="Abrir perfil"
+                        title="Perfil"
+                    >
+                        <Settings2 className="h-4 w-4" strokeWidth={2} />
+                    </Link>
+                )}
 
                 {user?.profileImageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={user.profileImageUrl} alt={user.fullName ?? "Usuário"} className="h-12 w-12 rounded-2xl object-cover" />
+                    <img
+                        src={user.profileImageUrl}
+                        alt={user.fullName ?? "Usuário"}
+                        className={`rounded-2xl object-cover transition-all ${collapsed ? "h-10 w-10" : "h-12 w-12"}`}
+                    />
                 ) : (
-                    <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-sm font-bold text-io-dark">
+                    <div className={`grid place-items-center rounded-2xl bg-white font-bold text-io-dark transition-all ${collapsed ? "h-10 w-10 text-xs" : "h-12 w-12 text-sm"}`}>
                         {getInitials(user?.fullName, user?.email)}
                     </div>
                 )}

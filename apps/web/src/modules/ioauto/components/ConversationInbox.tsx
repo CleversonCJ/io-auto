@@ -15,18 +15,20 @@ function MessageBubble({ message }: { message: ConversationMessage }) {
     const mediaLink = message.imageUrl || message.videoUrl || message.documentUrl || message.audioUrl;
 
     return (
-        <div className={`max-w-[80%] rounded-[26px] px-4 py-3 text-sm shadow-[0_10px_30px_rgba(0,0,0,0.08)] ${message.fromMe ? "ml-auto bg-black text-white" : "bg-white text-black/75"}`}>
-            {message.text ? <p className="whitespace-pre-wrap leading-6">{message.text}</p> : null}
+        <div className={`max-w-[35%] rounded-[18px] px-3.5 py-2 text-[13px] shadow-sm ${message.fromMe ? "ml-auto bg-io-dark text-white rounded-br-none" : "bg-white text-black/80 rounded-bl-none border border-black/5"}`}>
+            {message.text ? <p className="whitespace-pre-wrap leading-5">{message.text}</p> : null}
             {message.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={message.imageUrl} alt="Mídia do atendimento" className="mt-3 max-h-72 w-full rounded-2xl object-cover" />
+                <img src={message.imageUrl} alt="Mídia do atendimento" className="mt-2 max-h-48 w-full rounded-xl object-cover" />
             ) : null}
             {mediaLink && !message.imageUrl ? (
-                <a href={mediaLink} target="_blank" rel="noreferrer" className={`mt-2 inline-flex text-xs underline ${message.fromMe ? "text-white/75" : "text-black/60"}`}>
+                <a href={mediaLink} target="_blank" rel="noreferrer" className={`mt-1.5 inline-flex text-[11px] underline ${message.fromMe ? "text-white/75" : "text-black/60"}`}>
                     Abrir anexo
                 </a>
             ) : null}
-            <p className={`mt-2 text-[11px] ${message.fromMe ? "text-white/55" : "text-black/40"}`}>{formatDateTime(message.createdAt)}</p>
+            <div className="mt-1 flex items-center justify-end">
+                <p className={`text-[10px] opacity-50`}>{formatDateTime(message.createdAt)}</p>
+            </div>
         </div>
     );
 }
@@ -189,8 +191,8 @@ export function ConversationInbox() {
 
     return (
         <>
-            <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-                <section className="rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
+            <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)] h-[calc(100vh-50px)]">
+                <section className="flex flex-col h-full overflow-hidden rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                     <div className="flex items-center justify-between gap-3">
                         <div>
                             <h1 className="font-display text-2xl font-bold text-io-dark">Leads recebidos</h1>
@@ -199,7 +201,7 @@ export function ConversationInbox() {
                         <button
                             type="button"
                             onClick={() => setRefreshTick((value) => value + 1)}
-                            className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold text-black/60 transition hover:border-black/20 hover:text-black"
+                            className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold text-black/60 transition hover:border-black/20 hover:text-io-dark"
                         >
                             Atualizar
                         </button>
@@ -207,7 +209,7 @@ export function ConversationInbox() {
 
                     {pageError ? <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{pageError}</p> : null}
 
-                    <div className="mt-5 grid gap-3">
+                    <div className="mt-5 flex-1 overflow-y-auto pr-1 grid gap-3 content-start">
                         {conversations.map((conversation) => {
                             const active = conversation.id === selectedId;
                             return (
@@ -215,32 +217,32 @@ export function ConversationInbox() {
                                     key={conversation.id}
                                     type="button"
                                     onClick={() => setSelectedId(conversation.id)}
-                                    className={`rounded-[26px] border px-4 py-4 text-left transition ${active ? "border-black bg-black text-white shadow-[0_16px_34px_rgba(0,0,0,0.18)]" : "border-black/10 bg-black/[0.02] hover:border-black/20 hover:bg-black/[0.04]"}`}
+                                    className={`rounded-[26px] border px-4 py-4 text-left transition ${active ? "border-io-purple border-2 bg-white text-io-dark shadow-[0_16px_34px_rgba(107,0,227,0.08)]" : "border-black/10 bg-white hover:border-black/20 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)]"}`}
                                 >
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
                                             <div className="flex flex-wrap items-center gap-2">
-                                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.2em] ${active ? "bg-white text-black" : "bg-black text-white"}`}>
+                                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.2em] ${active ? "bg-io-purple text-white" : "bg-io-purple/10 text-io-purple"}`}>
                                                     <SourceIcon platform={conversation.sourcePlatform} />
                                                     {platformLabel(conversation.sourcePlatform)}
                                                 </span>
-                                                <span className={`text-[11px] ${active ? "text-white/60" : "text-black/45"}`}>{statusLabel(conversation.status)}</span>
+                                                <span className={`text-[11px] ${active ? "text-black/60" : "text-black/45"}`}>{statusLabel(conversation.status)}</span>
                                                 {conversation.latestCompletedSaleCompleted ? (
-                                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${active ? "bg-[#f6c453] text-black" : "bg-[#fff4dd] text-[#8a5a00]"}`}>
+                                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${active ? "bg-[#f6c453] text-io-dark" : "bg-[#fff4dd] text-[#8a5a00]"}`}>
                                                         <CheckCircle2 className="h-3.5 w-3.5" />
                                                         Venda concluída
                                                     </span>
                                                 ) : null}
                                             </div>
                                             <p className="mt-3 truncate text-sm font-semibold">{conversation.displayName || conversation.phone}</p>
-                                            <p className={`mt-1 line-clamp-2 text-sm ${active ? "text-white/70" : "text-black/55"}`}>{conversation.lastMessage || "Sem mensagens recentes."}</p>
+                                            <p className={`mt-1 line-clamp-2 text-sm ${active ? "text-black/70" : "text-black/55"}`}>{conversation.lastMessage || "Sem mensagens recentes."}</p>
                                             {conversation.latestCompletedSaleCompleted && conversation.latestCompletedSoldVehicleTitle ? (
                                                 <p className={`mt-2 text-xs ${active ? "text-white/65" : "text-black/45"}`}>
                                                     Veículo vendido: {conversation.latestCompletedSoldVehicleTitle}
                                                 </p>
                                             ) : null}
                                         </div>
-                                        <span className={`text-[11px] ${active ? "text-white/60" : "text-black/45"}`}>{formatDateTime(conversation.lastAt)}</span>
+                                        <span className={`text-[11px] ${active ? "text-black/40" : "text-black/45"}`}>{formatDateTime(conversation.lastAt)}</span>
                                     </div>
                                 </button>
                             );
@@ -254,65 +256,67 @@ export function ConversationInbox() {
                     </div>
                 </section>
 
-                <section className="rounded-[34px] border border-black/10 bg-[#f5f5f5] p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
+                <section className="flex flex-col h-full overflow-hidden rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                     {selectedConversation ? (
-                        <div className="grid h-full gap-5">
-                            <div className="rounded-[28px] bg-white px-5 py-4 shadow-[0_12px_30px_rgba(0,0,0,0.06)]">
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <div>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <span className="inline-flex items-center gap-2 rounded-full bg-black px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-white">
-                                                <SourceIcon platform={selectedConversation.sourcePlatform} />
-                                                {platformLabel(selectedConversation.sourcePlatform)}
-                                            </span>
-                                            <span className="text-xs text-black/45">{statusLabel(selectedConversation.status)}</span>
-                                            {selectedConversation.latestCompletedSaleCompleted ? (
-                                                <span className="inline-flex items-center gap-2 rounded-full bg-[#fff4dd] px-3 py-1 text-[11px] font-semibold text-[#8a5a00]">
-                                                    <CheckCircle2 className="h-4 w-4" />
-                                                    Venda concluída
-                                                </span>
-                                            ) : null}
+                        <div className="flex h-full flex-col gap-5">
+                            <div className="rounded-[28px] border border-black/10 bg-white px-5 py-3 shadow-[0_12px_30px_rgba(0,0,0,0.04)]">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div className="flex min-w-0 items-center gap-4">
+                                        <div className="grid h-12 w-12 flex-none place-items-center rounded-full bg-io-purple/10 text-lg font-bold text-io-purple uppercase">
+                                            {(selectedConversation.displayName || selectedConversation.phone || "?")[0]}
                                         </div>
-                                        <h2 className="mt-3 font-display text-3xl font-bold text-io-dark">
-                                            {selectedConversation.displayName || selectedConversation.phone}
-                                        </h2>
-                                        <p className="mt-1 text-sm text-black/55">{selectedConversation.phone}</p>
-                                        {selectedConversation.assignedUserName ? (
-                                            <p className="mt-2 text-sm text-black/50">Responsável atual: {selectedConversation.assignedUserName}</p>
-                                        ) : null}
-                                        {selectedConversation.latestCompletedSaleCompleted && selectedConversation.latestCompletedSoldVehicleTitle ? (
-                                            <p className="mt-2 text-sm text-[#8a5a00]">
-                                                Última venda registrada: {selectedConversation.latestCompletedSoldVehicleTitle}
-                                            </p>
-                                        ) : null}
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <h2 className="truncate text-lg font-bold text-io-dark leading-tight">
+                                                    {selectedConversation.displayName || selectedConversation.phone}
+                                                </h2>
+                                                <span className="text-xs text-black/40 font-medium">{selectedConversation.phone}</span>
+                                            </div>
+                                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                                                <span className="inline-flex items-center gap-1.5 rounded-full bg-io-purple/5 px-2.5 py-0.5 text-[9px] uppercase tracking-wider text-io-purple font-bold border border-io-purple/10">
+                                                    <SourceIcon platform={selectedConversation.sourcePlatform} />
+                                                    {platformLabel(selectedConversation.sourcePlatform)}
+                                                </span>
+                                                <span className="text-[9px] text-black/40 font-bold uppercase tracking-wider">{statusLabel(selectedConversation.status)}</span>
+                                                {selectedConversation.latestCompletedSaleCompleted ? (
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[9px] font-bold text-emerald-600 border border-emerald-100 uppercase tracking-wider">
+                                                        <CheckCircle2 className="h-3 w-3" />
+                                                        Venda concluída
+                                                    </span>
+                                                ) : null}
+                                                {selectedConversation.assignedUserName && (
+                                                    <span className="text-[9px] text-black/35 font-medium italic">Atendido por: {selectedConversation.assignedUserName}</span>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <div className="flex flex-wrap gap-2">
+                                    <div className="flex flex-none gap-2">
                                         {selectedConversation.status === "NEW" ? (
                                             <button
                                                 type="button"
                                                 onClick={handleAssumeConversation}
-                                                className="inline-flex items-center gap-2 rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-black/85"
+                                                className="inline-flex h-9 items-center gap-2 rounded-full bg-io-purple px-4 text-xs font-bold text-white transition hover:brightness-110 shadow-[0_4px_12px_rgba(107,0,227,0.15)]"
                                             >
-                                                <PhoneCall className="h-4 w-4" />
-                                                Assumir atendimento
+                                                <PhoneCall className="h-3.5 w-3.5" />
+                                                Assumir
                                             </button>
                                         ) : null}
 
                                         <button
                                             type="button"
                                             onClick={openSaleModal}
-                                            className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-[#f6c453] px-4 py-2 text-sm font-semibold text-black transition hover:brightness-95"
+                                            className="inline-flex h-9 items-center gap-2 rounded-full bg-emerald-500 px-4 text-xs font-bold text-white transition hover:brightness-110 shadow-[0_4px_12px_rgba(16,185,129,0.2)]"
                                         >
-                                            <CheckCircle2 className="h-4 w-4" />
-                                            Venda concluída
+                                            <CheckCircle2 className="h-3.5 w-3.5" />
+                                            Venda
                                         </button>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="flex min-h-[420px] flex-col rounded-[28px] border border-black/10 bg-white px-5 py-5 shadow-[0_12px_30px_rgba(0,0,0,0.06)]">
-                                <div className="flex-1 space-y-3 overflow-y-auto pr-2">
+                            <div className="flex flex-1 flex-col rounded-[28px] border border-black/10 bg-white px-5 py-5 shadow-[0_12px_30px_rgba(0,0,0,0.06)] overflow-hidden">
+                                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
                                     {loadingMessages ? (
                                         <div className="flex h-40 items-center justify-center text-black/45">
                                             <LoaderCircle className="h-5 w-5 animate-spin" />
@@ -322,13 +326,13 @@ export function ConversationInbox() {
                                     )}
                                 </div>
 
-                                <div className="mt-4 rounded-[24px] border border-dashed border-black/10 bg-[#f5f5f5] px-4 py-4 text-sm text-black/50">
+                                <div className="mt-4 rounded-[24px] border border-dashed border-black/10 bg-black/[0.03] px-4 py-4 text-sm text-black/50">
                                     O atendimento por WhatsApp foi removido. Esta área agora exibe apenas o histórico recebido pelas integrações de venda.
                                 </div>
                             </div>
                         </div>
                     ) : (
-                        <div className="grid min-h-[520px] place-items-center rounded-[28px] border border-dashed border-black/10 bg-white text-center">
+                        <div className="grid min-h-[520px] place-items-center rounded-[28px] border border-black/10 bg-white text-center shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                             <div className="max-w-md px-6">
                                 <MessageSquareText className="mx-auto h-10 w-10 text-black/35" />
                                 <h2 className="mt-4 font-display text-3xl font-bold text-io-dark">Central preparada para leads integrados</h2>
@@ -355,7 +359,7 @@ export function ConversationInbox() {
                             <button
                                 type="button"
                                 onClick={closeSaleModal}
-                                className="rounded-full border border-black/10 px-3 py-2 text-sm font-semibold text-black/60 transition hover:border-black/20 hover:text-black"
+                                className="rounded-full border border-black/10 px-3 py-2 text-sm font-semibold text-black/60 transition hover:border-black/20 hover:text-io-dark"
                             >
                                 Fechar
                             </button>
@@ -396,7 +400,7 @@ export function ConversationInbox() {
                             <button
                                 type="button"
                                 onClick={closeSaleModal}
-                                className="rounded-full border border-black/10 px-5 py-3 text-sm font-semibold text-black/60 transition hover:border-black/20 hover:text-black"
+                                className="rounded-full border border-black/10 px-5 py-3 text-sm font-semibold text-black/60 transition hover:border-black/20 hover:text-io-dark"
                             >
                                 Cancelar
                             </button>
@@ -404,7 +408,7 @@ export function ConversationInbox() {
                                 type="button"
                                 onClick={handleConcludeSale}
                                 disabled={saleSubmitting || !saleableVehicles.length}
-                                className="inline-flex items-center gap-2 rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:bg-black/20"
+                                className="inline-flex items-center gap-2 rounded-full bg-io-purple px-5 py-3 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:bg-black/20"
                             >
                                 {saleSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                                 Confirmar venda

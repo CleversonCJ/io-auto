@@ -517,6 +517,8 @@ public class IoAutoBillingService {
                 "09:00",
                 "18:00",
                 DEFAULT_BUSINESS_HOURS_WEEKLY_JSON,
+                "VEHICLES",
+                "[]",
                 now
         );
         companies.save(company);
@@ -605,6 +607,8 @@ public class IoAutoBillingService {
                 company.businessHoursStart(),
                 company.businessHoursEnd(),
                 company.businessHoursWeeklyJson(),
+                company.publicStockBannerMode(),
+                company.publicStockBannerImagesJson(),
                 company.createdAt()
         )));
     }
@@ -664,6 +668,7 @@ public class IoAutoBillingService {
 
     private void ensureDefaultIntegrations(UUID companyId, Instant now) {
         upsertIntegration(companyId, "webmotors", "Webmotors / Estoque e Leads", now);
+        upsertIntegration(companyId, "olx", "OLX", now);
     }
 
     private void upsertIntegration(UUID companyId, String providerKey, String displayName, Instant now) {

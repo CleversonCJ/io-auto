@@ -4,11 +4,13 @@ import com.io.appioweb.adapters.persistence.ioauto.JpaWebmotorsAdEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaWebmotorsLeadEntity;
 import com.io.appioweb.application.auth.port.out.CurrentUserPort;
 import com.io.appioweb.application.ioauto.webmotors.WebmotorsAdsService;
-import com.io.appioweb.application.ioauto.webmotors.WebmotorsCatalogService;
 import com.io.appioweb.application.ioauto.webmotors.WebmotorsCredentialService;
 import com.io.appioweb.application.ioauto.webmotors.WebmotorsLeadService;
+import com.io.appioweb.application.ioauto.webmotors.modules.auth.WmAuthService;
 import com.io.appioweb.domain.ioauto.webmotors.WebmotorsCatalogEntry;
 import com.io.appioweb.domain.ioauto.webmotors.WebmotorsCredentialSnapshot;
+import com.io.appioweb.domain.ioauto.webmotors.WebmotorsRestAccessToken;
+import com.io.appioweb.domain.ioauto.webmotors.WebmotorsTransportResult;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
@@ -25,17 +27,20 @@ public class WebmotorsController {
     private final WebmotorsCredentialService credentialService;
     private final WebmotorsAdsService adsService;
     private final WebmotorsLeadService leadService;
+    private final WmAuthService authService;
 
     public WebmotorsController(
             CurrentUserPort currentUser,
             WebmotorsCredentialService credentialService,
             WebmotorsAdsService adsService,
-            WebmotorsLeadService leadService
+            WebmotorsLeadService leadService,
+            WmAuthService authService
     ) {
         this.currentUser = currentUser;
         this.credentialService = credentialService;
         this.adsService = adsService;
         this.leadService = leadService;
+        this.authService = authService;
     }
 
     @GetMapping("/ioauto/webmotors/settings")
@@ -47,6 +52,20 @@ public class WebmotorsController {
     @Transactional
     public ResponseEntity<WebmotorsCredentialSnapshot> updateSettings(@Valid @RequestBody UpdateWebmotorsSettingsRequest request) {
         return ResponseEntity.ok(credentialService.save(currentUser.companyId(), request.toServiceRequest()));
+    }
+
+    @PostMapping("/ioauto/webmotors/settings/validate")
+    public ResponseEntity<ValidateWebmotorsSettingsResponse> validateSettings(
+            @RequestParam(defaultValue = "default") String storeKey
+    ) {
+        WebmotorsCredentialSnapshot credentials = credentialService.getOrCreate(currentUser.companyId(), storeKey);
+        WebmotorsTransportResult<WebmotorsRestAccessToken> tokenTransport = authService.issueAccessToken(credentials);
+        return ResponseEntity.ok(new ValidateWebmotorsSettingsResponse(
+                true,
+                tokenTransport.statusCode(),
+                tokenTransport.payload().expiresInSeconds(),
+                "Access token obtido com sucesso."
+        ));
     }
 
     @GetMapping("/ioauto/webmotors/ads")
@@ -157,5 +176,13 @@ public class WebmotorsController {
                     callbackSecret
             );
         }
+    }
+
+    public record ValidateWebmotorsSettingsResponse(
+            boolean success,
+            int statusCode,
+            long expiresInSeconds,
+            String message
+    ) {
     }
 }

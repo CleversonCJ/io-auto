@@ -222,7 +222,7 @@ export function AtendimentoReportsPage() {
         };
     }, []);
 
-    const capacityOptions = useMemo<Highcharts.Options>(() => ({ ...chartBase("Capacidade de atendimento"), legend: legendWithHelp({ Novos: "Quantidade de atendimentos que chegaram no dia dentro do período filtrado.", Concluídos: "Quantidade de atendimentos concluídos no dia dentro do período filtrado.", Pendentes: "Backlog acumulado de atendimentos pendentes ao final de cada dia." }), xAxis: { ...chartBase("").xAxis, categories: overview?.capacitySeries.map((item) => formatDay(item.date)) ?? [] }, series: [{ type: "column", name: "Novos", data: overview?.capacitySeries.map((item) => item.newCount) ?? [], color: "#6b00e3" }, { type: "column", name: "Concluídos", data: overview?.capacitySeries.map((item) => item.completedCount) ?? [], color: "#0ea5e9" }, { type: "spline", name: "Pendentes", data: overview?.capacitySeries.map((item) => item.pendingCount) ?? [], color: "#f59e0b" }] }), [overview]);
+    const capacityOptions = useMemo<Highcharts.Options>(() => ({ ...chartBase("Capacidade de atendimento"), legend: legendWithHelp({ Novos: "Quantidade de atendimentos que chegaram no dia dentro do período filtrado.", Concluídos: "Quantidade de atendimentos concluídos no dia dentro do período filtrado.", Pendentes: "Backlog acumulado de atendimentos pendentes ao final de cada dia." }), xAxis: { ...chartBase("").xAxis, categories: overview?.capacitySeries.map((item) => formatDay(item.date)) ?? [] }, series: [{ type: "column", name: "Novos", data: overview?.capacitySeries.map((item) => item.newCount) ?? [], color: "#6b00e3" }, { type: "column", name: "Concluídos", data: overview?.capacitySeries.map((item) => item.completedCount) ?? [], color: "#0ea5e9" }, { type: "spline", name: "Pendentes", data: overview?.capacitySeries.map((item) => item.pendingCount) ?? [], color: "#6b00e3" }] }), [overview]);
     const waitTrendSeconds = useMemo(
         () => movingAverage(overview?.waitTime.series ?? [], (item) => Number(item.startedCount ?? 0), 3),
         [overview]
@@ -400,7 +400,7 @@ export function AtendimentoReportsPage() {
                 name: "Atendimentos concluídos",
                 yAxis: 1,
                 data: overview?.duration.series.map((item) => item.completedCount) ?? [],
-                color: "#f59e0b",
+                color: "#6b00e3",
                 tooltip: {
                     pointFormatter: function () {
                         return `<span style="color:${this.color}">\u25CF</span> ${this.series.name}: <b>${formatNumber(Number(this.y ?? 0))}</b><br/>`;
@@ -417,25 +417,27 @@ export function AtendimentoReportsPage() {
     }, [overview]);
     return (
         <section className="space-y-6">
-            <header className="rounded-[28px] border border-black/10 bg-white p-6 shadow-soft">
+            <header>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">Módulo Relatórios</p>
+                <h1 className="mt-2 font-display text-[1.75rem] font-bold leading-tight text-io-dark">Relatórios de Atendimentos</h1>
+                <p className="mt-1.5 text-sm text-black/55">Acompanhe backlog, tempos de atendimento, desempenho por usuário e distribuição de resultados usando dados reais persistidos no tenant atual.</p>
+            </header>
+
+            <div className="rounded-[28px] border border-black/10 bg-white p-6 shadow-soft">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div>
-                        <p className="text-sm font-medium text-violet-700">Relatórios operacionais</p>
-                        <h1 className="mt-1 text-3xl font-semibold text-io-dark">Atendimentos</h1>
-                        <p className="mt-2 max-w-3xl text-sm text-black/60">Acompanhe backlog, tempos de atendimento, desempenho por usuário e distribuição de resultados usando dados reais persistidos no tenant atual.</p>
-                    </div>
+                    <p className="text-sm font-semibold text-black/55">Filtros do relatório</p>
                     <button type="button" onClick={() => void loadReports(appliedFiltersRef.current, { background: true })} className="inline-flex h-11 items-center gap-2 rounded-xl border border-black/10 px-4 text-sm font-semibold text-io-dark transition hover:bg-black/5"><RefreshCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} strokeWidth={2} />{refreshing ? "Atualizando..." : "Atualizar"}</button>
                 </div>
-                <div className="mt-6 grid gap-3 lg:grid-cols-[repeat(5,minmax(0,1fr))_auto]">
-                    <input type="date" value={filters.startDate} onChange={(event) => setFilters((current) => ({ ...current, startDate: event.target.value }))} className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-violet-400" />
-                    <input type="date" value={filters.endDate} onChange={(event) => setFilters((current) => ({ ...current, endDate: event.target.value }))} className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-violet-400" />
-                    <select value={filters.userId} onChange={(event) => setFilters((current) => ({ ...current, userId: event.target.value }))} className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-violet-400"><option value="">Todos os usuários</option>{filteredUsers.map((user) => <option key={user.id} value={user.id}>{user.fullName}</option>)}</select>
-                    <select value={filters.teamId} onChange={(event) => setFilters((current) => ({ ...current, teamId: event.target.value }))} className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-violet-400"><option value="">Todas as equipes</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select>
-                    <select value={filters.channelId} onChange={(event) => setFilters((current) => ({ ...current, channelId: event.target.value }))} className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-violet-400"><option value="">Todos os canais</option>{(overview?.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.label}</option>)}</select>
+                <div className="mt-4 grid gap-3 lg:grid-cols-[repeat(5,minmax(0,1fr))_auto]">
+                    <input type="date" value={filters.startDate} onChange={(event) => setFilters((current) => ({ ...current, startDate: event.target.value }))} className="h-11 rounded-xl border border-black/10 bg-[#fafafa] px-3 text-sm outline-none focus:border-black/25 focus:bg-white" />
+                    <input type="date" value={filters.endDate} onChange={(event) => setFilters((current) => ({ ...current, endDate: event.target.value }))} className="h-11 rounded-xl border border-black/10 bg-[#fafafa] px-3 text-sm outline-none focus:border-black/25 focus:bg-white" />
+                    <select value={filters.userId} onChange={(event) => setFilters((current) => ({ ...current, userId: event.target.value }))} className="h-11 rounded-xl border border-black/10 bg-[#fafafa] px-3 text-sm outline-none focus:border-black/25 focus:bg-white"><option value="">Todos os usuários</option>{filteredUsers.map((user) => <option key={user.id} value={user.id}>{user.fullName}</option>)}</select>
+                    <select value={filters.teamId} onChange={(event) => setFilters((current) => ({ ...current, teamId: event.target.value }))} className="h-11 rounded-xl border border-black/10 bg-[#fafafa] px-3 text-sm outline-none focus:border-black/25 focus:bg-white"><option value="">Todas as equipes</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select>
+                    <select value={filters.channelId} onChange={(event) => setFilters((current) => ({ ...current, channelId: event.target.value }))} className="h-11 rounded-xl border border-black/10 bg-[#fafafa] px-3 text-sm outline-none focus:border-black/25 focus:bg-white"><option value="">Todos os canais</option>{(overview?.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.label}</option>)}</select>
                     <button type="button" onClick={() => setAppliedFilters({ ...filters })} className="h-11 rounded-xl bg-io-purple px-5 text-sm font-semibold text-white transition hover:brightness-110">Aplicar</button>
                 </div>
-                <div className="mt-6 flex flex-wrap gap-2">{(["geral", "usuario", "resultados"] as TabKey[]).map((item) => <button key={item} type="button" onClick={() => setTab(item)} className={`h-11 rounded-full px-5 text-sm font-semibold transition ${tab === item ? "bg-io-purple text-white shadow-soft" : "border border-black/10 bg-white text-black/60 hover:bg-black/5"}`}>{item === "geral" ? "Geral" : item === "usuario" ? "Usuário" : "Resultados"}</button>)}</div>
-            </header>
+                <div className="mt-5 flex flex-wrap gap-2">{(["geral", "usuario", "resultados"] as TabKey[]).map((item) => <button key={item} type="button" onClick={() => setTab(item)} className={`h-11 rounded-full px-5 text-sm font-semibold transition ${tab === item ? "bg-io-purple text-white shadow-soft" : "border border-black/10 bg-white text-black/60 hover:bg-black/5"}`}>{item === "geral" ? "Geral" : item === "usuario" ? "Usuário" : "Resultados"}</button>)}</div>
+            </div>
 
             {loading ? <div className="grid place-items-center rounded-2xl border border-black/10 bg-white px-6 py-16 shadow-soft"><div className="flex items-center gap-3 text-sm text-black/60"><Loader2 className="h-5 w-5 animate-spin text-io-purple" strokeWidth={2} />Carregando relatórios...</div></div> : null}
             {!loading && error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-5 text-sm text-red-700 shadow-soft">{error}</div> : null}
@@ -449,39 +451,41 @@ export function AtendimentoReportsPage() {
                                 subtitle: "antes do período",
                                 value: overview.cards.pendingBeforePeriod,
                                 icon: ArrowRightToLine,
+                                palette: "bg-indigo-100 text-indigo-700",
                             },
                             {
                                 title: "Novos",
                                 subtitle: "no período",
                                 value: overview.cards.newInPeriod,
                                 icon: Plus,
+                                palette: "bg-sky-100 text-sky-700",
                             },
                             {
                                 title: "Concluídos",
                                 subtitle: "no período",
                                 value: overview.cards.completedInPeriod,
                                 icon: Minus,
+                                palette: "bg-emerald-100 text-emerald-700",
                             },
                             {
                                 title: "Pendentes",
                                 subtitle: "após o período",
                                 value: overview.cards.pendingAfterPeriod,
                                 icon: Equal,
+                                palette: "bg-amber-100 text-amber-700",
                             },
-                        ].map((item, index) => {
+                        ].map((item) => {
                             const Icon = item.icon;
                             return (
-                                <div key={`${item.title}-${item.subtitle}`} className={`rounded-2xl bg-gradient-to-br ${["from-violet-600 to-fuchsia-600", "from-sky-600 to-cyan-500", "from-emerald-600 to-teal-500", "from-amber-500 to-orange-500"][index]} p-5 text-white shadow-soft`}>
-                                    <div className="flex items-center gap-6">
-                                        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/12 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                                <div key={`${item.title}-${item.subtitle}`} className="rounded-[28px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
+                                    <div className="flex items-center justify-between">
+                                        <span className={`grid h-11 w-11 place-items-center rounded-2xl ${item.palette}`}>
                                             <Icon className="h-5 w-5" strokeWidth={2.4} />
-                                        </div>
-                                        <div className="min-w-0">
-                                            <p className="text-5xl font-semibold leading-none tracking-[-0.04em]">{formatNumber(Number(item.value))}</p>
-                                            <p className="mt-2 text-[1.15rem] font-semibold leading-tight text-white">{item.title}</p>
-                                            <p className="mt-1 text-sm leading-tight text-white/80">{item.subtitle}</p>
-                                        </div>
+                                        </span>
+                                        <p className="text-4xl font-bold tracking-tight text-io-dark">{formatNumber(Number(item.value))}</p>
                                     </div>
+                                    <p className="mt-4 text-sm font-semibold text-black/80">{item.title}</p>
+                                    <p className="text-xs text-black/55">{item.subtitle}</p>
                                 </div>
                             );
                         })}
@@ -578,7 +582,7 @@ export function AtendimentoReportsPage() {
                                                 <p className="text-center text-4xl font-semibold tracking-[-0.04em] text-io-dark">{formatNumber(item.total)}</p>
                                                 <p className="mt-2 text-center text-xs uppercase tracking-[0.12em] text-black/45">Atendimentos no período</p>
 
-                                                <div className="mt-6 rounded-[18px] border border-black/5 bg-white/90 p-3">
+                                                <div className="mt-6 rounded-[18px] border border-black/5 bg-white p-3">
                                                     <div className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.12em] text-black/45">
                                                         <span>Participação</span>
                                                         <span>{formatPercent(item.percentage)}</span>
@@ -621,7 +625,7 @@ export function AtendimentoReportsPage() {
             ) : null}
 
             {showUnclassified && results ? (
-                <div className="fixed inset-0 z-50 bg-black/35 px-4 py-6 backdrop-blur-sm">
+                <div className="fixed inset-0 z-50 bg-black/35 px-4 py-6">
                     <div className="mx-auto flex h-full max-w-5xl flex-col rounded-[28px] border border-black/10 bg-white shadow-soft">
                         <header className="flex items-center justify-between border-b border-black/10 px-6 py-4"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-black/45">Não classificados</p><h2 className="mt-1 text-xl font-semibold text-io-dark">Atendimentos concluídos sem classificação</h2></div><button type="button" onClick={() => setShowUnclassified(false)} className="grid h-10 w-10 place-items-center rounded-full border border-black/10 text-black/60 transition hover:bg-black/5"><X className="h-4 w-4" strokeWidth={2} /></button></header>
                         <div className="min-h-0 flex-1 overflow-auto p-6">{results.unclassifiedAttendances.length ? <div className="overflow-x-auto"><table className="min-w-full border-separate border-spacing-0"><thead><tr className="text-left text-xs uppercase tracking-[0.12em] text-black/45"><th className="border-b border-black/10 px-4 py-3">Canal</th><th className="border-b border-black/10 px-4 py-3">Contato</th><th className="border-b border-black/10 px-4 py-3">Usuário responsável</th><th className="border-b border-black/10 px-4 py-3">Início</th><th className="border-b border-black/10 px-4 py-3">Tempo</th></tr></thead><tbody>{results.unclassifiedAttendances.map((item) => <tr key={item.sessionId} className="text-sm text-io-dark"><td className="border-b border-black/5 px-4 py-4">{item.channel}</td><td className="border-b border-black/5 px-4 py-4 font-semibold">{item.contactName}</td><td className="border-b border-black/5 px-4 py-4">{item.responsibleUserName}</td><td className="border-b border-black/5 px-4 py-4">{formatDateTime(item.startedAt)}</td><td className="border-b border-black/5 px-4 py-4">{formatSeconds(item.durationSeconds)}</td></tr>)}</tbody></table></div> : <p className="text-sm text-black/55">Não existem atendimentos pendentes de classificação para este filtro.</p>}</div>

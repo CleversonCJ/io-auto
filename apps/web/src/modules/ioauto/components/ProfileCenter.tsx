@@ -119,7 +119,7 @@ export function ProfileCenter() {
             <section className="grid gap-6 xl:grid-cols-[1fr_0.9fr] xl:items-stretch">
                 <article className="h-full rounded-[34px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                     <div className="flex items-center gap-3">
-                        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-black text-white">
+                        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-io-purple text-white">
                             <UserCircle2 className="h-5 w-5" />
                         </div>
                         <div>

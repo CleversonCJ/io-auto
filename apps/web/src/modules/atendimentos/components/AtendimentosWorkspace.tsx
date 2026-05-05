@@ -209,7 +209,7 @@ type MediaViewerState = {
     at: string;
 };
 
-const BRUSH_COLORS = ["#111827", "#6b7280", "#ffffff", "#06b6d4", "#22c55e", "#a855f7", "#f59e0b", "#ef4444"];
+const BRUSH_COLORS = ["#111827", "#6b7280", "#ffffff", "#06b6d4", "#22c55e", "#a855f7", "#6b00e3", "#ef4444"];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 16 * 1024 * 1024;
 const AUDIO_WAVE_BARS = 36;
@@ -991,7 +991,7 @@ function AudioMessageInline({
     }
 
     const toneSoft = fromMe ? "text-white/80" : "text-black/55";
-    const waveActive = fromMe ? "bg-white/90" : "bg-io-purple/90";
+    const waveActive = fromMe ? "bg-white" : "bg-io-purple/90";
     const waveInactive = fromMe ? "bg-white/35" : "bg-black/20";
     const playTone = fromMe ? "text-white" : "text-io-purple";
     const progress = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0;
@@ -5204,7 +5204,7 @@ export function AtendimentosWorkspace() {
                                             <button
                                                 type="button"
                                                 onClick={() => openMediaViewer(item.message, "video", item.source)}
-                                                className="relative block w-full overflow-hidden rounded-2xl bg-black"
+                                                className="relative block w-full overflow-hidden rounded-2xl bg-io-purple"
                                             >
                                                 <video src={item.source} className="max-h-64 w-full object-contain opacity-90" muted />
                                                 <span className="pointer-events-none absolute inset-0 grid place-items-center">
@@ -5692,7 +5692,7 @@ export function AtendimentosWorkspace() {
                             <div className="relative min-h-0 flex-1 overflow-hidden">
                                 {(isMessageDropActive || isResolvingDroppedMedia) && (
                                     <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-io-purple/10 px-6">
-                                        <div className="rounded-2xl border border-dashed border-io-purple/45 bg-white/95 px-6 py-4 text-center shadow-lg">
+                                        <div className="rounded-2xl border border-dashed border-io-purple/45 bg-white px-6 py-4 text-center shadow-lg">
                                             <p className="text-sm font-semibold text-io-dark">
                                                 {isResolvingDroppedMedia ? "Preparando arquivo..." : "Solte a imagem, vídeo ou documento"}
                                             </p>
@@ -6272,7 +6272,7 @@ export function AtendimentosWorkspace() {
                                     <div
                                         key={layer.id}
                                         style={{ left: layer.x, top: layer.y, width: layer.boxWidth }}
-                                        className={`absolute rounded-md border ${selectedVideoTextLayerId === layer.id ? "border-violet-400" : "border-black/10"} bg-white/85 p-1 shadow-sm`}
+                                        className={`absolute rounded-md border ${selectedVideoTextLayerId === layer.id ? "border-violet-400" : "border-black/10"} bg-white p-1 shadow-sm`}
                                         onMouseDown={() => setSelectedVideoTextLayerId(layer.id)}
                                     >
                                         <button
@@ -6464,7 +6464,7 @@ export function AtendimentosWorkspace() {
                                             transform: `rotate(${layer.rotation}deg)`,
                                             transformOrigin: "top left",
                                         }}
-                                        className={`absolute rounded-md border ${selectedTextLayerId === layer.id ? "border-violet-400" : "border-black/10"} bg-white/85 p-1 shadow-sm`}
+                                        className={`absolute rounded-md border ${selectedTextLayerId === layer.id ? "border-violet-400" : "border-black/10"} bg-white p-1 shadow-sm`}
                                         onMouseDown={() => setSelectedTextLayerId(layer.id)}
                                     >
                                         <div className="mb-1 flex items-center justify-between gap-1">
@@ -6576,7 +6576,7 @@ export function AtendimentosWorkspace() {
                                         key={category.id}
                                         type="button"
                                         onClick={() => setConcludeCategoryId(category.id)}
-                                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${concludeCategoryId === category.id ? "bg-white text-io-dark shadow-sm" : "text-[#5c6b8a] hover:bg-white/70"}`}
+                                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${concludeCategoryId === category.id ? "bg-white text-io-dark shadow-sm" : "text-[#5c6b8a] hover:bg-white"}`}
                                     >
                                         <AtendimentoClassificationCategoryIcon categoryId={category.id} className="mr-2 inline h-4 w-4 align-[-2px]" />
                                         {category.label}
@@ -6887,7 +6887,7 @@ export function AtendimentosWorkspace() {
             )}
             {isDeleteConversationModalOpen && selectedChat && (
                 <div
-                    className="fixed inset-0 z-[60] grid place-items-center bg-black/40 px-4 py-6 backdrop-blur-[2px]"
+                    className="fixed inset-0 z-[60] grid place-items-center bg-black/40 px-4 py-6 -[2px]"
                     role="dialog"
                     aria-modal="true"
                     aria-label="Confirmar exclusao da conversa"

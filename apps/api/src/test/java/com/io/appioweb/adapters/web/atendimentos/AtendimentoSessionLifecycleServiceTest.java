@@ -239,6 +239,8 @@ class AtendimentoSessionLifecycleServiceTest {
                 "08:00",
                 "18:00",
                 null,
+                "VEHICLES",
+                "[]",
                 Instant.parse("2024-01-01T00:00:00Z")
         );
     }

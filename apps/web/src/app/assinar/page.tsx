@@ -25,7 +25,7 @@ export default function AssinarPage() {
 
                     <div className="grid gap-6">
                         <SignupCheckoutForm compact />
-                        <div className="rounded-[34px] border border-[#6b00e3]/12 bg-white/90 p-6 shadow-[0_18px_45px_rgba(90,10,160,0.10)]">
+                        <div className="rounded-[34px] border border-[#6b00e3]/12 bg-white p-6 shadow-[0_18px_45px_rgba(90,10,160,0.10)]">
                             <p className="text-xs uppercase tracking-[0.28em] text-[#6b00e3]/75">Importante</p>
                             <p className="mt-3 text-sm leading-7 text-black/58">
                                 O fluxo depende da configuracao do checkout e do webhook no Asaas. Eu tambem vou deixar o passo a passo para voce finalizar isso em producao sem faltar nenhuma etapa.

@@ -3,8 +3,24 @@ package com.io.appioweb.application.ioauto.webmotors;
 import com.io.appioweb.adapters.integrations.webmotors.soap.WebmotorsSoapAuthClient;
 import com.io.appioweb.adapters.integrations.webmotors.soap.WebmotorsSoapInventoryClient;
 import com.io.appioweb.adapters.integrations.webmotors.soap.WebmotorsSoapSessionCache;
-import com.io.appioweb.adapters.persistence.ioauto.*;
-import com.io.appioweb.domain.ioauto.webmotors.*;
+import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehicleEntity;
+import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehiclePublicationEntity;
+import com.io.appioweb.adapters.persistence.ioauto.JpaWebmotorsAdEntity;
+import com.io.appioweb.adapters.persistence.ioauto.JpaWebmotorsSyncJobEntity;
+import com.io.appioweb.adapters.persistence.ioauto.JpaWebmotorsSyncLogEntity;
+import com.io.appioweb.adapters.persistence.ioauto.IoAutoVehicleRepositoryJpa;
+import com.io.appioweb.adapters.persistence.ioauto.WebmotorsAdRepositoryJpa;
+import com.io.appioweb.adapters.persistence.ioauto.WebmotorsSyncJobRepositoryJpa;
+import com.io.appioweb.adapters.persistence.ioauto.WebmotorsSyncLogRepositoryJpa;
+import com.io.appioweb.application.ioauto.webmotors.modules.publication.WmPublicationStatusService;
+import com.io.appioweb.application.ioauto.webmotors.modules.stock.WmStockService;
+import com.io.appioweb.domain.ioauto.webmotors.WebmotorsCatalogEntry;
+import com.io.appioweb.domain.ioauto.webmotors.WebmotorsCredentialSnapshot;
+import com.io.appioweb.domain.ioauto.webmotors.WebmotorsJobStatus;
+import com.io.appioweb.domain.ioauto.webmotors.WebmotorsJobType;
+import com.io.appioweb.domain.ioauto.webmotors.WebmotorsSoapAuthResult;
+import com.io.appioweb.domain.ioauto.webmotors.WebmotorsSoapOperationResult;
+import com.io.appioweb.domain.ioauto.webmotors.WebmotorsTransportResult;
 import com.io.appioweb.shared.errors.BusinessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +40,6 @@ import java.util.UUID;
 public class WebmotorsAdsService {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final String PROVIDER_KEY = "webmotors";
 
     private final WebmotorsCredentialService credentialService;
     private final WebmotorsCatalogService catalogService;
@@ -32,7 +47,8 @@ public class WebmotorsAdsService {
     private final WebmotorsSyncJobRepositoryJpa jobRepository;
     private final WebmotorsSyncLogRepositoryJpa logRepository;
     private final IoAutoVehicleRepositoryJpa vehicleRepository;
-    private final IoAutoVehiclePublicationRepositoryJpa publicationRepository;
+    private final WmPublicationStatusService publicationStatusService;
+    private final WmStockService stockService;
     private final WebmotorsSoapAuthClient soapAuthClient;
     private final WebmotorsSoapInventoryClient soapInventoryClient;
     private final WebmotorsSoapSessionCache sessionCache;
@@ -44,7 +60,8 @@ public class WebmotorsAdsService {
             WebmotorsSyncJobRepositoryJpa jobRepository,
             WebmotorsSyncLogRepositoryJpa logRepository,
             IoAutoVehicleRepositoryJpa vehicleRepository,
-            IoAutoVehiclePublicationRepositoryJpa publicationRepository,
+            WmPublicationStatusService publicationStatusService,
+            WmStockService stockService,
             WebmotorsSoapAuthClient soapAuthClient,
             WebmotorsSoapInventoryClient soapInventoryClient,
             WebmotorsSoapSessionCache sessionCache
@@ -55,7 +72,8 @@ public class WebmotorsAdsService {
         this.jobRepository = jobRepository;
         this.logRepository = logRepository;
         this.vehicleRepository = vehicleRepository;
-        this.publicationRepository = publicationRepository;
+        this.publicationStatusService = publicationStatusService;
+        this.stockService = stockService;
         this.soapAuthClient = soapAuthClient;
         this.soapInventoryClient = soapInventoryClient;
         this.sessionCache = sessionCache;
@@ -63,13 +81,12 @@ public class WebmotorsAdsService {
 
     @Transactional(readOnly = true)
     public List<JpaWebmotorsAdEntity> listAds(UUID companyId) {
-        return adRepository.findAllByCompanyIdOrderByUpdatedAtDesc(companyId);
+        return stockService.listAds(companyId);
     }
 
     @Transactional(readOnly = true)
     public JpaWebmotorsAdEntity getAd(UUID companyId, UUID vehicleId) {
-        return adRepository.findByCompanyIdAndVehicleId(companyId, vehicleId)
-                .orElseThrow(() -> new BusinessException("WEBMOTORS_AD_NOT_FOUND", "Anúncio Webmotors não encontrado para este veículo."));
+        return stockService.getAd(companyId, vehicleId);
     }
 
     @Transactional
@@ -91,31 +108,12 @@ public class WebmotorsAdsService {
 
     @Transactional
     public int reconcileRemoteInventory(UUID companyId, String storeKey, int pageSize) {
-        WebmotorsCredentialSnapshot credentials = credentialService.getOrCreate(companyId, normalizeStoreKey(storeKey));
-        assertSoapAdsEnabled(credentials);
-        String hash = resolveSoapHash(credentials);
-        int page = 1;
-        int processed = 0;
-        while (true) {
-            WebmotorsTransportResult<WebmotorsInventoryPage> transport = soapInventoryClient.listCurrentInventoryPage(credentials, hash, page, Math.max(1, pageSize));
-            logSoap(companyId, null, "ObterEstoqueAtualPaginado", transport.statusCode(), transport.payload().codigoRetorno(), transport.payload().requestId(), transport.sanitizedRequest(), transport.sanitizedResponse());
-            ensureReturnCodeOk(transport.payload().codigoRetorno(), "listagem paginada do estoque");
-            for (WebmotorsInventoryItem item : transport.payload().anuncios()) {
-                upsertReplicaFromRemote(companyId, normalizeStoreKey(storeKey), item);
-                processed++;
-            }
-            if (transport.payload().anuncios().isEmpty() || transport.payload().pagina() * Math.max(1, transport.payload().anunciosPorPagina()) >= Math.max(1, transport.payload().totalAnuncios())) {
-                break;
-            }
-            page++;
-        }
-        credentialService.markSoapSync(companyId, normalizeStoreKey(storeKey), Instant.now(), null);
-        return processed;
+        return stockService.reconcileRemoteInventory(companyId, storeKey, pageSize);
     }
 
     @Transactional
     public List<WebmotorsCatalogEntry> refreshCatalog(UUID companyId, String storeKey, String type) {
-        return catalogService.refreshCatalog(companyId, normalizeStoreKey(storeKey), type);
+        return stockService.refreshCatalog(companyId, storeKey, type);
     }
 
     @Transactional
@@ -144,6 +142,7 @@ public class WebmotorsAdsService {
         if (existingJob != null) {
             return existingJob;
         }
+
         Instant now = Instant.now();
         JpaWebmotorsSyncJobEntity job = new JpaWebmotorsSyncJobEntity();
         job.setId(UUID.randomUUID());
@@ -159,7 +158,7 @@ public class WebmotorsAdsService {
         job.setCreatedAt(now);
         job.setUpdatedAt(now);
         jobRepository.save(job);
-        upsertPublication(companyId, vehicle.getId(), "SYNC_QUEUED", null, null, null);
+        publicationStatusService.markQueued(companyId, vehicle.getId());
         return job;
     }
 
@@ -181,6 +180,7 @@ public class WebmotorsAdsService {
                 case DELETE_AD -> executeDelete(job, vehicleId);
                 case SYNC_ADS -> reconcileRemoteInventory(job.getCompanyId(), job.getStoreKey(), 50);
             }
+
             job.setStatus(WebmotorsJobStatus.COMPLETED.name());
             job.setFinishedAt(Instant.now());
             job.setLastError(null);
@@ -189,7 +189,7 @@ public class WebmotorsAdsService {
         } catch (BusinessException exception) {
             failJob(job, exception.code(), exception.getMessage());
         } catch (Exception exception) {
-            failJob(job, "WEBMOTORS_JOB_FAILED", "Não foi possível processar o job da Webmotors.");
+            failJob(job, "WEBMOTORS_JOB_FAILED", "Nao foi possivel processar o job da Webmotors.");
         }
     }
 
@@ -201,12 +201,23 @@ public class WebmotorsAdsService {
         WebmotorsCredentialSnapshot credentials = credentialService.getOrCreate(companyId, storeKey);
         String hash = resolveSoapHash(credentials);
         Map<String, String> requestPayload = buildAdPayload(companyId, storeKey, vehicle, update, existingAd);
-        upsertPublication(companyId, vehicleId, "SYNC_IN_PROGRESS", null, null, null);
+
+        publicationStatusService.markInProgress(companyId, vehicleId);
         WebmotorsTransportResult<WebmotorsSoapOperationResult> transport = update
                 ? soapInventoryClient.updateAd(credentials, hash, requestPayload)
                 : soapInventoryClient.publishAd(credentials, hash, requestPayload);
-        logSoap(companyId, job.getId(), update ? "AlterarAnuncio" : "IncluirAnuncio", transport.statusCode(), transport.payload().codigoRetorno(), transport.payload().requestId(), transport.sanitizedRequest(), transport.sanitizedResponse());
-        ensureReturnCodeOk(transport.payload().codigoRetorno(), update ? "edição do anúncio" : "publicação do anúncio");
+        logSoap(
+                companyId,
+                job.getId(),
+                update ? "AlterarAnuncio" : "IncluirAnuncio",
+                transport.statusCode(),
+                transport.payload().codigoRetorno(),
+                transport.payload().requestId(),
+                transport.sanitizedRequest(),
+                transport.sanitizedResponse()
+        );
+        ensureReturnCodeOk(transport.payload().codigoRetorno(), update ? "edicao do anuncio" : "publicacao do anuncio");
+
         Instant now = Instant.now();
         JpaWebmotorsAdEntity ad = existingAd == null ? new JpaWebmotorsAdEntity() : existingAd;
         if (ad.getId() == null) {
@@ -216,7 +227,13 @@ public class WebmotorsAdsService {
             ad.setVehicleId(vehicleId);
             ad.setCreatedAt(now);
         }
-        JpaIoAutoVehiclePublicationEntity publication = upsertPublication(companyId, vehicleId, "PUBLISHED", transport.payload().remoteAdCode(), null, now);
+
+        JpaIoAutoVehiclePublicationEntity publication = publicationStatusService.markPublished(
+                companyId,
+                vehicleId,
+                transport.payload().remoteAdCode(),
+                now
+        );
         ad.setPublicationId(publication.getId());
         ad.setRemoteAdCode(firstNonBlank(transport.payload().remoteAdCode(), ad.getRemoteAdCode()));
         ad.setRemoteStatus(firstNonBlank(transport.payload().remoteStatus(), update ? "UPDATED" : "PUBLISHED"));
@@ -245,12 +262,22 @@ public class WebmotorsAdsService {
         UUID companyId = job.getCompanyId();
         String storeKey = normalizeStoreKey(job.getStoreKey());
         JpaWebmotorsAdEntity ad = adRepository.findByCompanyIdAndVehicleId(companyId, vehicleId)
-                .orElseThrow(() -> new BusinessException("WEBMOTORS_AD_NOT_FOUND", "Não existe anúncio Webmotors vinculado a este veículo."));
+                .orElseThrow(() -> new BusinessException("WEBMOTORS_AD_NOT_FOUND", "Nao existe anuncio Webmotors vinculado a este veiculo."));
         WebmotorsCredentialSnapshot credentials = credentialService.getOrCreate(companyId, storeKey);
         String hash = resolveSoapHash(credentials);
         WebmotorsTransportResult<WebmotorsSoapOperationResult> transport = soapInventoryClient.deleteAd(credentials, hash, ad.getRemoteAdCode());
-        logSoap(companyId, job.getId(), "ExcluirAnuncio", transport.statusCode(), transport.payload().codigoRetorno(), transport.payload().requestId(), transport.sanitizedRequest(), transport.sanitizedResponse());
-        ensureReturnCodeOk(transport.payload().codigoRetorno(), "exclusão do anúncio");
+        logSoap(
+                companyId,
+                job.getId(),
+                "ExcluirAnuncio",
+                transport.statusCode(),
+                transport.payload().codigoRetorno(),
+                transport.payload().requestId(),
+                transport.sanitizedRequest(),
+                transport.sanitizedResponse()
+        );
+        ensureReturnCodeOk(transport.payload().codigoRetorno(), "exclusao do anuncio");
+
         Instant now = Instant.now();
         ad.setRemoteStatus("REMOVED");
         ad.setDeletedAt(now);
@@ -259,7 +286,7 @@ public class WebmotorsAdsService {
         ad.setLastSyncAt(now);
         ad.setUpdatedAt(now);
         adRepository.save(ad);
-        upsertPublication(companyId, vehicleId, "REMOVED", ad.getRemoteAdCode(), null, now);
+        publicationStatusService.markRemoved(companyId, vehicleId, ad.getRemoteAdCode(), now);
         credentialService.markSoapSync(companyId, storeKey, now, null);
     }
 
@@ -268,17 +295,34 @@ public class WebmotorsAdsService {
         if (cached != null && !cached.isBlank()) {
             return cached;
         }
+
         WebmotorsTransportResult<WebmotorsSoapAuthResult> transport = soapAuthClient.authenticate(credentials);
-        logSoap(credentials.companyId(), null, "Autenticar", transport.statusCode(), transport.payload().codigoRetorno(), transport.payload().requestId(), transport.sanitizedRequest(), transport.sanitizedResponse());
-        ensureReturnCodeOk(transport.payload().codigoRetorno(), "autenticação SOAP");
+        logSoap(
+                credentials.companyId(),
+                null,
+                "Autenticar",
+                transport.statusCode(),
+                transport.payload().codigoRetorno(),
+                transport.payload().requestId(),
+                transport.sanitizedRequest(),
+                transport.sanitizedResponse()
+        );
+        ensureReturnCodeOk(transport.payload().codigoRetorno(), "autenticacao SOAP");
         if (safe(transport.payload().hashAutenticacao()).isBlank()) {
-            throw new BusinessException("WEBMOTORS_SOAP_HASH_MISSING", "A Webmotors não retornou o HashAutenticacao.");
+            throw new BusinessException("WEBMOTORS_SOAP_HASH_MISSING", "A Webmotors nao retornou o HashAutenticacao.");
         }
+
         sessionCache.put(credentials.companyId(), credentials.storeKey(), transport.payload().hashAutenticacao(), Instant.now().plusSeconds(20 * 60));
         return transport.payload().hashAutenticacao();
     }
 
-    private Map<String, String> buildAdPayload(UUID companyId, String storeKey, JpaIoAutoVehicleEntity vehicle, boolean update, JpaWebmotorsAdEntity existingAd) {
+    private Map<String, String> buildAdPayload(
+            UUID companyId,
+            String storeKey,
+            JpaIoAutoVehicleEntity vehicle,
+            boolean update,
+            JpaWebmotorsAdEntity existingAd
+    ) {
         Map<String, String> payload = new LinkedHashMap<>();
         payload.put("pTitulo", safe(vehicle.getTitle()));
         payload.put("pDescricao", safe(vehicle.getDescription()));
@@ -296,11 +340,21 @@ public class WebmotorsAdsService {
         if (safe(vehicle.getColor()).isBlank() == false) {
             payload.put("pCodigoCor", catalogService.resolveCode(companyId, storeKey, "color", vehicle.getColor()));
         }
-        if (vehicle.getPriceCents() != null) payload.put("pPrecoVenda", String.valueOf(vehicle.getPriceCents()));
-        if (vehicle.getMileage() != null) payload.put("pQuilometragem", String.valueOf(vehicle.getMileage()));
-        if (vehicle.getModelYear() != null) payload.put("pAnoModelo", String.valueOf(vehicle.getModelYear()));
-        if (vehicle.getManufactureYear() != null) payload.put("pAnoFabricacao", String.valueOf(vehicle.getManufactureYear()));
-        if (safe(vehicle.getStockNumber()).isBlank() == false) payload.put("pNumeroEstoque", vehicle.getStockNumber());
+        if (vehicle.getPriceCents() != null) {
+            payload.put("pPrecoVenda", String.valueOf(vehicle.getPriceCents()));
+        }
+        if (vehicle.getMileage() != null) {
+            payload.put("pQuilometragem", String.valueOf(vehicle.getMileage()));
+        }
+        if (vehicle.getModelYear() != null) {
+            payload.put("pAnoModelo", String.valueOf(vehicle.getModelYear()));
+        }
+        if (vehicle.getManufactureYear() != null) {
+            payload.put("pAnoFabricacao", String.valueOf(vehicle.getManufactureYear()));
+        }
+        if (safe(vehicle.getStockNumber()).isBlank() == false) {
+            payload.put("pNumeroEstoque", vehicle.getStockNumber());
+        }
         if (update && existingAd != null && safe(existingAd.getRemoteAdCode()).isBlank() == false) {
             payload.put("pCodigoAnuncio", existingAd.getRemoteAdCode());
         }
@@ -317,59 +371,6 @@ public class WebmotorsAdsService {
         return snapshot;
     }
 
-    private void upsertReplicaFromRemote(UUID companyId, String storeKey, WebmotorsInventoryItem item) {
-        JpaWebmotorsAdEntity entity = adRepository.findByCompanyIdAndRemoteAdCode(companyId, item.codigoAnuncio())
-                .orElseGet(JpaWebmotorsAdEntity::new);
-        Instant now = Instant.now();
-        if (entity.getId() == null) {
-            entity.setId(UUID.randomUUID());
-            entity.setCompanyId(companyId);
-            entity.setStoreKey(storeKey);
-            entity.setCreatedAt(now);
-        }
-        if (entity.getPublicationId() == null) {
-            publicationRepository.findByCompanyIdAndProviderKeyAndProviderListingId(companyId, PROVIDER_KEY, item.codigoAnuncio())
-                    .ifPresent(publication -> {
-                        entity.setPublicationId(publication.getId());
-                        entity.setVehicleId(publication.getVehicleId());
-                    });
-        }
-        entity.setRemoteAdCode(item.codigoAnuncio());
-        entity.setRemoteStatus(item.status());
-        entity.setTitle(item.titulo());
-        entity.setPriceCents(item.precoVenda());
-        entity.setMileage(item.quilometragem());
-        entity.setRemotePayloadJson(item.rawPayloadJson());
-        entity.setLastSyncAt(now);
-        entity.setRemoteUpdatedAt(now);
-        entity.setUpdatedAt(now);
-        adRepository.save(entity);
-    }
-
-    private JpaIoAutoVehiclePublicationEntity upsertPublication(UUID companyId, UUID vehicleId, String status, String remoteAdCode, String lastError, Instant publishedAt) {
-        Instant now = Instant.now();
-        JpaIoAutoVehiclePublicationEntity publication = publicationRepository.findByCompanyIdAndVehicleIdAndProviderKey(companyId, vehicleId, PROVIDER_KEY)
-                .orElseGet(JpaIoAutoVehiclePublicationEntity::new);
-        if (publication.getId() == null) {
-            publication.setId(UUID.randomUUID());
-            publication.setCompanyId(companyId);
-            publication.setVehicleId(vehicleId);
-            publication.setProviderKey(PROVIDER_KEY);
-            publication.setCreatedAt(now);
-        }
-        publication.setStatus(status);
-        if (safe(remoteAdCode).isBlank() == false) {
-            publication.setProviderListingId(remoteAdCode);
-        }
-        publication.setLastError(nullable(lastError));
-        if (publishedAt != null) {
-            publication.setPublishedAt(publishedAt);
-        }
-        publication.setSyncedAt(now);
-        publication.setUpdatedAt(now);
-        return publicationRepository.save(publication);
-    }
-
     private void failJob(JpaWebmotorsSyncJobEntity job, String code, String message) {
         boolean retry = shouldRetry(code, job.getAttempts());
         job.setStatus(retry ? WebmotorsJobStatus.PENDING.name() : WebmotorsJobStatus.FAILED.name());
@@ -377,18 +378,37 @@ public class WebmotorsAdsService {
         job.setNextRetryAt(retry ? Instant.now().plusSeconds((long) Math.min(300, Math.pow(2, job.getAttempts()) * 30)) : Instant.now());
         job.setUpdatedAt(Instant.now());
         if (job.getAggregateId() != null) {
-            upsertPublication(job.getCompanyId(), job.getAggregateId(), "ERROR", null, message, null);
+            publicationStatusService.markError(job.getCompanyId(), job.getAggregateId(), message);
         }
         jobRepository.save(job);
         credentialService.markSoapSync(job.getCompanyId(), job.getStoreKey(), Instant.now(), message);
     }
 
-    private void logSoap(UUID companyId, UUID jobId, String operation, int statusCode, String returnCode, String requestId, String requestPayload, String responsePayload) {
+    private void logSoap(
+            UUID companyId,
+            UUID jobId,
+            String operation,
+            int statusCode,
+            String returnCode,
+            String requestId,
+            String requestPayload,
+            String responsePayload
+    ) {
         saveLog(companyId, jobId, "SOAP", "REQUEST", operation, null, null, requestId, requestPayload);
         saveLog(companyId, jobId, "SOAP", "RESPONSE", operation, statusCode, returnCode, requestId, responsePayload);
     }
 
-    private void saveLog(UUID companyId, UUID jobId, String channel, String direction, String operation, Integer statusCode, String returnCode, String requestId, String payload) {
+    private void saveLog(
+            UUID companyId,
+            UUID jobId,
+            String channel,
+            String direction,
+            String operation,
+            Integer statusCode,
+            String returnCode,
+            String requestId,
+            String payload
+    ) {
         JpaWebmotorsSyncLogEntity log = new JpaWebmotorsSyncLogEntity();
         log.setId(UUID.randomUUID());
         log.setCompanyId(companyId);
@@ -409,38 +429,53 @@ public class WebmotorsAdsService {
         if (code.isBlank() || "0".equals(code) || "00".equals(code)) {
             return;
         }
-        throw new BusinessException("WEBMOTORS_SOAP_RETURN_CODE_" + code, "A Webmotors retornou CódigoRetorno " + code + " durante " + context + ".");
+        throw new BusinessException("WEBMOTORS_SOAP_RETURN_CODE_" + code, "A Webmotors retornou CodigoRetorno " + code + " durante " + context + ".");
     }
 
     private void assertSoapAdsEnabled(WebmotorsCredentialSnapshot credentials) {
         if (!credentials.featureFlags().soapAdsEnabled()) {
-            throw new BusinessException("WEBMOTORS_SOAP_ADS_DISABLED", "A publicação SOAP da Webmotors está desativada para esta loja.");
+            throw new BusinessException("WEBMOTORS_SOAP_ADS_DISABLED", "A publicacao SOAP da Webmotors esta desativada para esta loja.");
         }
     }
 
     private JpaIoAutoVehicleEntity requireVehicle(UUID companyId, UUID vehicleId) {
         return vehicleRepository.findByIdAndCompanyId(vehicleId, companyId)
-                .orElseThrow(() -> new BusinessException("VEHICLE_NOT_FOUND", "Veículo não encontrado."));
+                .orElseThrow(() -> new BusinessException("VEHICLE_NOT_FOUND", "Veiculo nao encontrado."));
     }
 
     private boolean shouldRetry(String code, int attempts) {
-        if (attempts >= 5) return false;
+        if (attempts >= 5) {
+            return false;
+        }
         String normalized = safe(code).toUpperCase(Locale.ROOT);
-        return !(normalized.contains("MISSING") || normalized.contains("NOT_FOUND") || normalized.contains("DISABLED") || normalized.contains("INVALID"));
+        return !(normalized.contains("MISSING")
+                || normalized.contains("NOT_FOUND")
+                || normalized.contains("DISABLED")
+                || normalized.contains("INVALID"));
     }
 
     private String buildIdempotencyKey(WebmotorsJobType jobType, JpaIoAutoVehicleEntity vehicle, JpaWebmotorsAdEntity existingAd) {
-        return sha256(jobType.name() + ":" + vehicle.getId() + ":" + safe(existingAd == null ? null : existingAd.getRemoteAdCode()) + ":" + safe(vehicle.getUpdatedAt() == null ? null : vehicle.getUpdatedAt().toString()));
+        return sha256(
+                jobType.name()
+                        + ":"
+                        + vehicle.getId()
+                        + ":"
+                        + safe(existingAd == null ? null : existingAd.getRemoteAdCode())
+                        + ":"
+                        + safe(vehicle.getUpdatedAt() == null ? null : vehicle.getUpdatedAt().toString())
+        );
     }
 
     private String sha256(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(safe(value).getBytes(StandardCharsets.UTF_8));
             StringBuilder buffer = new StringBuilder();
-            for (byte item : digest) buffer.append(String.format("%02x", item));
+            for (byte item : digest) {
+                buffer.append(String.format("%02x", item));
+            }
             return buffer.toString();
         } catch (Exception exception) {
-            throw new BusinessException("WEBMOTORS_HASH_FAILED", "Não foi possível calcular a assinatura do job da Webmotors.");
+            throw new BusinessException("WEBMOTORS_HASH_FAILED", "Nao foi possivel calcular a assinatura do job da Webmotors.");
         }
     }
 
@@ -448,13 +483,15 @@ public class WebmotorsAdsService {
         try {
             return OBJECT_MAPPER.writeValueAsString(value);
         } catch (Exception exception) {
-            throw new BusinessException("WEBMOTORS_JSON_SERIALIZATION_FAILED", "Não foi possível serializar os dados da Webmotors.");
+            throw new BusinessException("WEBMOTORS_JSON_SERIALIZATION_FAILED", "Nao foi possivel serializar os dados da Webmotors.");
         }
     }
 
     private String firstNonBlank(String... values) {
         for (String value : values) {
-            if (safe(value).isBlank() == false) return value.trim();
+            if (safe(value).isBlank() == false) {
+                return value.trim();
+            }
         }
         return "";
     }

@@ -51,6 +51,12 @@ public class JpaCompanyEntity {
     @Column(name = "business_hours_weekly_json", columnDefinition = "text")
     private String businessHoursWeeklyJson;
 
+    @Column(name = "public_stock_banner_mode", nullable = false, length = 30)
+    private String publicStockBannerMode;
+
+    @Column(name = "public_stock_banner_images_json", nullable = false, columnDefinition = "text")
+    private String publicStockBannerImagesJson;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -95,6 +101,12 @@ public class JpaCompanyEntity {
 
     public String getBusinessHoursWeeklyJson() { return businessHoursWeeklyJson; }
     public void setBusinessHoursWeeklyJson(String businessHoursWeeklyJson) { this.businessHoursWeeklyJson = businessHoursWeeklyJson; }
+
+    public String getPublicStockBannerMode() { return publicStockBannerMode; }
+    public void setPublicStockBannerMode(String publicStockBannerMode) { this.publicStockBannerMode = publicStockBannerMode; }
+
+    public String getPublicStockBannerImagesJson() { return publicStockBannerImagesJson; }
+    public void setPublicStockBannerImagesJson(String publicStockBannerImagesJson) { this.publicStockBannerImagesJson = publicStockBannerImagesJson; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

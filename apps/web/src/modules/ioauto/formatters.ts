@@ -34,7 +34,7 @@ export function platformLabel(platform?: string | null) {
     const normalized = String(platform ?? "").trim().toUpperCase();
     if (normalized === "WEBMOTORS") return "Webmotors";
     if (normalized === "ICARROS") return "iCarros";
-    if (normalized === "OLX" || normalized === "OLX_AUTOS") return "OLX Autos";
+    if (normalized === "OLX" || normalized === "OLX_AUTOS") return "OLX";
     if (normalized === "MERCADOLIVRE" || normalized === "MERCADO_LIVRE") return "Mercado Livre";
     if (normalized === "FACEBOOK_MARKETPLACE") return "Facebook Marketplace";
     if (!normalized) return "Origem";
@@ -56,6 +56,13 @@ export function statusLabel(status?: string | null) {
         READY_TO_SYNC: "Pronto para publicar",
         WAITING_CONFIGURATION: "Aguardando integração",
         ERROR: "Com erro",
+        IMPORT_PENDING: "Importando",
+        QUEUED: "Na fila",
+        ACCEPTED: "Aceito",
+        PENDING_REVIEW: "Em revisao",
+        REFUSED: "Recusado",
+        DELETE_PENDING: "Removendo",
+        DELETED: "Removido",
         PAST_DUE: "Pagamento pendente",
         CANCELED: "Cancelada",
         CANCELLED: "Cancelada",

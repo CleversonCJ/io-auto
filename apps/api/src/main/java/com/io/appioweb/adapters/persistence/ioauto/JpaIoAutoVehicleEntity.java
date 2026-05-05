@@ -63,6 +63,15 @@ public class JpaIoAutoVehicleEntity {
     @Column(name = "plate_final", length = 10)
     private String plateFinal;
 
+    @Column(length = 12)
+    private String plate;
+
+    @Column(name = "contact_phone", length = 20)
+    private String contactPhone;
+
+    @Column(length = 8)
+    private String zipcode;
+
     @Column(length = 120)
     private String city;
 
@@ -89,6 +98,30 @@ public class JpaIoAutoVehicleEntity {
 
     @Column(name = "financing_json", nullable = false, columnDefinition = "text")
     private String financingJson = "{}";
+
+    @Column(name = "olx_brand_id", length = 50)
+    private String olxBrandId;
+
+    @Column(name = "olx_model_id", length = 50)
+    private String olxModelId;
+
+    @Column(name = "olx_version_id", length = 50)
+    private String olxVersionId;
+
+    @Column(name = "olx_fuel_code", length = 50)
+    private String olxFuelCode;
+
+    @Column(name = "olx_gearbox_code", length = 50)
+    private String olxGearboxCode;
+
+    @Column(name = "olx_doors_code", length = 50)
+    private String olxDoorsCode;
+
+    @Column(name = "olx_color_code", length = 50)
+    private String olxColorCode;
+
+    @Column(name = "olx_feature_codes_json", nullable = false, columnDefinition = "text")
+    private String olxFeatureCodesJson = "[]";
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -232,6 +265,30 @@ public class JpaIoAutoVehicleEntity {
         this.plateFinal = plateFinal;
     }
 
+    public String getPlate() {
+        return plate;
+    }
+
+    public void setPlate(String plate) {
+        this.plate = plate;
+    }
+
+    public String getContactPhone() {
+        return contactPhone;
+    }
+
+    public void setContactPhone(String contactPhone) {
+        this.contactPhone = contactPhone;
+    }
+
+    public String getZipcode() {
+        return zipcode;
+    }
+
+    public void setZipcode(String zipcode) {
+        this.zipcode = zipcode;
+    }
+
     public String getCity() {
         return city;
     }
@@ -302,6 +359,70 @@ public class JpaIoAutoVehicleEntity {
 
     public void setFinancingJson(String financingJson) {
         this.financingJson = financingJson;
+    }
+
+    public String getOlxBrandId() {
+        return olxBrandId;
+    }
+
+    public void setOlxBrandId(String olxBrandId) {
+        this.olxBrandId = olxBrandId;
+    }
+
+    public String getOlxModelId() {
+        return olxModelId;
+    }
+
+    public void setOlxModelId(String olxModelId) {
+        this.olxModelId = olxModelId;
+    }
+
+    public String getOlxVersionId() {
+        return olxVersionId;
+    }
+
+    public void setOlxVersionId(String olxVersionId) {
+        this.olxVersionId = olxVersionId;
+    }
+
+    public String getOlxFuelCode() {
+        return olxFuelCode;
+    }
+
+    public void setOlxFuelCode(String olxFuelCode) {
+        this.olxFuelCode = olxFuelCode;
+    }
+
+    public String getOlxGearboxCode() {
+        return olxGearboxCode;
+    }
+
+    public void setOlxGearboxCode(String olxGearboxCode) {
+        this.olxGearboxCode = olxGearboxCode;
+    }
+
+    public String getOlxDoorsCode() {
+        return olxDoorsCode;
+    }
+
+    public void setOlxDoorsCode(String olxDoorsCode) {
+        this.olxDoorsCode = olxDoorsCode;
+    }
+
+    public String getOlxColorCode() {
+        return olxColorCode;
+    }
+
+    public void setOlxColorCode(String olxColorCode) {
+        this.olxColorCode = olxColorCode;
+    }
+
+    public String getOlxFeatureCodesJson() {
+        return olxFeatureCodesJson;
+    }
+
+    public void setOlxFeatureCodesJson(String olxFeatureCodesJson) {
+        this.olxFeatureCodesJson = olxFeatureCodesJson;
     }
 
     public Instant getCreatedAt() {

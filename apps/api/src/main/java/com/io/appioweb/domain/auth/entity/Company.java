@@ -19,5 +19,7 @@ public record Company(
         String businessHoursStart,
         String businessHoursEnd,
         String businessHoursWeeklyJson,
+        String publicStockBannerMode,
+        String publicStockBannerImagesJson,
         Instant createdAt
 ) {}

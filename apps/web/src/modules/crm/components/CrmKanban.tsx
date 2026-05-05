@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, MessageCircleMore, Trash2, X } from "lucide-react";
+import { ChevronDown, MessageCircleMore, Search, Trash2, X } from "lucide-react";
 import {
     CRM_VALUE_FIELD_ID,
     CRM_VALUE_FIELD_KEY,
@@ -241,7 +241,7 @@ function CompactMultiSelect({
                         <span className="rounded-lg border border-black/10 px-2 py-1 text-[11px] text-black/55">{helperText}</span>
                     ) : null}
                     {selectedOptions.length > 0 ? (
-                        <span className="rounded-full bg-black px-2 py-0.5 text-[10px] font-semibold text-white">
+                        <span className="rounded-full bg-io-purple px-2 py-0.5 text-[10px] font-semibold text-white">
                             {selectedOptions.length}
                         </span>
                     ) : null}
@@ -813,7 +813,7 @@ export function CrmKanban() {
 
     if (loading) {
         return (
-            <section className="flex h-full w-full items-center justify-center bg-[#f6f1e8] p-6">
+            <section className="flex h-full w-full items-center justify-center bg-io-light p-6">
                 <div className="rounded-[28px] border border-black/10 bg-white px-6 py-4 text-sm font-medium text-black/60 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
                     Carregando CRM...
                 </div>
@@ -823,7 +823,7 @@ export function CrmKanban() {
 
     if (error) {
         return (
-            <section className="flex h-full w-full items-center justify-center bg-[#f6f1e8] p-6">
+            <section className="flex h-full w-full items-center justify-center bg-io-light p-6">
                 <div className="rounded-[28px] border border-red-200 bg-white px-6 py-4 text-sm font-medium text-red-700 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
                     {error}
                 </div>
@@ -833,21 +833,21 @@ export function CrmKanban() {
 
     if (orderedStages.length === 0) {
         return (
-            <section className="flex h-full w-full flex-col bg-[#f6f1e8] pt-4 md:pt-6">
+            <section className="flex h-full w-full flex-col bg-io-light pt-4 md:pt-6">
                 <div className="px-4 md:px-6">
-                    <div className="rounded-[32px] border border-black/10 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.96),_rgba(246,244,240,0.98)_45%,_rgba(239,236,230,0.96)_100%)] px-6 py-6 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+                    <div className="rounded-[32px] border border-black/10 bg-white px-6 py-6 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
                         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/42">CRM</p>
                         <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-io-dark">Kanban de atendimentos</h1>
                         <p className="mt-2 text-sm text-black/58">Estruture suas etapas comerciais e acompanhe os leads por coluna.</p>
                     </div>
                 </div>
-                <div className="mx-4 mt-4 grid flex-1 place-items-center rounded-[32px] border border-dashed border-black/15 bg-white/65 p-8 text-center shadow-[0_18px_45px_rgba(15,23,42,0.04)] md:mx-6">
+                <div className="mx-4 mt-4 grid flex-1 place-items-center rounded-[32px] border border-dashed border-black/15 bg-white p-8 text-center shadow-[0_18px_45px_rgba(15,23,42,0.04)] md:mx-6">
                     <div>
                         <p className="text-base font-semibold text-io-dark">Nenhuma etapa de atendimento cadastrada.</p>
                         <button
                             type="button"
                             onClick={() => router.push("/protected/configuracoes?view=stages")}
-                            className="mt-5 rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-black/85"
+                            className="mt-5 rounded-full bg-io-purple px-5 py-3 text-sm font-semibold text-white transition hover:bg-black/85"
                         >
                             Gerenciar etapas de atendimento
                         </button>
@@ -858,146 +858,143 @@ export function CrmKanban() {
     }
 
     return (
-        <section className="flex h-full w-full flex-col bg-[#f6f1e8] pt-4 md:pt-6">
+        <section className="flex h-full w-full flex-col bg-io-light pt-4 md:pt-6">
             <div className="mb-4 px-4 md:px-6">
-                <div className="rounded-[34px] border border-black/10 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.96),_rgba(246,244,240,0.98)_45%,_rgba(239,236,230,0.96)_100%)] p-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)] md:p-6">
-                    <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-                        <div className="max-w-3xl">
-                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/42">CRM</p>
-                            <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-io-dark md:text-4xl">Kanban de atendimentos</h1>
-                            <p className="mt-3 text-sm leading-6 text-black/58 md:text-[15px]">
-                                Visualize seus atendimentos em tempo real, com etapas personalizáveis, filtros e movimentação dos leads entre colunas.
-                            </p>
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[520px]">
-                            <div className="rounded-[24px] border border-black/8 bg-white/92 px-4 py-4 shadow-[0_12px_24px_rgba(15,23,42,0.05)]">
-                                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/35">Leads visíveis</p>
-                                <p className="mt-2 text-3xl font-bold tracking-tight text-io-dark">{filteredLeads.length}</p>
-                                <p className="mt-2 text-sm text-black/52">{orderedStages.length} etapas configuradas</p>
-                            </div>
-                            <div
-                                className="rounded-[24px] border border-black/8 bg-white/92 px-4 py-4 shadow-[0_12px_24px_rgba(15,23,42,0.05)]"
-                                title={formatCurrencyTotal(totalPipelineValue)}
-                            >
-                                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/35">Pipeline</p>
-                                <p className="mt-2 text-[clamp(1.8rem,3vw,2.4rem)] font-bold leading-none tracking-tight text-io-dark">
-                                    {formatCompactCurrencyTotal(totalPipelineValue)}
-                                </p>
-                                <p className="mt-2 text-sm text-black/52">Valor somado dos cards filtrados</p>
-                            </div>
-                            <div className="rounded-[24px] border border-black/8 bg-white/92 px-4 py-4 shadow-[0_12px_24px_rgba(15,23,42,0.05)]">
-                                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/35">Alertas</p>
-                                <p className="mt-2 text-3xl font-bold tracking-tight text-io-dark">{pendingFollowUpAlertCount}</p>
-                                <p className="mt-2 text-sm text-black/52">{activeFollowUpsCount} follow-ups ativos</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mt-5 flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-black px-3 py-1.5 text-xs font-semibold text-white">
-                            {activeFollowUpsCount} follow-up{activeFollowUpsCount === 1 ? "" : "s"} ativo{activeFollowUpsCount === 1 ? "" : "s"}
-                        </span>
-                        <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">
-                            {pendingFollowUpAlertCount} alerta{pendingFollowUpAlertCount === 1 ? "" : "s"} pendente{pendingFollowUpAlertCount === 1 ? "" : "s"}
-                        </span>
-                        {activeFilterCount > 0 ? (
-                            <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-black/65 shadow-sm">
-                                {activeFilterCount} filtro{activeFilterCount === 1 ? "" : "s"} ativo{activeFilterCount === 1 ? "" : "s"}
-                            </span>
-                        ) : null}
-                    </div>
+                <div className="mb-6">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">Módulo CRM</p>
+                    <h2 className="mt-2 font-display text-[1.75rem] font-bold leading-tight text-io-dark">Kanban de atendimentos</h2>
+                    <p className="mt-1.5 text-sm text-black/55">Visualize seus atendimentos em tempo real, com etapas personalizáveis, filtros e movimentação dos leads entre colunas.</p>
                 </div>
+                <div className="rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)] md:p-6">
+                    {/* Linha superior: busca, filtros e botões */}
+                    <div className="flex w-full flex-col gap-3 xl:flex-row xl:items-center">
+                        <div ref={filterPanelRef} className="relative flex flex-1 flex-wrap items-center gap-3">
+                            <label className="flex h-14 flex-1 items-center gap-3 rounded-full border border-black/10 bg-[#fafafa] px-5">
+                                <Search className="h-5 w-5 shrink-0 text-black/40" />
+                                <input
+                                    value={searchTerm}
+                                    onChange={(event) => setSearchTerm(event.target.value)}
+                                    placeholder="Pesquisar por nome, telefone, responsável ou contexto"
+                                    className="w-full bg-transparent text-sm text-io-dark outline-none placeholder:text-black/35"
+                                />
+                            </label>
 
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[28px] border border-black/10 bg-white/80 px-4 py-4 shadow-[0_18px_45px_rgba(15,23,42,0.05)] backdrop-blur-sm md:px-5">
-                    <div ref={filterPanelRef} className="relative flex flex-wrap items-center gap-2">
-                        <input
-                            value={searchTerm}
-                            onChange={(event) => setSearchTerm(event.target.value)}
-                            placeholder="Pesquisar por nome, telefone, responsável ou contexto"
-                            className="h-11 w-full max-w-[360px] rounded-full border border-black/12 bg-white px-4 text-sm text-io-dark outline-none placeholder:text-black/42 focus:border-black/35 md:w-[360px]"
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setIsFilterOpen((value) => !value)}
-                            className="inline-flex h-11 min-w-[124px] items-center justify-center rounded-full border border-black/12 bg-white px-4 text-sm font-semibold text-io-dark transition hover:border-black/20 hover:bg-black/[0.03]"
-                        >
-                            Filtros
-                        </button>
-                        {isFilterOpen && (
-                            <div className="absolute left-0 top-14 z-20 w-[460px] max-w-[92vw] rounded-[28px] border border-black/10 bg-white p-4 shadow-[0_24px_80px_rgba(15,23,42,0.16)]">
-                                <div className="space-y-4">
-                                    <CompactMultiSelect
-                                        title="Responsáveis"
-                                        placeholder="Adicionar responsáveis"
-                                        selectedValues={selectedResponsibleIds}
-                                        options={responsibleFilterOptions}
-                                        emptyOptionsMessage="Nenhum responsável encontrado."
-                                        emptySelectionMessage="Todos os responsáveis."
-                                        onChange={setSelectedResponsibleIds}
-                                    />
-                                    <div>
-                                        <label className="mb-1 block text-sm font-semibold text-black/70">Data de criação</label>
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="date"
-                                                value={createdFrom}
-                                                onChange={(event) => setCreatedFrom(event.target.value)}
-                                                className="h-10 w-full rounded-xl border border-black/12 px-3 text-sm text-io-dark outline-none focus:border-black/35"
-                                            />
-                                            <span className="text-sm text-black/60">a</span>
-                                            <input
-                                                type="date"
-                                                value={createdTo}
-                                                onChange={(event) => setCreatedTo(event.target.value)}
-                                                className="h-10 w-full rounded-xl border border-black/12 px-3 text-sm text-io-dark outline-none focus:border-black/35"
-                                            />
+                            <button
+                                type="button"
+                                onClick={() => setIsFilterOpen((value) => !value)}
+                                className="inline-flex h-14 items-center justify-center gap-2 rounded-full border border-black/12 bg-white px-5 text-sm font-semibold text-io-dark transition hover:border-black/20 hover:bg-black/[0.03]"
+                            >
+                                Filtros
+                                {activeFilterCount > 0 && (
+                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-io-purple text-[10px] font-bold text-white">
+                                        {activeFilterCount}
+                                    </span>
+                                )}
+                            </button>
+
+                            {isFilterOpen && (
+                                <div className="absolute left-0 top-16 z-20 w-[460px] max-w-[92vw] rounded-[28px] border border-black/10 bg-white p-4 shadow-[0_24px_80px_rgba(15,23,42,0.16)]">
+                                    <div className="space-y-4">
+                                        <CompactMultiSelect
+                                            title="Responsáveis"
+                                            placeholder="Adicionar responsáveis"
+                                            selectedValues={selectedResponsibleIds}
+                                            options={responsibleFilterOptions}
+                                            emptyOptionsMessage="Nenhum responsável encontrado."
+                                            emptySelectionMessage="Todos os responsáveis."
+                                            onChange={setSelectedResponsibleIds}
+                                        />
+                                        <div>
+                                            <label className="mb-1 block text-sm font-semibold text-black/70">Data de criação</label>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="date"
+                                                    value={createdFrom}
+                                                    onChange={(event) => setCreatedFrom(event.target.value)}
+                                                    className="h-10 w-full rounded-xl border border-black/12 px-3 text-sm text-io-dark outline-none focus:border-black/35"
+                                                />
+                                                <span className="text-sm text-black/60">a</span>
+                                                <input
+                                                    type="date"
+                                                    value={createdTo}
+                                                    onChange={(event) => setCreatedTo(event.target.value)}
+                                                    className="h-10 w-full rounded-xl border border-black/12 px-3 text-sm text-io-dark outline-none focus:border-black/35"
+                                                />
+                                            </div>
+                                        </div>
+                                        <CompactMultiSelect
+                                            title="Etiquetas"
+                                            placeholder="Adicionar etiquetas"
+                                            selectedValues={selectedLabelIds}
+                                            options={labelFilterOptions}
+                                            emptyOptionsMessage="Sem etiquetas cadastradas."
+                                            emptySelectionMessage="Nenhuma etiqueta selecionada."
+                                            helperText="Contêm estas etiquetas"
+                                            onChange={setSelectedLabelIds}
+                                        />
+                                        <div className="flex items-center justify-end gap-2 pt-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedResponsibleIds([]);
+                                                    setSelectedLabelIds([]);
+                                                    setCreatedFrom("");
+                                                    setCreatedTo("");
+                                                }}
+                                                className="rounded-xl border border-black/15 px-3 py-2 text-sm text-black/65"
+                                            >
+                                                Limpar
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsFilterOpen(false)}
+                                                className="rounded-full bg-io-purple px-4 py-2 text-sm font-semibold text-white transition hover:bg-black/85"
+                                            >
+                                                Aplicar
+                                            </button>
                                         </div>
                                     </div>
-                                    <CompactMultiSelect
-                                        title="Etiquetas"
-                                        placeholder="Adicionar etiquetas"
-                                        selectedValues={selectedLabelIds}
-                                        options={labelFilterOptions}
-                                        emptyOptionsMessage="Sem etiquetas cadastradas."
-                                        emptySelectionMessage="Nenhuma etiqueta selecionada."
-                                        helperText="Contêm estas etiquetas"
-                                        onChange={setSelectedLabelIds}
-                                    />
-                                    <div className="flex items-center justify-end gap-2 pt-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedResponsibleIds([]);
-                                                setSelectedLabelIds([]);
-                                                setCreatedFrom("");
-                                                setCreatedTo("");
-                                            }}
-                                            className="rounded-xl border border-black/15 px-3 py-2 text-sm text-black/65"
-                                        >
-                                            Limpar
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsFilterOpen(false)}
-                                            className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-black/85"
-                                        >
-                                            Aplicar
-                                        </button>
-                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button type="button" onClick={() => setIsFollowUpsOpen(true)} className="inline-flex h-14 items-center gap-2 rounded-full bg-io-purple px-5 text-sm font-semibold text-white transition hover:bg-black/85">Follow-ups</button>
+                            <button type="button" onClick={exportCrmCsv} className="inline-flex h-14 items-center gap-2 rounded-full border border-black/12 bg-white px-5 text-sm font-semibold text-io-dark transition hover:border-black/20 hover:bg-black/[0.03]">Exportar</button>
+                            <button type="button" onClick={() => router.push("/protected/configuracoes?view=stages")} className="inline-flex h-14 items-center gap-2 rounded-full border border-black/12 bg-white px-5 text-sm font-semibold text-io-dark transition hover:border-black/20 hover:bg-black/[0.03]">Gerenciar etapas</button>
+                        </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <button type="button" onClick={exportCrmCsv} className="rounded-full border border-black/12 px-4 py-2.5 text-sm font-semibold text-io-dark transition hover:border-black/20 hover:bg-black/[0.03]">Exportar</button>
-                        <button type="button" onClick={() => setIsFollowUpsOpen(true)} className="rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black/85">Follow-ups</button>
-                        <button type="button" onClick={() => router.push("/protected/configuracoes?view=stages")} className="rounded-full border border-black/12 px-4 py-2.5 text-sm font-semibold text-io-dark transition hover:border-black/20 hover:bg-black/[0.03]">Gerenciar etapas</button>
+
+                    {/* Metric cards abaixo */}
+                    <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-[24px] border border-black/8 bg-[#fafafa] px-4 py-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/35">Leads visíveis</p>
+                            <p className="mt-2 text-3xl font-bold tracking-tight text-io-dark">{filteredLeads.length}</p>
+                            <p className="mt-2 text-sm text-black/52">{orderedStages.length} etapas configuradas</p>
+                        </div>
+                        <div
+                            className="rounded-[24px] border border-black/8 bg-[#fafafa] px-4 py-4"
+                            title={formatCurrencyTotal(totalPipelineValue)}
+                        >
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/35">Pipeline</p>
+                            <p className="mt-2 text-[clamp(1.8rem,3vw,2.4rem)] font-bold leading-none tracking-tight text-io-dark">
+                                {formatCompactCurrencyTotal(totalPipelineValue)}
+                            </p>
+                            <p className="mt-2 text-sm text-black/52">Valor somado dos cards filtrados</p>
+                        </div>
+                        <div className="rounded-[24px] border border-black/8 bg-[#fafafa] px-4 py-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/35">Alertas</p>
+                            <p className="mt-2 text-3xl font-bold tracking-tight text-io-dark">{pendingFollowUpAlertCount}</p>
+                            <p className="mt-2 text-sm text-black/52">{activeFollowUpsCount} follow-ups ativos</p>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
-                <div className="flex h-full min-h-0 min-w-max gap-4 pl-4 pr-4 md:pl-6 md:pr-6">
+
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div className="flex-1 overflow-x-auto overflow-y-hidden [scrollbar-gutter:stable]">
+                    <div className="flex h-full min-h-0 min-w-max gap-4 pb-4 pl-4 pr-4 md:pl-6 md:pr-6">
                     {orderedStages.map((stage) => {
                         const stageLeads = filteredLeads.filter((lead) => leadStageMap[lead.id] === stage.id);
                         const stageTotal = stageLeads.reduce(
@@ -1021,10 +1018,10 @@ export function CrmKanban() {
                                 className={`flex h-full min-h-0 w-[338px] shrink-0 flex-col rounded-[28px] border p-3 shadow-[0_18px_40px_rgba(15,23,42,0.05)] ${
                                     dragOverStageId === stage.id
                                         ? "border-black/35 bg-white"
-                                        : "border-black/10 bg-white/80 backdrop-blur-sm"
+                                        : "border-black/10 bg-white "
                                 }`}
                             >
-                                <header className="mb-3 flex items-center justify-between rounded-[22px] bg-[#f7f2ea] px-3 py-3">
+                                <header className="mb-3 flex items-center justify-between rounded-[22px] bg-white px-3 py-3">
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: stageColor }} /><h2 className="truncate text-sm font-semibold text-io-dark">{stage.title}</h2></div>
                                         <p className="mt-1 text-[11px] font-medium text-emerald-700">{formatCurrencyTotal(stageTotal)}</p>
@@ -1032,7 +1029,7 @@ export function CrmKanban() {
                                     <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-black/65 shadow-sm">{stageLeads.length}</span>
                                 </header>
                                 <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-                                    {stageLeads.length === 0 ? <div className="rounded-[22px] border border-dashed border-black/15 bg-[#fbf9f6] px-3 py-5 text-center text-xs text-black/45">Nenhum atendimento nesta etapa.</div> : stageLeads.map((lead) => {
+                                    {stageLeads.length === 0 ? <div className="rounded-[22px] border border-dashed border-black/15 bg-io-light px-3 py-5 text-center text-xs text-black/45">Nenhum atendimento nesta etapa.</div> : stageLeads.map((lead) => {
                                         return (
                                             <div
                                                 key={lead.id}
@@ -1052,7 +1049,7 @@ export function CrmKanban() {
                                                 >
                                                     <div className="flex items-start justify-between gap-2">
                                                         <p className="truncate text-sm font-semibold text-io-dark">{lead.name}</p>
-                                                        <span className="max-w-[50%] truncate rounded-full bg-[#f6f1e8] px-2.5 py-1 text-[11px] font-medium text-black/62">{lead.owner}</span>
+                                                        <span className="max-w-[50%] truncate rounded-full bg-io-light px-2.5 py-1 text-[11px] font-medium text-black/62">{lead.owner}</span>
                                                     </div>
                                                     <p className="mt-2 pr-10 line-clamp-3 text-xs leading-5 text-black/58">{lead.description}</p>
                                                     <div className="mt-3 flex items-center gap-2 text-[11px] text-black/45">
@@ -1066,7 +1063,7 @@ export function CrmKanban() {
                                                         openAtendimento(lead.id);
                                                     }}
                                                     onMouseEnter={() => prefetchAtendimento(lead.id)}
-                                                    className="absolute bottom-4 right-4 grid h-9 w-9 place-items-center rounded-full border border-black/12 bg-[#202028] text-white transition hover:bg-black"
+                                                    className="absolute bottom-4 right-4 grid h-9 w-9 place-items-center rounded-full border border-black/12 bg-io-purple text-white transition hover:bg-io-purple"
                                                     aria-label={`Abrir atendimento${lead.unreadCount > 0 ? ` com ${lead.unreadCount} mensagens não lidas` : ""}`}
                                                     title="Abrir atendimento"
                                                 >
@@ -1084,14 +1081,15 @@ export function CrmKanban() {
                             </section>
                         );
                     })}
+                    </div>
                 </div>
             </div>
 
             {selectedLead && (
-                <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4 backdrop-blur-sm">
-                    <div className="flex h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border border-white/15 bg-[#f6f1e8] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+                <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4">
+                    <div className="flex h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border border-white/15 bg-io-light shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
                         <div className="flex min-h-0 flex-1 flex-col">
-                            <div className="border-b border-black/10 bg-white/78 px-8 pb-5 pt-5 backdrop-blur-sm">
+                            <div className="border-b border-black/10 bg-white px-8 pb-5 pt-5">
                                 <div className="mb-2 flex items-start justify-between gap-3">
                                     <div>
                                         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Lead em foco</p>
@@ -1102,7 +1100,7 @@ export function CrmKanban() {
                                         <button
                                             type="button"
                                             onClick={openConfigureFields}
-                                            className="rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black/85"
+                                            className="rounded-full bg-io-purple px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black/85"
                                         >
                                             Configurar campos
                                         </button>
@@ -1128,7 +1126,7 @@ export function CrmKanban() {
                                         {selectedLead.photoUrl ? (
                                             <img src={selectedLead.photoUrl} alt={selectedLead.name} className="h-12 w-12 rounded-full object-cover" />
                                         ) : (
-                                            <div className="grid h-12 w-12 place-items-center rounded-full bg-[#f6f1e8] text-xs font-semibold text-io-dark">{toInitials(selectedLead.name)}</div>
+                                            <div className="grid h-12 w-12 place-items-center rounded-full bg-io-light text-xs font-semibold text-io-dark">{toInitials(selectedLead.name)}</div>
                                         )}
                                         <div>
                                             <p className="text-lg font-medium text-io-dark">{selectedLead.name}</p>
@@ -1143,7 +1141,7 @@ export function CrmKanban() {
                                         type="button"
                                         onClick={() => openAtendimento(selectedLead.id)}
                                         onMouseEnter={() => prefetchAtendimento(selectedLead.id)}
-                                        className="grid h-10 w-10 place-items-center rounded-full border border-black/12 bg-[#202028] text-white transition hover:bg-black"
+                                        className="grid h-10 w-10 place-items-center rounded-full border border-black/12 bg-io-purple text-white transition hover:bg-io-purple"
                                         aria-label="Abrir atendimento"
                                         title="Abrir atendimento"
                                     >
@@ -1152,7 +1150,7 @@ export function CrmKanban() {
                                 </div>
                                 <div className="space-y-5">
                                     {allLeadFields.length === 0 ? (
-                                        <div className="rounded-[24px] border border-dashed border-black/18 bg-white/70 p-4 text-sm text-black/55">
+                                        <div className="rounded-[24px] border border-dashed border-black/18 bg-white p-4 text-sm text-black/55">
                                             Nenhum campo cadastrado para este lead.
                                         </div>
                                     ) : allLeadFields.map((field) => {
@@ -1177,7 +1175,7 @@ export function CrmKanban() {
                                                                 className="w-full rounded-xl border border-black/12 px-3 py-2 text-sm text-io-dark outline-none focus:border-black/35"
                                                             />
                                                             <div className="flex items-center gap-2">
-                                                                <button type="button" onClick={saveEditorValue} className="rounded-full bg-black px-3 py-1.5 text-xs font-semibold text-white">Salvar</button>
+                                                                <button type="button" onClick={saveEditorValue} className="rounded-full bg-io-purple px-3 py-1.5 text-xs font-semibold text-white">Salvar</button>
                                                                 <button type="button" onClick={closeEditor} className="rounded-lg border border-black/15 px-3 py-1.5 text-xs font-semibold text-black/70">Cancelar</button>
                                                             </div>
                                                         </div>
@@ -1197,7 +1195,7 @@ export function CrmKanban() {
                                                                 className="h-10 w-full rounded-xl border border-black/12 px-3 text-sm text-io-dark outline-none focus:border-black/35"
                                                             />
                                                             <div className="flex items-center gap-2">
-                                                                <button type="button" onClick={saveEditorValue} className="rounded-full bg-black px-3 py-1.5 text-xs font-semibold text-white">Salvar</button>
+                                                                <button type="button" onClick={saveEditorValue} className="rounded-full bg-io-purple px-3 py-1.5 text-xs font-semibold text-white">Salvar</button>
                                                                 <button type="button" onClick={closeEditor} className="rounded-lg border border-black/15 px-3 py-1.5 text-xs font-semibold text-black/70">Cancelar</button>
                                                             </div>
                                                         </div>
@@ -1231,7 +1229,7 @@ export function CrmKanban() {
             )}
 
             {isConfigureFieldsOpen && (
-                <div className="fixed inset-0 z-[60] grid place-items-center bg-black/45 p-4 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[60] grid place-items-center bg-black/45 p-4">
                     <div className="w-full max-w-3xl rounded-[30px] border border-white/15 bg-white p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24)]">
                         <div className="mb-4 flex items-center justify-between gap-2">
                             <h3 className="text-xl font-semibold text-io-dark">Configurar campos do lead</h3>
@@ -1246,7 +1244,7 @@ export function CrmKanban() {
                             </button>
                         </div>
                         <div className="mb-3 space-y-2">
-                            {fieldDrafts.length === 0 ? <div className="rounded-[24px] border border-dashed border-black/20 bg-[#faf7f2] p-4 text-sm text-black/55">Nenhum campo cadastrado.</div> : fieldDrafts.map((field, index) => (
+                            {fieldDrafts.length === 0 ? <div className="rounded-[24px] border border-dashed border-black/20 bg-io-light p-4 text-sm text-black/55">Nenhum campo cadastrado.</div> : fieldDrafts.map((field, index) => (
                                 <div
                                     key={field.key}
                                     draggable
@@ -1254,7 +1252,7 @@ export function CrmKanban() {
                                     onDragOver={(event) => event.preventDefault()}
                                     onDrop={() => handleFieldDrop(index)}
                                     onDragEnd={() => setDragFieldKey(null)}
-                                    className={`grid grid-cols-[40px_1fr_auto] items-center gap-2 rounded-[22px] border border-black/10 bg-[#faf7f2] p-2 ${dragFieldKey === field.key ? "opacity-60" : ""}`}
+                                    className={`grid grid-cols-[40px_1fr_auto] items-center gap-2 rounded-[22px] border border-black/10 bg-io-light p-2 ${dragFieldKey === field.key ? "opacity-60" : ""}`}
                                 >
                                     <div className="grid h-8 w-8 place-items-center rounded-lg border border-black/15 text-black/60">::</div>
                                     <div className="flex items-center gap-2">
@@ -1304,7 +1302,7 @@ export function CrmKanban() {
                                 <button
                                     type="button"
                                     onClick={saveFieldConfiguration}
-                                    className="rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black/85"
+                                    className="rounded-full bg-io-purple px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black/85"
                                 >
                                     Salvar
                                 </button>
@@ -1323,16 +1321,16 @@ export function CrmKanban() {
             />
 
             {isCreateFieldOpen && (
-                <div className="fixed inset-0 z-[70] grid place-items-center bg-black/45 p-4 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[70] grid place-items-center bg-black/45 p-4">
                     <div className="w-full max-w-xl rounded-[30px] border border-white/15 bg-white p-6 shadow-[0_24px_80px_rgba(0,0,0,0.24)]">
                         <h3 className="mb-5 text-3xl font-semibold text-io-dark">Adicionar novo campo personalizado</h3>
                         <div className="space-y-4">
                             <div><label className="mb-1 block text-sm font-medium text-io-dark">Tipo *</label><select value={newFieldType} onChange={(event) => setNewFieldType(event.target.value as CrmCustomFieldType)} className="h-10 w-full rounded-xl border border-black/15 px-3 text-sm">{FIELD_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
                             <div><label className="mb-1 block text-sm font-medium text-io-dark">Nome *</label><input value={newFieldLabel} onChange={(event) => setNewFieldLabel(event.target.value)} className="h-10 w-full rounded-xl border border-black/15 px-3 text-sm" /></div>
-                            <div className="rounded-[24px] bg-[#f6f1e8] p-4"><p className="mb-2 text-sm font-semibold text-io-dark">Nome do campo</p><input value={newFieldLabel} readOnly placeholder="Texto" className="h-10 w-full rounded-xl border border-black/15 bg-white px-3 text-sm text-black/60" /></div>
+                            <div className="rounded-[24px] bg-io-light p-4"><p className="mb-2 text-sm font-semibold text-io-dark">Nome do campo</p><input value={newFieldLabel} readOnly placeholder="Texto" className="h-10 w-full rounded-xl border border-black/15 bg-white px-3 text-sm text-black/60" /></div>
                         </div>
                         {fieldError && <p className="mt-3 text-sm text-red-600">{fieldError}</p>}
-                        <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setIsCreateFieldOpen(false)} className="rounded-full border border-black/15 px-7 py-2 text-base text-black/60">Cancelar</button><button type="button" onClick={createFieldInConfigModal} className="rounded-full bg-black px-7 py-2 text-base font-semibold text-white transition hover:bg-black/85">Salvar</button></div>
+                        <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setIsCreateFieldOpen(false)} className="rounded-full border border-black/15 px-7 py-2 text-base text-black/60">Cancelar</button><button type="button" onClick={createFieldInConfigModal} className="rounded-full bg-io-purple px-7 py-2 text-base font-semibold text-white transition hover:bg-black/85">Salvar</button></div>
                     </div>
                 </div>
             )}

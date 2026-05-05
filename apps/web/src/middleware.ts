@@ -14,6 +14,10 @@ function isAdminRoute(pathname: string) {
     return pathname.startsWith("/protected/admin");
 }
 
+function isSuperAdminRoute(pathname: string) {
+    return pathname.startsWith("/protected/superadmin");
+}
+
 export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;
 
@@ -43,6 +47,12 @@ export async function middleware(req: NextRequest) {
         const roles = (payload.roles as string[]) ?? [];
 
         if (isAdminRoute(pathname) && !roles.includes("ADMIN") && !roles.includes("SUPERADMIN")) {
+            const url = req.nextUrl.clone();
+            url.pathname = "/protected/dashboard";
+            return NextResponse.redirect(url);
+        }
+
+        if (isSuperAdminRoute(pathname) && !roles.includes("SUPERADMIN")) {
             const url = req.nextUrl.clone();
             url.pathname = "/protected/dashboard";
             return NextResponse.redirect(url);

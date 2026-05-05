@@ -53,6 +53,9 @@ public class IoAutoController {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final ZoneId DASHBOARD_ZONE = ZoneId.of("America/Sao_Paulo");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
+    private static final int MAX_PUBLIC_CATALOG_BANNER_IMAGES = 6;
+    private static final int MAX_PUBLIC_CATALOG_IMAGE_LENGTH = 2_000_000;
+    private static final List<String> DEFAULT_INTEGRATION_PROVIDER_KEYS = List.of("olx", "webmotors");
 
     private final CurrentUserPort currentUser;
     private final CompanyRepositoryPort companies;
@@ -127,6 +130,27 @@ public class IoAutoController {
                 .filter(publication -> isActivePublicationStatus(publication.getStatus()))
                 .count();
 
+        long inventoryValueCents = companyVehicles.stream()
+                .filter(vehicle -> "SOLD".equalsIgnoreCase(vehicle.getStatus()) == false)
+                .mapToLong(vehicle -> vehicle.getPriceCents() == null ? 0L : Math.max(vehicle.getPriceCents(), 0L))
+                .sum();
+
+        long totalSalesCount = 0L;
+        long totalSalesRevenueCents = 0L;
+        for (JpaAtendimentoSessionEntity session : periodSalesSessions) {
+            totalSalesCount++;
+            if (session.getSoldVehicleId() != null) {
+                Long price = companyVehicles.stream()
+                        .filter(v -> v.getId().equals(session.getSoldVehicleId()))
+                        .map(JpaIoAutoVehicleEntity::getPriceCents)
+                        .findFirst()
+                        .orElse(null);
+                if (price != null && price > 0) {
+                    totalSalesRevenueCents += price;
+                }
+            }
+        }
+
         Map<String, Long> sources = new LinkedHashMap<>();
         for (JpaAtendimentoConversationEntity conversation : companyConversations) {
             String key = normalizeSourcePlatform(conversation.getSourcePlatform());
@@ -172,6 +196,9 @@ public class IoAutoController {
                 activePublicationCount,
                 companyConversations.size(),
                 connectedIntegrations,
+                inventoryValueCents,
+                totalSalesCount,
+                totalSalesRevenueCents,
                 billing,
                 new IoAutoDashboardHttpResponse.PeriodFilter(
                         periodSelection.preset(),
@@ -223,7 +250,7 @@ public class IoAutoController {
 
         return ResponseEntity.ok(new PublicInventoryCatalogHttpResponse(
                 toPublicCompanySummary(company),
-                buildPublicCatalogBanners(publicVehicles),
+                buildResolvedPublicCatalogBanners(company, publicVehicles),
                 catalogVehicles
         ));
     }
@@ -309,9 +336,10 @@ public class IoAutoController {
     }
 
     @GetMapping("/ioauto/integrations")
+    @Transactional
     public ResponseEntity<List<IoAutoIntegrationHttpResponse>> listIntegrations() {
         UUID companyId = currentUser.companyId();
-        List<IoAutoIntegrationHttpResponse> response = integrations.findAllByCompanyIdOrderByDisplayNameAsc(companyId).stream()
+        List<IoAutoIntegrationHttpResponse> response = ensureDefaultIntegrations(companyId, Instant.now()).stream()
                 .filter(entity -> isSupportedProvider(entity.getProviderKey()))
                 .map(this::toIntegrationResponse)
                 .toList();
@@ -480,6 +508,50 @@ public class IoAutoController {
                 .toList();
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/ioauto/public-catalog-settings")
+    public ResponseEntity<PublicCatalogSettingsHttpResponse> getPublicCatalogSettings() {
+        UUID companyId = currentUser.companyId();
+        var company = companies.findById(companyId)
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+        return ResponseEntity.ok(toPublicCatalogSettingsResponse(company));
+    }
+
+    @PutMapping("/ioauto/public-catalog-settings")
+    @Transactional
+    public ResponseEntity<PublicCatalogSettingsHttpResponse> updatePublicCatalogSettings(
+            @Valid @RequestBody SavePublicCatalogSettingsHttpRequest request
+    ) {
+        UUID companyId = currentUser.companyId();
+        var company = companies.findById(companyId)
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+
+        String bannerMode = normalizePublicCatalogBannerMode(request.bannerMode());
+        List<String> customImageUrls = sanitizePublicCatalogBannerImages(request.customImageUrls());
+
+        var updated = new com.io.appioweb.domain.auth.entity.Company(
+                company.id(),
+                company.name(),
+                company.profileImageUrl(),
+                company.email(),
+                company.contractEndDate(),
+                company.cnpj(),
+                company.openedAt(),
+                company.whatsappNumber(),
+                company.zapiInstanceId(),
+                company.zapiInstanceToken(),
+                company.zapiClientToken(),
+                company.businessHoursStart(),
+                company.businessHoursEnd(),
+                company.businessHoursWeeklyJson(),
+                bannerMode,
+                writeStringArray(customImageUrls),
+                company.createdAt()
+        );
+        companies.save(updated);
+
+        return ResponseEntity.ok(toPublicCatalogSettingsResponse(updated));
     }
 
     @PostMapping("/ioauto/public-links")
@@ -765,12 +837,34 @@ public class IoAutoController {
         );
     }
 
-    private List<PublicCatalogBanner> buildPublicCatalogBanners(List<JpaIoAutoVehicleEntity> publicVehicles) {
+    private PublicCatalogSettingsHttpResponse toPublicCatalogSettingsResponse(com.io.appioweb.domain.auth.entity.Company company) {
+        return new PublicCatalogSettingsHttpResponse(
+                normalizePublicCatalogBannerMode(company.publicStockBannerMode()),
+                sanitizePublicCatalogBannerImages(readStringArray(company.publicStockBannerImagesJson()))
+        );
+    }
+
+    private List<PublicCatalogBanner> buildResolvedPublicCatalogBanners(
+            com.io.appioweb.domain.auth.entity.Company company,
+            List<JpaIoAutoVehicleEntity> publicVehicles
+    ) {
+        if ("CUSTOM_IMAGES".equals(normalizePublicCatalogBannerMode(company.publicStockBannerMode()))) {
+            List<PublicCatalogBanner> customBanners = buildCustomCatalogBanners(company);
+            if (!customBanners.isEmpty()) {
+                return customBanners;
+            }
+        }
+        return buildVehicleCatalogBanners(publicVehicles);
+    }
+
+    private List<PublicCatalogBanner> buildVehicleCatalogBanners(List<JpaIoAutoVehicleEntity> publicVehicles) {
         return publicVehicles.stream()
                 .sorted(Comparator.comparing(JpaIoAutoVehicleEntity::isFeatured).reversed()
                         .thenComparing(JpaIoAutoVehicleEntity::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(5)
                 .map(vehicle -> new PublicCatalogBanner(
+                        vehicle.getId().toString(),
+                        "VEHICLE",
                         vehicle.getId(),
                         vehicle.getTitle(),
                         buildPublicVehicleSubtitle(vehicle),
@@ -780,6 +874,30 @@ public class IoAutoController {
                         normalizeNullableText(vehicle.getState()),
                         vehicle.getModelYear(),
                         vehicle.isFeatured()
+                ))
+                .toList();
+    }
+
+    private List<PublicCatalogBanner> buildCustomCatalogBanners(com.io.appioweb.domain.auth.entity.Company company) {
+        List<String> images = sanitizePublicCatalogBannerImages(readStringArray(company.publicStockBannerImagesJson()));
+        if (images.isEmpty()) {
+            return List.of();
+        }
+
+        String companyName = normalizeText(company.name(), "Catalogo");
+        return java.util.stream.IntStream.range(0, images.size())
+                .mapToObj(index -> new PublicCatalogBanner(
+                        "custom-image-" + (index + 1),
+                        "CUSTOM_IMAGE",
+                        null,
+                        companyName,
+                        "Confira os carros disponiveis e fale com a loja para receber mais detalhes.",
+                        images.get(index),
+                        null,
+                        null,
+                        null,
+                        null,
+                        true
                 ))
                 .toList();
     }
@@ -835,19 +953,47 @@ public class IoAutoController {
     }
 
     private JpaIoAutoIntegrationEntity resolveOrCreateIntegration(UUID companyId, String providerKey, Instant now) {
-        return integrations.findByCompanyIdAndProviderKey(companyId, providerKey)
+        String normalizedProviderKey = normalizeProviderKey(providerKey);
+        JpaIoAutoIntegrationEntity entity = integrations.findByCompanyIdAndProviderKey(companyId, normalizedProviderKey)
                 .orElseGet(() -> {
-                    JpaIoAutoIntegrationEntity entity = new JpaIoAutoIntegrationEntity();
-                    entity.setId(UUID.randomUUID());
-                    entity.setCompanyId(companyId);
-                    entity.setProviderKey(providerKey);
-                    entity.setDisplayName(defaultIntegrationLabel(providerKey));
-                    entity.setStatus("CONFIGURATION_REQUIRED");
-                    entity.setSettingsJson("{}");
-                    entity.setCreatedAt(now);
-                    entity.setUpdatedAt(now);
-                    return integrations.save(entity);
+                    JpaIoAutoIntegrationEntity created = new JpaIoAutoIntegrationEntity();
+                    created.setId(UUID.randomUUID());
+                    created.setCompanyId(companyId);
+                    created.setProviderKey(normalizedProviderKey);
+                    created.setCreatedAt(now);
+                    return created;
                 });
+
+        boolean changed = false;
+        if (normalizeText(entity.getDisplayName()).isBlank()) {
+            entity.setDisplayName(defaultIntegrationLabel(normalizedProviderKey));
+            changed = true;
+        }
+        if (normalizeText(entity.getStatus()).isBlank()) {
+            entity.setStatus("CONFIGURATION_REQUIRED");
+            changed = true;
+        }
+        if (normalizeText(entity.getSettingsJson()).isBlank()) {
+            entity.setSettingsJson("{}");
+            changed = true;
+        }
+        if (entity.getCreatedAt() == null) {
+            entity.setCreatedAt(now);
+            changed = true;
+        }
+        if (entity.getUpdatedAt() == null) {
+            entity.setUpdatedAt(now);
+            changed = true;
+        }
+
+        return changed ? integrations.save(entity) : entity;
+    }
+
+    private List<JpaIoAutoIntegrationEntity> ensureDefaultIntegrations(UUID companyId, Instant now) {
+        for (String providerKey : DEFAULT_INTEGRATION_PROVIDER_KEYS) {
+            resolveOrCreateIntegration(companyId, providerKey, now);
+        }
+        return integrations.findAllByCompanyIdOrderByDisplayNameAsc(companyId);
     }
 
     private String determinePublicationStatus(JpaIoAutoIntegrationEntity integration) {
@@ -882,6 +1028,46 @@ public class IoAutoController {
                 .replaceAll("[^a-z0-9-]+", "-")
                 .replaceAll("^-+", "")
                 .replaceAll("-+$", "");
+    }
+
+    private String normalizePublicCatalogBannerMode(String value) {
+        String normalized = normalizeText(value, "VEHICLES").toUpperCase(Locale.ROOT);
+        if ("VEHICLES".equals(normalized) || "CUSTOM_IMAGES".equals(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException("IOAUTO_PUBLIC_CATALOG_INVALID_MODE", "Modo de banner invalido.");
+    }
+
+    private List<String> sanitizePublicCatalogBannerImages(List<String> values) {
+        LinkedHashSet<String> unique = new LinkedHashSet<>();
+        for (String value : values == null ? List.<String>of() : values) {
+            String normalized = normalizeText(value);
+            if (normalized.isBlank()) continue;
+            if (!isSupportedPublicCatalogBannerImage(normalized)) {
+                throw new BusinessException("IOAUTO_PUBLIC_CATALOG_INVALID_IMAGE", "Uma das imagens do banner e invalida.");
+            }
+            if (normalized.length() > MAX_PUBLIC_CATALOG_IMAGE_LENGTH) {
+                throw new BusinessException("IOAUTO_PUBLIC_CATALOG_IMAGE_TOO_LARGE", "Uma das imagens do banner excede o tamanho permitido.");
+            }
+            unique.add(normalized);
+            if (unique.size() > MAX_PUBLIC_CATALOG_BANNER_IMAGES) {
+                throw new BusinessException("IOAUTO_PUBLIC_CATALOG_IMAGE_LIMIT", "Voce pode salvar ate " + MAX_PUBLIC_CATALOG_BANNER_IMAGES + " imagens no banner.");
+            }
+        }
+        return List.copyOf(unique);
+    }
+
+    private boolean isSupportedPublicCatalogBannerImage(String value) {
+        String normalized = normalizeText(value).toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+            return true;
+        }
+        return normalized.startsWith("data:image/png;base64,")
+                || normalized.startsWith("data:image/jpeg;base64,")
+                || normalized.startsWith("data:image/jpg;base64,")
+                || normalized.startsWith("data:image/webp;base64,")
+                || normalized.startsWith("data:image/gif;base64,")
+                || normalized.startsWith("data:image/avif;base64,");
     }
 
     private String writeStringArray(List<String> values) {
@@ -1251,7 +1437,7 @@ public class IoAutoController {
         String normalized = normalizeProviderKey(providerKey);
         return switch (normalized) {
             case "webmotors" -> "Webmotors / Estoque e Leads";
-            case "olx-autos" -> "OLX Autos";
+            case "olx", "olx-autos" -> "OLX";
             case "icarros" -> "iCarros";
             default -> normalized.isBlank() ? "Integração" : normalized.substring(0, 1).toUpperCase(Locale.ROOT) + normalized.substring(1);
         };
@@ -1282,6 +1468,9 @@ public class IoAutoController {
             long publicationCount,
             long leadCount,
             long connectedIntegrations,
+            long inventoryValueCents,
+            long totalSalesCount,
+            long totalSalesRevenueCents,
             BillingSnapshot billing,
             PeriodFilter periodFilter,
             List<PeriodPoint> leadVsSales,
@@ -1385,6 +1574,8 @@ public class IoAutoController {
     }
 
     public record PublicCatalogBanner(
+            String id,
+            String kind,
             UUID vehicleId,
             String title,
             String subtitle,
@@ -1474,6 +1665,12 @@ public class IoAutoController {
             Instant lastInteractionAt,
             Instant createdAt,
             Instant updatedAt
+    ) {
+    }
+
+    public record PublicCatalogSettingsHttpResponse(
+            String bannerMode,
+            List<String> customImageUrls
     ) {
     }
 
@@ -1569,6 +1766,12 @@ public class IoAutoController {
             UUID vehicleId,
             String sourceType,
             String sourceReference
+    ) {
+    }
+
+    public record SavePublicCatalogSettingsHttpRequest(
+            String bannerMode,
+            List<String> customImageUrls
     ) {
     }
 

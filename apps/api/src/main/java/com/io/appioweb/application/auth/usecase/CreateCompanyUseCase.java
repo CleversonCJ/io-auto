@@ -83,6 +83,8 @@ public class CreateCompanyUseCase implements CompanyAdminUseCase {
                 command.businessHoursStart().trim(),
                 command.businessHoursEnd().trim(),
                 command.businessHoursWeeklyJson().trim(),
+                "VEHICLES",
+                "[]",
                 now
         );
         companies.save(company);

@@ -408,6 +408,8 @@ public class AuthController {
                 req.businessHoursStart().trim(),
                 req.businessHoursEnd().trim(),
                 businessHoursWeeklyJson,
+                existing.publicStockBannerMode(),
+                existing.publicStockBannerImagesJson(),
                 existing.createdAt()
         ));
         return ResponseEntity.noContent().build();

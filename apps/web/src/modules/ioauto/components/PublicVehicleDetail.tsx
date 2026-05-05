@@ -98,22 +98,22 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
     ];
 
     return (
-        <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.95),_rgba(245,243,239,0.96)_56%,_rgba(236,232,226,0.98))] text-io-dark">
+        <main className="min-h-screen bg-[#fcfcfc] text-io-dark">
             <div className="mx-auto max-w-7xl px-4 py-5 md:px-6 md:py-7">
-                <header className="rounded-[30px] border border-black/10 bg-white/92 px-5 py-4 shadow-[0_20px_55px_rgba(15,23,42,0.08)] backdrop-blur md:px-7">
+                <header className="rounded-[30px] border border-black/10 bg-white px-5 py-4 shadow-[0_20px_55px_rgba(15,23,42,0.08)] md:px-7">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div className="flex items-center gap-4">
                             {data.company.profileImageUrl ? (
-                                <img src={data.company.profileImageUrl} alt={data.company.name} className="h-14 w-14 rounded-[20px] border border-black/10 object-cover" />
+                                <img src={data.company.profileImageUrl} alt={data.company.name} className="h-14 max-w-[180px] object-contain object-left" />
                             ) : (
-                                <div className="grid h-14 w-14 place-items-center rounded-[20px] bg-io-dark text-sm font-bold text-white">
+                                <div className="grid h-14 w-14 place-items-center rounded-[20px] bg-io-dark text-sm font-bold text-white shadow-sm">
                                     {getInitials(data.company.name)}
                                 </div>
                             )}
 
                             <div>
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-black/42">Catalogo publico</p>
-                                <h1 className="mt-1 font-display text-2xl font-bold md:text-3xl">{data.company.name}</h1>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-black/32">Catálogo público</p>
+                                <h1 className="mt-1 font-display text-2xl font-bold md:text-3xl tracking-tight">{data.company.name}</h1>
                             </div>
                         </div>
 
@@ -129,9 +129,9 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                                     sourceReference: tracking.sourceReference,
                                 })
                             }
-                            className={`inline-flex h-12 items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold transition ${
+                            className={`inline-flex h-12 items-center justify-center gap-2 rounded-full px-5 text-sm font-bold transition ${
                                 contactHref
-                                    ? "bg-[#111111] text-white hover:bg-black/85"
+                                    ? "bg-io-purple text-white hover:opacity-90"
                                     : "cursor-not-allowed bg-black/[0.06] text-black/45"
                             }`}
                         >
@@ -144,20 +144,20 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                 <div className="mt-6">
                     <Link
                         href={withPublicLeadTracking(`/estoque-publico/${data.company.publicSlug}`, tracking)}
-                        className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-medium text-black/65 shadow-[0_10px_30px_rgba(15,23,42,0.07)] transition hover:text-black"
+                        className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-medium text-black/65 shadow-[0_10px_30px_rgba(15,23,42,0.07)] transition hover:text-io-dark"
                     >
                         <ArrowLeft className="h-4 w-4" />
                         Voltar ao catalogo
                     </Link>
                 </div>
 
-                <section className="mt-5 grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-start">
-                    <div className="rounded-[34px] border border-black/10 bg-white p-4 shadow-[0_20px_60px_rgba(15,23,42,0.09)] md:p-5">
-                        <div className="overflow-hidden rounded-[28px] bg-[#efebe4]">
+                <section className="mt-5 grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-stretch">
+                    <div className="flex flex-col rounded-[34px] border border-black/10 bg-white p-4 shadow-[0_20px_60px_rgba(15,23,42,0.09)] md:p-5">
+                        <div className="overflow-hidden rounded-[28px] bg-black/5">
                             {selectedImage ? (
                                 <img src={selectedImage} alt={data.vehicle.title} className="h-[320px] w-full object-cover md:h-[520px]" />
                             ) : (
-                                <div className="flex h-[320px] items-center justify-center bg-[linear-gradient(135deg,_#171717,_#4a4a4a)] text-white/70 md:h-[520px]">
+                                <div className="flex h-[320px] items-center justify-center bg-white text-white/70 md:h-[520px]">
                                     Sem imagens disponiveis
                                 </div>
                             )}
@@ -181,14 +181,14 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                         ) : null}
                     </div>
 
-                    <aside className="rounded-[34px] border border-black/10 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.09)] lg:sticky lg:top-6">
+                    <aside className="flex flex-col rounded-[34px] border border-black/10 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.09)] lg:sticky lg:top-6">
                         <div className="flex flex-wrap gap-2">
-                            <span className="rounded-full bg-[#101010] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
+                            <span className="rounded-full bg-io-dark px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-white">
                                 {data.vehicle.brand}
                             </span>
                             {data.vehicle.featured ? (
-                                <span className="rounded-full bg-[#8aa7ff] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
-                                    Novidade
+                                <span className="rounded-full bg-io-purple px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-white">
+                                    Destaque
                                 </span>
                             ) : null}
                         </div>
@@ -207,8 +207,8 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                             </span>
                         </div>
 
-                        <div className="mt-6 rounded-[28px] border border-black/10 bg-[#faf8f4] px-5 py-5">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-black/38">Preco sugerido</p>
+                        <div className="mt-6 flex-1 rounded-[28px] border border-black/10 bg-black/5 px-5 py-5 flex flex-col justify-center">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-black/38">Preço sugerido</p>
                             <p className="mt-2 text-4xl font-bold tracking-tight text-io-dark">{formatMoney(data.vehicle.priceCents)}</p>
                         </div>
 
@@ -224,9 +224,9 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                                     sourceReference: tracking.sourceReference,
                                 })
                             }
-                            className={`mt-6 inline-flex h-14 w-full items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold transition ${
+                            className={`mt-6 inline-flex h-14 w-full items-center justify-center gap-2 rounded-full px-5 text-sm font-bold transition shadow-md ${
                                 contactHref
-                                    ? "bg-[#22c55e] text-white hover:bg-[#16a34a]"
+                                    ? "bg-io-purple text-white hover:opacity-90"
                                     : "cursor-not-allowed bg-black/[0.06] text-black/45"
                             }`}
                         >
@@ -234,12 +234,12 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                             Tenho Interesse
                         </a>
 
-                        <div className="mt-6 rounded-[26px] bg-black/[0.03] px-4 py-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/38">Resumo rapido</p>
-                            <div className="mt-3 grid gap-2 text-sm text-black/62">
+                        <div className="mt-6 rounded-[26px] bg-black/5 px-4 py-4">
+                            <p className="text-xs font-bold uppercase tracking-[0.2em] text-black/38">Resumo rápido</p>
+                            <div className="mt-3 grid gap-2 text-sm text-black/62 font-medium">
                                 <span>{buildVehicleLocation(data.vehicle)}</span>
-                                <span>{data.vehicle.transmission ?? "Cambio nao informado"}</span>
-                                <span>{data.vehicle.fuelType ?? "Combustivel nao informado"}</span>
+                                <span>{data.vehicle.transmission ?? "Câmbio não informado"}</span>
+                                <span>{data.vehicle.fuelType ?? "Combustível não informado"}</span>
                             </div>
                         </div>
                     </aside>
@@ -247,43 +247,43 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
 
                 <section className="mt-7">
                     <div className="flex items-center gap-3">
-                        <div className="h-8 w-1 rounded-full bg-black" />
+                        <div className="h-8 w-1 rounded-full bg-io-purple" />
                         <h3 className="font-display text-2xl font-bold md:text-3xl">Especificacoes detalhadas</h3>
                     </div>
 
                     <div className="mt-5 rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_55px_rgba(15,23,42,0.07)] md:p-6">
                         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                             {specifications.map((item) => (
-                                <div key={item.label} className="rounded-[24px] bg-[#faf8f4] px-4 py-4">
-                                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-black/42">
+                                <div key={item.label} className="rounded-[24px] bg-black/5 px-4 py-4 transition hover:bg-black/[0.07]">
+                                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-black/32">
                                         {item.icon}
                                         {item.label}
                                     </div>
-                                    <p className="mt-3 text-sm font-medium text-io-dark">{item.value}</p>
+                                    <p className="mt-3 text-sm font-bold text-io-dark">{item.value}</p>
                                 </div>
                             ))}
                         </div>
 
                         <div className="mt-6 grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-                            <div className="rounded-[28px] bg-[#111111] px-5 py-5 text-white">
+                            <div className="rounded-[28px] bg-[#212121] px-5 py-5 text-white">
                                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Descricao</p>
                                 <p className="mt-4 text-sm leading-7 text-white/76">
                                     {data.vehicle.description?.trim() || "Este veiculo esta disponivel para atendimento e negociacao. Fale com a loja para receber fotos, condicoes e simulacoes."}
                                 </p>
                             </div>
 
-                            <div className="rounded-[28px] border border-black/10 bg-[#faf8f4] px-5 py-5">
-                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/42">Itens e opcionais</p>
+                            <div className="rounded-[28px] border border-black/10 bg-black/5 px-5 py-5">
+                                <p className="text-xs font-bold uppercase tracking-[0.22em] text-black/32">Itens e opcionais</p>
                                 {data.vehicle.optionals.length ? (
                                     <div className="mt-4 grid gap-2 md:grid-cols-2">
                                         {data.vehicle.optionals.map((optional) => (
-                                            <div key={optional} className="rounded-2xl bg-white px-4 py-3 text-sm text-black/72 shadow-[0_10px_25px_rgba(15,23,42,0.05)]">
+                                            <div key={optional} className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-black/68 shadow-sm">
                                                 {optional}
                                             </div>
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="mt-4 text-sm text-black/56">Os opcionais detalhados deste veiculo nao foram informados.</p>
+                                    <p className="mt-4 text-sm text-black/56">Os opcionais detalhados deste veículo não foram informados.</p>
                                 )}
                             </div>
                         </div>

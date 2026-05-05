@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class WebmotorsRestTokenClientTest {
 
     @Test
-    void getAccessTokenCachesResponseAndSanitizesFormBody() {
+    void getAccessTokenCachesResponseAndSanitizesJsonBody() {
         List<HttpRequest> requests = new ArrayList<>();
         WebmotorsRestTokenClient client = new WebmotorsRestTokenClient(request -> {
             requests.add(request);
@@ -33,7 +33,9 @@ class WebmotorsRestTokenClientTest {
         assertThat(first.payload().accessToken()).isEqualTo("rest-token-1");
         assertThat(second.payload().accessToken()).isEqualTo("rest-token-1");
         assertThat(requests).hasSize(1);
-        assertThat(first.sanitizedRequest()).contains("password=***");
+        assertThat(requests.getFirst().headers().firstValue("Authorization")).hasValueSatisfying(value -> assertThat(value).startsWith("Basic "));
+        assertThat(requests.getFirst().headers().firstValue("client_id")).hasValue("client-id");
+        assertThat(first.sanitizedRequest()).contains("\"password\":\"***\"");
         assertThat(first.sanitizedRequest()).doesNotContain("senha-rest");
     }
 
@@ -51,8 +53,8 @@ class WebmotorsRestTokenClientTest {
                 "12345678000190",
                 "integracao@example.com",
                 "senha-super-secreta",
-                "https://rest.example.test/token",
-                "https://rest.example.test/leads",
+                "https://rest.example.test/login",
+                "https://rest.example.test/site/v1",
                 "usuario-rest",
                 "senha-rest",
                 "client-id",

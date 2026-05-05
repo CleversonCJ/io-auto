@@ -1,5 +1,6 @@
 package com.io.appioweb.shared.errors;
 
+import com.io.appioweb.adapters.integrations.olx.OlxApiException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,16 @@ import java.time.Instant;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(OlxApiException.class)
+    public ResponseEntity<ApiError> handleOlxApi(OlxApiException ex) {
+        HttpStatus status = HttpStatus.resolve(ex.httpStatus());
+        if (status == null) {
+            status = HttpStatus.BAD_REQUEST;
+        }
+        return ResponseEntity.status(status)
+                .body(new ApiError(ex.code(), ex.getMessage(), Instant.now()));
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiError> handleBusiness(BusinessException ex) {

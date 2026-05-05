@@ -1,5 +1,9 @@
 import { IntegrationCenter } from "@/modules/ioauto/components/IntegrationCenter";
 
 export default function IntegracoesPage() {
-    return <IntegrationCenter />;
+    return (
+        <div className="grid gap-6">
+            <IntegrationCenter />
+        </div>
+    );
 }
