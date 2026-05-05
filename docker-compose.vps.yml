@@ -81,5 +81,5 @@ volumes:
 
 networks:
   ioauto_network:
+    external: true
     name: ioauto_network
-    driver: bridge
