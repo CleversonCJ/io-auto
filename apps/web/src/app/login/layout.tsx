@@ -1,6 +1,6 @@
 export const metadata = {
-  title: "IO Connect - Login",
-  description: "Tela de login do IO Connect",
+  title: "IO Auto - Login",
+  description: "Tela de login do IO Auto",
 };
 
 export default function LoginLayout({ children }: { children: React.ReactNode }) {
