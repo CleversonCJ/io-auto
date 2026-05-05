@@ -4,14 +4,12 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginForm } from "@/modules/auth/schemas/loginSchema";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 type LoginFormProps = {
     embedded?: boolean;
 };
 
 export function LoginForm({ embedded = false }: LoginFormProps) {
-    const router = useRouter();
     const [error, setError] = useState<string | null>(null);
 
     const form = useForm<LoginForm>({
@@ -34,8 +32,9 @@ export function LoginForm({ embedded = false }: LoginFormProps) {
                 return;
             }
 
-            router.replace("/protected/dashboard");
-            router.refresh();
+            // Use a full navigation so the browser persists the new httpOnly
+            // auth cookies before the protected app bootstraps.
+            window.location.assign("/protected/dashboard");
         } catch {
             setError("Não foi possível conectar com o servidor de autenticação.");
         }
