@@ -59,7 +59,8 @@ export async function middleware(req: NextRequest) {
         }
 
         return NextResponse.next();
-    } catch {
+    } catch (error) {
+        console.error("[Middleware] JWT verification failed:", error);
         const url = req.nextUrl.clone();
         url.pathname = "/login";
         const res = NextResponse.redirect(url);

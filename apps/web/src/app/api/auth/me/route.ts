@@ -58,8 +58,10 @@ export async function GET() {
         let res = await requestMe(token);
 
         if (res.status === 401) {
+            console.error("[auth/me] requestMe returned 401. Attempting refresh...");
             const newToken = await refreshAccessToken(apiBase);
             if (!newToken) {
+                console.error("[auth/me] refreshAccessToken failed. Returning 401.");
                 return NextResponse.json({ message: "Sessao expirada" }, { status: 401 });
             }
 
