@@ -18,6 +18,8 @@ Thumbs.db
 **/node_modules/
 **/.next/
 **/out/
+!**/src/main/java/**/out/
+
 **/dist/
 **/build/
 **/.turbo/
