@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { BellRing, LogOut } from "lucide-react";
 
 export function ProtectedNotificationsRail() {
@@ -14,13 +13,13 @@ export function ProtectedNotificationsRail() {
                 <BellRing className="h-5 w-5" strokeWidth={2} />
             </button>
 
-            <Link
+            <a
                 href="/api/auth/logout"
                 aria-label="Sair do sistema"
                 className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:border-red-500/30 hover:bg-red-500 hover:text-white"
             >
                 <LogOut className="h-5 w-5" strokeWidth={2} />
-            </Link>
+            </a>
         </aside>
     );
 }
