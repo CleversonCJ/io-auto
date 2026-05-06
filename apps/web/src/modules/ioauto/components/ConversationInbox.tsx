@@ -60,8 +60,8 @@ export function ConversationInbox() {
         let active = true;
 
         Promise.all([
-            fetch("/api/atendimentos/conversations", { cache: "no-store" }),
-            fetch("/api/ioauto/vehicles", { cache: "no-store" }),
+            fetch("/api/atendimentos/conversations", { cache: "no-store", credentials: "include" }),
+            fetch("/api/ioauto/vehicles", { cache: "no-store", credentials: "include" }),
         ])
             .then(async ([conversationsResponse, vehiclesResponse]) => {
                 if (!conversationsResponse.ok) {
@@ -102,7 +102,7 @@ export function ConversationInbox() {
 
         let active = true;
         setLoadingMessages(true);
-        fetch(`/api/atendimentos/conversations/${selectedId}/messages`, { cache: "no-store" })
+        fetch(`/api/atendimentos/conversations/${selectedId}/messages`, { cache: "no-store", credentials: "include" })
             .then(async (response) => {
                 if (!response.ok) {
                     const payload = await response.json().catch(() => ({ message: "Falha ao listar mensagens." }));
@@ -131,6 +131,7 @@ export function ConversationInbox() {
         if (!selectedConversation) return;
         const response = await fetch(`/api/atendimentos/conversations/${selectedConversation.id}/start`, {
             method: "POST",
+            credentials: "include",
         });
         if (!response.ok) {
             const payload = await response.json().catch(() => ({ message: "Falha ao assumir o atendimento." }));
@@ -165,6 +166,7 @@ export function ConversationInbox() {
         try {
             const response = await fetch(`/api/atendimentos/conversations/${selectedConversation.id}/conclude`, {
                 method: "POST",
+                credentials: "include",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     classificationResult: "OBJECTIVE_ACHIEVED",

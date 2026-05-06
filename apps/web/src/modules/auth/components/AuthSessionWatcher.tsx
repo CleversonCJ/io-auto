@@ -10,6 +10,7 @@ const IGNORED_API_PATHS = new Set([
     "/api/auth/me",
     "/api/auth/refresh",
 ]);
+const FETCH_SHIM_MARKER = "__ioauto_fetch_credentials_shim__";
 
 function resolveFetchUrl(input: RequestInfo | URL) {
     if (typeof window === "undefined") return null;
@@ -32,6 +33,39 @@ function isProtectedApiRequest(input: RequestInfo | URL) {
     if (!url.pathname.startsWith("/api/")) return false;
     return !IGNORED_API_PATHS.has(url.pathname);
 }
+
+function isSameOriginApiRequest(input: RequestInfo | URL) {
+    const url = resolveFetchUrl(input);
+    if (!url) return false;
+    return url.origin === window.location.origin && url.pathname.startsWith("/api/");
+}
+
+function installFetchCredentialsShim() {
+    if (typeof window === "undefined") return;
+
+    const markerHost = window as typeof window & {
+        [FETCH_SHIM_MARKER]?: boolean;
+    };
+
+    if (markerHost[FETCH_SHIM_MARKER]) return;
+
+    const browserFetch = window.fetch.bind(window);
+
+    window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+        if (!isSameOriginApiRequest(input)) {
+            return browserFetch(input, init);
+        }
+
+        return browserFetch(input, {
+            ...init,
+            credentials: init?.credentials ?? "include",
+        });
+    }) as typeof window.fetch;
+
+    markerHost[FETCH_SHIM_MARKER] = true;
+}
+
+installFetchCredentialsShim();
 
 export function AuthSessionWatcher() {
     const isCheckingRef = useRef(false);
@@ -62,6 +96,7 @@ export function AuthSessionWatcher() {
             try {
                 const response = await originalFetch("/api/auth/me", {
                     cache: "no-store",
+                    credentials: "include",
                     headers: {
                         "x-io-session-check": "1",
                     },
