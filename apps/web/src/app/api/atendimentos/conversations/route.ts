@@ -3,13 +3,41 @@ import { cookies } from "next/headers";
 import { ACCESS_COOKIE, REFRESH_COOKIE, setAuthCookies } from "@/core/auth/cookies";
 import { getServerApiBase } from "@/core/http/getServerApiBase";
 
+function previewToken(token?: string | null) {
+    if (!token) return null;
+    return `${token.slice(0, 12)}...(${token.length})`;
+}
+
+async function logAuthState(stage: string, request: Request) {
+    const store = await cookies();
+    const access = store.get(ACCESS_COOKIE)?.value ?? null;
+    const refresh = store.get(REFRESH_COOKIE)?.value ?? null;
+    const cookieHeader = request.headers.get("cookie") ?? "";
+
+    console.error("[atendimentos/conversations]", {
+        stage,
+        method: request.method,
+        url: request.url,
+        host: request.headers.get("host"),
+        forwardedHost: request.headers.get("x-forwarded-host"),
+        forwardedProto: request.headers.get("x-forwarded-proto"),
+        forwardedPort: request.headers.get("x-forwarded-port"),
+        cookieHeaderPresent: cookieHeader.length > 0,
+        cookieHeaderLength: cookieHeader.length,
+        hasAccessCookie: Boolean(access),
+        hasRefreshCookie: Boolean(refresh),
+        accessPreview: previewToken(access),
+        refreshPreview: previewToken(refresh),
+    });
+}
+
 async function getAccessToken() {
     return (await cookies()).get(ACCESS_COOKIE)?.value;
 }
 
 async function refreshAccessToken(apiBase: string) {
-    const c = await cookies();
-    const refresh = c.get(REFRESH_COOKIE)?.value;
+    const store = await cookies();
+    const refresh = store.get(REFRESH_COOKIE)?.value;
     if (!refresh) return null;
 
     const refreshRes = await fetch(`${apiBase}/auth/refresh`, {
@@ -19,9 +47,9 @@ async function refreshAccessToken(apiBase: string) {
     });
 
     if (!refreshRes.ok) {
-        console.error(`[auth/me] refreshAccessToken POST /auth/refresh failed with status: ${refreshRes.status}`);
-        c.set(ACCESS_COOKIE, "", { path: "/", maxAge: 0 });
-        c.set(REFRESH_COOKIE, "", { path: "/", maxAge: 0 });
+        console.error(`[atendimentos/conversations] refreshAccessToken POST /auth/refresh failed with status: ${refreshRes.status}`);
+        store.set(ACCESS_COOKIE, "", { path: "/", maxAge: 0 });
+        store.set(REFRESH_COOKIE, "", { path: "/", maxAge: 0 });
         return null;
     }
 
@@ -30,10 +58,13 @@ async function refreshAccessToken(apiBase: string) {
     return data.accessToken;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
     const apiBase = getServerApiBase();
     let access = await getAccessToken();
-    if (!access) return NextResponse.json({ message: "Sem token" }, { status: 401 });
+    if (!access) {
+        await logAuthState("missing-access-before-upstream", request);
+        return NextResponse.json({ message: "Sem token" }, { status: 401 });
+    }
 
     let res = await fetch(`${apiBase}/atendimentos/conversations`, {
         headers: { Authorization: `Bearer ${access}` },
@@ -41,8 +72,13 @@ export async function GET() {
     });
 
     if (res.status === 401) {
+        await logAuthState("upstream-returned-401-before-refresh", request);
         const newAccess = await refreshAccessToken(apiBase);
-        if (!newAccess) return NextResponse.json({ message: "Sessão expirada" }, { status: 401 });
+        if (!newAccess) {
+            await logAuthState("refresh-failed-after-upstream-401", request);
+            return NextResponse.json({ message: "Sessao expirada" }, { status: 401 });
+        }
+
         access = newAccess;
         res = await fetch(`${apiBase}/atendimentos/conversations`, {
             headers: { Authorization: `Bearer ${access}` },
@@ -51,6 +87,9 @@ export async function GET() {
     }
 
     const data = await res.json().catch(() => null);
-    if (!res.ok) return NextResponse.json({ message: data?.message ?? "Falha ao listar conversas" }, { status: res.status });
+    if (!res.ok) {
+        return NextResponse.json({ message: data?.message ?? "Falha ao listar conversas" }, { status: res.status });
+    }
+
     return NextResponse.json(data);
 }

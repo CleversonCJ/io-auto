@@ -10,6 +10,34 @@ type RefreshResponse = {
     message?: string;
 };
 
+function previewToken(token?: string | null) {
+    if (!token) return null;
+    return `${token.slice(0, 12)}...(${token.length})`;
+}
+
+async function logAuthState(stage: string, request: Request) {
+    const store = await cookies();
+    const access = store.get(ACCESS_COOKIE)?.value ?? null;
+    const refresh = store.get(REFRESH_COOKIE)?.value ?? null;
+    const cookieHeader = request.headers.get("cookie") ?? "";
+
+    console.error("[auth/me]", {
+        stage,
+        method: request.method,
+        url: request.url,
+        host: request.headers.get("host"),
+        forwardedHost: request.headers.get("x-forwarded-host"),
+        forwardedProto: request.headers.get("x-forwarded-proto"),
+        forwardedPort: request.headers.get("x-forwarded-port"),
+        cookieHeaderPresent: cookieHeader.length > 0,
+        cookieHeaderLength: cookieHeader.length,
+        hasAccessCookie: Boolean(access),
+        hasRefreshCookie: Boolean(refresh),
+        accessPreview: previewToken(access),
+        refreshPreview: previewToken(refresh),
+    });
+}
+
 async function refreshAccessToken(apiBase: string) {
     const cookieStore = await cookies();
     const refresh = cookieStore.get(REFRESH_COOKIE)?.value;
@@ -35,18 +63,20 @@ async function refreshAccessToken(apiBase: string) {
     return data.accessToken;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
         const apiBase = getServerApiBase();
         const cookieStore = await cookies();
         let token = cookieStore.get(ACCESS_COOKIE)?.value ?? null;
 
         if (!token) {
+            await logAuthState("missing-access-before-refresh", request);
             console.error("[auth/me] io_access cookie is MISSING! Attempting to refresh using refresh token...");
             token = await refreshAccessToken(apiBase);
         }
 
         if (!token) {
+            await logAuthState("missing-access-and-refresh-after-refresh-attempt", request);
             console.error("[auth/me] Both access and refresh failed/missing. Returning 401.");
             return NextResponse.json({ message: "Sessao expirada" }, { status: 401 });
         }
@@ -60,9 +90,11 @@ export async function GET() {
         let res = await requestMe(token);
 
         if (res.status === 401) {
+            await logAuthState("upstream-returned-401-before-refresh", request);
             console.error("[auth/me] requestMe returned 401. Attempting refresh...");
             const newToken = await refreshAccessToken(apiBase);
             if (!newToken) {
+                await logAuthState("refresh-failed-after-upstream-401", request);
                 console.error("[auth/me] refreshAccessToken failed. Returning 401.");
                 return NextResponse.json({ message: "Sessao expirada" }, { status: 401 });
             }
