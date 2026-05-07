@@ -185,6 +185,11 @@ function normalizeProviderKey(value: string) {
     return value.trim().toLowerCase();
 }
 
+function canonicalPublicationProviderKey(value: string) {
+    const normalized = normalizeProviderKey(value);
+    return normalized === "olx-autos" ? "olx" : normalized;
+}
+
 function isConnectedIntegrationStatus(status: string) {
     const normalized = status.trim().toUpperCase();
     return normalized === "CONNECTED" || normalized === "ACTIVE";
@@ -248,21 +253,23 @@ export function InventoryStudio() {
         [connectedIntegrations]
     );
     const readyPublicationProviderKeys = useMemo(
-        () => new Set(readyPublicationIntegrations.map((integration) => normalizeProviderKey(integration.providerKey))),
+        () => new Set(readyPublicationIntegrations.map((integration) => canonicalPublicationProviderKey(integration.providerKey))),
         [readyPublicationIntegrations]
     );
     const selectedReadyPublicationIntegrations = useMemo(
         () =>
             readyPublicationIntegrations.filter((integration) =>
-                form.targetIntegrations.some((providerKey) => normalizeProviderKey(providerKey) === normalizeProviderKey(integration.providerKey))
+                form.targetIntegrations.some(
+                    (providerKey) => canonicalPublicationProviderKey(providerKey) === canonicalPublicationProviderKey(integration.providerKey),
+                )
             ),
         [form.targetIntegrations, readyPublicationIntegrations]
     );
     const requiresOlxPublication = useMemo(
         () =>
             form.targetIntegrations.some((providerKey) => {
-                const normalized = normalizeProviderKey(providerKey);
-                return readyPublicationProviderKeys.has(normalized) && ["olx", "olx-autos"].includes(normalized);
+                const normalized = canonicalPublicationProviderKey(providerKey);
+                return readyPublicationProviderKeys.has(normalized) && normalized === "olx";
             }),
         [form.targetIntegrations, readyPublicationProviderKeys]
     );
@@ -525,12 +532,12 @@ export function InventoryStudio() {
     async function persistSelectedMappings(vehicleId: string) {
         const selectedProviders = new Set(
             form.targetIntegrations
-                .map((providerKey) => normalizeProviderKey(providerKey))
+                .map((providerKey) => canonicalPublicationProviderKey(providerKey))
                 .filter((providerKey) => readyPublicationProviderKeys.has(providerKey))
         );
         const tasks: Promise<void>[] = [];
 
-        if (selectedProviders.has("olx") || selectedProviders.has("olx-autos")) {
+        if (selectedProviders.has("olx")) {
             tasks.push(saveOlxMapping(vehicleId, await buildOlxMappingPayload()));
         }
         if (selectedProviders.has("mercadolivre")) {
@@ -539,6 +546,88 @@ export function InventoryStudio() {
 
         if (!tasks.length) return;
         await Promise.all(tasks);
+    }
+
+    function findPublication(vehicle: VehicleRecord, providerKey: string) {
+        const normalizedProviderKey = canonicalPublicationProviderKey(providerKey);
+        return vehicle.publications.find((publication) => canonicalPublicationProviderKey(publication.providerKey) === normalizedProviderKey) ?? null;
+    }
+
+    function shouldUpdateOlxAd(vehicle: VehicleRecord) {
+        const publication = findPublication(vehicle, "olx");
+        if (form.olx.ad?.id || form.olx.ad?.olxListId || form.olx.ad?.importToken) {
+            return true;
+        }
+        const status = publication?.status.trim().toUpperCase() ?? "";
+        return ["PUBLISHED", "SYNC_IN_PROGRESS"].includes(status);
+    }
+
+    function shouldUpdateMeliAd(vehicle: VehicleRecord) {
+        const publication = findPublication(vehicle, "mercadolivre");
+        if (form.meli.ad?.meliItemId) {
+            return true;
+        }
+        const status = publication?.status.trim().toUpperCase() ?? "";
+        return ["PUBLISHED", "PAUSED", "UNDER_REVIEW", "PAYMENT_REQUIRED", "NOT_YET_ACTIVE", "INACTIVE"].includes(status);
+    }
+
+    async function runPublicationAction(providerLabel: string, request: Promise<Response>) {
+        const response = await request;
+        const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+        if (!response.ok) {
+            throw new Error(`${providerLabel}: ${payload?.message ?? "Falha ao publicar o veiculo."}`);
+        }
+    }
+
+    async function syncSelectedIntegrations(vehicle: VehicleRecord) {
+        const selectedProviders = new Set(
+            form.targetIntegrations
+                .map((providerKey) => canonicalPublicationProviderKey(providerKey))
+                .filter((providerKey) => readyPublicationProviderKeys.has(providerKey))
+        );
+        const tasks: Promise<void>[] = [];
+
+        if (selectedProviders.has("mercadolivre")) {
+            tasks.push(
+                runPublicationAction(
+                    "Mercado Livre",
+                    fetch(
+                        shouldUpdateMeliAd(vehicle)
+                            ? `/api/integrations/mercadolivre/vehicles/${vehicle.id}/ad`
+                            : `/api/integrations/mercadolivre/vehicles/${vehicle.id}/publish`,
+                        { method: shouldUpdateMeliAd(vehicle) ? "PUT" : "POST" },
+                    ),
+                ),
+            );
+        }
+
+        if (selectedProviders.has("olx")) {
+            tasks.push(
+                runPublicationAction(
+                    "OLX",
+                    fetch(
+                        shouldUpdateOlxAd(vehicle)
+                            ? `/api/integrations/olx/vehicles/${vehicle.id}/ad`
+                            : `/api/integrations/olx/vehicles/${vehicle.id}/publish`,
+                        { method: shouldUpdateOlxAd(vehicle) ? "PUT" : "POST" },
+                    ),
+                ),
+            );
+        }
+
+        if (selectedProviders.has("webmotors")) {
+            tasks.push(
+                runPublicationAction(
+                    "Webmotors",
+                    fetch(`/api/ioauto/webmotors/ads/${vehicle.id}/publish`, { method: "POST" }),
+                ),
+            );
+        }
+
+        if (!tasks.length) return [] as string[];
+
+        const results = await Promise.allSettled(tasks);
+        return results.flatMap((result) => (result.status === "rejected" ? [result.reason instanceof Error ? result.reason.message : "Falha ao publicar o veiculo nas integracoes selecionadas."] : []));
     }
 
     async function loadInventory() {
@@ -673,7 +762,13 @@ export function InventoryStudio() {
         try {
             const year = form.year ? Number(form.year) : null;
             const imageUrls = uniqueImageList(form.imageUrls);
-            const targetIntegrations = form.targetIntegrations.filter((providerKey) => readyPublicationProviderKeys.has(normalizeProviderKey(providerKey)));
+            const targetIntegrations = Array.from(
+                new Set(
+                    form.targetIntegrations
+                        .map((providerKey) => canonicalPublicationProviderKey(providerKey))
+                        .filter((providerKey) => readyPublicationProviderKeys.has(providerKey)),
+                ),
+            );
             const payload = {
                 stockNumber: form.stockNumber || null,
                 title: form.title,
@@ -723,8 +818,16 @@ export function InventoryStudio() {
 
             const savedVehicle = responseBody as VehicleRecord;
             await persistSelectedMappings(savedVehicle.id);
+            const publicationErrors = await syncSelectedIntegrations(savedVehicle);
+
             await loadInventory();
             setSelectedId(savedVehicle.id);
+
+            if (publicationErrors.length) {
+                setError(`Veiculo salvo no IO Auto, mas algumas integracoes nao concluiram a publicacao: ${publicationErrors.join(" | ")}`);
+                return;
+            }
+
             setIsEditorOpen(false);
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : "Falha ao salvar o veiculo.");

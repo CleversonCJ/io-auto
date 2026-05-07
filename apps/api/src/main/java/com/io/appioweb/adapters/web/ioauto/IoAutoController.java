@@ -684,8 +684,17 @@ public class IoAutoController {
                 publication.setCreatedAt(now);
             }
 
-            publication.setStatus(determinePublicationStatus(integration));
-            publication.setLastError("CONNECTED".equalsIgnoreCase(integration.getStatus()) ? null : "Conclua a configuração desta integração para publicar.");
+            boolean connectedIntegration = "CONNECTED".equalsIgnoreCase(integration.getStatus()) || "ACTIVE".equalsIgnoreCase(integration.getStatus());
+            String currentPublicationStatus = normalizeText(publication.getStatus());
+            if (connectedIntegration) {
+                if (currentPublicationStatus.isBlank() || "WAITING_CONFIGURATION".equalsIgnoreCase(currentPublicationStatus)) {
+                    publication.setStatus(determinePublicationStatus(integration));
+                    publication.setLastError(null);
+                }
+            } else {
+                publication.setStatus("WAITING_CONFIGURATION");
+                publication.setLastError("Conclua a configuração desta integração para publicar.");
+            }
             publication.setUpdatedAt(now);
             nextPublications.add(publication);
         }
