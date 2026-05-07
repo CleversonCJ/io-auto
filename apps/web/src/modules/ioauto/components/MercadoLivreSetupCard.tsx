@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Cable, CheckCircle2, ExternalLink, LoaderCircle, RefreshCw, Unplug } from "lucide-react";
 import type { MeliAdRecord, MeliIntegrationStatus, MeliSyncSummary } from "@/modules/ioauto/types";
-import { formatDateTime, statusLabel } from "@/modules/ioauto/formatters";
+import { formatDateTime } from "@/modules/ioauto/formatters";
 
 function getInitials(fullName?: string | null, nickname?: string | null) {
     const source = (fullName?.trim() || nickname?.trim() || "Mercado Livre").split(/\s+/).filter(Boolean);
@@ -147,12 +147,9 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
         <article className="rounded-[34px] border border-black/10 bg-white p-6 shadow-[0_22px_55px_rgba(0,0,0,0.07)] md:p-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                    <p className="inline-flex items-center rounded-full bg-[#fff9d7] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-[#8b7400]">
-                        Integracao Mercado Livre
-                    </p>
                     <h2 className="mt-4 font-display text-3xl font-bold text-io-dark">Mercado Livre</h2>
                     <p className="mt-3 max-w-2xl text-sm leading-6 text-black/56">
-                        Conecte a conta da loja via OAuth, sincronize categorias da MLB e acompanhe os anuncios sem expor tokens no frontend.
+                        Conecte sua conta da loja, sincronize categorias e acompanhe os anúncios.
                     </p>
                 </div>
 
@@ -193,37 +190,27 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
             {error ? <p className="mt-6 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
             {message ? <p className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</p> : null}
 
-            <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
                 <StatCard
                     icon={<CheckCircle2 className="h-5 w-5" />}
                     label="Status da conta"
                     value={status?.connected ? "Conectada" : "Desconectada"}
-                    detail={status ? statusLabel(status.integrationStatus) : "-"}
                 />
                 <StatCard
                     icon={<ExternalLink className="h-5 w-5" />}
                     label="Anuncios ativos"
                     value={String(activeAds)}
-                    detail={`${ads.length} anuncios locais monitorados`}
                 />
                 <StatCard
                     icon={<RefreshCw className="h-5 w-5" />}
                     label="Ultima sincronizacao"
                     value={formatDateTime(lastSync)}
-                    detail={status?.nickname ?? "Sem conta conectada"}
-                />
-                <StatCard
-                    icon={<Cable className="h-5 w-5" />}
-                    label="Conta conectada"
-                    value={connectedDisplayName}
-                    detail={status?.nickname ? `Apelido: ${status.nickname}` : "Conta ainda nao conectada"}
                 />
             </div>
 
-            <div className="mt-8 grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+            <div className="mt-8 grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
                 <section className="rounded-[28px] border border-black/8 bg-[#faf8f4] p-5">
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-black/35">Conta conectada</p>
-                    <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center">
                         {status?.profileImageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
@@ -237,17 +224,17 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
                             </div>
                         )}
 
-                        <div>
-                            <h3 className="font-display text-3xl font-bold text-io-dark">{connectedDisplayName}</h3>
+                        <div className="md:flex-1">
+                            <p className="text-xs font-bold uppercase tracking-[0.18em] text-black/35">Conta conectada</p>
+                            <h3 className="mt-2 font-display text-3xl font-bold text-io-dark">{connectedDisplayName}</h3>
                             <p className="mt-2 text-sm text-black/52">
                                 {status?.nickname ? `Apelido da conta: ${status.nickname}` : "Aguardando dados da conta conectada."}
                             </p>
                         </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
-                        <InfoRow label="Nome exibido" value={connectedDisplayName} />
-                        <InfoRow label="Apelido no Mercado Livre" value={status?.nickname ?? "-"} />
+                    <div className="mt-5 grid gap-3 md:grid-cols-3">
+                        <InfoRow label="Apelido" value={status?.nickname ?? "-"} />
                         <InfoRow label="Site" value={status?.siteId ?? "MLB"} />
                         <InfoRow label="Conectada em" value={formatDateTime(status?.connectedAt)} />
                     </div>
@@ -279,12 +266,10 @@ function StatCard({
     icon,
     label,
     value,
-    detail,
 }: {
     icon: ReactNode;
     label: string;
     value: string;
-    detail: string;
 }) {
     return (
         <div className="rounded-[28px] border border-black/8 bg-[#fafafa] p-5">
@@ -293,7 +278,6 @@ function StatCard({
                 {icon}
             </div>
             <p className="mt-4 text-3xl font-bold tracking-tight text-io-dark">{value}</p>
-            <p className="mt-2 text-sm text-black/52">{detail}</p>
         </div>
     );
 }
