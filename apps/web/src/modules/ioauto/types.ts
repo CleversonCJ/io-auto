@@ -101,6 +101,9 @@ export type VehicleRecord = {
     gallery: string[];
     optionals: string[];
     financing: VehicleFinancing;
+    meliCategoryId?: string | null;
+    meliListingTypeId?: string | null;
+    meliCondition?: string | null;
     publications: VehiclePublication[];
     updatedAt: string | null;
 };

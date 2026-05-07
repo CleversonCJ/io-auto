@@ -828,6 +828,9 @@ public class IoAutoController {
                 readStringArray(vehicle.getGalleryJson()),
                 readStringArray(vehicle.getOptionalsJson()),
                 readVehicleFinancing(vehicle.getFinancingJson()),
+                normalizeNullableText(vehicle.getMeliCategoryId()),
+                normalizeNullableText(vehicle.getMeliListingTypeId()),
+                normalizeNullableText(vehicle.getMeliCondition()),
                 publicationSummaries,
                 vehicle.getUpdatedAt()
         );
@@ -1609,6 +1612,9 @@ public class IoAutoController {
             List<String> gallery,
             List<String> optionals,
             VehicleFinancingHttpResponse financing,
+            String meliCategoryId,
+            String meliListingTypeId,
+            String meliCondition,
             List<PublicationSummary> publications,
             Instant updatedAt
     ) {

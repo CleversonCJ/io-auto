@@ -15,10 +15,11 @@ import {
     Search,
     X,
 } from "lucide-react";
-import { MeliVehiclePanel, emptyMeliVehicleForm, type MeliVehicleFormState } from "@/modules/ioauto/components/MeliVehiclePanel";
+import { emptyMeliVehicleForm, type MeliVehicleFormState } from "@/modules/ioauto/components/MeliVehiclePanel";
 import { OlxVehiclePanel, emptyOlxVehicleForm, type OlxVehicleFormState } from "@/modules/ioauto/components/OlxVehiclePanel";
 import type {
     IntegrationRecord,
+    MeliCategoryRecord,
     MeliCategorySuggestion,
     MeliListingTypeRecord,
     MeliVehicleMapping,
@@ -133,7 +134,12 @@ function vehicleToForm(vehicle: VehicleRecord): VehicleFormState {
         featured: vehicle.featured,
         status: vehicle.status,
         targetIntegrations: vehicle.publications.map((publication) => publication.providerKey),
-        meli: emptyMeliVehicleForm(),
+        meli: {
+            ...emptyMeliVehicleForm(),
+            categoryId: vehicle.meliCategoryId ?? "",
+            listingTypeId: vehicle.meliListingTypeId ?? "",
+            condition: vehicle.meliCondition ?? "used",
+        },
         olx: emptyOlxVehicleForm(),
     };
 }
@@ -244,6 +250,11 @@ export function InventoryStudio() {
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [uploadingImages, setUploadingImages] = useState(false);
     const [isImageDragActive, setIsImageDragActive] = useState(false);
+    const [meliCategories, setMeliCategories] = useState<MeliCategoryRecord[]>([]);
+    const [meliListingTypes, setMeliListingTypes] = useState<MeliListingTypeRecord[]>([]);
+    const [meliCategorySearch, setMeliCategorySearch] = useState("");
+    const [loadingMeliCategories, setLoadingMeliCategories] = useState(false);
+    const [loadingMeliListingTypes, setLoadingMeliListingTypes] = useState(false);
     const imageInputRef = useRef<HTMLInputElement | null>(null);
 
     const selectedVehicle = useMemo(() => vehicles.find((vehicle) => vehicle.id === selectedId) ?? null, [selectedId, vehicles]);
@@ -527,6 +538,39 @@ export function InventoryStudio() {
             priceCents: form.priceCents ? Number(form.priceCents) : null,
             attributes: form.meli.attributes,
         };
+    }
+
+    async function loadMeliCategories(searchText: string) {
+        setLoadingMeliCategories(true);
+        try {
+            const query = searchText.trim() ? `?search=${encodeURIComponent(searchText.trim())}` : "";
+            const response = await fetch(`/api/integrations/mercadolivre/categories${query}`, { cache: "no-store" });
+            if (response.ok) {
+                setMeliCategories((await response.json()) as MeliCategoryRecord[]);
+            }
+        } finally {
+            setLoadingMeliCategories(false);
+        }
+    }
+
+    async function loadMeliListingTypes(categoryId: string) {
+        setLoadingMeliListingTypes(true);
+        try {
+            const response = await fetch(`/api/integrations/mercadolivre/listing-types?categoryId=${encodeURIComponent(categoryId)}`, { cache: "no-store" });
+            if (response.ok) {
+                setMeliListingTypes((await response.json()) as MeliListingTypeRecord[]);
+            } else {
+                setMeliListingTypes([]);
+            }
+        } finally {
+            setLoadingMeliListingTypes(false);
+        }
+    }
+
+    async function applyMeliCategory(categoryId: string) {
+        setMeliCategorySearch(categoryId);
+        updateMeliField({ categoryId, listingTypeId: "" });
+        await loadMeliListingTypes(categoryId);
     }
 
     async function persistSelectedMappings(vehicleId: string) {
@@ -958,6 +1002,43 @@ export function InventoryStudio() {
                                                 <Field label="Ano" value={form.year} onChange={(value) => updateField("year", value.replace(/\D/g, "").slice(0, 4))} required inputMode="numeric" />
                                                 <Field label="Quilometragem (KM)" value={form.mileage} onChange={(value) => updateField("mileage", value.replace(/\D/g, ""))} inputMode="numeric" />
                                                 <MoneyField label="Preco (R$)" value={form.priceCents} onChange={(value) => updateField("priceCents", value)} required />
+                                                
+                                                <div className="col-span-full md:col-span-2 xl:col-span-4 rounded-2xl bg-[#fffdf0] border border-[#d5c228] p-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3 my-2">
+                                                    <div className="col-span-full">
+                                                        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                                                            <Field label="Buscar Categoria (ML)" value={meliCategorySearch} onChange={setMeliCategorySearch} placeholder="Ex.: carros, motos ou MLB1234" className="lg:flex-1" />
+                                                            <SecondaryButton label="Buscar" icon={<Search className="h-4 w-4" />} loading={loadingMeliCategories} onClick={() => void loadMeliCategories(meliCategorySearch)} />
+                                                        </div>
+                                                        {meliCategories.length ? (
+                                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                                {meliCategories.slice(0, 10).map((category) => (
+                                                                    <button
+                                                                        key={category.categoryId}
+                                                                        type="button"
+                                                                        onClick={() => void applyMeliCategory(category.categoryId)}
+                                                                        className={`rounded-full border px-3 py-2 text-left text-xs font-semibold transition ${form.meli.categoryId === category.categoryId ? "border-[#d5c228] bg-[#fff2a8] text-[#463b03]" : "border-black/10 bg-white"}`}
+                                                                    >
+                                                                        {category.name} <span className="text-black/45">({category.categoryId})</span>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        ) : null}
+                                                    </div>
+                                                    <SelectField 
+                                                        label="Tipo de anuncio (ML)" 
+                                                        value={form.meli.listingTypeId} 
+                                                        options={meliListingTypes.map(item => ({value: item.id, label: item.remainingListings == null ? `${item.name} (${item.id})` : `${item.name} (${item.id}) - saldo ${item.remainingListings}`}))} 
+                                                        loading={loadingMeliListingTypes} 
+                                                        onChange={next => updateMeliField({ listingTypeId: next })} 
+                                                    />
+                                                    <SelectField 
+                                                        label="Condicao (ML)" 
+                                                        value={form.meli.condition || "used"} 
+                                                        options={[{value: "used", label: "Usado"}, {value: "new", label: "Novo"}]} 
+                                                        onChange={next => updateMeliField({ condition: next })} 
+                                                    />
+                                                </div>
+
                                                 <Field label="Cambio" value={form.transmission} onChange={(value) => updateField("transmission", value)} placeholder="Automatico, manual..." />
                                                 <Field label="Combustivel" value={form.fuelType} onChange={(value) => updateField("fuelType", value)} placeholder="Flex, diesel, eletrico..." />
                                                 <Field label="Carroceria" value={form.bodyType} onChange={(value) => updateField("bodyType", value)} placeholder="SUV, hatch, sedan..." />
@@ -1187,24 +1268,6 @@ export function InventoryStudio() {
                                                     />
                                                 ) : null}
 
-                                                {selectedReadyPublicationIntegrations.some((integration) => normalizeProviderKey(integration.providerKey) === "mercadolivre") ? (
-                                                    <MeliVehiclePanel
-                                                        vehicleId={form.id}
-                                                        value={form.meli}
-                                                        onHydrate={hydrateMeliMapping}
-                                                        onChange={updateMeliField}
-                                                        mainSummary={{
-                                                            brand: form.brand,
-                                                            model: form.model,
-                                                            version: form.version,
-                                                            year: form.year,
-                                                            mileage: form.mileage,
-                                                            priceCents: form.priceCents,
-                                                            description: form.description,
-                                                            imageCount: form.imageUrls.length,
-                                                        }}
-                                                    />
-                                                ) : null}
                                             </section>
                                         ) : null}
                                     </div>
