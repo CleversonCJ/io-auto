@@ -250,10 +250,7 @@ export function InventoryStudio() {
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [uploadingImages, setUploadingImages] = useState(false);
     const [isImageDragActive, setIsImageDragActive] = useState(false);
-    const [meliCategories, setMeliCategories] = useState<MeliCategoryRecord[]>([]);
     const [meliListingTypes, setMeliListingTypes] = useState<MeliListingTypeRecord[]>([]);
-    const [meliCategorySearch, setMeliCategorySearch] = useState("");
-    const [loadingMeliCategories, setLoadingMeliCategories] = useState(false);
     const [loadingMeliListingTypes, setLoadingMeliListingTypes] = useState(false);
     const imageInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -540,19 +537,6 @@ export function InventoryStudio() {
         };
     }
 
-    async function loadMeliCategories(searchText: string) {
-        setLoadingMeliCategories(true);
-        try {
-            const query = searchText.trim() ? `?search=${encodeURIComponent(searchText.trim())}` : "";
-            const response = await fetch(`/api/integrations/mercadolivre/categories${query}`, { cache: "no-store" });
-            if (response.ok) {
-                setMeliCategories((await response.json()) as MeliCategoryRecord[]);
-            }
-        } finally {
-            setLoadingMeliCategories(false);
-        }
-    }
-
     async function loadMeliListingTypes(categoryId: string) {
         setLoadingMeliListingTypes(true);
         try {
@@ -565,12 +549,6 @@ export function InventoryStudio() {
         } finally {
             setLoadingMeliListingTypes(false);
         }
-    }
-
-    async function applyMeliCategory(categoryId: string) {
-        setMeliCategorySearch(categoryId);
-        updateMeliField({ categoryId, listingTypeId: "" });
-        await loadMeliListingTypes(categoryId);
     }
 
     async function persistSelectedMappings(vehicleId: string) {
@@ -673,6 +651,10 @@ export function InventoryStudio() {
         const results = await Promise.allSettled(tasks);
         return results.flatMap((result) => (result.status === "rejected" ? [result.reason instanceof Error ? result.reason.message : "Falha ao publicar o veiculo nas integracoes selecionadas."] : []));
     }
+
+    useEffect(() => {
+        void loadMeliListingTypes("MLB1743");
+    }, []);
 
     async function loadInventory() {
         setLoading(true);
@@ -847,7 +829,7 @@ export function InventoryStudio() {
                     installmentValueCents: form.installmentValueCents ? Number(form.installmentValueCents) : null,
                 },
                 targetIntegrations,
-                meliCategoryId: form.meli.categoryId || null,
+                meliCategoryId: "MLB1743",
                 meliListingTypeId: form.meli.listingTypeId || null,
                 meliCondition: form.meli.condition || null,
             };
@@ -1003,37 +985,7 @@ export function InventoryStudio() {
                                                 <Field label="Quilometragem (KM)" value={form.mileage} onChange={(value) => updateField("mileage", value.replace(/\D/g, ""))} inputMode="numeric" />
                                                 <MoneyField label="Preco (R$)" value={form.priceCents} onChange={(value) => updateField("priceCents", value)} required />
                                                 
-                                                <div className="col-span-full md:col-span-2 xl:col-span-4 rounded-2xl bg-[#fffdf0] border border-[#d5c228] p-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3 my-2">
-                                                    <div className="col-span-full">
-                                                        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-                                                            <div className="lg:flex-1">
-                                                                <Field label="Buscar Categoria (ML)" value={meliCategorySearch} onChange={setMeliCategorySearch} placeholder="Ex.: carros, motos ou MLB1234" />
-                                                            </div>
-                                                            <button 
-                                                                type="button" 
-                                                                disabled={loadingMeliCategories} 
-                                                                onClick={() => void loadMeliCategories(meliCategorySearch)} 
-                                                                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-black/5 px-6 text-sm font-semibold text-io-dark transition hover:bg-black/10 disabled:opacity-50"
-                                                            >
-                                                                {loadingMeliCategories ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                                                                Buscar
-                                                            </button>
-                                                        </div>
-                                                        {meliCategories.length ? (
-                                                            <div className="mt-3 flex flex-wrap gap-2">
-                                                                {meliCategories.slice(0, 10).map((category) => (
-                                                                    <button
-                                                                        key={category.categoryId}
-                                                                        type="button"
-                                                                        onClick={() => void applyMeliCategory(category.categoryId)}
-                                                                        className={`rounded-full border px-3 py-2 text-left text-xs font-semibold transition ${form.meli.categoryId === category.categoryId ? "border-[#d5c228] bg-[#fff2a8] text-[#463b03]" : "border-black/10 bg-white"}`}
-                                                                    >
-                                                                        {category.name} <span className="text-black/45">({category.categoryId})</span>
-                                                                    </button>
-                                                                ))}
-                                                            </div>
-                                                        ) : null}
-                                                    </div>
+                                                <div className="col-span-full md:col-span-2 xl:col-span-4 rounded-2xl bg-[#fffdf0] border border-[#d5c228] p-4 grid gap-4 md:grid-cols-2 my-2">
                                                     <SelectField 
                                                         label="Tipo de anuncio (ML)" 
                                                         value={form.meli.listingTypeId} 
