@@ -4,6 +4,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -144,6 +146,7 @@ public class JpaIoAutoVehicleEntity {
     @Column(name = "meli_price_cents")
     private Long meliPriceCents;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "meli_attributes_json", nullable = false, columnDefinition = "jsonb")
     private String meliAttributesJson = "[]";
 
