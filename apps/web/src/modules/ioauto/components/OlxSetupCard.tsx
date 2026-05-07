@@ -12,7 +12,12 @@ type CatalogSyncSummary = {
     syncedAt: string;
 };
 
-export function OlxSetupCard() {
+type Props = {
+    onConnectionStateChange?: (connected: boolean) => void;
+    onRefreshParent?: () => void;
+};
+
+export function OlxSetupCard({ onConnectionStateChange, onRefreshParent }: Props) {
     const [status, setStatus] = useState<OlxIntegrationStatus | null>(null);
     const [balance, setBalance] = useState<OlxBalanceSnapshot | null>(null);
     const [webhook, setWebhook] = useState<OlxWebhookConfig | null>(null);
@@ -41,6 +46,7 @@ export function OlxSetupCard() {
 
             const statusPayload = (await statusResponse.json()) as OlxIntegrationStatus;
             setStatus(statusPayload);
+            onConnectionStateChange?.(statusPayload.connected);
 
             if (webhookResponse.ok) {
                 setWebhook((await webhookResponse.json()) as OlxWebhookConfig);
@@ -90,6 +96,7 @@ export function OlxSetupCard() {
             }
             setMessage("Conta OLX desconectada.");
             await loadAll();
+            onRefreshParent?.();
         });
     }
 
@@ -102,6 +109,7 @@ export function OlxSetupCard() {
             }
             const summary = payload as CatalogSyncSummary;
             setMessage(`Catalogo OLX sincronizado: ${summary.brands} marcas, ${summary.models} modelos e ${summary.versions} versoes.`);
+            onRefreshParent?.();
         });
     }
 
@@ -115,6 +123,7 @@ export function OlxSetupCard() {
             setWebhook(payload as OlxWebhookConfig);
             setMessage("Webhook da OLX configurado com sucesso.");
             await loadAll();
+            onRefreshParent?.();
         });
     }
 

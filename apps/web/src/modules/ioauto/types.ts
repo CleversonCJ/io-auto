@@ -185,8 +185,10 @@ export type MeliIntegrationStatus = {
     connected: boolean;
     integrationStatus: string;
     userId: number | null;
+    fullName: string | null;
     nickname: string | null;
     siteId: string | null;
+    profileImageUrl: string | null;
     connectedAt: string | null;
     updatedAt: string | null;
     active: boolean;

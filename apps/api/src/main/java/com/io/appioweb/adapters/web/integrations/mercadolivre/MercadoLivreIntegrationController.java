@@ -6,6 +6,7 @@ import com.io.appioweb.application.ioauto.meli.MeliAdService;
 import com.io.appioweb.application.ioauto.meli.MeliCategoryService;
 import com.io.appioweb.application.ioauto.meli.MeliListingTypeService;
 import com.io.appioweb.application.ioauto.meli.MeliOAuthService;
+import com.io.appioweb.application.ioauto.meli.MeliProfileService;
 import com.io.appioweb.application.ioauto.meli.MeliTokenService;
 import com.io.appioweb.application.ioauto.meli.MeliVehicleSettingsService;
 import com.io.appioweb.shared.errors.BusinessException;
@@ -35,6 +36,7 @@ public class MercadoLivreIntegrationController {
     private final CurrentUserPort currentUser;
     private final MeliOAuthService oauthService;
     private final MeliAccountService accountService;
+    private final MeliProfileService profileService;
     private final MeliTokenService tokenService;
     private final MeliCategoryService categoryService;
     private final MeliListingTypeService listingTypeService;
@@ -45,6 +47,7 @@ public class MercadoLivreIntegrationController {
             CurrentUserPort currentUser,
             MeliOAuthService oauthService,
             MeliAccountService accountService,
+            MeliProfileService profileService,
             MeliTokenService tokenService,
             MeliCategoryService categoryService,
             MeliListingTypeService listingTypeService,
@@ -54,6 +57,7 @@ public class MercadoLivreIntegrationController {
         this.currentUser = currentUser;
         this.oauthService = oauthService;
         this.accountService = accountService;
+        this.profileService = profileService;
         this.tokenService = tokenService;
         this.categoryService = categoryService;
         this.listingTypeService = listingTypeService;
@@ -91,7 +95,7 @@ public class MercadoLivreIntegrationController {
 
     @GetMapping("/api/integrations/mercadolivre/status")
     public ResponseEntity<MeliAccountService.MeliConnectionSnapshot> getStatus() {
-        return ResponseEntity.ok(accountService.getStatus(currentUser.companyId()));
+        return ResponseEntity.ok(profileService.getStatus(currentUser.companyId()));
     }
 
     @PostMapping("/api/integrations/mercadolivre/disconnect")

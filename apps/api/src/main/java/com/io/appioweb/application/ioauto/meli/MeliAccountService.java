@@ -43,8 +43,10 @@ public class MeliAccountService {
                 connected,
                 integration == null ? "CONFIGURATION_REQUIRED" : safe(integration.getStatus(), "CONFIGURATION_REQUIRED"),
                 account == null ? null : account.getMeliUserId(),
+                account == null ? null : nullable(account.getFullName()),
                 account == null ? null : nullable(account.getNickname()),
                 account == null ? null : nullable(account.getSiteId()),
+                account == null ? null : nullable(account.getProfileImageUrl()),
                 account == null ? null : account.getConnectedAt(),
                 account == null ? null : account.getUpdatedAt(),
                 account != null && account.isActive()
@@ -56,7 +58,9 @@ public class MeliAccountService {
             UUID companyId,
             Long meliUserId,
             String nickname,
+            String fullName,
             String siteId,
+            String profileImageUrl,
             String accessToken,
             String refreshToken,
             String tokenType,
@@ -72,7 +76,9 @@ public class MeliAccountService {
         }
         account.setMeliUserId(requireUserId(meliUserId));
         account.setNickname(nullable(nickname));
+        account.setFullName(nullable(fullName));
         account.setSiteId(safe(siteId, "MLB"));
+        account.setProfileImageUrl(nullable(profileImageUrl));
         account.setAccessToken(crypto.encrypt(require(accessToken, "O Mercado Livre nao retornou um access token valido.")));
         account.setRefreshToken(crypto.encrypt(require(refreshToken, "O Mercado Livre nao retornou um refresh token valido.")));
         account.setTokenType(nullable(tokenType));
@@ -85,7 +91,14 @@ public class MeliAccountService {
         account.setUpdatedAt(now);
         accounts.save(account);
 
-        upsertIntegration(companyId, "CONNECTED", nullable(nickname), String.valueOf(account.getMeliUserId()), null, now);
+        upsertIntegration(
+                companyId,
+                "CONNECTED",
+                firstNonBlank(account.getFullName(), account.getNickname()),
+                nullable(account.getNickname()),
+                null,
+                now
+        );
         return account;
     }
 
@@ -129,8 +142,24 @@ public class MeliAccountService {
     }
 
     @Transactional
-    public void markConnected(UUID companyId, String nickname, Long userId) {
-        upsertIntegration(companyId, "CONNECTED", nullable(nickname), userId == null ? null : String.valueOf(userId), null, Instant.now());
+    public void updateProfile(UUID companyId, String nickname, String fullName, String siteId, String profileImageUrl) {
+        Instant now = Instant.now();
+        accounts.findByCompanyId(companyId).ifPresent(account -> {
+            account.setNickname(nullable(firstNonBlank(nickname, account.getNickname())));
+            account.setFullName(nullable(firstNonBlank(fullName, account.getFullName())));
+            account.setSiteId(safe(firstNonBlank(siteId, account.getSiteId()), "MLB"));
+            account.setProfileImageUrl(nullable(firstNonBlank(profileImageUrl, account.getProfileImageUrl())));
+            account.setUpdatedAt(now);
+            accounts.save(account);
+            upsertIntegration(
+                    companyId,
+                    account.isActive() ? "CONNECTED" : "CONFIGURATION_REQUIRED",
+                    firstNonBlank(account.getFullName(), account.getNickname()),
+                    nullable(account.getNickname()),
+                    null,
+                    now
+            );
+        });
     }
 
     private void upsertIntegration(
@@ -180,6 +209,16 @@ public class MeliAccountService {
         return normalized.isBlank() ? null : normalized;
     }
 
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            String normalized = safe(value);
+            if (!normalized.isBlank()) {
+                return normalized;
+            }
+        }
+        return "";
+    }
+
     private String safe(String value) {
         return value == null ? "" : value.trim();
     }
@@ -194,8 +233,10 @@ public class MeliAccountService {
             boolean connected,
             String integrationStatus,
             Long userId,
+            String fullName,
             String nickname,
             String siteId,
+            String profileImageUrl,
             Instant connectedAt,
             Instant updatedAt,
             boolean active

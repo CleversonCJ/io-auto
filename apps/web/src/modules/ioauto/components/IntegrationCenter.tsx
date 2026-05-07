@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, Cable, LoaderCircle, Plus, Save } from "lucide-react";
+import { Cable, LoaderCircle, Plus, Save } from "lucide-react";
 import { MercadoLivreSetupCard } from "@/modules/ioauto/components/MercadoLivreSetupCard";
 import { OlxSetupCard } from "@/modules/ioauto/components/OlxSetupCard";
 import { WebmotorsSetupCard } from "@/modules/ioauto/components/WebmotorsSetupCard";
@@ -137,7 +137,6 @@ function readPlatformDetails(providerKey: string) {
 
 export function IntegrationCenter() {
     const searchParams = useSearchParams();
-    const [selectedProviderKey, setSelectedProviderKey] = useState<string | null>(null);
     const [integrations, setIntegrations] = useState<IntegrationRecord[]>([]);
     const [drafts, setDrafts] = useState<Record<string, IntegrationDraft>>({});
     const [savingProvider, setSavingProvider] = useState<string | null>(null);
@@ -145,6 +144,9 @@ export function IntegrationCenter() {
     const [notice, setNotice] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [showPlatformPicker, setShowPlatformPicker] = useState(false);
+    const [openedProviderKeys, setOpenedProviderKeys] = useState<string[]>([]);
+    const [pickerProviderKey, setPickerProviderKey] = useState<string>(normalizeProviderKey(SUPPORTED_INTEGRATIONS[0]?.providerKey ?? "mercadolivre"));
+    const [connectionOverrides, setConnectionOverrides] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
         void loadIntegrations();
@@ -155,7 +157,9 @@ export function IntegrationCenter() {
         const message = searchParams?.get("message");
         const status = searchParams?.get("status");
         if (provider) {
-            setSelectedProviderKey(normalizeProviderKey(provider));
+            const normalized = normalizeProviderKey(provider);
+            setOpenedProviderKeys((current) => (current.includes(normalized) ? current : [...current, normalized]));
+            setPickerProviderKey(normalized);
         }
         if (message) {
             if (status === "error") {
@@ -166,15 +170,40 @@ export function IntegrationCenter() {
         }
     }, [searchParams]);
 
-    const connectedCount = useMemo(
-        () => integrations.filter((integration) => integration.status === "CONNECTED" || integration.status === "ACTIVE").length,
-        [integrations]
-    );
+    const integrationMap = useMemo(() => {
+        return new Map(integrations.map((integration) => [normalizeProviderKey(integration.providerKey), integration]));
+    }, [integrations]);
 
-    const selectedIntegration = useMemo(() => {
-        if (!selectedProviderKey) return null;
-        return integrations.find((integration) => normalizeProviderKey(integration.providerKey) === selectedProviderKey) ?? null;
-    }, [integrations, selectedProviderKey]);
+    function isProviderConnected(providerKey: string) {
+        const normalized = normalizeProviderKey(providerKey);
+        if (normalized in connectionOverrides) {
+            return connectionOverrides[normalized];
+        }
+        const integration = integrationMap.get(normalized);
+        return integration?.status === "CONNECTED" || integration?.status === "ACTIVE";
+    }
+
+    const connectedCount = useMemo(() => {
+        const providerKeys = new Set([
+            ...SUPPORTED_INTEGRATIONS.map((item) => normalizeProviderKey(item.providerKey)),
+            ...integrations.map((item) => normalizeProviderKey(item.providerKey)),
+        ]);
+        return [...providerKeys].filter((providerKey) => isProviderConnected(providerKey)).length;
+    }, [integrations, connectionOverrides]);
+
+    const visibleIntegrations = useMemo(() => {
+        const orderedKeys = [
+            ...SUPPORTED_INTEGRATIONS.map((item) => normalizeProviderKey(item.providerKey)),
+            ...integrations
+                .map((item) => normalizeProviderKey(item.providerKey))
+                .filter((providerKey) => !SUPPORTED_INTEGRATIONS.some((item) => normalizeProviderKey(item.providerKey) === providerKey)),
+        ];
+
+        return orderedKeys
+            .filter((providerKey, index, array) => array.indexOf(providerKey) === index)
+            .filter((providerKey) => isProviderConnected(providerKey) || openedProviderKeys.includes(providerKey))
+            .map((providerKey) => integrationMap.get(providerKey) ?? buildFallbackIntegration(providerKey, readPlatformDetails(providerKey).displayName));
+    }, [integrations, openedProviderKeys, connectionOverrides]);
 
     async function loadIntegrations() {
         setLoading(true);
@@ -189,10 +218,6 @@ export function IntegrationCenter() {
             const merged = mergeIntegrationCatalog(payload);
             setIntegrations(merged);
             setDrafts(Object.fromEntries(merged.map((integration) => [normalizeProviderKey(integration.providerKey), toDraft(integration)])));
-            setSelectedProviderKey((current) => {
-                if (!current) return null;
-                return merged.some((integration) => normalizeProviderKey(integration.providerKey) === current) ? current : null;
-            });
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : "Falha ao carregar as integracoes.");
         } finally {
@@ -212,9 +237,29 @@ export function IntegrationCenter() {
         }));
     }
 
-    function selectProvider(providerKey: string) {
-        setSelectedProviderKey(normalizeProviderKey(providerKey));
+    function openProviderCard(providerKey: string) {
+        const normalized = normalizeProviderKey(providerKey);
+        setOpenedProviderKeys((current) => (current.includes(normalized) ? current : [...current, normalized]));
+        setPickerProviderKey(normalized);
         setShowPlatformPicker(false);
+    }
+
+    function handleConnectionStateChange(providerKey: string, connected: boolean) {
+        const normalized = normalizeProviderKey(providerKey);
+        const wasConnected = isProviderConnected(normalized);
+        setConnectionOverrides((current) => ({
+            ...current,
+            [normalized]: connected,
+        }));
+        setOpenedProviderKeys((current) => {
+            if (!connected && wasConnected) {
+                return current.filter((item) => item !== normalized);
+            }
+            if (connected && !current.includes(normalized)) {
+                return [...current, normalized];
+            }
+            return current;
+        });
     }
 
     async function handleSave(providerKey: string) {
@@ -255,6 +300,15 @@ export function IntegrationCenter() {
         }
     }
 
+    const supportedOptions = SUPPORTED_INTEGRATIONS.map((platform) => {
+        const normalized = normalizeProviderKey(platform.providerKey);
+        return {
+            ...platform,
+            normalizedProviderKey: normalized,
+            alreadyVisible: visibleIntegrations.some((integration) => normalizeProviderKey(integration.providerKey) === normalized),
+        };
+    });
+
     return (
         <div className="grid gap-6">
             <header>
@@ -270,8 +324,10 @@ export function IntegrationCenter() {
                 </div>
                 <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                     <div>
-                        <h2 className="font-display text-2xl font-bold text-io-dark">Plataformas disponiveis</h2>
-                        <p className="mt-2 text-sm text-black/56">{connectedCount} integracoes ativas no momento.</p>
+                        <h2 className="font-display text-2xl font-bold text-io-dark">Integracoes conectadas</h2>
+                        <p className="mt-2 text-sm text-black/56">
+                            {connectedCount} integracoes conectadas no momento. Use o seletor para abrir uma plataforma e concluir a conexao quando precisar.
+                        </p>
                     </div>
 
                     <button
@@ -285,105 +341,73 @@ export function IntegrationCenter() {
                 </div>
 
                 {showPlatformPicker ? (
-                    <div className="mt-6 grid gap-3 xl:grid-cols-2">
-                        {SUPPORTED_INTEGRATIONS.map((platform) => {
-                            const integration =
-                                integrations.find((item) => normalizeProviderKey(item.providerKey) === normalizeProviderKey(platform.providerKey)) ??
-                                buildFallbackIntegration(platform.providerKey, platform.displayName);
-                            const normalized = normalizeProviderKey(integration.providerKey);
-                            const isSelected = selectedProviderKey === normalized;
-                            const isConnected = integration.status === "CONNECTED" || integration.status === "ACTIVE";
-
-                            return (
-                                <button
-                                    key={platform.providerKey}
-                                    type="button"
-                                    onClick={() => selectProvider(integration.providerKey)}
-                                    className={`flex flex-col gap-4 rounded-[28px] border p-5 text-left transition-all md:flex-row md:items-center md:justify-between ${
-                                        isSelected
-                                            ? "border-io-purple bg-io-purple/5 shadow-[0_14px_35px_rgba(93,63,211,0.12)]"
-                                            : "border-black/10 bg-[#fafafa] hover:border-black/18 hover:bg-white"
-                                    }`}
+                    <div className="mt-6 rounded-[28px] border border-black/8 bg-[#fafafa] p-4">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                            <label className="grid gap-2 lg:flex-1">
+                                <span className="px-2 text-xs font-bold uppercase tracking-[0.2em] text-black/32">Plataforma</span>
+                                <select
+                                    value={pickerProviderKey}
+                                    onChange={(event) => setPickerProviderKey(normalizeProviderKey(event.target.value))}
+                                    className="h-12 rounded-full border border-black/10 bg-white px-5 text-sm font-medium text-io-dark outline-none transition focus:border-black/20"
                                 >
-                                    <div>
-                                        <div className="flex items-center gap-3">
-                                            <span className={`h-2.5 w-2.5 rounded-full ${isSelected ? "bg-io-purple" : isConnected ? "bg-emerald-500" : "bg-black/20"}`} />
-                                            <p className="text-base font-bold text-io-dark">{integration.displayName}</p>
-                                        </div>
-                                        <p className="mt-2 text-sm leading-6 text-black/56">{platform.description}</p>
-                                    </div>
+                                    {supportedOptions.map((platform) => (
+                                        <option key={platform.providerKey} value={platform.providerKey}>
+                                            {platform.displayName}
+                                            {platform.alreadyVisible ? " - card ja exibido" : ""}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
 
-                                    <div className="flex items-center justify-between gap-4 md:justify-end">
-                                        <span className="rounded-full border border-black/8 bg-white px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-black/48">
-                                            {isConnected ? "Conta conectada" : platform.nextStepLabel}
-                                        </span>
-                                        <ArrowRight className="h-4 w-4 text-black/38" />
-                                    </div>
-                                </button>
-                            );
-                        })}
+                            <button
+                                type="button"
+                                onClick={() => openProviderCard(pickerProviderKey)}
+                                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-io-dark px-6 text-sm font-bold text-white transition hover:bg-black/85"
+                            >
+                                <Plus className="h-4 w-4" />
+                                Abrir card
+                            </button>
+                        </div>
+
+                        <p className="mt-3 text-sm text-black/52">
+                            Ao selecionar uma plataforma, o card dela aparece aqui embaixo. Integracoes conectadas continuam visiveis automaticamente.
+                        </p>
                     </div>
                 ) : null}
 
-                <div className="mt-6 flex flex-wrap gap-3">
-                    {integrations.map((integration) => {
-                        const normalized = normalizeProviderKey(integration.providerKey);
-                        const isSelected = selectedProviderKey === normalized;
-                        return (
-                            <button
-                                key={integration.providerKey}
-                                type="button"
-                                onClick={() => selectProvider(integration.providerKey)}
-                                className={`inline-flex h-12 items-center gap-3 rounded-full border px-5 text-sm font-bold transition-all ${
-                                    isSelected
-                                        ? "border-io-purple bg-io-purple/5 text-io-purple"
-                                        : "border-black/10 bg-white text-black/45 hover:border-black/20 hover:text-io-dark"
-                                }`}
-                            >
-                                <div className={`h-2 w-2 rounded-full ${isSelected ? "bg-io-purple" : "bg-black/20"}`} />
-                                {integration.displayName}
-                            </button>
-                        );
-                    })}
-                </div>
-
                 {error ? <p className="mt-6 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
                 {notice ? <p className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</p> : null}
-            </section>
 
-            {loading ? (
-                <div className="flex min-h-[200px] items-center justify-center rounded-[34px] border border-black/10 bg-white shadow-sm">
-                    <LoaderCircle className="h-6 w-6 animate-spin text-io-purple" />
-                </div>
-            ) : selectedIntegration ? (
-                <div className="grid gap-8">
-                    {renderIntegrationPanel({
-                        integration: selectedIntegration,
-                        draft: drafts[normalizeProviderKey(selectedIntegration.providerKey)] ?? toDraft(selectedIntegration),
-                        saving: savingProvider === normalizeProviderKey(selectedIntegration.providerKey),
-                        onDraftChange: (partial) => updateDraft(selectedIntegration.providerKey, partial),
-                        onSave: () => void handleSave(selectedIntegration.providerKey),
-                    })}
-                </div>
-            ) : (
-                <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[34px] border-2 border-dashed border-black/5 bg-black/[0.02] px-6 text-center">
-                    <div className="grid h-16 w-16 place-items-center rounded-full bg-white shadow-sm text-black/20">
-                        <Cable className="h-8 w-8" />
+                {loading ? (
+                    <div className="mt-6 flex min-h-[200px] items-center justify-center rounded-[30px] border border-black/8 bg-[#fafafa]">
+                        <LoaderCircle className="h-6 w-6 animate-spin text-io-purple" />
                     </div>
-                    <h3 className="mt-6 font-display text-2xl font-bold text-io-dark">Escolha uma plataforma para conectar</h3>
-                    <p className="mt-2 max-w-md text-sm leading-6 text-black/56">
-                        Use o botao acima para escolher a integracao. Ao selecionar a plataforma, a tela mostra o login ou a configuracao correspondente.
-                    </p>
-                    <button
-                        type="button"
-                        onClick={() => setShowPlatformPicker(true)}
-                        className="mt-6 inline-flex h-12 items-center gap-2 rounded-full bg-io-dark px-6 text-sm font-bold text-white transition hover:bg-black/85"
-                    >
-                        <Plus className="h-4 w-4" />
-                        Escolher integracao
-                    </button>
-                </div>
-            )}
+                ) : visibleIntegrations.length ? (
+                    <div className="mt-6 grid gap-6">
+                        {visibleIntegrations.map((integration) =>
+                            renderIntegrationPanel({
+                                integration,
+                                draft: drafts[normalizeProviderKey(integration.providerKey)] ?? toDraft(integration),
+                                saving: savingProvider === normalizeProviderKey(integration.providerKey),
+                                onDraftChange: (partial) => updateDraft(integration.providerKey, partial),
+                                onSave: () => void handleSave(integration.providerKey),
+                                onRefreshParent: () => void loadIntegrations(),
+                                onConnectionStateChange: (connected) => handleConnectionStateChange(integration.providerKey, connected),
+                            })
+                        )}
+                    </div>
+                ) : (
+                    <div className="mt-6 flex min-h-[280px] flex-col items-center justify-center rounded-[30px] border-2 border-dashed border-black/6 bg-black/[0.02] px-6 text-center">
+                        <div className="grid h-16 w-16 place-items-center rounded-full bg-white shadow-sm text-black/20">
+                            <Cable className="h-8 w-8" />
+                        </div>
+                        <h3 className="mt-6 font-display text-2xl font-bold text-io-dark">Nenhuma integracao em exibicao</h3>
+                        <p className="mt-2 max-w-md text-sm leading-6 text-black/56">
+                            Abra uma plataforma pelo seletor acima para conectar uma nova integracao. As contas conectadas ficam visiveis automaticamente neste painel.
+                        </p>
+                    </div>
+                )}
+            </section>
         </div>
     );
 }
@@ -394,22 +418,26 @@ function renderIntegrationPanel({
     saving,
     onDraftChange,
     onSave,
+    onRefreshParent,
+    onConnectionStateChange,
 }: {
     integration: IntegrationRecord;
     draft: IntegrationDraft;
     saving: boolean;
     onDraftChange: (partial: Partial<IntegrationDraft>) => void;
     onSave: () => void;
+    onRefreshParent: () => void;
+    onConnectionStateChange: (connected: boolean) => void;
 }) {
     const normalizedProviderKey = normalizeProviderKey(integration.providerKey);
     if (normalizedProviderKey === "webmotors") {
-        return <WebmotorsSetupCard key={integration.providerKey} />;
+        return <WebmotorsSetupCard key={integration.providerKey} onRefreshParent={onRefreshParent} />;
     }
     if (normalizedProviderKey === "mercadolivre") {
-        return <MercadoLivreSetupCard key={integration.providerKey} />;
+        return <MercadoLivreSetupCard key={integration.providerKey} onConnectionStateChange={onConnectionStateChange} onRefreshParent={onRefreshParent} />;
     }
     if (normalizedProviderKey === "olx") {
-        return <OlxSetupCard key={integration.providerKey} />;
+        return <OlxSetupCard key={integration.providerKey} onConnectionStateChange={onConnectionStateChange} onRefreshParent={onRefreshParent} />;
     }
 
     const platformDetails = readPlatformDetails(integration.providerKey);

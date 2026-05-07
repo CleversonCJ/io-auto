@@ -100,14 +100,22 @@ public class MeliOAuthService {
         Long userId = longValue(tokenRoot, "user_id");
         JsonNode me = fetchCurrentUser(accessToken);
         String nickname = firstNonBlank(text(me, "nickname"), text(tokenRoot, "nickname"));
+        String fullName = firstNonBlank(
+                text(me, "first_name") + " " + text(me, "last_name"),
+                text(me, "registration_name"),
+                nickname
+        );
         String siteId = firstNonBlank(text(me, "site_id"), properties.getSiteId());
+        String profileImageUrl = text(me, "logo");
         Instant tokenExpiresAt = tokenService.resolveTokenExpiry(tokenRoot);
 
         accountService.saveConnection(
                 payload.companyId(),
                 userId,
                 nickname,
+                fullName,
                 siteId,
+                profileImageUrl,
                 accessToken,
                 refreshToken,
                 text(tokenRoot, "token_type"),
@@ -115,7 +123,7 @@ public class MeliOAuthService {
                 tokenExpiresAt,
                 text(tokenRoot, "scope")
         );
-        log.info("MELI OAuth connected companyId={} meliUserId={} nickname={}", payload.companyId(), userId, nickname);
+        log.info("MELI OAuth connected companyId={} meliUserId={} nickname={} fullName={}", payload.companyId(), userId, nickname, fullName);
         return accountService.getStatus(payload.companyId());
     }
 

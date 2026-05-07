@@ -24,8 +24,14 @@ public class JpaMeliAccountEntity {
     @Column(length = 255)
     private String nickname;
 
+    @Column(name = "full_name", length = 255)
+    private String fullName;
+
     @Column(name = "site_id", nullable = false, length = 10)
     private String siteId;
+
+    @Column(name = "profile_image_url", columnDefinition = "text")
+    private String profileImageUrl;
 
     @Column(name = "access_token", nullable = false, columnDefinition = "text")
     private String accessToken;
@@ -89,12 +95,28 @@ public class JpaMeliAccountEntity {
         this.nickname = nickname;
     }
 
+    public String getFullName() {
+        return fullName;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
     public String getSiteId() {
         return siteId;
     }
 
     public void setSiteId(String siteId) {
         this.siteId = siteId;
+    }
+
+    public String getProfileImageUrl() {
+        return profileImageUrl;
+    }
+
+    public void setProfileImageUrl(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
     }
 
     public String getAccessToken() {

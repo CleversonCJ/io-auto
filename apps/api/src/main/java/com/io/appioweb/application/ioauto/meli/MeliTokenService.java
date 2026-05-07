@@ -89,7 +89,9 @@ public class MeliTokenService {
                 companyId,
                 account.getMeliUserId(),
                 account.getNickname(),
+                account.getFullName(),
                 firstNonBlank(text(root, "site_id"), account.getSiteId(), properties.getSiteId()),
+                account.getProfileImageUrl(),
                 accessToken,
                 nextRefreshToken,
                 firstNonBlank(text(root, "token_type"), account.getTokenType()),
@@ -97,7 +99,6 @@ public class MeliTokenService {
                 tokenExpiresAt,
                 firstNonBlank(text(root, "scope"), account.getScope())
         );
-        accountService.markConnected(companyId, account.getNickname(), account.getMeliUserId());
         return accessToken;
     }
 

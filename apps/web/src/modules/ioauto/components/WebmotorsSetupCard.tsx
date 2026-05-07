@@ -6,6 +6,10 @@ import type { WebmotorsSettingsRecord, WebmotorsValidationResult } from "@/modul
 
 type LoadState = "idle" | "loading" | "ready";
 
+type Props = {
+    onRefreshParent?: () => void;
+};
+
 const DEFAULT_SETTINGS: WebmotorsSettingsRecord = {
     id: "",
     companyId: "",
@@ -34,7 +38,7 @@ const DEFAULT_SETTINGS: WebmotorsSettingsRecord = {
     callbackSecret: "",
 };
 
-export function WebmotorsSetupCard() {
+export function WebmotorsSetupCard({ onRefreshParent }: Props) {
     const [draft, setDraft] = useState<WebmotorsSettingsRecord>(DEFAULT_SETTINGS);
     const [loadState, setLoadState] = useState<LoadState>("loading");
     const [saving, setSaving] = useState(false);
@@ -86,6 +90,7 @@ export function WebmotorsSetupCard() {
         setDraft(normalizeSettings(payload));
         setSuccess("Configuracoes salvas. O sistema ja monta o Basic auth, faz o login e usa o access_token automaticamente.");
         setSaving(false);
+        onRefreshParent?.();
     }
 
     async function handleValidate() {
@@ -123,6 +128,7 @@ export function WebmotorsSetupCard() {
         setValidation(payload as WebmotorsValidationResult);
         setSuccess(readMessage(payload, "Credenciais validadas com sucesso."));
         setValidating(false);
+        onRefreshParent?.();
     }
 
     return (

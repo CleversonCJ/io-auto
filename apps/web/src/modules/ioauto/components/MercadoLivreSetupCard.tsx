@@ -5,7 +5,19 @@ import { Cable, CheckCircle2, ExternalLink, LoaderCircle, RefreshCw, Unplug } fr
 import type { MeliAdRecord, MeliIntegrationStatus, MeliSyncSummary } from "@/modules/ioauto/types";
 import { formatDateTime, statusLabel } from "@/modules/ioauto/formatters";
 
-export function MercadoLivreSetupCard() {
+function getInitials(fullName?: string | null, nickname?: string | null) {
+    const source = (fullName?.trim() || nickname?.trim() || "Mercado Livre").split(/\s+/).filter(Boolean);
+    const first = source[0]?.[0] ?? "M";
+    const second = source[1]?.[0] ?? source[0]?.[1] ?? "L";
+    return `${first}${second}`.toUpperCase();
+}
+
+type Props = {
+    onConnectionStateChange?: (connected: boolean) => void;
+    onRefreshParent?: () => void;
+};
+
+export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent }: Props) {
     const [status, setStatus] = useState<MeliIntegrationStatus | null>(null);
     const [ads, setAds] = useState<MeliAdRecord[]>([]);
     const [loading, setLoading] = useState(true);
@@ -30,7 +42,9 @@ export function MercadoLivreSetupCard() {
             if (!statusResponse.ok) {
                 throw new Error((statusPayload as { message?: string } | null)?.message ?? "Falha ao carregar o status do Mercado Livre.");
             }
-            setStatus(statusPayload as MeliIntegrationStatus);
+            const nextStatus = statusPayload as MeliIntegrationStatus;
+            setStatus(nextStatus);
+            onConnectionStateChange?.(nextStatus.connected);
 
             if (adsResponse.ok) {
                 setAds((await adsResponse.json()) as MeliAdRecord[]);
@@ -69,6 +83,7 @@ export function MercadoLivreSetupCard() {
             }
             setMessage("Conta Mercado Livre desconectada.");
             await loadAll();
+            onRefreshParent?.();
         });
     }
 
@@ -93,6 +108,7 @@ export function MercadoLivreSetupCard() {
             const summary = payload as MeliSyncSummary;
             setMessage(`Sincronizacao concluida: ${summary.total} anuncios consultados no Mercado Livre.`);
             await loadAll();
+            onRefreshParent?.();
         });
     }
 
@@ -110,6 +126,7 @@ export function MercadoLivreSetupCard() {
     }
 
     const activeAds = ads.filter((item) => item.status?.toUpperCase() === "ACTIVE").length;
+    const connectedDisplayName = status?.fullName || status?.nickname || "Conta ainda nao conectada";
     const lastSync = ads
         .map((item) => item.lastSyncedAt)
         .filter((item): item is string => Boolean(item))
@@ -197,18 +214,40 @@ export function MercadoLivreSetupCard() {
                 />
                 <StatCard
                     icon={<Cable className="h-5 w-5" />}
-                    label="Site / usuario"
-                    value={status?.siteId ?? "MLB"}
-                    detail={status?.userId != null ? `User ID ${status.userId}` : "Conta ainda nao conectada"}
+                    label="Conta conectada"
+                    value={connectedDisplayName}
+                    detail={status?.nickname ? `Apelido: ${status.nickname}` : "Conta ainda nao conectada"}
                 />
             </div>
 
             <div className="mt-8 grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
                 <section className="rounded-[28px] border border-black/8 bg-[#faf8f4] p-5">
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-black/35">Conta conectada</p>
+                    <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center">
+                        {status?.profileImageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                                src={status.profileImageUrl}
+                                alt={status.fullName ?? status.nickname ?? "Conta Mercado Livre"}
+                                className="h-20 w-20 rounded-[26px] border border-black/8 object-cover"
+                            />
+                        ) : (
+                            <div className="grid h-20 w-20 place-items-center rounded-[26px] bg-[#ffe14a] text-xl font-bold text-[#2f2a05]">
+                                {getInitials(status?.fullName, status?.nickname)}
+                            </div>
+                        )}
+
+                        <div>
+                            <h3 className="font-display text-3xl font-bold text-io-dark">{connectedDisplayName}</h3>
+                            <p className="mt-2 text-sm text-black/52">
+                                {status?.nickname ? `Apelido da conta: ${status.nickname}` : "Aguardando dados da conta conectada."}
+                            </p>
+                        </div>
+                    </div>
+
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
-                        <InfoRow label="Nickname" value={status?.nickname ?? "-"} />
-                        <InfoRow label="User ID" value={status?.userId != null ? String(status.userId) : "-"} />
+                        <InfoRow label="Nome exibido" value={connectedDisplayName} />
+                        <InfoRow label="Apelido no Mercado Livre" value={status?.nickname ?? "-"} />
                         <InfoRow label="Site" value={status?.siteId ?? "MLB"} />
                         <InfoRow label="Conectada em" value={formatDateTime(status?.connectedAt)} />
                     </div>
