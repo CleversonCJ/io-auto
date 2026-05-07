@@ -1006,8 +1006,18 @@ export function InventoryStudio() {
                                                 <div className="col-span-full md:col-span-2 xl:col-span-4 rounded-2xl bg-[#fffdf0] border border-[#d5c228] p-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3 my-2">
                                                     <div className="col-span-full">
                                                         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-                                                            <Field label="Buscar Categoria (ML)" value={meliCategorySearch} onChange={setMeliCategorySearch} placeholder="Ex.: carros, motos ou MLB1234" className="lg:flex-1" />
-                                                            <SecondaryButton label="Buscar" icon={<Search className="h-4 w-4" />} loading={loadingMeliCategories} onClick={() => void loadMeliCategories(meliCategorySearch)} />
+                                                            <div className="lg:flex-1">
+                                                                <Field label="Buscar Categoria (ML)" value={meliCategorySearch} onChange={setMeliCategorySearch} placeholder="Ex.: carros, motos ou MLB1234" />
+                                                            </div>
+                                                            <button 
+                                                                type="button" 
+                                                                disabled={loadingMeliCategories} 
+                                                                onClick={() => void loadMeliCategories(meliCategorySearch)} 
+                                                                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-black/5 px-6 text-sm font-semibold text-io-dark transition hover:bg-black/10 disabled:opacity-50"
+                                                            >
+                                                                {loadingMeliCategories ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                                                                Buscar
+                                                            </button>
                                                         </div>
                                                         {meliCategories.length ? (
                                                             <div className="mt-3 flex flex-wrap gap-2">
@@ -1473,6 +1483,42 @@ function TextArea({
                 placeholder={placeholder}
                 className="min-h-56 rounded-[24px] border border-black/10 bg-[#f7f7f7] px-4 py-4 text-sm text-io-dark outline-none transition focus:border-black/30 focus:bg-white"
             />
+        </label>
+    );
+}
+
+function SelectField({
+    label,
+    value,
+    options,
+    onChange,
+    loading = false,
+}: {
+    label: string;
+    value: string;
+    options: { value: string; label: string }[];
+    onChange: (value: string) => void;
+    loading?: boolean;
+}) {
+    return (
+        <label className="grid gap-2">
+            <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-black/60">{label}</span>
+                {loading ? <LoaderCircle className="h-3 w-3 animate-spin text-black/40" /> : null}
+            </div>
+            <select
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+                disabled={loading}
+                className="h-12 w-full appearance-none rounded-2xl border border-black/10 bg-[#f7f7f7] px-4 text-sm text-io-dark outline-none transition focus:border-black/30 focus:bg-white disabled:opacity-60"
+            >
+                <option value="" disabled>Selecione...</option>
+                {options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                    </option>
+                ))}
+            </select>
         </label>
     );
 }
