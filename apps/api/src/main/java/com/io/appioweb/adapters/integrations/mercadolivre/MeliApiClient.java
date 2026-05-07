@@ -72,25 +72,7 @@ public class MeliApiClient {
                 sleep(DEFAULT_BACKOFF_MS.get(attempt - 1));
             }
             try {
-                JsonResponse response = restClient.method(method)
-                        .uri(path)
-                        .headers(headers -> {
-                            if (authenticated) {
-                                headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
-                            }
-                            if (body != null) {
-                                headers.setContentType(MediaType.APPLICATION_JSON);
-                            }
-                        })
-                        .body(body == null ? "" : body)
-                        .exchange((request, clientResponse) -> {
-                            String rawBody = StreamUtils.copyToString(clientResponse.getBody(), StandardCharsets.UTF_8);
-                            return new JsonResponse(
-                                    parseJson(rawBody),
-                                    rawBody,
-                                    clientResponse.getStatusCode().value()
-                            );
-                        });
+                JsonResponse response = exchange(method, path, authenticated, accessToken, body);
 
                 if (response.httpStatus() >= 400) {
                     throw mapHttpError(response);
@@ -111,6 +93,8 @@ public class MeliApiClient {
             } catch (BusinessException exception) {
                 throw exception;
             } catch (Exception exception) {
+                log.warn("MELI request execution failed method={} path={} attempt={} reason={}",
+                        method, path, attempt + 1, exception.getMessage(), exception);
                 if (attempt >= DEFAULT_BACKOFF_MS.size()) {
                     throw new MeliUnexpectedException(
                             "MELI_REQUEST_FAILED",
@@ -131,6 +115,51 @@ public class MeliApiClient {
                 500,
                 ""
         );
+    }
+
+    private JsonResponse exchange(
+            HttpMethod method,
+            String path,
+            boolean authenticated,
+            String accessToken,
+            Object body
+    ) {
+        var request = restClient.method(method)
+                .uri(path)
+                .headers(headers -> {
+                    if (authenticated) {
+                        headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+                    }
+                    if (body != null && allowsRequestBody(method)) {
+                        headers.setContentType(MediaType.APPLICATION_JSON);
+                    }
+                });
+
+        if (body != null && allowsRequestBody(method)) {
+            return request
+                    .body(body)
+                    .exchange((requestSpec, clientResponse) -> {
+                        String rawBody = StreamUtils.copyToString(clientResponse.getBody(), StandardCharsets.UTF_8);
+                        return new JsonResponse(
+                                parseJson(rawBody),
+                                rawBody,
+                                clientResponse.getStatusCode().value()
+                        );
+                    });
+        }
+
+        return request.exchange((requestSpec, clientResponse) -> {
+            String rawBody = StreamUtils.copyToString(clientResponse.getBody(), StandardCharsets.UTF_8);
+            return new JsonResponse(
+                    parseJson(rawBody),
+                    rawBody,
+                    clientResponse.getStatusCode().value()
+            );
+        });
+    }
+
+    private boolean allowsRequestBody(HttpMethod method) {
+        return HttpMethod.POST.equals(method) || HttpMethod.PUT.equals(method) || HttpMethod.PATCH.equals(method);
     }
 
     private boolean shouldRetry(int httpStatus) {
