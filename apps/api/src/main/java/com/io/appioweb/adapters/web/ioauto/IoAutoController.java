@@ -635,8 +635,10 @@ public class IoAutoController {
         entity.setBrand(requireText(request.brand(), "Informe a marca do veículo."));
         entity.setModel(requireText(request.model(), "Informe o modelo do veículo."));
         String normalizedEngine = normalizeNullableText(request.engine());
+        String normalizedVersion = normalizeNullableText(request.version());
+        String normalizedState = normalizeNullableText(request.state());
         Integer resolvedYear = resolveVehicleYear(request.year(), request.modelYear(), request.manufactureYear());
-        entity.setVersion(normalizedEngine != null ? normalizedEngine : normalizeNullableText(request.version()));
+        entity.setVersion(normalizedVersion != null ? normalizedVersion : normalizedEngine);
         entity.setEngine(normalizedEngine);
         entity.setModelYear(resolvedYear);
         entity.setManufactureYear(resolvedYear);
@@ -647,8 +649,11 @@ public class IoAutoController {
         entity.setBodyType(normalizeNullableText(request.bodyType()));
         entity.setColor(normalizeNullableText(request.color()));
         entity.setPlateFinal(normalizeNullableText(request.plateFinal()));
+        entity.setPlate(normalizeNullableText(request.plate()));
+        entity.setContactPhone(normalizeNullableText(request.contactPhone()));
+        entity.setZipcode(normalizeNullableText(request.zipcode()));
         entity.setCity(normalizeNullableText(request.city()));
-        entity.setState(normalizeNullableText(request.state()).toUpperCase(Locale.ROOT));
+        entity.setState(normalizedState == null ? null : normalizedState.toUpperCase(Locale.ROOT));
         entity.setFeatured(Boolean.TRUE.equals(request.featured()));
         entity.setStatus(normalizeText(request.status(), "DRAFT"));
         entity.setDescription(normalizeNullableText(request.description()));
@@ -753,6 +758,9 @@ public class IoAutoController {
                 normalizeNullableText(vehicle.getBodyType()),
                 normalizeNullableText(vehicle.getColor()),
                 normalizeNullableText(vehicle.getPlateFinal()),
+                normalizeNullableText(vehicle.getPlate()),
+                normalizeNullableText(vehicle.getContactPhone()),
+                normalizeNullableText(vehicle.getZipcode()),
                 normalizeNullableText(vehicle.getCity()),
                 normalizeNullableText(vehicle.getState()),
                 vehicle.isFeatured(),
@@ -1531,6 +1539,9 @@ public class IoAutoController {
             String bodyType,
             String color,
             String plateFinal,
+            String plate,
+            String contactPhone,
+            String zipcode,
             String city,
             String state,
             boolean featured,
@@ -1723,6 +1734,9 @@ public class IoAutoController {
             String bodyType,
             String color,
             String plateFinal,
+            String plate,
+            String contactPhone,
+            String zipcode,
             String city,
             String state,
             Boolean featured,

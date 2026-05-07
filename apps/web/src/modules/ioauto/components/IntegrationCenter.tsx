@@ -368,10 +368,6 @@ export function IntegrationCenter() {
                                 Abrir card
                             </button>
                         </div>
-
-                        <p className="mt-3 text-sm text-black/52">
-                            Ao selecionar uma plataforma, o card dela aparece aqui embaixo. Integracoes conectadas continuam visiveis automaticamente.
-                        </p>
                     </div>
                 ) : null}
 

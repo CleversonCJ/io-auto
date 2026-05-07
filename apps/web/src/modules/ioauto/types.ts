@@ -89,6 +89,9 @@ export type VehicleRecord = {
     bodyType: string | null;
     color: string | null;
     plateFinal: string | null;
+    plate: string | null;
+    contactPhone: string | null;
+    zipcode: string | null;
     city: string | null;
     state: string | null;
     featured: boolean;

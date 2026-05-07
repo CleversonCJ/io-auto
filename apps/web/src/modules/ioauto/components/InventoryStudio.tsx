@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
 import {
     CalendarDays,
     CarFront,
@@ -17,22 +17,44 @@ import {
 } from "lucide-react";
 import { MeliVehiclePanel, emptyMeliVehicleForm, type MeliVehicleFormState } from "@/modules/ioauto/components/MeliVehiclePanel";
 import { OlxVehiclePanel, emptyOlxVehicleForm, type OlxVehicleFormState } from "@/modules/ioauto/components/OlxVehiclePanel";
-import type { IntegrationRecord, MeliVehicleMapping, OlxVehicleMapping, VehiclePublication, VehicleRecord } from "@/modules/ioauto/types";
+import type {
+    IntegrationRecord,
+    MeliCategorySuggestion,
+    MeliListingTypeRecord,
+    MeliVehicleMapping,
+    OlxCatalogOption,
+    OlxVehicleMapping,
+    VehiclePublication,
+    VehicleRecord,
+} from "@/modules/ioauto/types";
 import { formatDateTime, formatMoney, platformLabel, statusLabel } from "@/modules/ioauto/formatters";
 
 type VehicleFormState = {
     id?: string;
+    stockNumber: string;
     title: string;
     brand: string;
-    year: string;
     model: string;
+    version: string;
     engine: string;
+    year: string;
     mileage: string;
     priceCents: string;
+    transmission: string;
+    fuelType: string;
+    bodyType: string;
+    color: string;
+    plateFinal: string;
+    plate: string;
+    contactPhone: string;
+    zipcode: string;
+    city: string;
+    state: string;
     downPaymentCents: string;
     installmentCount: string;
     installmentValueCents: string;
     description: string;
+    optionalsText: string;
     imageUrls: string[];
     featured: boolean;
     status: string;
@@ -43,20 +65,33 @@ type VehicleFormState = {
 
 function emptyForm(): VehicleFormState {
     return {
+        stockNumber: "",
         title: "",
         brand: "",
-        year: "",
         model: "",
+        version: "",
         engine: "",
+        year: "",
         mileage: "",
         priceCents: "",
+        transmission: "",
+        fuelType: "",
+        bodyType: "",
+        color: "",
+        plateFinal: "",
+        plate: "",
+        contactPhone: "",
+        zipcode: "",
+        city: "",
+        state: "",
         downPaymentCents: "",
         installmentCount: "",
         installmentValueCents: "",
         description: "",
+        optionalsText: "",
         imageUrls: [],
         featured: false,
-        status: "DRAFT",
+        status: "READY",
         targetIntegrations: [],
         meli: emptyMeliVehicleForm(),
         olx: emptyOlxVehicleForm(),
@@ -70,17 +105,30 @@ function uniqueImageList(values: Array<string | null | undefined>) {
 function vehicleToForm(vehicle: VehicleRecord): VehicleFormState {
     return {
         id: vehicle.id,
+        stockNumber: vehicle.stockNumber ?? "",
         title: vehicle.title,
         brand: vehicle.brand,
-        year: vehicle.year ? String(vehicle.year) : vehicle.modelYear ? String(vehicle.modelYear) : vehicle.manufactureYear ? String(vehicle.manufactureYear) : "",
         model: vehicle.model,
-        engine: vehicle.engine ?? vehicle.version ?? "",
+        version: vehicle.version ?? "",
+        engine: vehicle.engine ?? "",
+        year: vehicle.year ? String(vehicle.year) : vehicle.modelYear ? String(vehicle.modelYear) : vehicle.manufactureYear ? String(vehicle.manufactureYear) : "",
         mileage: vehicle.mileage ? String(vehicle.mileage) : "",
         priceCents: vehicle.priceCents ? String(vehicle.priceCents) : "",
+        transmission: vehicle.transmission ?? "",
+        fuelType: vehicle.fuelType ?? "",
+        bodyType: vehicle.bodyType ?? "",
+        color: vehicle.color ?? "",
+        plateFinal: vehicle.plateFinal ?? "",
+        plate: vehicle.plate ?? "",
+        contactPhone: vehicle.contactPhone ?? "",
+        zipcode: vehicle.zipcode ?? "",
+        city: vehicle.city ?? "",
+        state: vehicle.state ?? "",
         downPaymentCents: vehicle.financing.downPaymentCents ? String(vehicle.financing.downPaymentCents) : "",
         installmentCount: vehicle.financing.installmentCount ? String(vehicle.financing.installmentCount) : "",
         installmentValueCents: vehicle.financing.installmentValueCents ? String(vehicle.financing.installmentValueCents) : "",
         description: vehicle.description ?? "",
+        optionalsText: vehicle.optionals.join(", "),
         imageUrls: uniqueImageList([vehicle.coverImageUrl, ...vehicle.gallery]),
         featured: vehicle.featured,
         status: vehicle.status,
@@ -125,6 +173,36 @@ function normalizeCurrencyDigits(value: string) {
     return value.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
 }
 
+function normalizeDigits(value: string) {
+    return value.replace(/\D/g, "");
+}
+
+function normalizePlateValue(value: string) {
+    return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function normalizeProviderKey(value: string) {
+    return value.trim().toLowerCase();
+}
+
+function isConnectedIntegrationStatus(status: string) {
+    const normalized = status.trim().toUpperCase();
+    return normalized === "CONNECTED" || normalized === "ACTIVE";
+}
+
+function normalizeLookupValue(value: string) {
+    return value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+}
+
+function parseOptionalsInput(raw: string) {
+    return Array.from(new Set(raw.split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean)));
+}
+
 function formatFinancingSummary(vehicle: VehicleRecord) {
     const parts: string[] = [];
     if (vehicle.financing.downPaymentCents != null) parts.push(`Entrada ${formatMoney(vehicle.financing.downPaymentCents)}`);
@@ -164,11 +242,30 @@ export function InventoryStudio() {
     const imageInputRef = useRef<HTMLInputElement | null>(null);
 
     const selectedVehicle = useMemo(() => vehicles.find((vehicle) => vehicle.id === selectedId) ?? null, [selectedId, vehicles]);
-    const connectedIntegrations = useMemo(
-        () => integrations.filter((integration) => integration.status === "CONNECTED" || integration.status === "ACTIVE"),
-        [integrations]
+    const connectedIntegrations = useMemo(() => integrations.filter((integration) => isConnectedIntegrationStatus(integration.status)), [integrations]);
+    const readyPublicationIntegrations = useMemo(
+        () => connectedIntegrations.filter((integration) => integration.supportsPublication),
+        [connectedIntegrations]
     );
-    const publicationIntegrations = useMemo(() => integrations.filter((integration) => integration.supportsPublication), [integrations]);
+    const readyPublicationProviderKeys = useMemo(
+        () => new Set(readyPublicationIntegrations.map((integration) => normalizeProviderKey(integration.providerKey))),
+        [readyPublicationIntegrations]
+    );
+    const selectedReadyPublicationIntegrations = useMemo(
+        () =>
+            readyPublicationIntegrations.filter((integration) =>
+                form.targetIntegrations.some((providerKey) => normalizeProviderKey(providerKey) === normalizeProviderKey(integration.providerKey))
+            ),
+        [form.targetIntegrations, readyPublicationIntegrations]
+    );
+    const requiresOlxPublication = useMemo(
+        () =>
+            form.targetIntegrations.some((providerKey) => {
+                const normalized = normalizeProviderKey(providerKey);
+                return readyPublicationProviderKeys.has(normalized) && ["olx", "olx-autos"].includes(normalized);
+            }),
+        [form.targetIntegrations, readyPublicationProviderKeys]
+    );
     const visibleVehicles = useMemo(() => {
         const query = search.trim().toLowerCase();
         if (!query) return vehicles;
@@ -263,23 +360,26 @@ export function InventoryStudio() {
         }));
     }
 
-    async function saveOlxMapping(vehicleId: string) {
+    async function saveOlxMapping(
+        vehicleId: string,
+        mapping: {
+            brandId: string | null;
+            modelId: string | null;
+            versionId: string | null;
+            fuelCode: string | null;
+            gearboxCode: string | null;
+            doorsCode: string | null;
+            colorCode: string | null;
+            featureCodes: string[];
+            plate: string | null;
+            phone: string | null;
+            zipcode: string | null;
+        }
+    ) {
         const response = await fetch(`/api/integrations/olx/vehicles/${vehicleId}/mapping`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                brandId: form.olx.brandId || null,
-                modelId: form.olx.modelId || null,
-                versionId: form.olx.versionId || null,
-                fuelCode: form.olx.fuelCode || null,
-                gearboxCode: form.olx.gearboxCode || null,
-                doorsCode: form.olx.doorsCode || null,
-                colorCode: form.olx.colorCode || null,
-                featureCodes: form.olx.featureCodes,
-                plate: form.olx.plate || null,
-                phone: form.olx.phone || null,
-                zipcode: form.olx.zipcode || null,
-            }),
+            body: JSON.stringify(mapping),
         });
         const payload = (await response.json().catch(() => null)) as OlxVehicleMapping | { message?: string } | null;
         if (!response.ok) {
@@ -288,26 +388,157 @@ export function InventoryStudio() {
         hydrateOlxMapping(payload as OlxVehicleMapping);
     }
 
-    async function saveMeliMapping(vehicleId: string) {
+    async function saveMeliMapping(
+        vehicleId: string,
+        mapping: {
+            categoryId: string | null;
+            listingTypeId: string | null;
+            condition: string | null;
+            sellerSku: string | null;
+            title: string | null;
+            description: string | null;
+            priceCents: number | null;
+            attributes: MeliVehicleFormState["attributes"];
+        }
+    ) {
         const response = await fetch(`/api/integrations/mercadolivre/vehicles/${vehicleId}/mapping`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                categoryId: form.meli.categoryId || null,
-                listingTypeId: form.meli.listingTypeId || null,
-                condition: form.meli.condition || null,
-                sellerSku: form.meli.sellerSku || null,
-                title: form.meli.title || null,
-                description: form.meli.description || null,
-                priceCents: form.meli.priceCents ? Number(form.meli.priceCents) : null,
-                attributes: form.meli.attributes,
-            }),
+            body: JSON.stringify(mapping),
         });
         const payload = (await response.json().catch(() => null)) as MeliVehicleMapping | { message?: string } | null;
         if (!response.ok) {
             throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuracao Mercado Livre do veiculo.");
         }
         hydrateMeliMapping(payload as MeliVehicleMapping);
+    }
+
+    async function fetchOlxCatalogOptions(path: string) {
+        try {
+            const response = await fetch(path, { cache: "no-store" });
+            if (!response.ok) return [] as OlxCatalogOption[];
+            return (await response.json()) as OlxCatalogOption[];
+        } catch {
+            return [] as OlxCatalogOption[];
+        }
+    }
+
+    function matchCatalogOption(options: OlxCatalogOption[], rawValue: string) {
+        const normalizedQuery = normalizeLookupValue(rawValue);
+        if (!normalizedQuery) return null;
+
+        const exact = options.find((option) => normalizeLookupValue(option.name) === normalizedQuery);
+        if (exact) return exact.id;
+
+        const partial = options.find((option) => {
+            const normalizedName = normalizeLookupValue(option.name);
+            return normalizedName.includes(normalizedQuery) || normalizedQuery.includes(normalizedName);
+        });
+        return partial?.id ?? null;
+    }
+
+    async function buildOlxMappingPayload() {
+        let brandId = form.olx.brandId.trim() || null;
+        let modelId = form.olx.modelId.trim() || null;
+        let versionId = form.olx.versionId.trim() || null;
+
+        if (!brandId && form.brand.trim()) {
+            const brands = await fetchOlxCatalogOptions("/api/integrations/olx/catalog/brands");
+            brandId = matchCatalogOption(brands, form.brand);
+        }
+
+        if (brandId && !modelId && form.model.trim()) {
+            const models = await fetchOlxCatalogOptions(`/api/integrations/olx/catalog/brands/${encodeURIComponent(brandId)}/models`);
+            modelId = matchCatalogOption(models, form.model);
+        }
+
+        if (brandId && modelId && !versionId) {
+            const versions = await fetchOlxCatalogOptions(
+                `/api/integrations/olx/catalog/brands/${encodeURIComponent(brandId)}/models/${encodeURIComponent(modelId)}/versions`
+            );
+            versionId = matchCatalogOption(versions, form.version || form.engine || form.title);
+        }
+
+        return {
+            brandId,
+            modelId,
+            versionId,
+            fuelCode: form.olx.fuelCode.trim() || null,
+            gearboxCode: form.olx.gearboxCode.trim() || null,
+            doorsCode: form.olx.doorsCode.trim() || null,
+            colorCode: form.olx.colorCode.trim() || null,
+            featureCodes: form.olx.featureCodes,
+            plate: normalizePlateValue(form.plate || form.olx.plate) || null,
+            phone: normalizeDigits(form.contactPhone || form.olx.phone) || null,
+            zipcode: normalizeDigits(form.zipcode || form.olx.zipcode) || null,
+        };
+    }
+
+    async function fetchMeliCategorySuggestion(title: string) {
+        try {
+            const response = await fetch(`/api/integrations/mercadolivre/categories/discover?title=${encodeURIComponent(title)}`, { cache: "no-store" });
+            if (!response.ok) return null;
+            return (await response.json()) as MeliCategorySuggestion;
+        } catch {
+            return null;
+        }
+    }
+
+    async function fetchMeliListingTypes(categoryId: string) {
+        try {
+            const response = await fetch(`/api/integrations/mercadolivre/listing-types?categoryId=${encodeURIComponent(categoryId)}`, { cache: "no-store" });
+            if (!response.ok) return [] as MeliListingTypeRecord[];
+            return (await response.json()) as MeliListingTypeRecord[];
+        } catch {
+            return [] as MeliListingTypeRecord[];
+        }
+    }
+
+    function pickPreferredListingType(listingTypes: MeliListingTypeRecord[]) {
+        return listingTypes.find((item) => item.remainingListings == null || item.remainingListings > 0)?.id ?? listingTypes[0]?.id ?? null;
+    }
+
+    async function buildMeliMappingPayload() {
+        let categoryId = form.meli.categoryId.trim() || null;
+        if (!categoryId && form.title.trim()) {
+            categoryId = (await fetchMeliCategorySuggestion(form.title.trim()))?.categoryId ?? null;
+        }
+
+        let listingTypeId = form.meli.listingTypeId.trim() || null;
+        if (!listingTypeId && categoryId) {
+            listingTypeId = pickPreferredListingType(await fetchMeliListingTypes(categoryId));
+        }
+
+        const normalizedMileage = Number(form.mileage || "0");
+        return {
+            categoryId,
+            listingTypeId,
+            condition: form.meli.condition.trim() || (normalizedMileage === 0 ? "new" : "used"),
+            sellerSku: form.meli.sellerSku.trim() || null,
+            title: form.title.trim() || form.meli.title.trim() || null,
+            description: form.description.trim() || form.meli.description.trim() || null,
+            priceCents: form.priceCents ? Number(form.priceCents) : null,
+            attributes: form.meli.attributes,
+        };
+    }
+
+    async function persistSelectedMappings(vehicleId: string) {
+        const selectedProviders = new Set(
+            form.targetIntegrations
+                .map((providerKey) => normalizeProviderKey(providerKey))
+                .filter((providerKey) => readyPublicationProviderKeys.has(providerKey))
+        );
+        const tasks: Promise<void>[] = [];
+
+        if (selectedProviders.has("olx") || selectedProviders.has("olx-autos")) {
+            tasks.push(saveOlxMapping(vehicleId, await buildOlxMappingPayload()));
+        }
+        if (selectedProviders.has("mercadolivre")) {
+            tasks.push(saveMeliMapping(vehicleId, await buildMeliMappingPayload()));
+        }
+
+        if (!tasks.length) return;
+        await Promise.all(tasks);
     }
 
     async function loadInventory() {
@@ -442,21 +673,33 @@ export function InventoryStudio() {
         try {
             const year = form.year ? Number(form.year) : null;
             const imageUrls = uniqueImageList(form.imageUrls);
+            const targetIntegrations = form.targetIntegrations.filter((providerKey) => readyPublicationProviderKeys.has(normalizeProviderKey(providerKey)));
             const payload = {
+                stockNumber: form.stockNumber || null,
                 title: form.title,
                 brand: form.brand,
                 model: form.model,
-                engine: form.engine,
-                version: form.engine,
+                version: form.version || null,
+                engine: form.engine || null,
                 year,
                 modelYear: year,
                 manufactureYear: year,
                 mileage: form.mileage ? Number(form.mileage) : null,
                 priceCents: form.priceCents ? Number(form.priceCents) : null,
+                transmission: form.transmission || null,
+                fuelType: form.fuelType || null,
+                bodyType: form.bodyType || null,
+                color: form.color || null,
+                plateFinal: form.plateFinal || null,
+                plate: normalizePlateValue(form.plate) || null,
+                contactPhone: form.contactPhone || null,
+                zipcode: normalizeDigits(form.zipcode) || null,
+                city: form.city || null,
+                state: form.state || null,
                 description: form.description,
                 coverImageUrl: imageUrls[0] ?? null,
                 gallery: imageUrls,
-                optionals: [],
+                optionals: parseOptionalsInput(form.optionalsText),
                 featured: form.featured,
                 status: form.status,
                 financing: {
@@ -464,7 +707,7 @@ export function InventoryStudio() {
                     installmentCount: form.installmentCount ? Number(form.installmentCount) : null,
                     installmentValueCents: form.installmentValueCents ? Number(form.installmentValueCents) : null,
                 },
-                targetIntegrations: form.targetIntegrations,
+                targetIntegrations,
             };
 
             const response = await fetch(form.id ? `/api/ioauto/vehicles/${form.id}` : "/api/ioauto/vehicles", {
@@ -479,7 +722,7 @@ export function InventoryStudio() {
             }
 
             const savedVehicle = responseBody as VehicleRecord;
-            await Promise.all([saveOlxMapping(savedVehicle.id), saveMeliMapping(savedVehicle.id)]);
+            await persistSelectedMappings(savedVehicle.id);
             await loadInventory();
             setSelectedId(savedVehicle.id);
             setIsEditorOpen(false);
@@ -570,7 +813,7 @@ export function InventoryStudio() {
                                 <div>
                                     <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Cadastro do veiculo</p>
                                     <h2 className="mt-1 font-display text-2xl font-bold text-io-dark">{form.id ? "Editar veiculo" : "Novo veiculo"}</h2>
-                                    <p className="mt-1 text-sm text-black/55">Nome, motor, financiamento, especificacoes e galeria de imagens no mesmo fluxo.</p>
+                                    <p className="mt-1 text-sm text-black/55">Cadastro unico com os dados que alimentam as integracoes selecionadas no mesmo fluxo.</p>
                                 </div>
 
                                 <button
@@ -589,14 +832,115 @@ export function InventoryStudio() {
                                 <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 md:px-8">
                                     <div className="grid gap-6">
                                         <section className="rounded-[30px] border border-black/10 bg-white p-5">
-                                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                                <Field label="Nome" value={form.title} onChange={(value) => updateField("title", value)} required />
+                                            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                                                <div>
+                                                    <p className="text-sm font-semibold text-io-dark">Cadastro unificado do veiculo</p>
+                                                    <p className="mt-1 text-sm text-black/52">Esses dados sao reutilizados automaticamente pelas integracoes conectadas para evitar retrabalho.</p>
+                                                </div>
+                                                <span className="rounded-full bg-black/[0.04] px-4 py-2 text-xs font-semibold text-black/52">
+                                                    {readyPublicationIntegrations.length} integracoes prontas
+                                                </span>
+                                            </div>
+
+                                            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                                <Field label="Codigo interno" value={form.stockNumber} onChange={(value) => updateField("stockNumber", value)} placeholder="Opcional" />
+                                                <Field label="Nome do anuncio" value={form.title} onChange={(value) => updateField("title", value)} required />
                                                 <Field label="Marca" value={form.brand} onChange={(value) => updateField("brand", value)} required />
-                                                <Field label="Ano" value={form.year} onChange={(value) => updateField("year", value.replace(/\D/g, "").slice(0, 4))} required />
                                                 <Field label="Modelo" value={form.model} onChange={(value) => updateField("model", value)} required />
-                                                <Field label="Motor" value={form.engine} onChange={(value) => updateField("engine", value)} />
-                                                <Field label="Quilometragem (KM)" value={form.mileage} onChange={(value) => updateField("mileage", value.replace(/\D/g, ""))} />
+                                                <Field label="Versao" value={form.version} onChange={(value) => updateField("version", value)} placeholder="Ex.: LTZ 1.0 Turbo" />
+                                                <Field label="Motor" value={form.engine} onChange={(value) => updateField("engine", value)} placeholder="Ex.: 1.6 Flex" />
+                                                <Field label="Ano" value={form.year} onChange={(value) => updateField("year", value.replace(/\D/g, "").slice(0, 4))} required inputMode="numeric" />
+                                                <Field label="Quilometragem (KM)" value={form.mileage} onChange={(value) => updateField("mileage", value.replace(/\D/g, ""))} inputMode="numeric" />
                                                 <MoneyField label="Preco (R$)" value={form.priceCents} onChange={(value) => updateField("priceCents", value)} required />
+                                                <Field label="Cambio" value={form.transmission} onChange={(value) => updateField("transmission", value)} placeholder="Automatico, manual..." />
+                                                <Field label="Combustivel" value={form.fuelType} onChange={(value) => updateField("fuelType", value)} placeholder="Flex, diesel, eletrico..." />
+                                                <Field label="Carroceria" value={form.bodyType} onChange={(value) => updateField("bodyType", value)} placeholder="SUV, hatch, sedan..." />
+                                                <Field label="Cor" value={form.color} onChange={(value) => updateField("color", value)} />
+                                                <Field
+                                                    label="Placa completa"
+                                                    value={form.plate}
+                                                    onChange={(value) => updateField("plate", normalizePlateValue(value))}
+                                                    placeholder="ABC1D23"
+                                                    required={requiresOlxPublication && Number(form.mileage || "0") > 0}
+                                                />
+                                                <Field
+                                                    label="Final da placa"
+                                                    value={form.plateFinal}
+                                                    onChange={(value) => updateField("plateFinal", value.replace(/\D/g, "").slice(0, 1))}
+                                                    inputMode="numeric"
+                                                    placeholder="0"
+                                                />
+                                                <Field
+                                                    label="Telefone para atendimento"
+                                                    value={form.contactPhone}
+                                                    onChange={(value) => updateField("contactPhone", value)}
+                                                    placeholder="(11) 99999-9999"
+                                                    required={requiresOlxPublication}
+                                                />
+                                                <Field
+                                                    label="CEP do anuncio"
+                                                    value={form.zipcode}
+                                                    onChange={(value) => updateField("zipcode", normalizeDigits(value).slice(0, 8))}
+                                                    inputMode="numeric"
+                                                    placeholder="00000000"
+                                                    required={requiresOlxPublication}
+                                                />
+                                                <Field label="Cidade" value={form.city} onChange={(value) => updateField("city", value)} />
+                                                <Field
+                                                    label="UF"
+                                                    value={form.state}
+                                                    onChange={(value) => updateField("state", value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2))}
+                                                    placeholder="SP"
+                                                />
+                                            </div>
+                                        </section>
+
+                                        <section className="rounded-[30px] border border-black/10 bg-white p-5">
+                                            <div>
+                                                <p className="text-sm font-semibold text-io-dark">Distribuicao</p>
+                                                <p className="mt-1 text-sm text-black/52">Apenas integracoes conectadas e prontas para publicacao aparecem aqui.</p>
+                                            </div>
+
+                                            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                                {readyPublicationIntegrations.length ? (
+                                                    readyPublicationIntegrations.map((integration) => {
+                                                        const selected = form.targetIntegrations.some(
+                                                            (providerKey) => normalizeProviderKey(providerKey) === normalizeProviderKey(integration.providerKey)
+                                                        );
+                                                        return (
+                                                            <label
+                                                                key={integration.providerKey}
+                                                                className={`rounded-2xl border px-4 py-3 text-sm transition ${
+                                                                    selected ? "border-white bg-black text-white" : "border-black/10 bg-[#f7f7f7] text-black/70 hover:border-black/20"
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center gap-3">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={selected}
+                                                                        onChange={(event) => {
+                                                                            const normalizedProvider = normalizeProviderKey(integration.providerKey);
+                                                                            const remaining = form.targetIntegrations.filter(
+                                                                                (providerKey) => normalizeProviderKey(providerKey) !== normalizedProvider
+                                                                            );
+                                                                            const next = event.target.checked ? [...remaining, integration.providerKey] : remaining;
+                                                                            updateField("targetIntegrations", Array.from(new Set(next)));
+                                                                        }}
+                                                                        className="h-4 w-4"
+                                                                    />
+                                                                    <div>
+                                                                        <p className="font-medium">{integration.displayName}</p>
+                                                                        <p className={`text-[11px] ${selected ? "text-white/55" : "text-black/48"}`}>{statusLabel(integration.status)}</p>
+                                                                    </div>
+                                                                </div>
+                                                            </label>
+                                                        );
+                                                    })
+                                                ) : (
+                                                    <p className="rounded-2xl bg-[#f7f7f7] px-4 py-4 text-sm text-black/55">
+                                                        Nenhuma integracao de publicacao conectada no momento. Conecte um canal no modulo de integracoes para habilitar a distribuicao.
+                                                    </p>
+                                                )}
                                             </div>
                                         </section>
 
@@ -638,157 +982,130 @@ export function InventoryStudio() {
 
                                         <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
                                             <section className="rounded-[30px] border border-black/10 bg-white p-5">
-                                                <TextArea label="Especificacoes" value={form.description} onChange={(value) => updateField("description", value)} />
+                                                <TextArea
+                                                    label="Descricao do anuncio"
+                                                    value={form.description}
+                                                    onChange={(value) => updateField("description", value)}
+                                                    placeholder="Descreva versao, estado de conservacao, historico e destaques do carro."
+                                                />
                                             </section>
 
                                             <section className="rounded-[30px] border border-black/10 bg-white p-5">
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <div>
-                                                        <p className="text-sm font-semibold text-io-dark">Imagens do veiculo</p>
-                                                        <p className="mt-1 text-sm text-black/50">Arraste e solte ou selecione imagens no computador.</p>
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={openImagePicker}
-                                                        className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-black/10 px-4 text-sm font-semibold text-black/72 transition hover:border-black/20 hover:text-io-dark"
-                                                    >
-                                                        <Plus className="h-4 w-4" />
-                                                        Selecionar
-                                                    </button>
-                                                </div>
+                                                <TextArea
+                                                    label="Opcionais e itens do veiculo"
+                                                    value={form.optionalsText}
+                                                    onChange={(value) => updateField("optionalsText", value)}
+                                                    placeholder="Ex.: multimidia, bancos em couro, camera de re, sensor de estacionamento"
+                                                />
+                                            </section>
+                                        </div>
 
-                                                <div
-                                                    onDragOver={handleImageDragOver}
-                                                    onDragLeave={handleImageDragLeave}
-                                                    onDrop={handleImageDrop}
-                                                    className={`mt-4 rounded-[26px] border border-dashed px-5 py-8 text-center transition ${isImageDragActive ? "border-[#2b57d9] bg-[#eef4ff]" : "border-black/14 bg-white"}`}
+                                        <section className="rounded-[30px] border border-black/10 bg-white p-5">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div>
+                                                    <p className="text-sm font-semibold text-io-dark">Imagens do veiculo</p>
+                                                    <p className="mt-1 text-sm text-black/50">Arraste e solte ou selecione imagens no computador.</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={openImagePicker}
+                                                    className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-black/10 px-4 text-sm font-semibold text-black/72 transition hover:border-black/20 hover:text-io-dark"
                                                 >
-                                                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
-                                                        <CarFront className="h-6 w-6 text-black/55" />
-                                                    </div>
-                                                    <p className="mt-4 text-sm font-semibold text-io-dark">{uploadingImages ? "Enviando imagens..." : "Solte as imagens aqui"}</p>
-                                                    <p className="mt-2 text-sm text-black/52">PNG, JPG, WEBP ou GIF. A primeira imagem vira a capa.</p>
+                                                    <Plus className="h-4 w-4" />
+                                                    Selecionar
+                                                </button>
+                                            </div>
+
+                                            <div
+                                                onDragOver={handleImageDragOver}
+                                                onDragLeave={handleImageDragLeave}
+                                                onDrop={handleImageDrop}
+                                                className={`mt-4 rounded-[26px] border border-dashed px-5 py-8 text-center transition ${isImageDragActive ? "border-[#2b57d9] bg-[#eef4ff]" : "border-black/14 bg-white"}`}
+                                            >
+                                                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
+                                                    <CarFront className="h-6 w-6 text-black/55" />
+                                                </div>
+                                                <p className="mt-4 text-sm font-semibold text-io-dark">{uploadingImages ? "Enviando imagens..." : "Solte as imagens aqui"}</p>
+                                                <p className="mt-2 text-sm text-black/52">PNG, JPG, WEBP ou GIF. A primeira imagem vira a capa.</p>
+                                            </div>
+
+                                            <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageInputChange} className="hidden" />
+
+                                            {form.imageUrls.length ? (
+                                                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                                    {form.imageUrls.map((imageUrl, index) => (
+                                                        <div key={imageUrl} className="overflow-hidden rounded-[24px] border border-black/10 bg-white">
+                                                            <img src={imageUrl} alt={`Imagem ${index + 1}`} className="h-40 w-full object-cover" />
+                                                            <div className="flex items-center justify-between gap-2 px-3 py-3">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => promoteImage(imageUrl)}
+                                                                    className={`rounded-full px-3 py-2 text-xs font-semibold transition ${index === 0 ? "bg-black text-white" : "bg-white text-black/70 hover:text-io-dark"}`}
+                                                                >
+                                                                    {index === 0 ? "Capa" : "Definir capa"}
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeImage(imageUrl)}
+                                                                    className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-black/60 transition hover:border-black/20 hover:text-io-dark"
+                                                                >
+                                                                    Remover
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : null}
+                                        </section>
+
+                                        {form.id && selectedReadyPublicationIntegrations.length ? (
+                                            <section className="grid gap-4">
+                                                <div>
+                                                    <p className="text-sm font-semibold text-io-dark">Ajustes avancados e publicacao</p>
+                                                    <p className="mt-1 text-sm text-black/52">Os dados principais ja abastecem os canais escolhidos. Use estes cards apenas para revisar mapeamentos ou publicar.</p>
                                                 </div>
 
-                                                <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageInputChange} className="hidden" />
+                                                {selectedReadyPublicationIntegrations.some((integration) => ["olx", "olx-autos"].includes(normalizeProviderKey(integration.providerKey))) ? (
+                                                    <OlxVehiclePanel
+                                                        vehicleId={form.id}
+                                                        value={form.olx}
+                                                        onHydrate={hydrateOlxMapping}
+                                                        onChange={updateOlxField}
+                                                        mainSummary={{
+                                                            year: form.year,
+                                                            mileage: form.mileage,
+                                                            priceCents: form.priceCents,
+                                                            description: form.description,
+                                                            imageCount: form.imageUrls.length,
+                                                        }}
+                                                    />
+                                                ) : null}
 
-                                                {form.imageUrls.length ? (
-                                                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                                                        {form.imageUrls.map((imageUrl, index) => (
-                                                            <div key={imageUrl} className="overflow-hidden rounded-[24px] border border-black/10 bg-white">
-                                                                <img src={imageUrl} alt={`Imagem ${index + 1}`} className="h-40 w-full object-cover" />
-                                                                <div className="flex items-center justify-between gap-2 px-3 py-3">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => promoteImage(imageUrl)}
-                                                                        className={`rounded-full px-3 py-2 text-xs font-semibold transition ${index === 0 ? "bg-black text-white" : "bg-white text-black/70 hover:text-io-dark"}`}
-                                                                    >
-                                                                        {index === 0 ? "Capa" : "Definir capa"}
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => removeImage(imageUrl)}
-                                                                        className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-black/60 transition hover:border-black/20 hover:text-io-dark"
-                                                                    >
-                                                                        Remover
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
+                                                {selectedReadyPublicationIntegrations.some((integration) => normalizeProviderKey(integration.providerKey) === "mercadolivre") ? (
+                                                    <MeliVehiclePanel
+                                                        vehicleId={form.id}
+                                                        value={form.meli}
+                                                        onHydrate={hydrateMeliMapping}
+                                                        onChange={updateMeliField}
+                                                        mainSummary={{
+                                                            brand: form.brand,
+                                                            model: form.model,
+                                                            version: form.version,
+                                                            year: form.year,
+                                                            mileage: form.mileage,
+                                                            priceCents: form.priceCents,
+                                                            description: form.description,
+                                                            imageCount: form.imageUrls.length,
+                                                        }}
+                                                    />
                                                 ) : null}
                                             </section>
-                                        </div>
-
-                                        <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-                                            <section className="rounded-[30px] border border-black/10 bg-black p-5 text-white">
-                                                <div className="mt-4 grid gap-3">
-                                                    <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/82">
-                                                        <input type="checkbox" checked={form.featured} onChange={(event) => updateField("featured", event.target.checked)} className="h-4 w-4" />
-                                                        Destacar na vitrine
-                                                    </label>
-
-                                                    <label className="grid gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/82">
-                                                        <span>Status do veiculo</span>
-                                                        <select value={form.status} onChange={(event) => updateField("status", event.target.value)} className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white outline-none">
-                                                            <option value="DRAFT" className="text-io-dark">Rascunho</option>
-                                                            <option value="READY" className="text-io-dark">Pronto</option>
-                                                            <option value="PUBLISHED" className="text-io-dark">Publicado</option>
-                                                            <option value="SOLD" className="text-io-dark">Vendido</option>
-                                                            <option value="ARCHIVED" className="text-io-dark">Arquivado</option>
-                                                        </select>
-                                                    </label>
-                                                </div>
-                                            </section>
-
-                                            <section className="rounded-[30px] border border-black/10 bg-white p-5">
-                                                <p className="text-sm font-semibold text-io-dark">Distribuicao</p>
-                                                <div className="mt-4 grid gap-3">
-                                                    {publicationIntegrations.length ? (
-                                                        publicationIntegrations.map((integration) => {
-                                                            const selected = form.targetIntegrations.includes(integration.providerKey);
-                                                            return (
-                                                                <label key={integration.providerKey} className={`rounded-2xl border px-4 py-3 text-sm transition ${selected ? "border-white bg-black text-white" : "border-black/10 bg-[#f7f7f7] text-black/70 hover:border-black/20"}`}>
-                                                                    <div className="flex items-center gap-3">
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            checked={selected}
-                                                                            onChange={(event) => {
-                                                                                const next = event.target.checked ? [...form.targetIntegrations, integration.providerKey] : form.targetIntegrations.filter((item) => item !== integration.providerKey);
-                                                                                updateField("targetIntegrations", Array.from(new Set(next)));
-                                                                            }}
-                                                                            className="h-4 w-4"
-                                                                        />
-                                                                        <div>
-                                                                            <p className="font-medium">{integration.displayName}</p>
-                                                                            <p className={`text-[11px] ${selected ? "text-white/55" : "text-black/48"}`}>{statusLabel(integration.status)}</p>
-                                                                        </div>
-                                                                    </div>
-                                                                </label>
-                                                            );
-                                                        })
-                                                    ) : (
-                                                        <p className="rounded-2xl bg-[#f7f7f7] px-4 py-4 text-sm text-black/55">Nenhuma integracao de publicacao disponivel no momento.</p>
-                                                    )}
-                                                </div>
-                                            </section>
-                                        </div>
-
-                                        <OlxVehiclePanel
-                                            vehicleId={form.id}
-                                            value={form.olx}
-                                            onHydrate={hydrateOlxMapping}
-                                            onChange={updateOlxField}
-                                            mainSummary={{
-                                                year: form.year,
-                                                mileage: form.mileage,
-                                                priceCents: form.priceCents,
-                                                description: form.description,
-                                                imageCount: form.imageUrls.length,
-                                            }}
-                                        />
-
-                                        <MeliVehiclePanel
-                                            vehicleId={form.id}
-                                            value={form.meli}
-                                            onHydrate={hydrateMeliMapping}
-                                            onChange={updateMeliField}
-                                            mainSummary={{
-                                                brand: form.brand,
-                                                model: form.model,
-                                                version: form.engine,
-                                                year: form.year,
-                                                mileage: form.mileage,
-                                                priceCents: form.priceCents,
-                                                description: form.description,
-                                                imageCount: form.imageUrls.length,
-                                            }}
-                                        />
+                                        ) : null}
                                     </div>
                                 </div>
 
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/8 px-6 py-5 md:px-8">
-                                    <div className="text-xs text-black/45">{connectedIntegrations.length} integracoes conectadas prontas para sincronizacao.</div>
+                                    <div className="text-xs text-black/45">{readyPublicationIntegrations.length} integracoes conectadas prontas para uso na distribuicao.</div>
                                     <div className="flex items-center gap-3">
                                         <button
                                             type="button"
@@ -915,11 +1232,15 @@ function Field({
     value,
     onChange,
     required = false,
+    placeholder = "",
+    inputMode,
 }: {
     label: string;
     value: string;
     onChange: (value: string) => void;
     required?: boolean;
+    placeholder?: string;
+    inputMode?: InputHTMLAttributes<HTMLInputElement>["inputMode"];
 }) {
     return (
         <label className="grid gap-2">
@@ -928,6 +1249,8 @@ function Field({
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
                 required={required}
+                placeholder={placeholder}
+                inputMode={inputMode}
                 className="h-12 rounded-2xl border border-black/10 bg-[#f7f7f7] px-4 text-sm text-io-dark outline-none transition focus:border-black/30 focus:bg-white"
             />
         </label>
@@ -960,7 +1283,17 @@ function MoneyField({
     );
 }
 
-function TextArea({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function TextArea({
+    label,
+    value,
+    onChange,
+    placeholder = "",
+}: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+}) {
     return (
         <label className="grid gap-2">
             <span className="text-sm font-medium text-black/60">{label}</span>
@@ -968,6 +1301,7 @@ function TextArea({ label, value, onChange }: { label: string; value: string; on
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
                 rows={8}
+                placeholder={placeholder}
                 className="min-h-56 rounded-[24px] border border-black/10 bg-[#f7f7f7] px-4 py-4 text-sm text-io-dark outline-none transition focus:border-black/30 focus:bg-white"
             />
         </label>
