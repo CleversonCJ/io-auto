@@ -43,8 +43,8 @@ public class MeliCategoryService {
     }
 
     @Transactional
-    public CategorySyncSummary syncRootCategories() {
-        JsonNode root = apiClient.getPublic("/sites/" + properties.getSiteId() + "/categories").body();
+    public CategorySyncSummary syncRootCategories(UUID companyId) {
+        JsonNode root = apiClient.get("/sites/" + properties.getSiteId() + "/categories", companyId).body();
         int saved = 0;
         for (JsonNode item : root) {
             upsertRootCategory(item);

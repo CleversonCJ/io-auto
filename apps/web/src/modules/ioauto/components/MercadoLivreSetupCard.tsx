@@ -221,7 +221,7 @@ export function MercadoLivreSetupCard() {
                             label="Sincronizar categorias MLB"
                             loading={working === "categories"}
                             onClick={() => void handleSyncCategories()}
-                            disabled={working != null}
+                            disabled={!status?.connected || working != null}
                         />
                         <ActionButton
                             label="Sincronizar meus anuncios"

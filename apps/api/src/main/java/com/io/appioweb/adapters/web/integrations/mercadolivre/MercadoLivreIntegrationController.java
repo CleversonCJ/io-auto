@@ -112,7 +112,7 @@ public class MercadoLivreIntegrationController {
     @PostMapping("/api/integrations/mercadolivre/categories/sync")
     @Transactional
     public ResponseEntity<MeliCategoryService.CategorySyncSummary> syncCategories() {
-        return ResponseEntity.ok(categoryService.syncRootCategories());
+        return ResponseEntity.ok(categoryService.syncRootCategories(currentUser.companyId()));
     }
 
     @PostMapping("/api/integrations/mercadolivre/categories/{categoryId}/sync")
