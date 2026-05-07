@@ -123,6 +123,30 @@ public class JpaIoAutoVehicleEntity {
     @Column(name = "olx_feature_codes_json", nullable = false, columnDefinition = "text")
     private String olxFeatureCodesJson = "[]";
 
+    @Column(name = "meli_category_id", length = 50)
+    private String meliCategoryId;
+
+    @Column(name = "meli_listing_type_id", length = 50)
+    private String meliListingTypeId;
+
+    @Column(name = "meli_condition", length = 20)
+    private String meliCondition;
+
+    @Column(name = "meli_seller_sku", length = 100)
+    private String meliSellerSku;
+
+    @Column(name = "meli_title", length = 255)
+    private String meliTitle;
+
+    @Column(name = "meli_description", columnDefinition = "text")
+    private String meliDescription;
+
+    @Column(name = "meli_price_cents")
+    private Long meliPriceCents;
+
+    @Column(name = "meli_attributes_json", nullable = false, columnDefinition = "jsonb")
+    private String meliAttributesJson = "[]";
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -423,6 +447,70 @@ public class JpaIoAutoVehicleEntity {
 
     public void setOlxFeatureCodesJson(String olxFeatureCodesJson) {
         this.olxFeatureCodesJson = olxFeatureCodesJson;
+    }
+
+    public String getMeliCategoryId() {
+        return meliCategoryId;
+    }
+
+    public void setMeliCategoryId(String meliCategoryId) {
+        this.meliCategoryId = meliCategoryId;
+    }
+
+    public String getMeliListingTypeId() {
+        return meliListingTypeId;
+    }
+
+    public void setMeliListingTypeId(String meliListingTypeId) {
+        this.meliListingTypeId = meliListingTypeId;
+    }
+
+    public String getMeliCondition() {
+        return meliCondition;
+    }
+
+    public void setMeliCondition(String meliCondition) {
+        this.meliCondition = meliCondition;
+    }
+
+    public String getMeliSellerSku() {
+        return meliSellerSku;
+    }
+
+    public void setMeliSellerSku(String meliSellerSku) {
+        this.meliSellerSku = meliSellerSku;
+    }
+
+    public String getMeliTitle() {
+        return meliTitle;
+    }
+
+    public void setMeliTitle(String meliTitle) {
+        this.meliTitle = meliTitle;
+    }
+
+    public String getMeliDescription() {
+        return meliDescription;
+    }
+
+    public void setMeliDescription(String meliDescription) {
+        this.meliDescription = meliDescription;
+    }
+
+    public Long getMeliPriceCents() {
+        return meliPriceCents;
+    }
+
+    public void setMeliPriceCents(Long meliPriceCents) {
+        this.meliPriceCents = meliPriceCents;
+    }
+
+    public String getMeliAttributesJson() {
+        return meliAttributesJson;
+    }
+
+    public void setMeliAttributesJson(String meliAttributesJson) {
+        this.meliAttributesJson = meliAttributesJson;
     }
 
     public Instant getCreatedAt() {

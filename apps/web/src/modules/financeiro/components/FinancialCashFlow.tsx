@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, CalendarClock, Plus, Search } from "lucide-react";
 import { formatDateTime, formatMoney } from "@/modules/ioauto/formatters";
 import { useFinancialData } from "@/modules/financeiro/contexts/FinancialContext";
-import { sortEntries, statusTone, statusLabel, categoryLabel, formatDate } from "./financial-utils";
+import { entryPrimaryLabel, entrySecondaryLabel, formatDate, sortEntries, statusLabel, statusTone } from "./financial-utils";
 import { FinancialEntryModal } from "./FinancialEntryModal";
 import type { FinancialEntryRecord } from "@/modules/financeiro/types";
 
@@ -13,7 +13,6 @@ export function FinancialCashFlow() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingEntry, setEditingEntry] = useState<FinancialEntryRecord | null>(null);
 
-    // Filters
     const [typeFilter, setTypeFilter] = useState<"ALL" | "RECEIVABLE" | "PAYABLE">("ALL");
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
@@ -22,50 +21,43 @@ export function FinancialCashFlow() {
     const filteredEntries = useMemo(() => {
         let entries = data?.entries ?? [];
 
-        // Filter by Type
         if (typeFilter !== "ALL") {
-            entries = entries.filter((e) => e.type === typeFilter);
+            entries = entries.filter((entry) => entry.type === typeFilter);
         }
 
-        // Filter by Search Query
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
-            entries = entries.filter((e) => {
+            entries = entries.filter((entry) => {
                 return (
-                    e.description.toLowerCase().includes(query) ||
-                    (e.counterparty && e.counterparty.toLowerCase().includes(query)) ||
-                    categoryLabel(e.category).toLowerCase().includes(query) ||
-                    (e.notes && e.notes.toLowerCase().includes(query))
+                    entry.description.toLowerCase().includes(query) ||
+                    entryPrimaryLabel(entry).toLowerCase().includes(query) ||
+                    entrySecondaryLabel(entry).toLowerCase().includes(query) ||
+                    (entry.counterparty && entry.counterparty.toLowerCase().includes(query)) ||
+                    (entry.notes && entry.notes.toLowerCase().includes(query))
                 );
             });
         }
 
-        // Filter by Period (using dueDate, fallback to createdAt)
         if (startDate || endDate) {
-            entries = entries.filter((e) => {
-                const targetDate = e.dueDate || (e.createdAt ? e.createdAt.substring(0, 10) : null);
-                if (!targetDate) return true; // If no date, include it or exclude it? Let's include if date is unknown.
-
+            entries = entries.filter((entry) => {
+                const targetDate = entry.dueDate || (entry.createdAt ? entry.createdAt.substring(0, 10) : null);
+                if (!targetDate) return true;
                 if (startDate && targetDate < startDate) return false;
                 if (endDate && targetDate > endDate) return false;
-
                 return true;
             });
         }
 
         return sortEntries(entries);
-    }, [data?.entries, typeFilter, searchQuery, startDate, endDate]);
+    }, [data?.entries, endDate, searchQuery, startDate, typeFilter]);
 
     const summary = useMemo(() => {
         let entradas = 0;
         let saidas = 0;
 
         for (const entry of filteredEntries) {
-            if (entry.type === "RECEIVABLE") {
-                entradas += entry.amountCents;
-            } else if (entry.type === "PAYABLE") {
-                saidas += entry.amountCents;
-            }
+            if (entry.type === "RECEIVABLE") entradas += entry.amountCents;
+            if (entry.type === "PAYABLE") saidas += entry.amountCents;
         }
 
         return {
@@ -85,21 +77,17 @@ export function FinancialCashFlow() {
 
     return (
         <div className="grid gap-6">
-
-            {/* Top Bar matching requested layout */}
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
                 <div className="flex flex-wrap items-center gap-3">
-                    {/* Toggle Type */}
-                    <div className="flex items-center rounded-2xl bg-black/5 p-1 border border-black/10">
+                    <div className="flex items-center rounded-2xl border border-black/10 bg-black/5 p-1">
                         {(["ALL", "RECEIVABLE", "PAYABLE"] as const).map((type) => {
-                            const labels = { ALL: "Todas", RECEIVABLE: "Entradas", PAYABLE: "Saídas" };
+                            const labels = { ALL: "Todas", RECEIVABLE: "Entradas", PAYABLE: "Saidas" };
                             const isActive = typeFilter === type;
                             return (
                                 <button
                                     key={type}
                                     onClick={() => setTypeFilter(type)}
-                                    className={`px-4 py-2 text-sm font-semibold rounded-xl transition ${isActive ? "bg-io-purple text-white shadow-sm" : "text-black/60 hover:text-black"
-                                        }`}
+                                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${isActive ? "bg-io-purple text-white shadow-sm" : "text-black/60 hover:text-black"}`}
                                 >
                                     {labels[type]}
                                 </button>
@@ -107,37 +95,35 @@ export function FinancialCashFlow() {
                         })}
                     </div>
 
-                    {/* Date Period */}
                     <div className="flex items-center gap-2 rounded-2xl border border-black/10 bg-[#fafafa] px-4 py-2">
-                        <span className="text-sm text-black/50 font-medium">Período:</span>
+                        <span className="text-sm font-medium text-black/50">Periodo:</span>
                         <input
                             type="date"
                             value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="bg-transparent text-sm text-io-dark outline-none cursor-pointer"
+                            onChange={(event) => setStartDate(event.target.value)}
+                            className="cursor-pointer bg-transparent text-sm text-io-dark outline-none"
                         />
                         <span className="text-black/30">-</span>
                         <input
                             type="date"
                             value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="bg-transparent text-sm text-io-dark outline-none cursor-pointer"
+                            onChange={(event) => setEndDate(event.target.value)}
+                            className="cursor-pointer bg-transparent text-sm text-io-dark outline-none"
                         />
                     </div>
 
-                    {/* Search Bar */}
-                    <div className="flex items-center gap-2 rounded-2xl border border-black/10 bg-[#fafafa] px-4 py-2 flex-1 min-w-[280px]">
-                        <Search className="h-4 w-4 text-black/40 shrink-0" />
+                    <div className="flex min-w-[280px] flex-1 items-center gap-2 rounded-2xl border border-black/10 bg-[#fafafa] px-4 py-2">
+                        <Search className="h-4 w-4 shrink-0 text-black/40" />
                         <input
                             type="text"
-                            placeholder="Buscar por descrição, categoria, banco ou tag"
+                            placeholder="Buscar por descricao, subcategoria, secao ou contraparte"
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="bg-transparent text-sm text-io-dark outline-none w-full placeholder:text-black/40"
+                            onChange={(event) => setSearchQuery(event.target.value)}
+                            className="w-full bg-transparent text-sm text-io-dark outline-none placeholder:text-black/40"
                         />
                     </div>
 
-                    {(typeFilter !== "ALL" || startDate || endDate || searchQuery) && (
+                    {(typeFilter !== "ALL" || startDate || endDate || searchQuery) ? (
                         <button
                             onClick={() => {
                                 setTypeFilter("ALL");
@@ -145,11 +131,11 @@ export function FinancialCashFlow() {
                                 setEndDate("");
                                 setSearchQuery("");
                             }}
-                            className="text-xs font-semibold text-red-600 hover:text-red-700 underline transition shrink-0 ml-1"
+                            className="ml-1 shrink-0 text-xs font-semibold text-red-600 underline transition hover:text-red-700"
                         >
                             Limpar filtros
                         </button>
-                    )}
+                    ) : null}
                 </div>
 
                 <button
@@ -157,35 +143,33 @@ export function FinancialCashFlow() {
                         setEditingEntry(null);
                         setIsModalOpen(true);
                     }}
-                    className="inline-flex items-center gap-2 rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#111] shrink-0"
+                    className="inline-flex shrink-0 items-center gap-2 rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#111]"
                 >
                     <Plus className="h-4 w-4" />
-                    <span>Criar uma movimentação</span>
+                    <span>Criar uma movimentacao</span>
                 </button>
             </div>
 
-            {/* Summary Cards */}
             <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-[24px] border border-black/10 bg-[#fbfbfb] p-5 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-black/50 mb-1">Entradas</p>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-black/50">Entradas</p>
                     <p className="text-2xl font-bold text-emerald-600">{formatMoney(summary.entradas)}</p>
                 </div>
                 <div className="rounded-[24px] border border-black/10 bg-[#fbfbfb] p-5 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-black/50 mb-1">Saídas</p>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-black/50">Saidas</p>
                     <p className="text-2xl font-bold text-rose-600">{formatMoney(summary.saidas)}</p>
                 </div>
-                <div className="rounded-[24px] border border-black/10 bg-black p-5 shadow-sm text-white">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-1">Saldo</p>
+                <div className="rounded-[24px] border border-black/10 bg-black p-5 text-white shadow-sm">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-white/50">Saldo</p>
                     <p className="text-2xl font-bold">{formatMoney(summary.saldo)}</p>
                 </div>
             </div>
 
-            {/* List */}
             <article className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                 <div className="grid gap-3">
                     {!filteredEntries.length ? (
                         <div className="rounded-[24px] border border-dashed border-black/10 px-5 py-10 text-center text-sm text-black/45">
-                            Nenhuma movimentação registrada neste período.
+                            Nenhuma movimentacao registrada neste periodo.
                         </div>
                     ) : (
                         filteredEntries.map((entry) => {
@@ -204,7 +188,10 @@ export function FinancialCashFlow() {
                                                     {statusLabel(entry.status)}
                                                 </span>
                                                 <span className="rounded-full bg-black/[0.06] px-3 py-1 text-[11px] font-semibold text-black/55">
-                                                    {categoryLabel(entry.category)}
+                                                    {entryPrimaryLabel(entry)}
+                                                </span>
+                                                <span className="rounded-full bg-black/[0.03] px-3 py-1 text-[11px] font-semibold text-black/45">
+                                                    {entrySecondaryLabel(entry)}
                                                 </span>
                                             </div>
 
@@ -213,7 +200,7 @@ export function FinancialCashFlow() {
                                                     <CalendarClock className="h-3.5 w-3.5" />
                                                     <span>Data: {formatDate(entry.dueDate)}</span>
                                                 </span>
-                                                {entry.counterparty && <span>Contraparte: {entry.counterparty}</span>}
+                                                {entry.counterparty ? <span>Contraparte: {entry.counterparty}</span> : null}
                                                 <span>Atualizado: {formatDateTime(entry.updatedAt)}</span>
                                             </div>
 
@@ -231,7 +218,7 @@ export function FinancialCashFlow() {
                                                         setEditingEntry(entry);
                                                         setIsModalOpen(true);
                                                     }}
-                                                    className="text-xs font-semibold text-black/40 hover:text-black/80 transition"
+                                                    className="text-xs font-semibold text-black/40 transition hover:text-black/80"
                                                 >
                                                     Editar
                                                 </button>

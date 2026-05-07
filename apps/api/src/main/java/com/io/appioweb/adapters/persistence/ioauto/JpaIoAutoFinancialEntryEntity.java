@@ -28,6 +28,9 @@ public class JpaIoAutoFinancialEntryEntity {
     @Column(nullable = false, length = 40)
     private String category;
 
+    @Column(name = "dre_subcategory_id")
+    private UUID dreSubcategoryId;
+
     @Column(name = "amount_cents", nullable = false)
     private Long amountCents;
 
@@ -87,6 +90,14 @@ public class JpaIoAutoFinancialEntryEntity {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public UUID getDreSubcategoryId() {
+        return dreSubcategoryId;
+    }
+
+    public void setDreSubcategoryId(UUID dreSubcategoryId) {
+        this.dreSubcategoryId = dreSubcategoryId;
     }
 
     public Long getAmountCents() {

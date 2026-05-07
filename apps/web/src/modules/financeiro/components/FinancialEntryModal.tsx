@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BadgeDollarSign, X } from "lucide-react";
 import { useFinancialData } from "@/modules/financeiro/contexts/FinancialContext";
-import type { FinancialEntryType, FinancialEntryCategory, FinancialEntryRecord } from "@/modules/financeiro/types";
+import type { FinancialEntryRecord, FinancialEntryType } from "@/modules/financeiro/types";
 import {
     type FinancialFormState,
-    emptyForm,
-    categoryOptions,
-    parseAmount,
-    entryToForm,
     addMonthsToDate,
+    availableSubcategoryGroups,
+    emptyForm,
+    entryToForm,
+    parseAmount,
 } from "./financial-utils";
 
 type Props = {
@@ -22,39 +22,63 @@ type Props = {
 };
 
 export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECEIVABLE", editingEntry }: Props) {
-    const { saveEntry, deleteEntry } = useFinancialData();
+    const { data, saveEntry, deleteEntry } = useFinancialData();
     const [form, setForm] = useState<FinancialFormState>(emptyForm(initialType));
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
+    const sections = data?.dreStructure.sections ?? [];
+
+    const buildEmptyForm = (type: FinancialEntryType) => {
+        const groups = availableSubcategoryGroups(sections, type);
+        const firstSubcategoryId = groups[0]?.subcategories[0]?.id ?? "";
+        const nextForm = emptyForm(type, firstSubcategoryId);
+        if (mode === "movimentacao") {
+            nextForm.settled = true;
+        }
+        return nextForm;
+    };
+
+    const subcategoryGroups = useMemo(
+        () => availableSubcategoryGroups(sections, form.type),
+        [sections, form.type]
+    );
+
+    const availableSubcategories = useMemo(
+        () => subcategoryGroups.flatMap((section) => section.subcategories),
+        [subcategoryGroups]
+    );
+
     useEffect(() => {
         if (!isOpen) return;
 
         if (editingEntry && editingEntry.source === "MANUAL") {
-            setForm(entryToForm(editingEntry));
+            const nextForm = entryToForm(editingEntry);
+            if (mode === "movimentacao") {
+                nextForm.settled = true;
+            }
+            setForm(nextForm);
             setSaveError(null);
             setSaveSuccess(null);
-        } else {
-            setForm(emptyForm(initialType));
+            return;
         }
+
+        setForm(buildEmptyForm(initialType));
+        setSaveError(null);
+        setSaveSuccess(null);
     }, [isOpen, editingEntry, initialType]);
 
     useEffect(() => {
-        if (mode === "movimentacao") {
+        if (!isOpen) return;
+        if (!availableSubcategories.some((subcategory) => subcategory.id === form.dreSubcategoryId)) {
             setForm((current) => ({
                 ...current,
-                category: current.type === "RECEIVABLE" ? "OTHER_REVENUE" : "OTHER_EXPENSE",
-                settled: true,
+                dreSubcategoryId: availableSubcategories[0]?.id ?? "",
             }));
-        } else {
-            const options = categoryOptions(form.type);
-            if (!options.some((option) => option.value === form.category)) {
-                setForm((current) => ({ ...current, category: options[0].value }));
-            }
         }
-    }, [form.type, form.category, mode]);
+    }, [availableSubcategories, form.dreSubcategoryId, isOpen]);
 
     if (!isOpen) return null;
 
@@ -66,20 +90,24 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
         try {
             setSaving(true);
 
+            if (!form.dreSubcategoryId) {
+                throw new Error("Selecione uma subcategoria do DRE para este lancamento.");
+            }
+
             if (form.isInstallment && !form.id) {
                 const count = parseInt(form.installmentsCount, 10);
-                const instAmountCents = parseAmount(form.installmentAmount);
-                if (!instAmountCents || isNaN(count) || count < 2 || !form.firstInstallmentDate) {
+                const installmentAmountCents = parseAmount(form.installmentAmount);
+                if (!installmentAmountCents || Number.isNaN(count) || count < 2 || !form.firstInstallmentDate) {
                     throw new Error("Preencha todos os campos do parcelamento corretamente.");
                 }
 
-                for (let i = 0; i < count; i++) {
-                    const nextDate = addMonthsToDate(form.firstInstallmentDate, i);
+                for (let index = 0; index < count; index += 1) {
+                    const nextDate = addMonthsToDate(form.firstInstallmentDate, index);
                     await saveEntry(null, {
-                        description: `${form.description.trim()} (Parcela ${i + 1}/${count})`,
+                        description: `${form.description.trim()} (Parcela ${index + 1}/${count})`,
                         type: form.type,
-                        category: form.category,
-                        amountCents: instAmountCents,
+                        dreSubcategoryId: form.dreSubcategoryId,
+                        amountCents: installmentAmountCents,
                         dueDate: nextDate,
                         counterparty: mode === "contas" ? (form.counterparty.trim() || null) : null,
                         notes: mode === "contas" ? (form.notes.trim() || null) : null,
@@ -88,12 +116,12 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
                 }
             } else {
                 const amountCents = parseAmount(form.amount);
-                if (!amountCents) throw new Error("Informe um valor válido maior que zero.");
+                if (!amountCents) throw new Error("Informe um valor valido maior que zero.");
 
                 await saveEntry(form.id, {
                     description: form.description.trim(),
                     type: form.type,
-                    category: form.category,
+                    dreSubcategoryId: form.dreSubcategoryId,
                     amountCents,
                     dueDate: form.dueDate || null,
                     counterparty: mode === "contas" ? (form.counterparty.trim() || null) : null,
@@ -102,14 +130,14 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
                 });
             }
 
-            setForm(emptyForm(initialType));
-            setSaveSuccess(form.id ? "Lançamento atualizado com sucesso." : "Lançamento criado com sucesso.");
+            setForm(buildEmptyForm(initialType));
+            setSaveSuccess(form.id ? "Lancamento atualizado com sucesso." : "Lancamento criado com sucesso.");
             setTimeout(() => {
                 onClose();
                 setSaveSuccess(null);
-            }, 1000);
+            }, 900);
         } catch (cause) {
-            setSaveError(cause instanceof Error ? cause.message : "Não foi possível salvar o lançamento.");
+            setSaveError(cause instanceof Error ? cause.message : "Nao foi possivel salvar o lancamento.");
         } finally {
             setSaving(false);
         }
@@ -117,44 +145,46 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
 
     async function handleDelete() {
         if (!form.id) return;
-        if (!confirm("Tem certeza que deseja excluir este lançamento?")) return;
-        
+        if (!confirm("Tem certeza que deseja excluir este lancamento?")) return;
+
         setSaveError(null);
         try {
             setDeleting(true);
             await deleteEntry(form.id);
-            setSaveSuccess("Lançamento excluído com sucesso.");
+            setSaveSuccess("Lancamento excluido com sucesso.");
             setTimeout(() => {
                 onClose();
                 setSaveSuccess(null);
-            }, 1000);
+            }, 900);
         } catch (cause) {
-            setSaveError(cause instanceof Error ? cause.message : "Não foi possível excluir o lançamento.");
+            setSaveError(cause instanceof Error ? cause.message : "Nao foi possivel excluir o lancamento.");
         } finally {
             setDeleting(false);
         }
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <div className="relative w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-[32px] border border-black/10 bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+            <div className="relative max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-[32px] border border-black/10 bg-white p-6 shadow-2xl">
                 <button
                     onClick={onClose}
-                    className="absolute top-6 right-6 inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-black/[0.03] text-black/60 transition hover:bg-black/[0.06] hover:text-black"
+                    className="absolute right-6 top-6 inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-black/[0.03] text-black/60 transition hover:bg-black/[0.06] hover:text-black"
                 >
                     <X className="h-5 w-5" />
                 </button>
 
                 <div className="flex items-center gap-3">
-                    <span className="grid h-11 w-11 place-items-center rounded-2xl bg-io-purple text-white shrink-0">
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-io-purple text-white">
                         <BadgeDollarSign className="h-5 w-5" />
                     </span>
                     <div className="pr-12">
                         <h2 className="font-display text-2xl font-bold text-io-dark">
-                            {form.id ? "Editar" : "Novo"} {mode === "movimentacao" ? "Lançamento de Caixa" : "Lançamento de Conta"}
+                            {form.id ? "Editar" : "Novo"} {mode === "movimentacao" ? "Lancamento de Caixa" : "Lancamento de Conta"}
                         </h2>
                         <p className="text-sm text-black/55">
-                            {mode === "movimentacao" ? "Registre uma movimentação real de fluxo de caixa." : "Cadastre uma conta a pagar ou a receber."}
+                            {mode === "movimentacao"
+                                ? "Registre uma movimentacao real de fluxo de caixa e vincule o impacto no DRE."
+                                : "Cadastre uma conta a pagar ou a receber vinculada a uma subcategoria do DRE."}
                         </p>
                     </div>
                 </div>
@@ -162,7 +192,7 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
                 <form className="mt-8 grid gap-5" onSubmit={handleSubmit}>
                     <div className="grid gap-4 md:grid-cols-2">
                         <label className="grid gap-2 text-sm font-medium text-black/65">
-                            <span>Tipo {mode === "movimentacao" ? "(Entrada/Saída)" : ""}</span>
+                            <span>Tipo</span>
                             <select
                                 value={form.type}
                                 onChange={(event) => setForm((current) => ({ ...current, type: event.target.value as FinancialEntryType }))}
@@ -171,7 +201,7 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
                                 {mode === "movimentacao" ? (
                                     <>
                                         <option value="RECEIVABLE">Entrada</option>
-                                        <option value="PAYABLE">Saída</option>
+                                        <option value="PAYABLE">Saida</option>
                                     </>
                                 ) : (
                                     <>
@@ -182,62 +212,59 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
                             </select>
                         </label>
 
-                        {mode === "contas" && (
-                            <label className="grid gap-2 text-sm font-medium text-black/65">
-                                <span>Categoria</span>
-                                <select
-                                    value={form.category}
-                                    onChange={(event) => setForm((current) => ({ ...current, category: event.target.value as FinancialEntryCategory }))}
-                                    className="rounded-2xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/20"
-                                >
-                                    {categoryOptions(form.type).map((option) => (
-                                        <option key={option.value} value={option.value}>
-                                            {option.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                        )}
-
-                        {mode === "movimentacao" && (
-                            <label className="grid gap-2 text-sm font-medium text-black/65">
-                                <span>Data do lançamento</span>
-                                <input
-                                    type="date"
-                                    value={form.dueDate}
-                                    onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))}
-                                    className="rounded-2xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/20"
-                                    required
-                                />
-                            </label>
-                        )}
+                        <label className="grid gap-2 text-sm font-medium text-black/65">
+                            <span>Subcategoria do DRE</span>
+                            <select
+                                value={form.dreSubcategoryId}
+                                onChange={(event) => setForm((current) => ({ ...current, dreSubcategoryId: event.target.value }))}
+                                className="rounded-2xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/20"
+                                required
+                            >
+                                {!availableSubcategories.length ? <option value="">Nenhuma subcategoria disponivel</option> : null}
+                                {subcategoryGroups.map((section) => (
+                                    <optgroup key={section.code} label={section.label}>
+                                        {section.subcategories.map((subcategory) => (
+                                            <option key={subcategory.id} value={subcategory.id}>
+                                                {subcategory.name}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                ))}
+                            </select>
+                        </label>
                     </div>
 
+                    {!availableSubcategories.length ? (
+                        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                            Cadastre ao menos uma subcategoria do DRE nesta direcao para criar lancamentos.
+                        </p>
+                    ) : null}
+
                     <label className="grid gap-2 text-sm font-medium text-black/65">
-                        <span>{mode === "movimentacao" ? "Título" : "Descrição"}</span>
+                        <span>{mode === "movimentacao" ? "Titulo" : "Descricao"}</span>
                         <input
                             value={form.description}
                             onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                            placeholder={mode === "movimentacao" ? "Ex.: Conta de luz, Venda à vista..." : "Ex.: pagamento de fornecedor ou serviço"}
+                            placeholder={mode === "movimentacao" ? "Ex.: Venda a vista, conta de luz..." : "Ex.: pagamento de fornecedor ou servico"}
                             className="rounded-2xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/20"
                             required
                         />
                     </label>
 
-                    {!form.id && mode === "contas" && (
-                        <label className="flex items-center gap-3 rounded-2xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm text-black/65 cursor-pointer hover:bg-black/[0.05] transition">
+                    {!form.id && mode === "contas" ? (
+                        <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm text-black/65 transition hover:bg-black/[0.05]">
                             <input
                                 type="checkbox"
                                 checked={form.isInstallment}
                                 onChange={(event) => setForm((current) => ({ ...current, isInstallment: event.target.checked }))}
                                 className="h-4 w-4"
                             />
-                            <span>Gerar conta parcelada (várias parcelas)?</span>
+                            <span>Gerar conta parcelada (varias parcelas)?</span>
                         </label>
-                    )}
+                    ) : null}
 
                     {form.isInstallment && !form.id && mode === "contas" ? (
-                        <div className="grid gap-4 md:grid-cols-3 bg-io-purple/[0.03] p-4 rounded-2xl border border-io-purple/10">
+                        <div className="grid gap-4 rounded-2xl border border-io-purple/10 bg-io-purple/[0.03] p-4 md:grid-cols-3">
                             <label className="grid gap-2 text-sm font-medium text-black/65">
                                 <span>Qtd. de parcelas</span>
                                 <input
@@ -255,8 +282,11 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
                                     type="text"
                                     value={form.installmentAmount}
                                     onChange={(event) => {
-                                        let rawValue = event.target.value.replace(/\D/g, "");
-                                        if (!rawValue) return setForm((current) => ({ ...current, installmentAmount: "" }));
+                                        const rawValue = event.target.value.replace(/\D/g, "");
+                                        if (!rawValue) {
+                                            setForm((current) => ({ ...current, installmentAmount: "" }));
+                                            return;
+                                        }
                                         const cents = parseInt(rawValue, 10);
                                         const formatted = (cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                                         setForm((current) => ({ ...current, installmentAmount: formatted }));
@@ -266,7 +296,7 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
                                 />
                             </label>
                             <label className="grid gap-2 text-sm font-medium text-black/65">
-                                <span>1º Vencimento</span>
+                                <span>1o Vencimento</span>
                                 <input
                                     type="date"
                                     value={form.firstInstallmentDate}
@@ -284,7 +314,7 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
                                     type="text"
                                     value={form.amount}
                                     onChange={(event) => {
-                                        let rawValue = event.target.value.replace(/\D/g, "");
+                                        const rawValue = event.target.value.replace(/\D/g, "");
                                         if (!rawValue) {
                                             setForm((current) => ({ ...current, amount: "" }));
                                             return;
@@ -298,21 +328,20 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
                                 />
                             </label>
 
-                            {mode === "contas" && (
-                                <label className="grid gap-2 text-sm font-medium text-black/65">
-                                    <span>Vencimento</span>
-                                    <input
-                                        type="date"
-                                        value={form.dueDate}
-                                        onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))}
-                                        className="rounded-2xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/20"
-                                    />
-                                </label>
-                            )}
+                            <label className="grid gap-2 text-sm font-medium text-black/65">
+                                <span>{mode === "movimentacao" ? "Data do lancamento" : "Vencimento"}</span>
+                                <input
+                                    type="date"
+                                    value={form.dueDate}
+                                    onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))}
+                                    className="rounded-2xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/20"
+                                    required={mode === "movimentacao"}
+                                />
+                            </label>
                         </div>
                     )}
 
-                    {mode === "contas" && (
+                    {mode === "contas" ? (
                         <>
                             <label className="grid gap-2 text-sm font-medium text-black/65">
                                 <span>Cliente / fornecedor</span>
@@ -325,7 +354,7 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
                             </label>
 
                             <label className="grid gap-2 text-sm font-medium text-black/65">
-                                <span>Observações</span>
+                                <span>Observacoes</span>
                                 <textarea
                                     value={form.notes}
                                     onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
@@ -334,7 +363,7 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
                                 />
                             </label>
 
-                            <label className="flex items-center gap-3 rounded-2xl border border-black/10 bg-black/[0.03] px-4 py-3 text-sm text-black/65 cursor-pointer hover:bg-black/[0.05] transition">
+                            <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-black/10 bg-black/[0.03] px-4 py-3 text-sm text-black/65 transition hover:bg-black/[0.05]">
                                 <input
                                     type="checkbox"
                                     checked={form.settled}
@@ -344,13 +373,13 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
                                 <span>Marcar como liquidado no momento do cadastro</span>
                             </label>
                         </>
-                    )}
+                    ) : null}
 
                     {saveError ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{saveError}</p> : null}
                     {saveSuccess ? <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{saveSuccess}</p> : null}
 
-                    <div className="flex flex-wrap items-center justify-end gap-3 mt-4 pt-4 border-t border-black/10">
-                        {form.id && (
+                    <div className="mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-black/10 pt-4">
+                        {form.id ? (
                             <button
                                 type="button"
                                 onClick={handleDelete}
@@ -359,7 +388,7 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
                             >
                                 {deleting ? "Excluindo..." : "Excluir"}
                             </button>
-                        )}
+                        ) : null}
                         <button
                             type="button"
                             onClick={onClose}
@@ -370,7 +399,7 @@ export function FinancialEntryModal({ isOpen, onClose, mode, initialType = "RECE
                         </button>
                         <button
                             type="submit"
-                            disabled={saving || deleting}
+                            disabled={saving || deleting || !availableSubcategories.length}
                             className="rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#111] disabled:cursor-wait disabled:opacity-70"
                         >
                             {saving ? "Salvando..." : form.id ? "Atualizar" : "Salvar"}

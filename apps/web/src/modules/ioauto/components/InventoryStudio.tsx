@@ -15,8 +15,9 @@ import {
     Search,
     X,
 } from "lucide-react";
+import { MeliVehiclePanel, emptyMeliVehicleForm, type MeliVehicleFormState } from "@/modules/ioauto/components/MeliVehiclePanel";
 import { OlxVehiclePanel, emptyOlxVehicleForm, type OlxVehicleFormState } from "@/modules/ioauto/components/OlxVehiclePanel";
-import type { IntegrationRecord, OlxVehicleMapping, VehiclePublication, VehicleRecord } from "@/modules/ioauto/types";
+import type { IntegrationRecord, MeliVehicleMapping, OlxVehicleMapping, VehiclePublication, VehicleRecord } from "@/modules/ioauto/types";
 import { formatDateTime, formatMoney, platformLabel, statusLabel } from "@/modules/ioauto/formatters";
 
 type VehicleFormState = {
@@ -36,6 +37,7 @@ type VehicleFormState = {
     featured: boolean;
     status: string;
     targetIntegrations: string[];
+    meli: MeliVehicleFormState;
     olx: OlxVehicleFormState;
 };
 
@@ -56,6 +58,7 @@ function emptyForm(): VehicleFormState {
         featured: false,
         status: "DRAFT",
         targetIntegrations: [],
+        meli: emptyMeliVehicleForm(),
         olx: emptyOlxVehicleForm(),
     };
 }
@@ -82,6 +85,7 @@ function vehicleToForm(vehicle: VehicleRecord): VehicleFormState {
         featured: vehicle.featured,
         status: vehicle.status,
         targetIntegrations: vehicle.publications.map((publication) => publication.providerKey),
+        meli: emptyMeliVehicleForm(),
         olx: emptyOlxVehicleForm(),
     };
 }
@@ -222,11 +226,38 @@ export function InventoryStudio() {
         }));
     }
 
+    function hydrateMeliMapping(mapping: MeliVehicleMapping) {
+        setForm((current) => ({
+            ...current,
+            meli: {
+                categoryId: mapping.categoryId ?? "",
+                listingTypeId: mapping.listingTypeId ?? "",
+                condition: mapping.condition ?? "used",
+                sellerSku: mapping.sellerSku ?? "",
+                title: mapping.title ?? "",
+                description: mapping.description ?? "",
+                priceCents: mapping.priceCents != null ? String(mapping.priceCents) : "",
+                attributes: mapping.attributes ?? [],
+                ad: mapping.ad ?? null,
+            },
+        }));
+    }
+
     function updateOlxField(partial: Partial<OlxVehicleFormState>) {
         setForm((current) => ({
             ...current,
             olx: {
                 ...current.olx,
+                ...partial,
+            },
+        }));
+    }
+
+    function updateMeliField(partial: Partial<MeliVehicleFormState>) {
+        setForm((current) => ({
+            ...current,
+            meli: {
+                ...current.meli,
                 ...partial,
             },
         }));
@@ -255,6 +286,28 @@ export function InventoryStudio() {
             throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuracao OLX do veiculo.");
         }
         hydrateOlxMapping(payload as OlxVehicleMapping);
+    }
+
+    async function saveMeliMapping(vehicleId: string) {
+        const response = await fetch(`/api/integrations/mercadolivre/vehicles/${vehicleId}/mapping`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                categoryId: form.meli.categoryId || null,
+                listingTypeId: form.meli.listingTypeId || null,
+                condition: form.meli.condition || null,
+                sellerSku: form.meli.sellerSku || null,
+                title: form.meli.title || null,
+                description: form.meli.description || null,
+                priceCents: form.meli.priceCents ? Number(form.meli.priceCents) : null,
+                attributes: form.meli.attributes,
+            }),
+        });
+        const payload = (await response.json().catch(() => null)) as MeliVehicleMapping | { message?: string } | null;
+        if (!response.ok) {
+            throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuracao Mercado Livre do veiculo.");
+        }
+        hydrateMeliMapping(payload as MeliVehicleMapping);
     }
 
     async function loadInventory() {
@@ -426,7 +479,7 @@ export function InventoryStudio() {
             }
 
             const savedVehicle = responseBody as VehicleRecord;
-            await saveOlxMapping(savedVehicle.id);
+            await Promise.all([saveOlxMapping(savedVehicle.id), saveMeliMapping(savedVehicle.id)]);
             await loadInventory();
             setSelectedId(savedVehicle.id);
             setIsEditorOpen(false);
@@ -707,6 +760,23 @@ export function InventoryStudio() {
                                             onHydrate={hydrateOlxMapping}
                                             onChange={updateOlxField}
                                             mainSummary={{
+                                                year: form.year,
+                                                mileage: form.mileage,
+                                                priceCents: form.priceCents,
+                                                description: form.description,
+                                                imageCount: form.imageUrls.length,
+                                            }}
+                                        />
+
+                                        <MeliVehiclePanel
+                                            vehicleId={form.id}
+                                            value={form.meli}
+                                            onHydrate={hydrateMeliMapping}
+                                            onChange={updateMeliField}
+                                            mainSummary={{
+                                                brand: form.brand,
+                                                model: form.model,
+                                                version: form.engine,
                                                 year: form.year,
                                                 mileage: form.mileage,
                                                 priceCents: form.priceCents,

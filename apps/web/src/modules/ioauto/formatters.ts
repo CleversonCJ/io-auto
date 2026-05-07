@@ -73,6 +73,12 @@ export function statusLabel(status?: string | null) {
         REMOVED: "Removido",
         SOLD: "Vendido",
         TRIALING: "Em teste",
+        PAUSED: "Pausado",
+        CLOSED: "Finalizado",
+        UNDER_REVIEW: "Em revisao",
+        PAYMENT_REQUIRED: "Pagamento pendente",
+        NOT_YET_ACTIVE: "Ainda nao ativo",
+        INACTIVE: "Inativo",
     };
     return labels[normalized] ?? (normalized ? normalized.replaceAll("_", " ") : "-");
 }

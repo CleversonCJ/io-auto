@@ -180,6 +180,108 @@ export type OlxWebhookConfig = {
     type: string | null;
 };
 
+export type MeliIntegrationStatus = {
+    companyId: string;
+    connected: boolean;
+    integrationStatus: string;
+    userId: number | null;
+    nickname: string | null;
+    siteId: string | null;
+    connectedAt: string | null;
+    updatedAt: string | null;
+    active: boolean;
+};
+
+export type MeliAdRecord = {
+    id: string;
+    vehicleId: string;
+    meliItemId: string | null;
+    sellerSku: string;
+    categoryId: string | null;
+    listingTypeId: string | null;
+    title: string | null;
+    permalink: string | null;
+    status: string | null;
+    subStatus: string | null;
+    price: number | null;
+    currencyId: string | null;
+    publishedAt: string | null;
+    pausedAt: string | null;
+    closedAt: string | null;
+    lastSyncedAt: string | null;
+    createdAt: string | null;
+    updatedAt: string | null;
+};
+
+export type MeliVehicleAttributeValue = {
+    id: string;
+    valueId: string | null;
+    valueName: string | null;
+};
+
+export type MeliVehicleMapping = {
+    vehicleId: string;
+    categoryId: string | null;
+    listingTypeId: string | null;
+    condition: string;
+    sellerSku: string;
+    title: string | null;
+    description: string | null;
+    priceCents: number | null;
+    attributes: MeliVehicleAttributeValue[];
+    ad: MeliAdRecord | null;
+};
+
+export type MeliCategoryRecord = {
+    categoryId: string;
+    name: string;
+    parentId: string | null;
+    pathFromRoot: string | null;
+    settings: string | null;
+    updatedAt: string | null;
+};
+
+export type MeliAllowedValue = {
+    id: string;
+    name: string;
+};
+
+export type MeliCategoryAttributeRecord = {
+    attributeId: string;
+    name: string;
+    valueType: string;
+    required: boolean;
+    catalogRequired: boolean;
+    allowedValues: MeliAllowedValue[];
+    raw: string;
+};
+
+export type MeliCategorySuggestion = {
+    domainId: string | null;
+    domainName: string | null;
+    categoryId: string;
+    categoryName: string;
+};
+
+export type MeliListingTypeRecord = {
+    id: string;
+    name: string;
+    siteId: string;
+    remainingListings: number | null;
+};
+
+export type MeliListingPriceRecord = {
+    listingTypeId: string;
+    saleFeeAmount: number | null;
+    listingFeeAmount: number | null;
+    currencyId: string;
+};
+
+export type MeliSyncSummary = {
+    total: number;
+    syncedAt: string;
+};
+
 export type IntegrationRecord = {
     providerKey: string;
     displayName: string;

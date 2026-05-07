@@ -13,9 +13,9 @@ export default function FinanceiroLayout({ children }: { children: ReactNode }) 
                         Acompanhe seu fluxo de caixa, DRE e contas integradas ao estoque de veículos.
                     </p>
                 </header>
-                
+
                 <FinancialSubNav />
-                
+
                 <main>{children}</main>
             </div>
         </FinancialProvider>

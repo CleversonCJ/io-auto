@@ -1,10 +1,10 @@
 "use client";
 
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { CalendarClock, PencilLine } from "lucide-react";
 import { formatDateTime, formatMoney } from "@/modules/ioauto/formatters";
 import type { FinancialEntryRecord } from "@/modules/financeiro/types";
-import { statusTone, statusLabel, categoryLabel, formatDate } from "./financial-utils";
+import { entryPrimaryLabel, entrySecondaryLabel, formatDate, statusLabel, statusTone } from "./financial-utils";
 
 type Props = {
     title: string;
@@ -29,9 +29,9 @@ export function FinancialAccountPanel({
 }: Props) {
     return (
         <article className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="flex items-center gap-3">
-                    <span className="grid h-11 w-11 place-items-center rounded-2xl bg-black text-white shrink-0">{icon}</span>
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-black text-white">{icon}</span>
                     <div>
                         <h2 className="font-display text-2xl font-bold text-io-dark">{title}</h2>
                         <p className="text-sm text-black/55">{subtitle}</p>
@@ -48,7 +48,7 @@ export function FinancialAccountPanel({
             <div className="mt-6 grid gap-3">
                 {loading ? (
                     <div className="rounded-[24px] border border-dashed border-black/10 px-5 py-10 text-center text-sm text-black/45">
-                        Carregando lançamentos...
+                        Carregando lancamentos...
                     </div>
                 ) : entries.length ? (
                     entries.map((entry) => (
@@ -61,7 +61,10 @@ export function FinancialAccountPanel({
                                             {statusLabel(entry.status)}
                                         </span>
                                         <span className="rounded-full bg-black/[0.06] px-3 py-1 text-[11px] font-semibold text-black/55">
-                                            {categoryLabel(entry.category)}
+                                            {entryPrimaryLabel(entry)}
+                                        </span>
+                                        <span className="rounded-full bg-black/[0.03] px-3 py-1 text-[11px] font-semibold text-black/45">
+                                            {entrySecondaryLabel(entry)}
                                         </span>
                                         {entry.source === "VEHICLE_SALE" ? (
                                             <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold text-emerald-700">
@@ -90,7 +93,7 @@ export function FinancialAccountPanel({
                                             onClick={() => onEdit(entry)}
                                             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-black/60 transition hover:border-black/20 hover:text-black"
                                             aria-label={`Editar ${entry.description}`}
-                                            title="Editar lançamento"
+                                            title="Editar lancamento"
                                         >
                                             <PencilLine className="h-4 w-4" />
                                         </button>
@@ -101,7 +104,7 @@ export function FinancialAccountPanel({
                     ))
                 ) : (
                     <div className="rounded-[24px] border border-dashed border-black/10 px-5 py-10 text-center text-sm text-black/45">
-                        Nenhum lançamento encontrado.
+                        Nenhum lancamento encontrado.
                     </div>
                 )}
             </div>

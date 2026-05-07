@@ -21,15 +21,15 @@ const MONTHS = [
 export function FinancialFilterBar({ children }: { children?: React.ReactNode }) {
     const { filters, setFilters, clearFilters } = useFinancialData();
 
-    // Gera lista de anos dinamicamente (ex: 5 anos pra tras, 2 anos pra frente)
+    // Gera lista de anos dinamicamente (ex: 5 anos pra trás, 2 anos pra frente)
     const currentYear = new Date().getFullYear();
     const years = Array.from({ length: 8 }, (_, i) => (currentYear - 5 + i).toString());
 
     return (
-        <div className="flex flex-wrap items-center gap-3 mb-6 p-4 rounded-3xl border border-black/10 bg-white shadow-sm">
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-3xl border border-black/10 bg-white p-4 shadow-sm">
             <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-black/60 pl-2">Filtrar por:</span>
-                
+                <span className="pl-2 text-sm font-semibold text-black/60">Filtrar por:</span>
+
                 <select
                     value={filters.year}
                     onChange={(e) => setFilters({ ...filters, year: e.target.value })}
@@ -56,7 +56,7 @@ export function FinancialFilterBar({ children }: { children?: React.ReactNode })
             {(filters.year || filters.month) && (
                 <button
                     onClick={clearFilters}
-                    className="flex items-center gap-1.5 rounded-full bg-red-50 text-red-600 px-4 py-2 text-sm font-medium transition hover:bg-red-100"
+                    className="flex items-center gap-1.5 rounded-full bg-red-50 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100"
                 >
                     <X className="h-4 w-4" />
                     Limpar filtros

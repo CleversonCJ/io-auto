@@ -1,5 +1,6 @@
 package com.io.appioweb.shared.errors;
 
+import com.io.appioweb.adapters.integrations.mercadolivre.MeliApiException;
 import com.io.appioweb.adapters.integrations.olx.OlxApiException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +20,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(OlxApiException.class)
     public ResponseEntity<ApiError> handleOlxApi(OlxApiException ex) {
+        HttpStatus status = HttpStatus.resolve(ex.httpStatus());
+        if (status == null) {
+            status = HttpStatus.BAD_REQUEST;
+        }
+        return ResponseEntity.status(status)
+                .body(new ApiError(ex.code(), ex.getMessage(), Instant.now()));
+    }
+
+    @ExceptionHandler(MeliApiException.class)
+    public ResponseEntity<ApiError> handleMeliApi(MeliApiException ex) {
         HttpStatus status = HttpStatus.resolve(ex.httpStatus());
         if (status == null) {
             status = HttpStatus.BAD_REQUEST;

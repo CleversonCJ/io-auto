@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, Cable, LoaderCircle, Plus, Save } from "lucide-react";
+import { MercadoLivreSetupCard } from "@/modules/ioauto/components/MercadoLivreSetupCard";
 import { OlxSetupCard } from "@/modules/ioauto/components/OlxSetupCard";
 import { WebmotorsSetupCard } from "@/modules/ioauto/components/WebmotorsSetupCard";
 import type { IntegrationRecord } from "@/modules/ioauto/types";
@@ -27,6 +28,12 @@ type SupportedIntegration = {
 };
 
 const SUPPORTED_INTEGRATIONS: SupportedIntegration[] = [
+    {
+        providerKey: "mercadolivre",
+        displayName: "Mercado Livre",
+        description: "Conecte a conta da loja via OAuth para publicar, pausar, finalizar e sincronizar anuncios da MLB.",
+        nextStepLabel: "Conectar via OAuth",
+    },
     {
         providerKey: "olx",
         displayName: "OLX",
@@ -61,6 +68,7 @@ function normalizeProviderKey(value: string) {
 
 function defaultIntegrationLabel(providerKey: string) {
     const normalized = normalizeProviderKey(providerKey);
+    if (normalized === "mercadolivre") return "Mercado Livre";
     if (normalized === "olx") return "OLX";
     if (normalized === "webmotors") return "Webmotors / Estoque e Leads";
     if (!normalized) return "Integracao";
@@ -396,6 +404,9 @@ function renderIntegrationPanel({
     const normalizedProviderKey = normalizeProviderKey(integration.providerKey);
     if (normalizedProviderKey === "webmotors") {
         return <WebmotorsSetupCard key={integration.providerKey} />;
+    }
+    if (normalizedProviderKey === "mercadolivre") {
+        return <MercadoLivreSetupCard key={integration.providerKey} />;
     }
     if (normalizedProviderKey === "olx") {
         return <OlxSetupCard key={integration.providerKey} />;

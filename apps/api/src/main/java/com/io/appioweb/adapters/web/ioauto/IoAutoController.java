@@ -55,7 +55,7 @@ public class IoAutoController {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final int MAX_PUBLIC_CATALOG_BANNER_IMAGES = 6;
     private static final int MAX_PUBLIC_CATALOG_IMAGE_LENGTH = 2_000_000;
-    private static final List<String> DEFAULT_INTEGRATION_PROVIDER_KEYS = List.of("olx", "webmotors");
+    private static final List<String> DEFAULT_INTEGRATION_PROVIDER_KEYS = List.of("olx", "mercadolivre", "webmotors");
 
     private final CurrentUserPort currentUser;
     private final CompanyRepositoryPort companies;
@@ -1271,6 +1271,7 @@ public class IoAutoController {
     private String sourceLabel(String key) {
         return switch (key) {
             case "WEBMOTORS" -> "WebMotors";
+            case "MERCADOLIVRE" -> "Mercado Livre";
             default -> "Outra origem";
         };
     }
@@ -1438,6 +1439,7 @@ public class IoAutoController {
         return switch (normalized) {
             case "webmotors" -> "Webmotors / Estoque e Leads";
             case "olx", "olx-autos" -> "OLX";
+            case "mercadolivre" -> "Mercado Livre";
             case "icarros" -> "iCarros";
             default -> normalized.isBlank() ? "Integração" : normalized.substring(0, 1).toUpperCase(Locale.ROOT) + normalized.substring(1);
         };

@@ -1,7 +1,16 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useMemo, ReactNode } from "react";
-import type { FinancialOverviewResponse, SaveFinancialEntryPayload, FinancialEntryRecord, FinancialEntryStatus } from "@/modules/financeiro/types";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import type {
+    FinancialDreSectionCode,
+    FinancialEntryRecord,
+    FinancialEntryStatus,
+    FinancialEntryType,
+    FinancialOverviewApiResponse,
+    FinancialOverviewData,
+    SaveDreSubcategoryPayload,
+    SaveFinancialEntryPayload,
+} from "@/modules/financeiro/types";
 
 type FinancialFilters = {
     year: string;
@@ -9,13 +18,15 @@ type FinancialFilters = {
 };
 
 type FinancialContextData = {
-    data: FinancialOverviewResponse | null;
+    data: FinancialOverviewData | null;
     loading: boolean;
     error: string | null;
     refreshIndex: number;
     refreshData: () => void;
     saveEntry: (id: string | null, payload: SaveFinancialEntryPayload) => Promise<void>;
     deleteEntry: (id: string) => Promise<void>;
+    saveDreSubcategory: (id: string | null, payload: SaveDreSubcategoryPayload) => Promise<void>;
+    deleteDreSubcategory: (id: string) => Promise<void>;
     filters: FinancialFilters;
     setFilters: (filters: FinancialFilters) => void;
     clearFilters: () => void;
@@ -34,8 +45,25 @@ function resolveStatus(entry: FinancialEntryRecord): FinancialEntryStatus {
     return "OPEN";
 }
 
+function sumEntries(entries: FinancialEntryRecord[], predicate: (entry: FinancialEntryRecord) => boolean) {
+    return entries.reduce((total, entry) => total + (predicate(entry) ? entry.amountCents : 0), 0);
+}
+
+function sumSection(entries: FinancialEntryRecord[], sectionCode: FinancialDreSectionCode, entryType?: FinancialEntryType) {
+    return sumEntries(entries, (entry) => entry.dreSectionCode === sectionCode && (!entryType || entry.type === entryType));
+}
+
+function buildAccountSummary(entries: FinancialEntryRecord[], type: FinancialEntryType) {
+    return {
+        openAmountCents: sumEntries(entries, (entry) => entry.type === type && resolveStatus(entry) !== "SETTLED"),
+        settledAmountCents: sumEntries(entries, (entry) => entry.type === type && resolveStatus(entry) === "SETTLED"),
+        openCount: entries.filter((entry) => entry.type === type && resolveStatus(entry) === "OPEN").length,
+        overdueCount: entries.filter((entry) => entry.type === type && resolveStatus(entry) === "OVERDUE").length,
+    };
+}
+
 export function FinancialProvider({ children }: { children: ReactNode }) {
-    const [rawData, setRawData] = useState<FinancialOverviewResponse | null>(null);
+    const [rawData, setRawData] = useState<FinancialOverviewApiResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [refreshIndex, setRefreshIndex] = useState(0);
@@ -57,7 +85,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
                 }
                 return response.json();
             })
-            .then((payload: FinancialOverviewResponse) => {
+            .then((payload: FinancialOverviewApiResponse) => {
                 setRawData(payload);
                 setError(null);
             })
@@ -74,13 +102,12 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         return () => controller.abort();
     }, [refreshIndex]);
 
-    const data = useMemo(() => {
+    const data = useMemo<FinancialOverviewData | null>(() => {
         if (!rawData) return null;
 
         let filteredEntries = rawData.entries;
-
         if (filters.year || filters.month) {
-            filteredEntries = filteredEntries.filter(entry => {
+            filteredEntries = filteredEntries.filter((entry) => {
                 const targetDate = entry.dueDate || entry.createdAt;
                 if (!targetDate) return true;
 
@@ -89,73 +116,66 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
 
                 if (filters.year && entryYear !== filters.year) return false;
                 if (filters.month && entryMonth !== filters.month) return false;
-
                 return true;
             });
         }
 
-        const sumAmounts = (type: string, onlyOpen: boolean) => {
-            return filteredEntries
-                .filter(e => e.type === type && (!onlyOpen || resolveStatus(e) !== "SETTLED"))
-                .reduce((acc, e) => acc + e.amountCents, 0);
-        };
+        const receivableOpenAmount = sumEntries(filteredEntries, (entry) => entry.type === "RECEIVABLE" && resolveStatus(entry) !== "SETTLED");
+        const payableOpenAmount = sumEntries(filteredEntries, (entry) => entry.type === "PAYABLE" && resolveStatus(entry) !== "SETTLED");
 
-        const receivableOpenAmount = sumAmounts("RECEIVABLE", true);
-        const payableOpenAmount = sumAmounts("PAYABLE", true);
-        const grossRevenue = sumAmounts("RECEIVABLE", false);
+        const grossRevenueCents = sumSection(filteredEntries, "GROSS_REVENUE");
+        const grossRevenueDeductionsCents = sumSection(filteredEntries, "GROSS_REVENUE_DEDUCTIONS");
+        const costOfSalesCents = sumSection(filteredEntries, "COST_OF_SALES");
+        const salesExpensesCents = sumSection(filteredEntries, "SALES_EXPENSES");
+        const administrativeExpensesCents = sumSection(filteredEntries, "ADMINISTRATIVE_EXPENSES");
+        const financialRevenueCents = sumSection(filteredEntries, "FINANCIAL_REVENUES");
+        const financialExpenseCents = sumSection(filteredEntries, "FINANCIAL_EXPENSES");
+        const otherOperatingRevenueCents = sumSection(filteredEntries, "OTHER_OPERATING_RESULTS", "RECEIVABLE");
+        const otherOperatingExpenseCents = sumSection(filteredEntries, "OTHER_OPERATING_RESULTS", "PAYABLE");
 
-        const vehicleSalesRevenue = filteredEntries
-            .filter(e => e.type === "RECEIVABLE" && e.category === "VEHICLE_SALE")
-            .reduce((acc, e) => acc + e.amountCents, 0);
+        const netRevenueCents = grossRevenueCents - grossRevenueDeductionsCents;
+        const grossProfitCents = netRevenueCents - costOfSalesCents;
+        const operatingExpensesCents = salesExpensesCents + administrativeExpensesCents + otherOperatingExpenseCents;
+        const operatingResultCents = grossProfitCents + otherOperatingRevenueCents - operatingExpensesCents;
+        const netResultCents = operatingResultCents + financialRevenueCents - financialExpenseCents;
 
-        const otherRevenue = grossRevenue - vehicleSalesRevenue;
-
-        const taxExpenses = filteredEntries
-            .filter(e => e.type === "PAYABLE" && e.category === "TAXES")
-            .reduce((acc, e) => acc + e.amountCents, 0);
-
-        const operatingExpenses = filteredEntries
-            .filter(e => e.type === "PAYABLE" && e.category !== "TAXES")
-            .reduce((acc, e) => acc + e.amountCents, 0);
-
-        const buildAccountSummary = (type: string) => {
-            const openAmount = filteredEntries
-                .filter(e => e.type === type && resolveStatus(e) !== "SETTLED")
-                .reduce((acc, e) => acc + e.amountCents, 0);
-
-            const settledAmount = filteredEntries
-                .filter(e => e.type === type && resolveStatus(e) === "SETTLED")
-                .reduce((acc, e) => acc + e.amountCents, 0);
-
-            const openCount = filteredEntries.filter(e => e.type === type && resolveStatus(e) === "OPEN").length;
-            const overdueCount = filteredEntries.filter(e => e.type === type && resolveStatus(e) === "OVERDUE").length;
-
-            return { openAmountCents: openAmount, settledAmountCents: settledAmount, openCount, overdueCount };
-        };
+        const vehicleSalesRevenueCents = sumEntries(filteredEntries, (entry) => entry.source === "VEHICLE_SALE");
+        const otherRevenueCents = (grossRevenueCents - vehicleSalesRevenueCents) + financialRevenueCents + otherOperatingRevenueCents;
 
         return {
             cashFlow: {
                 entryCents: receivableOpenAmount,
                 exitCents: payableOpenAmount,
-                balanceCents: receivableOpenAmount - payableOpenAmount
+                balanceCents: receivableOpenAmount - payableOpenAmount,
             },
             dre: {
-                vehicleSalesRevenueCents: vehicleSalesRevenue,
-                otherRevenueCents: otherRevenue,
-                grossRevenueCents: grossRevenue,
-                taxExpensesCents: taxExpenses,
-                operatingExpensesCents: operatingExpenses,
-                netResultCents: grossRevenue - taxExpenses - operatingExpenses
+                vehicleSalesRevenueCents,
+                otherRevenueCents,
+                grossRevenueCents,
+                taxExpensesCents: grossRevenueDeductionsCents,
+                operatingExpensesCents,
+                netResultCents,
+                netRevenueCents,
+                costOfSalesCents,
+                grossProfitCents,
+                salesExpensesCents,
+                administrativeExpensesCents,
+                financialRevenueCents,
+                financialExpenseCents,
+                otherOperatingRevenueCents,
+                otherOperatingExpenseCents,
+                operatingResultCents,
             },
             inventoryValueCents: rawData.inventoryValueCents,
-            accountsReceivable: buildAccountSummary("RECEIVABLE"),
-            accountsPayable: buildAccountSummary("PAYABLE"),
-            entries: filteredEntries
+            accountsReceivable: buildAccountSummary(filteredEntries, "RECEIVABLE"),
+            accountsPayable: buildAccountSummary(filteredEntries, "PAYABLE"),
+            dreStructure: rawData.dreStructure,
+            entries: filteredEntries,
         };
-    }, [rawData, filters]);
+    }, [filters, rawData]);
 
     const refreshData = () => {
-        setRefreshIndex((curr) => curr + 1);
+        setRefreshIndex((current) => current + 1);
     };
 
     const saveEntry = async (id: string | null, payload: SaveFinancialEntryPayload) => {
@@ -166,8 +186,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         });
 
         if (!response.ok) {
-            const result = await response.json().catch(() => ({ message: "Não foi possível salvar o lançamento." }));
-            throw new Error(result.message ?? "Não foi possível salvar o lançamento.");
+            const result = await response.json().catch(() => ({ message: "Nao foi possivel salvar o lancamento." }));
+            throw new Error(result.message ?? "Nao foi possivel salvar o lancamento.");
         }
 
         refreshData();
@@ -179,8 +199,36 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         });
 
         if (!response.ok) {
-            const result = await response.json().catch(() => ({ message: "Não foi possível excluir o lançamento." }));
-            throw new Error(result.message ?? "Não foi possível excluir o lançamento.");
+            const result = await response.json().catch(() => ({ message: "Nao foi possivel excluir o lancamento." }));
+            throw new Error(result.message ?? "Nao foi possivel excluir o lancamento.");
+        }
+
+        refreshData();
+    };
+
+    const saveDreSubcategory = async (id: string | null, payload: SaveDreSubcategoryPayload) => {
+        const response = await fetch(id ? `/api/ioauto/financial/dre/subcategories/${id}` : "/api/ioauto/financial/dre/subcategories", {
+            method: id ? "PUT" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const result = await response.json().catch(() => ({ message: "Nao foi possivel salvar a subcategoria do DRE." }));
+            throw new Error(result.message ?? "Nao foi possivel salvar a subcategoria do DRE.");
+        }
+
+        refreshData();
+    };
+
+    const deleteDreSubcategory = async (id: string) => {
+        const response = await fetch(`/api/ioauto/financial/dre/subcategories/${id}`, {
+            method: "DELETE",
+        });
+
+        if (!response.ok) {
+            const result = await response.json().catch(() => ({ message: "Nao foi possivel excluir a subcategoria do DRE." }));
+            throw new Error(result.message ?? "Nao foi possivel excluir a subcategoria do DRE.");
         }
 
         refreshData();
@@ -189,7 +237,22 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
     const clearFilters = () => setFilters({ year: "", month: "" });
 
     return (
-        <FinancialContext.Provider value={{ data, loading, error, refreshIndex, refreshData, saveEntry, deleteEntry, filters, setFilters, clearFilters }}>
+        <FinancialContext.Provider
+            value={{
+                data,
+                loading,
+                error,
+                refreshIndex,
+                refreshData,
+                saveEntry,
+                deleteEntry,
+                saveDreSubcategory,
+                deleteDreSubcategory,
+                filters,
+                setFilters,
+                clearFilters,
+            }}
+        >
             {children}
         </FinancialContext.Provider>
     );

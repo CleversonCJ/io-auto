@@ -9,4 +9,5 @@ import java.util.UUID;
 public interface IoAutoFinancialEntryRepositoryJpa extends JpaRepository<JpaIoAutoFinancialEntryEntity, UUID> {
     List<JpaIoAutoFinancialEntryEntity> findAllByCompanyIdOrderByDueDateAscUpdatedAtDesc(UUID companyId);
     Optional<JpaIoAutoFinancialEntryEntity> findByIdAndCompanyId(UUID id, UUID companyId);
+    boolean existsByCompanyIdAndDreSubcategoryId(UUID companyId, UUID dreSubcategoryId);
 }
