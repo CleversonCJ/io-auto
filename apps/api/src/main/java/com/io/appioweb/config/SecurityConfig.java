@@ -48,6 +48,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/public/stock/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/integrations/google/oauth/callback").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/integrations/olx/oauth/callback").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/integrations/mercadolivre/oauth/callback").permitAll()
                         .requestMatchers("/webhooks/**").permitAll()
                         .requestMatchers("/api/webhooks/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
