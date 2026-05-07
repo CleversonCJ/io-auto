@@ -17,6 +17,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -54,11 +55,15 @@ public class MeliOAuthService {
     public AuthorizationUrlResponse buildAuthorizationUrl(UUID companyId) {
         properties.validateConfigured();
         String state = stateStore.create(companyId);
+        MeliOAuthStateStore.StatePayload payload = stateStore.consumeForReadOnly(state);
+        String codeChallenge = createCodeChallenge(payload.codeVerifier());
         Map<String, String> query = new LinkedHashMap<>();
         query.put("response_type", "code");
         query.put("client_id", properties.getClientId());
         query.put("redirect_uri", properties.getRedirectUri());
         query.put("state", state);
+        query.put("code_challenge", codeChallenge);
+        query.put("code_challenge_method", "S256");
         log.info("MELI OAuth authorization requested companyId={} redirectUri={} state={}", companyId, properties.getRedirectUri(), shorten(state));
         return new AuthorizationUrlResponse(
                 properties.getAuthBaseUrl() + "/authorization?" + buildQuery(query),
@@ -78,7 +83,8 @@ public class MeliOAuthService {
                 "client_id", properties.getClientId(),
                 "client_secret", properties.getClientSecret(),
                 "code", code.trim(),
-                "redirect_uri", properties.getRedirectUri()
+                "redirect_uri", properties.getRedirectUri(),
+                "code_verifier", payload.codeVerifier()
         ));
         JsonNode tokenRoot = parseJson(tokenResponse.rawBody(), "MELI_OAUTH_CODE_EXCHANGE_FAILED", "Resposta invalida ao concluir OAuth Mercado Livre.");
         if (tokenResponse.httpStatus() >= 400) {
@@ -192,6 +198,16 @@ public class MeliOAuthService {
 
     private String safe(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private String createCodeChallenge(String codeVerifier) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(codeVerifier.getBytes(StandardCharsets.US_ASCII));
+            return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
+        } catch (Exception exception) {
+            throw new BusinessException("MELI_OAUTH_PKCE_INVALID", "Nao foi possivel iniciar a validacao PKCE do Mercado Livre.");
+        }
     }
 
     private String shorten(String value) {

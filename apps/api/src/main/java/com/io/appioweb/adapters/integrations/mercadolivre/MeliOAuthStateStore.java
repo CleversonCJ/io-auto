@@ -35,6 +35,7 @@ public class MeliOAuthStateStore {
         ObjectNode payload = OBJECT_MAPPER.createObjectNode();
         payload.put("companyId", companyId.toString());
         payload.put("nonce", UUID.randomUUID().toString());
+        payload.put("codeVerifier", generateCodeVerifier());
         payload.put("issuedAt", Instant.now().toString());
         try {
             redis.opsForValue().set(PREFIX + state, OBJECT_MAPPER.writeValueAsString(payload), STATE_TTL);
@@ -57,20 +58,38 @@ public class MeliOAuthStateStore {
             log.warn("MELI OAuth state missing or expired state={}", shorten(normalized));
             throw new BusinessException("MELI_OAUTH_STATE_EXPIRED", "State do OAuth Mercado Livre expirado. Reinicie a conexao.");
         }
+        return parseState(normalized, raw, "consumed");
+    }
+
+    public StatePayload consumeForReadOnly(String state) {
+        String normalized = state == null ? "" : state.trim();
+        if (normalized.isBlank()) {
+            throw new BusinessException("MELI_OAUTH_STATE_INVALID", "State do OAuth Mercado Livre ausente.");
+        }
+        String raw = redis.opsForValue().get(PREFIX + normalized);
+        if (raw == null || raw.isBlank()) {
+            log.warn("MELI OAuth state missing or expired during read-only access state={}", shorten(normalized));
+            throw new BusinessException("MELI_OAUTH_STATE_EXPIRED", "State do OAuth Mercado Livre expirado. Reinicie a conexao.");
+        }
+        return parseState(normalized, raw, "loaded");
+    }
+
+    private StatePayload parseState(String normalized, String raw, String action) {
         try {
             JsonNode root = OBJECT_MAPPER.readTree(raw);
             UUID companyId = UUID.fromString(root.path("companyId").asText(""));
             String nonce = root.path("nonce").asText("").trim();
+            String codeVerifier = root.path("codeVerifier").asText("").trim();
             Instant issuedAt = Instant.parse(root.path("issuedAt").asText(""));
-            if (nonce.isBlank()) {
+            if (nonce.isBlank() || codeVerifier.isBlank()) {
                 throw new BusinessException("MELI_OAUTH_STATE_INVALID", "State do OAuth Mercado Livre invalido.");
             }
             if (issuedAt.isBefore(Instant.now().minus(STATE_TTL)) || issuedAt.isAfter(Instant.now().plusSeconds(30))) {
                 log.warn("MELI OAuth state rejected by timestamp companyId={} state={} issuedAt={}", companyId, shorten(normalized), issuedAt);
                 throw new BusinessException("MELI_OAUTH_STATE_EXPIRED", "State do OAuth Mercado Livre expirado. Reinicie a conexao.");
             }
-            log.info("MELI OAuth state consumed companyId={} state={} issuedAt={}", companyId, shorten(normalized), issuedAt);
-            return new StatePayload(companyId, nonce, issuedAt);
+            log.info("MELI OAuth state {} companyId={} state={} issuedAt={}", action, companyId, shorten(normalized), issuedAt);
+            return new StatePayload(companyId, nonce, codeVerifier, issuedAt);
         } catch (BusinessException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -86,6 +105,12 @@ public class MeliOAuthStateStore {
         return normalized.substring(0, 8) + "...";
     }
 
-    public record StatePayload(UUID companyId, String nonce, Instant issuedAt) {
+    private String generateCodeVerifier() {
+        byte[] bytes = new byte[48];
+        new java.security.SecureRandom().nextBytes(bytes);
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    public record StatePayload(UUID companyId, String nonce, String codeVerifier, Instant issuedAt) {
     }
 }

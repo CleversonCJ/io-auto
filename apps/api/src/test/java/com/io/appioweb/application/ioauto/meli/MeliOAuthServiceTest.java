@@ -26,7 +26,16 @@ class MeliOAuthServiceTest {
         properties.setCurrencyId("BRL");
 
         MeliOAuthStateStore stateStore = mock(MeliOAuthStateStore.class);
-        when(stateStore.create(UUID.fromString("11111111-1111-1111-1111-111111111111"))).thenReturn("state-123");
+        UUID companyId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        when(stateStore.create(companyId)).thenReturn("state-123");
+        when(stateStore.consumeForReadOnly("state-123")).thenReturn(
+                new MeliOAuthStateStore.StatePayload(
+                        companyId,
+                        "nonce-123",
+                        "verifier-1234567890",
+                        java.time.Instant.parse("2026-05-07T17:00:00Z")
+                )
+        );
 
         MeliOAuthService service = new MeliOAuthService(
                 properties,
@@ -37,13 +46,14 @@ class MeliOAuthServiceTest {
                 "https://app.example.test"
         );
 
-        UUID companyId = UUID.fromString("11111111-1111-1111-1111-111111111111");
         MeliOAuthService.AuthorizationUrlResponse response = service.buildAuthorizationUrl(companyId);
 
         assertThat(response.state()).isEqualTo("state-123");
         assertThat(response.url()).contains("response_type=code");
         assertThat(response.url()).contains("client_id=client-123");
         assertThat(response.url()).contains("state=state-123");
+        assertThat(response.url()).contains("code_challenge=");
+        assertThat(response.url()).contains("code_challenge_method=S256");
         assertThat(response.url()).contains("redirect_uri=https%3A%2F%2Fapi.example.test%2Fapi%2Fintegrations%2Fmercadolivre%2Foauth%2Fcallback");
         verify(stateStore).create(companyId);
     }

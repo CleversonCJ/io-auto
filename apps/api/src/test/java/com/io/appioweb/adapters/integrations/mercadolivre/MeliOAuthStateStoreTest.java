@@ -49,6 +49,7 @@ class MeliOAuthStateStoreTest {
                 {
                   "companyId": "11111111-1111-1111-1111-111111111111",
                   "nonce": "nonce-123",
+                  "codeVerifier": "verifier-1234567890",
                   "issuedAt": "%s"
                 }
                 """.formatted(Instant.now().minus(Duration.ofMinutes(20))));
