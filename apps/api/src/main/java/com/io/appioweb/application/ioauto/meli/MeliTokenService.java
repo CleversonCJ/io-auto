@@ -3,6 +3,8 @@ package com.io.appioweb.application.ioauto.meli;
 import com.io.appioweb.adapters.integrations.mercadolivre.MeliProperties;
 import com.io.appioweb.adapters.persistence.ioauto.JpaMeliAccountEntity;
 import com.io.appioweb.shared.errors.BusinessException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -23,6 +25,7 @@ import java.util.UUID;
 @Service
 public class MeliTokenService {
 
+    private static final Logger log = LoggerFactory.getLogger(MeliTokenService.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Duration REFRESH_THRESHOLD = Duration.ofMinutes(10);
 
@@ -100,14 +103,20 @@ public class MeliTokenService {
 
     RawResponse executeTokenRequest(Map<String, String> form) {
         String body = buildForm(form);
-        return restClient.method(HttpMethod.POST)
+        RawResponse response = restClient.method(HttpMethod.POST)
                 .uri("/oauth/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(body)
-                .exchange((request, response) -> new RawResponse(
-                        response.getStatusCode().value(),
-                        StreamUtils.copyToString(response.getBody(), StandardCharsets.UTF_8)
+                .exchange((request, clientResponse) -> new RawResponse(
+                        clientResponse.getStatusCode().value(),
+                        StreamUtils.copyToString(clientResponse.getBody(), StandardCharsets.UTF_8)
                 ));
+        if (response.httpStatus() >= 400) {
+            log.warn("MELI token endpoint rejected request grantType={} status={}", form.getOrDefault("grant_type", ""), response.httpStatus());
+        } else {
+            log.info("MELI token endpoint accepted request grantType={} status={}", form.getOrDefault("grant_type", ""), response.httpStatus());
+        }
+        return response;
     }
 
     JsonNode parseResponse(String rawBody, String code, String message) {
@@ -143,6 +152,7 @@ public class MeliTokenService {
     String resolveOAuthErrorMessage(JsonNode root, String fallback) {
         String error = text(root, "error");
         String description = text(root, "error_description");
+        String message = text(root, "message");
         if ("invalid_grant".equalsIgnoreCase(error)) {
             return "Token expirado; reconecte sua conta Mercado Livre.";
         }
@@ -151,6 +161,9 @@ public class MeliTokenService {
         }
         if (!description.isBlank()) {
             return description;
+        }
+        if (!message.isBlank()) {
+            return message;
         }
         return fallback;
     }

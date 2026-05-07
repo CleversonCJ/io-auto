@@ -3,6 +3,8 @@ package com.io.appioweb.application.ioauto.meli;
 import com.io.appioweb.adapters.integrations.mercadolivre.MeliOAuthStateStore;
 import com.io.appioweb.adapters.integrations.mercadolivre.MeliProperties;
 import com.io.appioweb.shared.errors.BusinessException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -23,6 +25,7 @@ import java.util.UUID;
 @Service
 public class MeliOAuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(MeliOAuthService.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final MeliProperties properties;
@@ -56,6 +59,7 @@ public class MeliOAuthService {
         query.put("client_id", properties.getClientId());
         query.put("redirect_uri", properties.getRedirectUri());
         query.put("state", state);
+        log.info("MELI OAuth authorization requested companyId={} redirectUri={} state={}", companyId, properties.getRedirectUri(), shorten(state));
         return new AuthorizationUrlResponse(
                 properties.getAuthBaseUrl() + "/authorization?" + buildQuery(query),
                 state
@@ -64,6 +68,7 @@ public class MeliOAuthService {
 
     public MeliAccountService.MeliConnectionSnapshot handleCallback(String code, String state) {
         properties.validateConfigured();
+        log.info("MELI OAuth callback received state={} hasCode={}", shorten(state), !safe(code).isBlank());
         if (safe(code).isBlank()) {
             throw new BusinessException("MELI_OAUTH_CODE_INVALID", "O Mercado Livre nao retornou o codigo de autorizacao.");
         }
@@ -77,6 +82,7 @@ public class MeliOAuthService {
         ));
         JsonNode tokenRoot = parseJson(tokenResponse.rawBody(), "MELI_OAUTH_CODE_EXCHANGE_FAILED", "Resposta invalida ao concluir OAuth Mercado Livre.");
         if (tokenResponse.httpStatus() >= 400) {
+            log.warn("MELI OAuth token exchange rejected companyId={} state={} status={}", payload.companyId(), shorten(state), tokenResponse.httpStatus());
             throw new BusinessException(
                     "MELI_OAUTH_CODE_EXCHANGE_FAILED",
                     tokenService.resolveOAuthErrorMessage(tokenRoot, "Nao foi possivel concluir a conexao com o Mercado Livre.")
@@ -103,6 +109,7 @@ public class MeliOAuthService {
                 tokenExpiresAt,
                 text(tokenRoot, "scope")
         );
+        log.info("MELI OAuth connected companyId={} meliUserId={} nickname={}", payload.companyId(), userId, nickname);
         return accountService.getStatus(payload.companyId());
     }
 
@@ -185,6 +192,14 @@ public class MeliOAuthService {
 
     private String safe(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private String shorten(String value) {
+        String normalized = safe(value);
+        if (normalized.length() <= 8) {
+            return normalized;
+        }
+        return normalized.substring(0, 8) + "...";
     }
 
     public record AuthorizationUrlResponse(String url, String state) {

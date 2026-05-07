@@ -9,6 +9,8 @@ import com.io.appioweb.application.ioauto.meli.MeliOAuthService;
 import com.io.appioweb.application.ioauto.meli.MeliTokenService;
 import com.io.appioweb.application.ioauto.meli.MeliVehicleSettingsService;
 import com.io.appioweb.shared.errors.BusinessException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,8 @@ import java.util.UUID;
 
 @RestController
 public class MercadoLivreIntegrationController {
+
+    private static final Logger log = LoggerFactory.getLogger(MercadoLivreIntegrationController.class);
 
     private final CurrentUserPort currentUser;
     private final MeliOAuthService oauthService;
@@ -79,6 +83,7 @@ public class MercadoLivreIntegrationController {
                 redirect = oauthService.buildFrontendRedirect(true, "Conta Mercado Livre conectada com sucesso.");
             }
         } catch (Exception exception) {
+            log.warn("MELI OAuth callback failed: {}", exception.getMessage(), exception);
             redirect = oauthService.buildFrontendRedirect(false, exception.getMessage());
         }
         return ResponseEntity.status(302).header(HttpHeaders.LOCATION, URI.create(redirect).toString()).build();
