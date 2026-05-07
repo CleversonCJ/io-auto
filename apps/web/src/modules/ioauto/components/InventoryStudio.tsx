@@ -803,6 +803,9 @@ export function InventoryStudio() {
                     installmentValueCents: form.installmentValueCents ? Number(form.installmentValueCents) : null,
                 },
                 targetIntegrations,
+                meliCategoryId: form.meli.categoryId || null,
+                meliListingTypeId: form.meli.listingTypeId || null,
+                meliCondition: form.meli.condition || null,
             };
 
             const response = await fetch(form.id ? `/api/ioauto/vehicles/${form.id}` : "/api/ioauto/vehicles", {
@@ -1161,7 +1164,7 @@ export function InventoryStudio() {
                                             ) : null}
                                         </section>
 
-                                        {form.id && selectedReadyPublicationIntegrations.length ? (
+                                        {selectedReadyPublicationIntegrations.length ? (
                                             <section className="grid gap-4">
                                                 <div>
                                                     <p className="text-sm font-semibold text-io-dark">Ajustes avancados e publicacao</p>

@@ -32,6 +32,11 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+import com.io.appioweb.application.ioauto.meli.MeliAdService;
+import com.io.appioweb.application.ioauto.meli.MeliCategoryService;
+import com.io.appioweb.application.ioauto.meli.MeliListingTypeService;
+import com.io.appioweb.application.ioauto.olx.OlxAdService;
+
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -67,6 +72,10 @@ public class IoAutoController {
     private final IoAutoPublicLinkRepositoryJpa publicLinks;
     private final IoAutoPublicLeadEventRepositoryJpa publicLeadEvents;
     private final IoAutoBillingService billingService;
+    private final MeliAdService meliAdService;
+    private final MeliCategoryService meliCategoryService;
+    private final MeliListingTypeService meliListingTypeService;
+    private final OlxAdService olxAdService;
 
     public IoAutoController(
             CurrentUserPort currentUser,
@@ -78,7 +87,11 @@ public class IoAutoController {
             IoAutoIntegrationRepositoryJpa integrations,
             IoAutoPublicLinkRepositoryJpa publicLinks,
             IoAutoPublicLeadEventRepositoryJpa publicLeadEvents,
-            IoAutoBillingService billingService
+            IoAutoBillingService billingService,
+            MeliAdService meliAdService,
+            MeliCategoryService meliCategoryService,
+            MeliListingTypeService meliListingTypeService,
+            OlxAdService olxAdService
     ) {
         this.currentUser = currentUser;
         this.companies = companies;
@@ -90,6 +103,10 @@ public class IoAutoController {
         this.publicLinks = publicLinks;
         this.publicLeadEvents = publicLeadEvents;
         this.billingService = billingService;
+        this.meliAdService = meliAdService;
+        this.meliCategoryService = meliCategoryService;
+        this.meliListingTypeService = meliListingTypeService;
+        this.olxAdService = olxAdService;
     }
 
     @GetMapping("/ioauto/dashboard")
@@ -661,12 +678,31 @@ public class IoAutoController {
         entity.setGalleryJson(writeStringArray(request.gallery()));
         entity.setOptionalsJson(writeStringArray(request.optionals()));
         entity.setFinancingJson(writeVehicleFinancing(request.financing()));
-        entity.setUpdatedAt(now);
-        vehicles.save(entity);
+        
+        entity.setMeliCategoryId(normalizeNullableText(request.meliCategoryId()));
+        entity.setMeliListingTypeId(normalizeNullableText(request.meliListingTypeId()));
+        entity.setMeliCondition(normalizeNullableText(request.meliCondition()));
 
         List<String> selectedIntegrations = sanitizeIntegrationKeys(request.targetIntegrations()).stream()
                 .filter(this::supportsVehiclePublication)
                 .toList();
+
+        if (selectedIntegrations.contains("mercadolivre")) {
+            if (entity.getMeliCategoryId() == null) {
+                var suggestion = meliCategoryService.discoverVehicleCategory(entity.getTitle());
+                entity.setMeliCategoryId(suggestion.categoryId());
+            }
+            if (entity.getMeliListingTypeId() == null && entity.getMeliCategoryId() != null) {
+                var listingTypes = meliListingTypeService.getAvailableListingTypes(companyId, entity.getMeliCategoryId());
+                if (!listingTypes.isEmpty()) {
+                    entity.setMeliListingTypeId(listingTypes.get(0).id());
+                }
+            }
+        }
+
+        entity.setUpdatedAt(now);
+        vehicles.save(entity);
+
         List<JpaIoAutoVehiclePublicationEntity> existingPublications = publications.findAllByCompanyIdAndVehicleId(companyId, entity.getId());
         Map<String, JpaIoAutoVehiclePublicationEntity> existingByProvider = existingPublications.stream()
                 .collect(java.util.stream.Collectors.toMap(JpaIoAutoVehiclePublicationEntity::getProviderKey, item -> item, (left, right) -> left, LinkedHashMap::new));
@@ -708,6 +744,19 @@ public class IoAutoController {
         }
         if (!nextPublications.isEmpty()) {
             publications.saveAll(nextPublications);
+        }
+
+        for (String providerKey : selectedIntegrations) {
+            try {
+                if ("mercadolivre".equalsIgnoreCase(providerKey)) {
+                    meliAdService.publishVehicle(companyId, entity.getId());
+                } else if ("olx".equalsIgnoreCase(providerKey)) {
+                    olxAdService.publishVehicle(companyId, entity.getId());
+                }
+            } catch (Exception ignored) {
+                // Ignore sync errors during creation to avoid rollback of the vehicle itself.
+                // The AdService will have saved the error status in the corresponding ad table.
+            }
         }
 
         Map<String, JpaIoAutoIntegrationEntity> integrationsByKey = integrations.findAllByCompanyIdOrderByDisplayNameAsc(companyId).stream()
@@ -1755,7 +1804,10 @@ public class IoAutoController {
             List<String> gallery,
             List<String> optionals,
             VehicleFinancingHttpRequest financing,
-            List<String> targetIntegrations
+            List<String> targetIntegrations,
+            String meliCategoryId,
+            String meliListingTypeId,
+            String meliCondition
     ) {
     }
 
