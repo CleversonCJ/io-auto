@@ -850,16 +850,22 @@ public class IoAutoController {
             publications.saveAll(nextPublications);
         }
 
-        if (!selectedIntegrations.isEmpty() && TransactionSynchronizationManager.isSynchronizationActive()) {
+        if (!selectedIntegrations.isEmpty()) {
             UUID savedVehicleId = entity.getId();
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    for (String providerKey : selectedIntegrations) {
-                        vehicleAutoPublicationService.publishAfterCommit(companyId, savedVehicleId, providerKey);
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        for (String providerKey : selectedIntegrations) {
+                            vehicleAutoPublicationService.publishAfterCommit(companyId, savedVehicleId, providerKey);
+                        }
                     }
+                });
+            } else {
+                for (String providerKey : selectedIntegrations) {
+                    vehicleAutoPublicationService.publishAfterCommit(companyId, savedVehicleId, providerKey);
                 }
-            });
+            }
         }
 
         Map<String, JpaIoAutoIntegrationEntity> integrationsByKey = integrations.findAllByCompanyIdOrderByDisplayNameAsc(companyId).stream()
