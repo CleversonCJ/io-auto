@@ -21,40 +21,40 @@ public class JpaCompanyEntity {
     @Column(nullable = false, length = 180)
     private String email;
 
-    @Column(name = "contract_end_date", nullable = false)
+    @Column(name = "contract_end_date")
     private LocalDate contractEndDate;
 
     @Column(nullable = false, length = 18)
     private String cnpj;
 
-    @Column(name = "opened_at", nullable = false)
+    @Column(name = "opened_at")
     private LocalDate openedAt;
 
     @Column(name = "whatsapp_number", nullable = false, length = 30)
     private String whatsappNumber;
 
-    @Column(name = "zapi_instance_id", nullable = false, length = 180)
+    @Column(name = "zapi_instance_id", length = 180)
     private String zapiInstanceId;
 
-    @Column(name = "zapi_instance_token", nullable = false, length = 255)
+    @Column(name = "zapi_instance_token", length = 255)
     private String zapiInstanceToken;
 
-    @Column(name = "zapi_client_token", nullable = false, length = 255)
+    @Column(name = "zapi_client_token", length = 255)
     private String zapiClientToken;
 
-    @Column(name = "business_hours_start", nullable = false, length = 5)
+    @Column(name = "business_hours_start", length = 5)
     private String businessHoursStart;
 
-    @Column(name = "business_hours_end", nullable = false, length = 5)
+    @Column(name = "business_hours_end", length = 5)
     private String businessHoursEnd;
 
     @Column(name = "business_hours_weekly_json", columnDefinition = "text")
     private String businessHoursWeeklyJson;
 
-    @Column(name = "public_stock_banner_mode", nullable = false, length = 30)
+    @Column(name = "public_stock_banner_mode", length = 30)
     private String publicStockBannerMode;
 
-    @Column(name = "public_stock_banner_images_json", nullable = false, columnDefinition = "text")
+    @Column(name = "public_stock_banner_images_json", columnDefinition = "text")
     private String publicStockBannerImagesJson;
 
     @Column(name = "razao_social", length = 255)
