@@ -1,0 +1,98 @@
+package com.io.appioweb.application.onboarding;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.io.appioweb.adapters.persistence.onboarding.EmailOutboxRepositoryJpa;
+import com.io.appioweb.adapters.persistence.onboarding.JpaEmailOutboxEntity;
+import com.io.appioweb.shared.domain.EmailStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+
+@Component
+public class EmailOutboxProcessor {
+
+    private static final Logger log = LoggerFactory.getLogger(EmailOutboxProcessor.class);
+    private static final int MAX_RETRIES = 3;
+
+    private final EmailOutboxRepositoryJpa outboxRepository;
+    private final EmailSenderService emailSenderService;
+    private final ObjectMapper objectMapper;
+
+    public EmailOutboxProcessor(
+            EmailOutboxRepositoryJpa outboxRepository,
+            EmailSenderService emailSenderService,
+            ObjectMapper objectMapper
+    ) {
+        this.outboxRepository = outboxRepository;
+        this.emailSenderService = emailSenderService;
+        this.objectMapper = objectMapper;
+    }
+
+    @Scheduled(fixedDelay = 30000) // Every 30 seconds
+    @Transactional
+    public void processPendingEmails() {
+        List<JpaEmailOutboxEntity> pendingEmails = outboxRepository.findAllByStatus(EmailStatus.PENDING.name());
+
+        if (pendingEmails.isEmpty()) {
+            return;
+        }
+
+        log.info("Found {} pending emails in outbox to process", pendingEmails.size());
+
+        for (JpaEmailOutboxEntity email : pendingEmails) {
+            try {
+                processEmail(email);
+            } catch (Exception e) {
+                log.error("Error processing email ID: {}", email.getId(), e);
+                handleFailure(email, e);
+            }
+        }
+    }
+
+    private void processEmail(JpaEmailOutboxEntity email) throws Exception {
+        Map<String, Object> model = objectMapper.readValue(
+                email.getPayloadJson(), 
+                new TypeReference<Map<String, Object>>() {}
+        );
+
+        String subject = getSubjectForTemplate(email.getTemplate());
+
+        emailSenderService.sendHtmlEmail(
+                email.getToEmail(),
+                subject,
+                email.getTemplate(),
+                model
+        );
+
+        email.setStatus(EmailStatus.SENT.name());
+        email.setSentAt(Instant.now());
+        outboxRepository.save(email);
+    }
+
+    private void handleFailure(JpaEmailOutboxEntity email, Exception e) {
+        int retries = email.getRetryCount() + 1;
+        email.setRetryCount(retries);
+        email.setErrorMessage(e.getMessage());
+
+        if (retries >= MAX_RETRIES) {
+            email.setStatus(EmailStatus.FAILED.name());
+            log.error("Email ID {} reached max retries and is now FAILED", email.getId());
+        }
+
+        outboxRepository.save(email);
+    }
+
+    private String getSubjectForTemplate(String template) {
+        return switch (template) {
+            case "first-user-access" -> "Bem-vindo ao IO Connect! Dados de Acesso";
+            default -> "Notificação IO Connect";
+        };
+    }
+}

@@ -1,4 +1,10 @@
-import { jsonFromPublicUpstream } from "@/app/api/_utils/upstreamAuth";
+import { NextResponse } from "next/server";
+import { getServerApiBase } from "@/core/http/getServerApiBase";
+import { fetchUpstream, readJsonSafely } from "@/core/http/upstream";
+
+type ApiError = {
+    message?: string;
+};
 
 export async function POST(
     request: Request,
@@ -6,10 +12,28 @@ export async function POST(
 ) {
     const { companyId } = await context.params;
     const body = await request.text();
+    const apiBase = getServerApiBase();
 
-    return jsonFromPublicUpstream(`/public/stock/${companyId}/lead`, {
+    const upstream = await fetchUpstream(`${apiBase}/public/stock/${companyId}/lead`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body,
-    }, "Falha ao registrar o lead do cat\u00E1logo.");
+        cache: "no-store",
+    });
+
+    if (upstream.ok) {
+        return new NextResponse(null, { status: 204 });
+    }
+
+    const payload = await readJsonSafely<ApiError>(upstream);
+
+    if (upstream.status === 404) {
+        return NextResponse.json({
+            message: "O backend ainda não carregou o endpoint novo de leads do catálogo. Reinicie a API para aplicar a rota e a migração mais recente.",
+        }, { status: 404 });
+    }
+
+    return NextResponse.json({
+        message: payload?.message ?? "Falha ao registrar o lead do catálogo.",
+    }, { status: upstream.status });
 }

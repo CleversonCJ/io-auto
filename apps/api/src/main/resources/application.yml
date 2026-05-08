@@ -20,12 +20,44 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+    from: ${MAIL_FROM:contato@ioauto.com.br}
+
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    mode: HTML
+    encoding: UTF-8
+    cache: true
+
 app:
   security:
     jwt:
       issuer: "app-io-web"
       access-ttl-minutes: 15
       refresh-ttl-days: 7
+
+onboarding:
+  internal-api-token: ${ONBOARDING_INTERNAL_API_TOKEN}
+  frontend:
+    public-url: ${APP_PUBLIC_URL:http://localhost:3000}
+    login-url: ${LOGIN_URL:http://localhost:3000/login}
+    set-password-url: ${SET_PASSWORD_URL:http://localhost:3000/definir-senha}
+
+asaas:
+  access-token: ${ASAAS_ACCESS_TOKEN}
+  base-url: ${ASAAS_BASE_URL:https://api.asaas.com}
 
 meli:
   client-id: ${MELI_CLIENT_ID:}
