@@ -516,6 +516,28 @@ export type PublicLeadEventSummary = {
     }>;
 };
 
+export type PublicCatalogLeadList = {
+    preset: string;
+    fromDate: string;
+    toDate: string;
+    totalLeads: number;
+    leadsWithVehicle: number;
+    leadsWithCampaign: number;
+    uniquePhones: number;
+    leads: Array<{
+        id: string;
+        customerName: string;
+        customerPhone: string;
+        vehicleId: string | null;
+        vehicleTitle: string | null;
+        sourceType: string | null;
+        sourceReference: string | null;
+        pagePath: string | null;
+        sourceUrl: string | null;
+        createdAt: string | null;
+    }>;
+};
+
 export type PublicLinkRecord = {
     id: string;
     name: string;

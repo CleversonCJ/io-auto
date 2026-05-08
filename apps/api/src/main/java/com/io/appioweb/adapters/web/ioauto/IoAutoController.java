@@ -551,6 +551,63 @@ public class IoAutoController {
         ));
     }
 
+    @GetMapping("/ioauto/public-catalog-leads")
+    public ResponseEntity<PublicCatalogLeadListHttpResponse> listPublicCatalogLeads(
+            @RequestParam(name = "preset", required = false) String preset,
+            @RequestParam(name = "from", required = false) String from,
+            @RequestParam(name = "to", required = false) String to
+    ) {
+        UUID companyId = currentUser.companyId();
+        PublicCatalogLeadPeriodSelection periodSelection = resolvePublicCatalogLeadPeriod(preset, from, to);
+
+        List<JpaIoAutoPublicCatalogLeadEntity> leads = publicCatalogLeads
+                .findAllByCompanyIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+                        companyId,
+                        periodSelection.fromAt(),
+                        periodSelection.toExclusiveAt()
+                );
+
+        Map<UUID, JpaIoAutoVehicleEntity> vehiclesById = vehicles.findAllByCompanyIdOrderByUpdatedAtDesc(companyId).stream()
+                .collect(java.util.stream.Collectors.toMap(JpaIoAutoVehicleEntity::getId, item -> item, (left, right) -> left, LinkedHashMap::new));
+
+        long leadsWithVehicle = leads.stream().filter(lead -> lead.getVehicleId() != null).count();
+        long leadsWithCampaign = leads.stream().filter(lead -> normalizeNullableText(lead.getSourceReference()) != null).count();
+
+        LinkedHashSet<String> uniquePhones = new LinkedHashSet<>();
+        for (JpaIoAutoPublicCatalogLeadEntity lead : leads) {
+            uniquePhones.add(normalizeText(lead.getCustomerPhone()));
+        }
+
+        List<PublicCatalogLeadListHttpResponse.LeadItem> items = leads.stream()
+                .map(lead -> {
+                    JpaIoAutoVehicleEntity vehicle = lead.getVehicleId() == null ? null : vehiclesById.get(lead.getVehicleId());
+                    return new PublicCatalogLeadListHttpResponse.LeadItem(
+                            lead.getId(),
+                            normalizeText(lead.getCustomerName()),
+                            normalizeText(lead.getCustomerPhone()),
+                            lead.getVehicleId(),
+                            vehicle == null ? null : normalizeNullableText(vehicle.getTitle()),
+                            normalizeNullableText(lead.getSourceType()),
+                            normalizeNullableText(lead.getSourceReference()),
+                            normalizeNullableText(lead.getPagePath()),
+                            normalizeNullableText(lead.getSourceUrl()),
+                            lead.getCreatedAt()
+                    );
+                })
+                .toList();
+
+        return ResponseEntity.ok(new PublicCatalogLeadListHttpResponse(
+                periodSelection.preset(),
+                periodSelection.fromDate(),
+                periodSelection.toDate(),
+                leads.size(),
+                leadsWithVehicle,
+                leadsWithCampaign,
+                uniquePhones.size(),
+                items
+        ));
+    }
+
     @GetMapping("/ioauto/public-links")
     public ResponseEntity<List<PublicLinkHttpResponse>> listPublicLinks() {
         UUID companyId = currentUser.companyId();
@@ -1316,6 +1373,53 @@ public class IoAutoController {
         );
     }
 
+    private PublicCatalogLeadPeriodSelection resolvePublicCatalogLeadPeriod(String preset, String from, String to) {
+        LocalDate today = LocalDate.now(DASHBOARD_ZONE);
+        String normalizedPreset = normalizeText(preset, "LAST_30_DAYS").toUpperCase(Locale.ROOT);
+
+        LocalDate resolvedFrom;
+        LocalDate resolvedTo;
+
+        switch (normalizedPreset) {
+            case "LAST_7_DAYS" -> {
+                resolvedTo = today;
+                resolvedFrom = today.minusDays(6);
+            }
+            case "LAST_MONTH" -> {
+                YearMonth lastMonth = YearMonth.from(today.minusMonths(1));
+                resolvedFrom = lastMonth.atDay(1);
+                resolvedTo = lastMonth.atEndOfMonth();
+            }
+            case "CUSTOM" -> {
+                resolvedFrom = parsePublicCatalogLeadDate(from, today.minusDays(29));
+                resolvedTo = parsePublicCatalogLeadDate(to, today);
+            }
+            case "LAST_30_DAYS" -> {
+                resolvedTo = today;
+                resolvedFrom = today.minusDays(29);
+            }
+            default -> {
+                resolvedTo = today;
+                resolvedFrom = today.minusDays(29);
+                normalizedPreset = "LAST_30_DAYS";
+            }
+        }
+
+        if (resolvedFrom.isAfter(resolvedTo)) {
+            LocalDate swap = resolvedFrom;
+            resolvedFrom = resolvedTo;
+            resolvedTo = swap;
+        }
+
+        return new PublicCatalogLeadPeriodSelection(
+                normalizedPreset,
+                resolvedFrom,
+                resolvedTo,
+                resolvedFrom.atStartOfDay(DASHBOARD_ZONE).toInstant(),
+                resolvedTo.plusDays(1).atStartOfDay(DASHBOARD_ZONE).toInstant()
+        );
+    }
+
     private LocalDate parseDashboardDate(String raw, LocalDate fallback) {
         String normalized = normalizeText(raw);
         if (normalized.isBlank()) {
@@ -1325,6 +1429,18 @@ public class IoAutoController {
             return LocalDate.parse(normalized, DATE_FORMATTER);
         } catch (Exception exception) {
             throw new BusinessException("IOAUTO_DASHBOARD_INVALID_DATE", "Não foi possível interpretar uma das datas do dashboard.");
+        }
+    }
+
+    private LocalDate parsePublicCatalogLeadDate(String raw, LocalDate fallback) {
+        String normalized = normalizeText(raw);
+        if (normalized.isBlank()) {
+            return fallback;
+        }
+        try {
+            return LocalDate.parse(normalized, DATE_FORMATTER);
+        } catch (Exception exception) {
+            throw new BusinessException("IOAUTO_PUBLIC_CATALOG_LEADS_INVALID_DATE", "NÃ£o foi possÃ­vel interpretar uma das datas dos leads.");
         }
     }
 
@@ -1508,6 +1624,18 @@ public class IoAutoController {
         };
     }
 
+    private String normalizePublicCatalogLeadSourceType(String raw) {
+        return normalizeText(raw, "DIRECT").toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizePublicCatalogLeadPhone(String raw) {
+        String digits = normalizeText(raw).replaceAll("\\D", "");
+        if (digits.length() < 10 || digits.length() > 11) {
+            throw new BusinessException("IOAUTO_PUBLIC_CATALOG_LEAD_INVALID_PHONE", "Informe um telefone valido com DDD.");
+        }
+        return digits;
+    }
+
     private String normalizeSourcePlatform(String value) {
         return normalizeText(value, "OTHER").toUpperCase(Locale.ROOT);
     }
@@ -1570,6 +1698,15 @@ public class IoAutoController {
     }
 
     private record DashboardPeriodSelection(
+            String preset,
+            LocalDate fromDate,
+            LocalDate toDate,
+            Instant fromAt,
+            Instant toExclusiveAt
+    ) {
+    }
+
+    private record PublicCatalogLeadPeriodSelection(
             String preset,
             LocalDate fromDate,
             LocalDate toDate,
@@ -1768,6 +1905,31 @@ public class IoAutoController {
                 UUID vehicleId,
                 String pagePath,
                 Instant createdAt
+            ) {
+        }
+    }
+
+    public record PublicCatalogLeadListHttpResponse(
+            String preset,
+            LocalDate fromDate,
+            LocalDate toDate,
+            long totalLeads,
+            long leadsWithVehicle,
+            long leadsWithCampaign,
+            long uniquePhones,
+            List<LeadItem> leads
+    ) {
+        public record LeadItem(
+                UUID id,
+                String customerName,
+                String customerPhone,
+                UUID vehicleId,
+                String vehicleTitle,
+                String sourceType,
+                String sourceReference,
+                String pagePath,
+                String sourceUrl,
+                Instant createdAt
         ) {
         }
     }
@@ -1880,6 +2042,18 @@ public class IoAutoController {
     public record TrackPublicLeadEventHttpRequest(
             UUID vehicleId,
             String eventType,
+            String sourceType,
+            String sourceReference,
+            String pagePath,
+            String sourceUrl,
+            String sessionId
+    ) {
+    }
+
+    public record CreatePublicCatalogLeadHttpRequest(
+            UUID vehicleId,
+            @NotBlank(message = "Informe o nome.") String customerName,
+            @NotBlank(message = "Informe o telefone.") String customerPhone,
             String sourceType,
             String sourceReference,
             String pagePath,

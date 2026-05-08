@@ -90,6 +90,39 @@ export function trackPublicLeadEvent(
     }).catch(() => undefined);
 }
 
+export async function submitPublicCatalogLead(
+    companyId: string,
+    payload: {
+        vehicleId?: string | null;
+        customerName: string;
+        customerPhone: string;
+        sourceType?: string | null;
+        sourceReference?: string | null;
+        pagePath?: string | null;
+        sourceUrl?: string | null;
+    }
+) {
+    const response = await fetch(`/api/public/estoque/${companyId}/lead`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            vehicleId: payload.vehicleId ?? null,
+            customerName: payload.customerName,
+            customerPhone: payload.customerPhone,
+            sourceType: payload.sourceType ?? "DIRECT",
+            sourceReference: payload.sourceReference ?? null,
+            pagePath: payload.pagePath ?? (typeof window !== "undefined" ? window.location.pathname : null),
+            sourceUrl: payload.sourceUrl ?? (typeof window !== "undefined" ? window.location.href : null),
+            sessionId: getPublicLeadSessionId(),
+        }),
+    });
+
+    if (!response.ok) {
+        const payload = await response.json().catch(() => ({ message: "Falha ao registrar o lead." }));
+        throw new Error(payload.message ?? "Falha ao registrar o lead.");
+    }
+}
+
 type ReadonlyURLSearchParamsLike = {
     get(name: string): string | null;
 };
