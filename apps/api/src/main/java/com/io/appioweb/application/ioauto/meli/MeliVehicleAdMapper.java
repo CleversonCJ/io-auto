@@ -8,6 +8,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -121,18 +122,22 @@ public class MeliVehicleAdMapper {
             List<MeliVehicleAttributeValue> selectedAttributes
     ) {
         Map<String, MeliVehicleAttributeValue> values = new LinkedHashMap<>();
+        Map<String, MeliCategoryService.CategoryAttributeSnapshot> attributesById = new LinkedHashMap<>();
+        for (MeliCategoryService.CategoryAttributeSnapshot attribute : categoryAttributes) {
+            attributesById.put(safe(attribute.attributeId()).toUpperCase(Locale.ROOT), attribute);
+        }
 
-        putIfPresent(values, "BRAND", null, vehicle.getBrand());
-        putIfPresent(values, "MODEL", null, vehicle.getModel());
-        putIfPresent(values, "TRIM", null, firstNonBlank(vehicle.getVersion(), vehicle.getEngine()));
-        putIfPresent(values, "VEHICLE_YEAR", null, String.valueOf(resolveYear(vehicle)));
+        putCatalogAwareValue(values, attributesById, "BRAND", vehicle.getBrand());
+        putCatalogAwareValue(values, attributesById, "MODEL", vehicle.getModel());
+        putCatalogAwareValue(values, attributesById, "TRIM", firstNonBlank(vehicle.getVersion(), vehicle.getEngine()));
+        putCatalogAwareValue(values, attributesById, "VEHICLE_YEAR", String.valueOf(resolveYear(vehicle)));
         if (vehicle.getMileage() != null && vehicle.getMileage() >= 0) {
             putIfPresent(values, "KILOMETERS", null, vehicle.getMileage() + " km");
         }
-        putIfPresent(values, "FUEL_TYPE", null, vehicle.getFuelType());
-        putIfPresent(values, "COLOR", null, vehicle.getColor());
-        putIfPresent(values, "BODY_TYPE", null, vehicle.getBodyType());
-        putIfPresent(values, "TRANSMISSION", null, vehicle.getTransmission());
+        putCatalogAwareValue(values, attributesById, "FUEL_TYPE", vehicle.getFuelType());
+        putCatalogAwareValue(values, attributesById, "COLOR", vehicle.getColor());
+        putCatalogAwareValue(values, attributesById, "BODY_TYPE", vehicle.getBodyType());
+        putCatalogAwareValue(values, attributesById, "TRANSMISSION", vehicle.getTransmission());
 
         for (MeliVehicleAttributeValue selected : selectedAttributes == null ? List.<MeliVehicleAttributeValue>of() : selectedAttributes) {
             String id = safe(selected.id()).toUpperCase(Locale.ROOT);
@@ -150,6 +155,123 @@ public class MeliVehicleAdMapper {
                 .filter(item -> allowed.isEmpty() || allowed.contains(safe(item.id()).toUpperCase(Locale.ROOT)))
                 .filter(item -> item.valueId() != null || item.valueName() != null)
                 .toList();
+    }
+
+    private void putCatalogAwareValue(
+            Map<String, MeliVehicleAttributeValue> values,
+            Map<String, MeliCategoryService.CategoryAttributeSnapshot> attributesById,
+            String id,
+            String rawValue
+    ) {
+        String normalizedId = id.toUpperCase(Locale.ROOT);
+        String normalizedValue = nullable(rawValue);
+        if (normalizedValue == null) {
+            return;
+        }
+
+        MeliCategoryService.CategoryAttributeSnapshot attribute = attributesById.get(normalizedId);
+        if (attribute == null || attribute.allowedValues() == null || attribute.allowedValues().isEmpty()) {
+            putIfPresent(values, normalizedId, null, normalizedValue);
+            return;
+        }
+
+        MeliCategoryService.AllowedValueSnapshot matched = matchAllowedValue(attribute, normalizedValue);
+        if (matched != null) {
+            values.put(normalizedId, new MeliVehicleAttributeValue(normalizedId, nullable(matched.id()), nullable(matched.name())));
+            return;
+        }
+
+        if ("list".equalsIgnoreCase(safe(attribute.valueType()))) {
+            throw new BusinessException(
+                    "MELI_ATTRIBUTE_VALUE_INVALID",
+                    "O valor informado para " + attribute.name() + " nao e aceito pelo Mercado Livre: " + normalizedValue + "."
+            );
+        }
+
+        putIfPresent(values, normalizedId, null, normalizedValue);
+    }
+
+    private MeliCategoryService.AllowedValueSnapshot matchAllowedValue(
+            MeliCategoryService.CategoryAttributeSnapshot attribute,
+            String rawValue
+    ) {
+        String normalizedInput = normalizeCatalogText(rawValue);
+        if (normalizedInput.isBlank()) {
+            return null;
+        }
+
+        String alias = catalogAlias(attribute.attributeId(), normalizedInput);
+        for (MeliCategoryService.AllowedValueSnapshot option : attribute.allowedValues()) {
+            String normalizedOption = normalizeCatalogText(option.name());
+            if (normalizedOption.equals(normalizedInput) || (!alias.isBlank() && normalizedOption.equals(alias))) {
+                return option;
+            }
+        }
+
+        for (MeliCategoryService.AllowedValueSnapshot option : attribute.allowedValues()) {
+            String normalizedOption = normalizeCatalogText(option.name());
+            if ((!alias.isBlank() && (normalizedOption.contains(alias) || alias.contains(normalizedOption)))
+                    || normalizedOption.contains(normalizedInput)
+                    || normalizedInput.contains(normalizedOption)) {
+                return option;
+            }
+        }
+        return null;
+    }
+
+    private String catalogAlias(String attributeId, String normalizedInput) {
+        String normalizedAttributeId = safe(attributeId).toUpperCase(Locale.ROOT);
+        return switch (normalizedAttributeId) {
+            case "FUEL_TYPE" -> switch (normalizedInput) {
+                case "flex", "gasolinaalcool", "alcoolgasolina", "gasolinaetanol", "etanolgasolina" -> "gasolinaealcool";
+                case "gasolinaeletrico", "eletricogasolina" -> "gasolinaeeletrico";
+                case "gasolinagnv", "gasolinagasnatural", "gnvgasolina", "gasnaturalgasolina" -> "gasolinaegasnatural";
+                case "alcoolgnv", "etanolgnv", "gnvalcool", "gnvetanol", "alcoolgasnatural", "etanolgasnatural" -> "alcoolegasnatural";
+                case "gasolinaalcoolgnv", "flexgnv", "gnvflex" -> "gasolinaalcoolegasnatural";
+                case "eletrico" -> "eletrico";
+                case "gasolina" -> "gasolina";
+                case "diesel" -> "diesel";
+                case "alcool" -> "alcool";
+                case "etanol" -> "etanol";
+                case "hibrido" -> "hibrido";
+                case "hibridogasolina", "gasolinahibrido" -> "hibridogasolina";
+                case "hibridoflex", "flexhibrido" -> "hibridoflex";
+                case "hibridodiesel", "dieselhibrido" -> "hibridodiesel";
+                default -> "";
+            };
+            case "TRANSMISSION" -> switch (normalizedInput) {
+                case "automatico", "automatica", "cvt" -> "automatica";
+                case "manual" -> "manual";
+                case "semiautomatico", "semiautomatica" -> "semiautomatica";
+                case "automaticosequencial", "automaticasequencial", "sequencial" -> "automaticasequencial";
+                default -> "";
+            };
+            case "COLOR" -> switch (normalizedInput) {
+                case "prata" -> "prateado";
+                case "cinzaescuro" -> "cinzaescuro";
+                case "cinza" -> "cinza";
+                case "preto" -> "preto";
+                case "branco" -> "branco";
+                case "vermelho" -> "vermelho";
+                case "azul" -> "azul";
+                case "verde" -> "verde";
+                case "amarelo" -> "amarelo";
+                case "bege" -> "bege";
+                case "marrom" -> "marrom";
+                default -> "";
+            };
+            default -> "";
+        };
+    }
+
+    private String normalizeCatalogText(String value) {
+        String normalized = safe(value).toLowerCase(Locale.ROOT);
+        if (normalized.isBlank()) {
+            return "";
+        }
+        String withoutAccents = Normalizer.normalize(normalized, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        return withoutAccents.replaceAll("[^a-z0-9]+", "");
     }
 
     private ObjectNode buildLocation(MeliLocationService.LocationSnapshot location) {

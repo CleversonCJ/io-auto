@@ -18,6 +18,9 @@ class MeliVehicleAdMapperTest {
     void buildCreatePayloadIncludesClassifiedVehicleFields() {
         MeliVehicleAdMapper mapper = new MeliVehicleAdMapper();
         JpaIoAutoVehicleEntity vehicle = baseVehicle();
+        vehicle.setFuelType("Flex");
+        vehicle.setTransmission("Automatico");
+        vehicle.setColor("Prata");
 
         MeliVehicleAdMapper.Payload payload = mapper.buildCreatePayload(
                 UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
@@ -44,7 +47,19 @@ class MeliVehicleAdMapperTest {
                         attribute("BRAND", true),
                         attribute("MODEL", true),
                         attribute("VEHICLE_YEAR", true),
-                        attribute("KILOMETERS", false)
+                        attribute("KILOMETERS", false),
+                        listAttribute("FUEL_TYPE", false,
+                                allowed("372591", "Gasolina e álcool"),
+                                allowed("64364", "Gasolina")
+                        ),
+                        listAttribute("TRANSMISSION", false,
+                                allowed("370876", "Automática"),
+                                allowed("370877", "Manual")
+                        ),
+                        listAttribute("COLOR", false,
+                                allowed("52053", "Prateado"),
+                                allowed("52055", "Branco")
+                        )
                 ),
                 List.of(),
                 "BRL"
@@ -59,6 +74,15 @@ class MeliVehicleAdMapperTest {
         assertThat(root.path("pictures")).hasSize(2);
         assertThat(root.path("location").path("city").path("name").asText("")).isEqualTo("Cascavel");
         assertThat(root.path("attributes")).extracting(node -> node.path("id").asText("")).contains("BRAND", "MODEL", "VEHICLE_YEAR", "KILOMETERS");
+        JsonNode fuelType = findAttribute(root, "FUEL_TYPE");
+        JsonNode transmission = findAttribute(root, "TRANSMISSION");
+        JsonNode color = findAttribute(root, "COLOR");
+        assertThat(fuelType.path("value_id").asText("")).isEqualTo("372591");
+        assertThat(fuelType.path("value_name").asText("")).isEqualTo("Gasolina e álcool");
+        assertThat(transmission.path("value_id").asText("")).isEqualTo("370876");
+        assertThat(transmission.path("value_name").asText("")).isEqualTo("Automática");
+        assertThat(color.path("value_id").asText("")).isEqualTo("52053");
+        assertThat(color.path("value_name").asText("")).isEqualTo("Prateado");
     }
 
     @Test
@@ -128,5 +152,34 @@ class MeliVehicleAdMapperTest {
                 List.of(),
                 "{}"
         );
+    }
+
+    private MeliCategoryService.CategoryAttributeSnapshot listAttribute(
+            String attributeId,
+            boolean required,
+            MeliCategoryService.AllowedValueSnapshot... values
+    ) {
+        return new MeliCategoryService.CategoryAttributeSnapshot(
+                attributeId,
+                attributeId,
+                "list",
+                required,
+                false,
+                List.of(values),
+                "{}"
+        );
+    }
+
+    private MeliCategoryService.AllowedValueSnapshot allowed(String id, String name) {
+        return new MeliCategoryService.AllowedValueSnapshot(id, name);
+    }
+
+    private JsonNode findAttribute(JsonNode root, String attributeId) {
+        for (JsonNode node : root.path("attributes")) {
+            if (attributeId.equals(node.path("id").asText(""))) {
+                return node;
+            }
+        }
+        throw new AssertionError("Atributo nao encontrado no payload: " + attributeId);
     }
 }
