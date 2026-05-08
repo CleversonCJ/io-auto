@@ -124,6 +124,51 @@ class MeliVehicleAdMapperTest {
                 .hasMessageContaining("Faltam atributos obrigatorios");
     }
 
+    @Test
+    void buildCreatePayloadUsesFallbackCatalogIdsWhenAllowedValuesAreMissing() {
+        MeliVehicleAdMapper mapper = new MeliVehicleAdMapper();
+        JpaIoAutoVehicleEntity vehicle = baseVehicle();
+        vehicle.setFuelType("Flex");
+        vehicle.setTransmission("Automatico");
+
+        MeliVehicleAdMapper.Payload payload = mapper.buildCreatePayload(
+                UUID.randomUUID(),
+                vehicle,
+                new MeliLocationService.LocationSnapshot(
+                        "Av. Brasil, 1000",
+                        "85600000",
+                        "",
+                        "",
+                        "TUxBQ0NBUzEyMzQ",
+                        "Cascavel",
+                        "BR-PR",
+                        "Parana",
+                        "BR",
+                        "Brasil"
+                ),
+                "MLB1744",
+                "gold_special",
+                "used",
+                "VEHICLE-" + vehicle.getId(),
+                vehicle.getTitle(),
+                BigDecimal.valueOf(65_900),
+                List.of(
+                        attribute("BRAND", true),
+                        attribute("MODEL", true),
+                        attribute("VEHICLE_YEAR", true),
+                        listAttribute("FUEL_TYPE", true),
+                        listAttribute("TRANSMISSION", false)
+                ),
+                List.of(),
+                "BRL"
+        );
+
+        JsonNode fuelType = findAttribute(payload.payloadNode(), "FUEL_TYPE");
+        JsonNode transmission = findAttribute(payload.payloadNode(), "TRANSMISSION");
+        assertThat(fuelType.path("value_id").asText("")).isEqualTo("372591");
+        assertThat(transmission.path("value_id").asText("")).isEqualTo("370876");
+    }
+
     private JpaIoAutoVehicleEntity baseVehicle() {
         JpaIoAutoVehicleEntity vehicle = new JpaIoAutoVehicleEntity();
         vehicle.setId(UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"));

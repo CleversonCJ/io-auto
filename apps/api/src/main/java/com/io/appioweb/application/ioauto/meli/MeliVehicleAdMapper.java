@@ -171,6 +171,11 @@ public class MeliVehicleAdMapper {
 
         MeliCategoryService.CategoryAttributeSnapshot attribute = attributesById.get(normalizedId);
         if (attribute == null || attribute.allowedValues() == null || attribute.allowedValues().isEmpty()) {
+            MeliVehicleAttributeValue fallback = fallbackCatalogValue(normalizedId, normalizedValue);
+            if (fallback != null) {
+                values.put(normalizedId, fallback);
+                return;
+            }
             putIfPresent(values, normalizedId, null, normalizedValue);
             return;
         }
@@ -178,6 +183,12 @@ public class MeliVehicleAdMapper {
         MeliCategoryService.AllowedValueSnapshot matched = matchAllowedValue(attribute, normalizedValue);
         if (matched != null) {
             values.put(normalizedId, new MeliVehicleAttributeValue(normalizedId, nullable(matched.id()), nullable(matched.name())));
+            return;
+        }
+
+        MeliVehicleAttributeValue fallback = fallbackCatalogValue(normalizedId, normalizedValue);
+        if (fallback != null) {
+            values.put(normalizedId, fallback);
             return;
         }
 
@@ -272,6 +283,64 @@ public class MeliVehicleAdMapper {
         String withoutAccents = Normalizer.normalize(normalized, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}+", "");
         return withoutAccents.replaceAll("[^a-z0-9]+", "");
+    }
+
+    private MeliVehicleAttributeValue fallbackCatalogValue(String attributeId, String rawValue) {
+        String normalizedAttributeId = safe(attributeId).toUpperCase(Locale.ROOT);
+        String normalizedInput = normalizeCatalogText(rawValue);
+        if (normalizedInput.isBlank()) {
+            return null;
+        }
+
+        return switch (normalizedAttributeId) {
+            case "FUEL_TYPE" -> switch (normalizedInput) {
+                case "flex", "gasolinaalcool", "alcoolgasolina", "gasolinaetanol", "etanolgasolina" ->
+                        new MeliVehicleAttributeValue("FUEL_TYPE", "372591", "Gasolina e álcool");
+                case "gasolina" -> new MeliVehicleAttributeValue("FUEL_TYPE", "64364", "Gasolina");
+                case "diesel" -> new MeliVehicleAttributeValue("FUEL_TYPE", "60406", "Diesel");
+                case "etanol" -> new MeliVehicleAttributeValue("FUEL_TYPE", "13247065", "Etanol");
+                case "alcool" -> new MeliVehicleAttributeValue("FUEL_TYPE", "2517339", "Álcool");
+                case "eletrico" -> new MeliVehicleAttributeValue("FUEL_TYPE", "403613", "Elétrico");
+                case "hibrido" -> new MeliVehicleAttributeValue("FUEL_TYPE", "61257", "Híbrido");
+                case "hibridoflex", "flexhibrido" -> new MeliVehicleAttributeValue("FUEL_TYPE", "50126777", "Híbrido/Flex");
+                case "hibridogasolina", "gasolinahibrido" -> new MeliVehicleAttributeValue("FUEL_TYPE", "1233789", "Híbrido/Gasolina");
+                case "hibridodiesel", "dieselhibrido" -> new MeliVehicleAttributeValue("FUEL_TYPE", "2792221", "Híbrido/Diesel");
+                case "gasolinaeletrico", "eletricogasolina" -> new MeliVehicleAttributeValue("FUEL_TYPE", "372592", "Gasolina e elétrico");
+                case "gasolinagnv", "gasolinagasnatural", "gnvgasolina", "gasnaturalgasolina" ->
+                        new MeliVehicleAttributeValue("FUEL_TYPE", "372593", "Gasolina e gás natural");
+                case "alcoolgnv", "etanolgnv", "gnvalcool", "gnvetanol", "alcoolgasnatural", "etanolgasnatural" ->
+                        new MeliVehicleAttributeValue("FUEL_TYPE", "372587", "Álcool e gás natural");
+                case "gasolinaalcoolgnv", "flexgnv", "gnvflex" ->
+                        new MeliVehicleAttributeValue("FUEL_TYPE", "372590", "Gasolina-Álcool e gás natural");
+                default -> null;
+            };
+            case "TRANSMISSION" -> switch (normalizedInput) {
+                case "automatico", "automatica", "cvt" ->
+                        new MeliVehicleAttributeValue("TRANSMISSION", "370876", "Automática");
+                case "manual" ->
+                        new MeliVehicleAttributeValue("TRANSMISSION", "370877", "Manual");
+                case "semiautomatico", "semiautomatica" ->
+                        new MeliVehicleAttributeValue("TRANSMISSION", "378323", "Semiautomática");
+                case "automaticosequencial", "automaticasequencial", "sequencial" ->
+                        new MeliVehicleAttributeValue("TRANSMISSION", "1244809", "Automática sequencial");
+                default -> null;
+            };
+            case "COLOR" -> switch (normalizedInput) {
+                case "prata", "prateado" -> new MeliVehicleAttributeValue("COLOR", "52053", "Prateado");
+                case "preto" -> new MeliVehicleAttributeValue("COLOR", "52049", "Preto");
+                case "branco" -> new MeliVehicleAttributeValue("COLOR", "52055", "Branco");
+                case "cinza" -> new MeliVehicleAttributeValue("COLOR", "283165", "Cinza");
+                case "cinzaescuro" -> new MeliVehicleAttributeValue("COLOR", "52051", "Cinza-escuro");
+                case "vermelho" -> new MeliVehicleAttributeValue("COLOR", "51993", "Vermelho");
+                case "azul" -> new MeliVehicleAttributeValue("COLOR", "52028", "Azul");
+                case "verde" -> new MeliVehicleAttributeValue("COLOR", "52014", "Verde");
+                case "amarelo" -> new MeliVehicleAttributeValue("COLOR", "52007", "Amarelo");
+                case "bege" -> new MeliVehicleAttributeValue("COLOR", "52001", "Bege");
+                case "marrom" -> new MeliVehicleAttributeValue("COLOR", "52005", "Marrom");
+                default -> null;
+            };
+            default -> null;
+        };
     }
 
     private ObjectNode buildLocation(MeliLocationService.LocationSnapshot location) {
