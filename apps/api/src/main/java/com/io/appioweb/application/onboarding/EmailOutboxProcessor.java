@@ -88,7 +88,9 @@ public class EmailOutboxProcessor {
     }
 
     private String getSubjectForTemplate(String template) {
-        return switch (template) {
+        String normalized = template == null ? "" : template.trim().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+
+        return switch (normalized) {
             case "first-user-access" -> "Bem-vindo ao IO Connect! Dados de Acesso";
             default -> "Notificação IO Connect";
         };

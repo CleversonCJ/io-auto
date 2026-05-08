@@ -37,7 +37,7 @@ public class SmtpEmailSender implements EmailSenderService {
 
             Context context = new Context();
             context.setVariables(model);
-            String htmlContent = templateEngine.process(template, context);
+            String htmlContent = templateEngine.process(resolveTemplateName(template), context);
 
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
@@ -54,5 +54,16 @@ public class SmtpEmailSender implements EmailSenderService {
             log.error("Failed to send email to {}", to, e);
             throw new RuntimeException("Error sending email", e);
         }
+    }
+
+    private String resolveTemplateName(String template) {
+        String normalized = template == null ? "" : template.trim();
+        if (normalized.isBlank()) {
+            return normalized;
+        }
+
+        return normalized
+                .toLowerCase(java.util.Locale.ROOT)
+                .replace('_', '-');
     }
 }
