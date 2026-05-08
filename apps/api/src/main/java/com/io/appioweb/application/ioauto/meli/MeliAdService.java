@@ -1,5 +1,6 @@
 package com.io.appioweb.application.ioauto.meli;
 
+import com.io.appioweb.adapters.integrations.mercadolivre.MeliApiException;
 import com.io.appioweb.adapters.integrations.mercadolivre.MeliApiClient;
 import com.io.appioweb.adapters.integrations.mercadolivre.MeliValidationException;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoVehicleRepositoryJpa;
@@ -8,6 +9,8 @@ import com.io.appioweb.adapters.persistence.ioauto.JpaMeliAdEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaMeliAccountEntity;
 import com.io.appioweb.adapters.persistence.ioauto.MeliAdRepositoryJpa;
 import com.io.appioweb.shared.errors.BusinessException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
@@ -25,6 +28,7 @@ import java.util.UUID;
 @Service
 public class MeliAdService {
 
+    private static final Logger log = LoggerFactory.getLogger(MeliAdService.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final IoAutoVehicleRepositoryJpa vehicles;
@@ -95,7 +99,6 @@ public class MeliAdService {
             if (itemId.isBlank()) {
                 throw new BusinessException("MELI_PUBLISH_FAILED", "O Mercado Livre nao retornou o item_id do anuncio.");
             }
-            updateDescription(companyId, itemId, resolveDescription(vehicle));
 
             JpaMeliAdEntity ad = upsertAd(companyId, vehicleId, ads.findByCompanyIdAndVehicleId(companyId, vehicleId).orElse(null), sellerSku);
             ad.setLastPayload(payload.payloadJson());
@@ -107,9 +110,12 @@ public class MeliAdService {
             }
             ads.save(ad);
             publicationStatusService.sync(ad);
+            updateDescriptionBestEffort(companyId, itemId, resolveDescription(vehicle), ad);
             return toSnapshot(ad);
         } catch (MeliValidationException exception) {
             throw new BusinessException("MELI_PUBLISH_FAILED", friendlyValidationMessage(exception));
+        } catch (MeliApiException exception) {
+            throw new BusinessException("MELI_PUBLISH_FAILED", friendlyApiMessage(exception));
         }
     }
 
@@ -135,7 +141,6 @@ public class MeliAdService {
         );
         try {
             MeliApiClient.JsonResponse response = apiClient.put("/items/" + ad.getMeliItemId(), companyId, payload.payloadNode());
-            updateDescription(companyId, ad.getMeliItemId(), resolveDescription(vehicle));
             ad.setLastPayload(payload.payloadJson());
             ad.setLastResponse(response.rawBody());
             ad.setLastError(null);
@@ -143,9 +148,12 @@ public class MeliAdService {
             ad.setLastSyncedAt(Instant.now());
             ads.save(ad);
             publicationStatusService.sync(ad);
+            updateDescriptionBestEffort(companyId, ad.getMeliItemId(), resolveDescription(vehicle), ad);
             return toSnapshot(ad);
         } catch (MeliValidationException exception) {
             throw new BusinessException("MELI_UPDATE_FAILED", friendlyValidationMessage(exception));
+        } catch (MeliApiException exception) {
+            throw new BusinessException("MELI_UPDATE_FAILED", friendlyApiMessage(exception));
         }
     }
 
@@ -264,6 +272,17 @@ public class MeliAdService {
             return;
         }
         apiClient.put("/items/" + itemId + "/description", companyId, java.util.Map.of("plain_text", normalized));
+    }
+
+    private void updateDescriptionBestEffort(UUID companyId, String itemId, String description, JpaMeliAdEntity ad) {
+        try {
+            updateDescription(companyId, itemId, description);
+        } catch (MeliApiException exception) {
+            log.warn("MELI description update failed for item {} company {}: {}", itemId, companyId, exception.getMessage());
+            ad.setLastError("Descricao nao atualizada: " + friendlyApiMessage(exception));
+            ad.setUpdatedAt(Instant.now());
+            ads.save(ad);
+        }
     }
 
     private RemoteItemsPage listSellerItems(UUID companyId, String status, Integer offset, Integer limit, boolean persistLocally) {
@@ -495,6 +514,18 @@ public class MeliAdService {
             return "Imagem invalida ou inacessivel.";
         }
         return message.isBlank() ? "O Mercado Livre recusou a requisicao." : message;
+    }
+
+    private String friendlyApiMessage(MeliApiException exception) {
+        String message = safe(exception.getMessage());
+        if (!message.isBlank()) {
+            return message;
+        }
+        String reason = safe(exception.reason());
+        if (!reason.isBlank()) {
+            return reason;
+        }
+        return "O Mercado Livre rejeitou a requisicao (HTTP " + exception.httpStatus() + ").";
     }
 
     private MeliAdSnapshot toSnapshot(JpaMeliAdEntity ad) {

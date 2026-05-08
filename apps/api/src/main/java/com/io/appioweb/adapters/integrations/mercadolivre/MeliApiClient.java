@@ -191,7 +191,11 @@ public class MeliApiClient {
                 text(root, "error_description"),
                 text(root, "error")
         );
-        String fallbackMessage = message.isBlank() ? "O Mercado Livre rejeitou a requisicao." : message;
+        String fallbackMessage = firstNonBlank(
+                message,
+                reason,
+                "O Mercado Livre rejeitou a requisicao (HTTP " + response.httpStatus() + ")."
+        );
         return switch (response.httpStatus()) {
             case 400 -> new MeliValidationException(fallbackMessage, response.httpStatus(), reason);
             case 401 -> new MeliUnauthorizedException(fallbackMessage, response.httpStatus(), reason);
