@@ -20,19 +20,17 @@ public class EmailOutboxProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(EmailOutboxProcessor.class);
     private static final int MAX_RETRIES = 3;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final EmailOutboxRepositoryJpa outboxRepository;
     private final EmailSenderService emailSenderService;
-    private final ObjectMapper objectMapper;
 
     public EmailOutboxProcessor(
             EmailOutboxRepositoryJpa outboxRepository,
-            EmailSenderService emailSenderService,
-            ObjectMapper objectMapper
+            EmailSenderService emailSenderService
     ) {
         this.outboxRepository = outboxRepository;
         this.emailSenderService = emailSenderService;
-        this.objectMapper = objectMapper;
     }
 
     @Scheduled(fixedDelay = 30000) // Every 30 seconds
@@ -57,7 +55,7 @@ public class EmailOutboxProcessor {
     }
 
     private void processEmail(JpaEmailOutboxEntity email) throws Exception {
-        Map<String, Object> model = objectMapper.readValue(
+        Map<String, Object> model = OBJECT_MAPPER.readValue(
                 email.getPayloadJson(), 
                 new TypeReference<Map<String, Object>>() {}
         );
