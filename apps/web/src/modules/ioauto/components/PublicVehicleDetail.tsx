@@ -23,6 +23,7 @@ import {
     trackPublicLeadEvent,
     withPublicLeadTracking,
 } from "@/modules/ioauto/publicLeadTracking";
+import { PublicCatalogLeadCaptureModal } from "@/modules/ioauto/components/PublicCatalogLeadCaptureModal";
 import type { PublicVehicleDetail } from "@/modules/ioauto/types";
 
 function getVehicleImages(detail: PublicVehicleDetail["vehicle"]) {
@@ -60,6 +61,7 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
 
     const images = useMemo(() => getVehicleImages(data.vehicle), [data.vehicle]);
     const [selectedImage, setSelectedImage] = useState(images[0] ?? null);
+    const [leadCaptureEventType, setLeadCaptureEventType] = useState<"CONTACT_CLICK" | "INTEREST_CLICK" | null>(null);
 
     useEffect(() => {
         setSelectedImage(images[0] ?? null);
@@ -117,27 +119,19 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                             </div>
                         </div>
 
-                        <a
-                            href={contactHref ?? undefined}
-                            target={contactHref ? "_blank" : undefined}
-                            rel={contactHref ? "noreferrer" : undefined}
-                            onClick={() =>
-                                trackPublicLeadEvent(data.company.id, {
-                                    vehicleId: data.vehicle.id,
-                                    eventType: "CONTACT_CLICK",
-                                    sourceType: tracking.sourceType,
-                                    sourceReference: tracking.sourceReference,
-                                })
-                            }
+                        <button
+                            type="button"
+                            onClick={() => setLeadCaptureEventType("CONTACT_CLICK")}
                             className={`inline-flex h-12 items-center justify-center gap-2 rounded-full px-5 text-sm font-bold transition ${
                                 contactHref
                                     ? "bg-io-purple text-white hover:opacity-90"
                                     : "cursor-not-allowed bg-black/[0.06] text-black/45"
                             }`}
+                            disabled={!contactHref}
                         >
                             <MessageCircle className="h-4 w-4" />
                             {contactHref ? "Contato via WhatsApp" : "Contato indisponivel"}
-                        </a>
+                        </button>
                     </div>
                 </header>
 
@@ -212,27 +206,19 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                             <p className="mt-2 text-4xl font-bold tracking-tight text-io-dark">{formatMoney(data.vehicle.priceCents)}</p>
                         </div>
 
-                        <a
-                            href={contactHref ?? undefined}
-                            target={contactHref ? "_blank" : undefined}
-                            rel={contactHref ? "noreferrer" : undefined}
-                            onClick={() =>
-                                trackPublicLeadEvent(data.company.id, {
-                                    vehicleId: data.vehicle.id,
-                                    eventType: "INTEREST_CLICK",
-                                    sourceType: tracking.sourceType,
-                                    sourceReference: tracking.sourceReference,
-                                })
-                            }
+                        <button
+                            type="button"
+                            onClick={() => setLeadCaptureEventType("INTEREST_CLICK")}
                             className={`mt-6 inline-flex h-14 w-full items-center justify-center gap-2 rounded-full px-5 text-sm font-bold transition shadow-md ${
                                 contactHref
                                     ? "bg-io-purple text-white hover:opacity-90"
                                     : "cursor-not-allowed bg-black/[0.06] text-black/45"
                             }`}
+                            disabled={!contactHref}
                         >
                             <MessageCircle className="h-4 w-4" />
                             Tenho Interesse
-                        </a>
+                        </button>
 
                         <div className="mt-6 rounded-[26px] bg-black/5 px-4 py-4">
                             <p className="text-xs font-bold uppercase tracking-[0.2em] text-black/38">Resumo rápido</p>
@@ -290,6 +276,17 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                     </div>
                 </section>
             </div>
+
+            <PublicCatalogLeadCaptureModal
+                open={leadCaptureEventType !== null}
+                companyId={data.company.id}
+                redirectUrl={contactHref}
+                vehicleId={data.vehicle.id}
+                vehicleTitle={data.vehicle.title}
+                eventType={leadCaptureEventType ?? "INTEREST_CLICK"}
+                tracking={tracking}
+                onClose={() => setLeadCaptureEventType(null)}
+            />
         </main>
     );
 }

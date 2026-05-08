@@ -22,6 +22,7 @@ import {
     trackPublicLeadEvent,
     withPublicLeadTracking,
 } from "@/modules/ioauto/publicLeadTracking";
+import { PublicCatalogLeadCaptureModal } from "@/modules/ioauto/components/PublicCatalogLeadCaptureModal";
 import type { PublicInventoryBanner, PublicInventoryCatalog, PublicInventoryVehicle } from "@/modules/ioauto/types";
 
 function getVehicleImages(vehicle: PublicInventoryVehicle) {
@@ -62,17 +63,13 @@ function getInitials(name?: string | null) {
 
 function CatalogBanner({
     banner,
-    companyName,
-    vehicleCount,
     detailHref,
-    contactHref,
+    contactEnabled,
     onContactClick,
 }: {
     banner: PublicInventoryBanner;
-    companyName: string;
-    vehicleCount: number;
     detailHref: string;
-    contactHref: string | null;
+    contactEnabled: boolean;
     onContactClick: () => void;
 }) {
     const isCustomImage = banner.kind === "CUSTOM_IMAGE";
@@ -143,20 +140,19 @@ function CatalogBanner({
                         Ver detalhes
                         <ArrowRight className="h-4 w-4" />
                     </Link>
-                    <a
-                        href={contactHref ?? undefined}
-                        target={contactHref ? "_blank" : undefined}
-                        rel={contactHref ? "noreferrer" : undefined}
+                    <button
+                        type="button"
                         onClick={onContactClick}
                         className={`inline-flex h-14 items-center justify-center gap-2 rounded-full px-5 text-sm font-bold transition ${
-                            contactHref
+                            contactEnabled
                                 ? "bg-io-purple text-white hover:opacity-90"
                                 : "cursor-not-allowed bg-black/8 text-black/45"
                         }`}
+                        disabled={!contactEnabled}
                     >
                         <MessageCircle className="h-4 w-4" />
                         Tenho interesse
-                    </a>
+                    </button>
                 </div>
             </div>
         </div>
@@ -164,16 +160,14 @@ function CatalogBanner({
 }
 
 function VehicleCard({
-    companyId,
     vehicle,
     detailHref,
-    contactHref,
+    contactEnabled,
     onContactClick,
 }: {
-    companyId: string;
     vehicle: PublicInventoryVehicle;
     detailHref: string;
-    contactHref: string | null;
+    contactEnabled: boolean;
     onContactClick: () => void;
 }) {
     const images = getVehicleImages(vehicle);
@@ -225,19 +219,18 @@ function VehicleCard({
                 </div>
 
                 <div className="mt-5 flex gap-2">
-                    <a
-                        href={contactHref ?? undefined}
-                        target={contactHref ? "_blank" : undefined}
-                        rel={contactHref ? "noreferrer" : undefined}
+                    <button
+                        type="button"
                         onClick={onContactClick}
                         className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition ${
-                            contactHref
+                            contactEnabled
                                 ? "border border-black/10 bg-white text-black/75 hover:border-black/20 hover:text-io-dark shadow-sm"
                                 : "cursor-not-allowed border border-black/8 bg-black/[0.03] text-black/35"
                         }`}
+                        disabled={!contactEnabled}
                     >
                         <MessageCircle className="h-4 w-4" />
-                    </a>
+                    </button>
                     <Link
                         href={detailHref}
                         className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-io-dark px-5 text-sm font-bold text-white transition hover:bg-black/85 shadow-sm"
@@ -261,6 +254,12 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
     const [transmission, setTransmission] = useState("all");
     const [fuelType, setFuelType] = useState("all");
     const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+    const [leadCapture, setLeadCapture] = useState<{
+        redirectUrl: string | null;
+        vehicleId: string | null;
+        vehicleTitle: string | null;
+        eventType: "CONTACT_CLICK" | "INTEREST_CLICK";
+    } | null>(null);
 
     const banners = data.banners.length ? data.banners : data.vehicles.slice(0, 5).map((vehicle) => ({
         id: vehicle.id,
@@ -371,15 +370,14 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                             </div>
                         </div>
 
-                        <a
-                            href={companyContactHref ?? undefined}
-                            target={companyContactHref ? "_blank" : undefined}
-                            rel={companyContactHref ? "noreferrer" : undefined}
+                        <button
+                            type="button"
                             onClick={() =>
-                                trackPublicLeadEvent(data.company.id, {
+                                setLeadCapture({
+                                    redirectUrl: companyContactHref,
+                                    vehicleId: null,
+                                    vehicleTitle: null,
                                     eventType: "CONTACT_CLICK",
-                                    sourceType: tracking.sourceType,
-                                    sourceReference: tracking.sourceReference,
                                 })
                             }
                             className={`inline-flex h-12 items-center justify-center gap-2 rounded-full px-5 text-sm font-bold transition ${
@@ -387,10 +385,11 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                                     ? "bg-io-purple text-white hover:opacity-90"
                                     : "cursor-not-allowed bg-black/[0.06] text-black/45"
                             }`}
+                            disabled={!companyContactHref}
                         >
                             <MessageCircle className="h-4 w-4" />
                             {companyContactHref ? "Contato via WhatsApp" : "Contato indisponivel"}
-                        </a>
+                        </button>
                     </div>
                 </header>
 
@@ -399,26 +398,24 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                         <>
                             <CatalogBanner
                                 banner={currentBanner}
-                                companyName={data.company.name}
-                                vehicleCount={filteredVehicles.length}
                                 detailHref={
                                     currentBanner.kind === "VEHICLE" && currentBanner.vehicleId
                                         ? withPublicLeadTracking(`/estoque-publico/${data.company.publicSlug}/veiculo/${currentBanner.vehicleId}`, tracking)
                                         : `#${stockSectionId}`
                                 }
-                                contactHref={buildTrackedWhatsappHref(
-                                    data.company.whatsappNumber,
-                                    currentBanner.kind === "VEHICLE"
-                                        ? `Ola! Tenho interesse no veiculo ${currentBanner.title}.`
-                                        : "Ola! Vim pelo catalogo publico e gostaria de mais informacoes sobre os carros disponiveis.",
-                                    tracking
-                                )}
+                                contactEnabled={Boolean(data.company.whatsappNumber)}
                                 onContactClick={() =>
-                                    trackPublicLeadEvent(data.company.id, {
+                                    setLeadCapture({
+                                        redirectUrl: buildTrackedWhatsappHref(
+                                            data.company.whatsappNumber,
+                                            currentBanner.kind === "VEHICLE"
+                                                ? `Ola! Tenho interesse no veiculo ${currentBanner.title}.`
+                                                : "Ola! Vim pelo catalogo publico e gostaria de mais informacoes sobre os carros disponiveis.",
+                                            tracking
+                                        ),
                                         vehicleId: currentBanner.kind === "VEHICLE" ? currentBanner.vehicleId : null,
+                                        vehicleTitle: currentBanner.kind === "VEHICLE" ? currentBanner.title : null,
                                         eventType: "INTEREST_CLICK",
-                                        sourceType: tracking.sourceType,
-                                        sourceReference: tracking.sourceReference,
                                     })
                                 }
                             />
@@ -507,20 +504,19 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                             {filteredVehicles.map((vehicle) => (
                                 <VehicleCard
                                     key={vehicle.id}
-                                    companyId={data.company.id}
                                     vehicle={vehicle}
                                     detailHref={withPublicLeadTracking(`/estoque-publico/${data.company.publicSlug}/veiculo/${vehicle.id}`, tracking)}
-                                    contactHref={buildTrackedWhatsappHref(
-                                        data.company.whatsappNumber,
-                                        `Ola! Tenho interesse no veiculo ${vehicle.title}.`,
-                                        tracking
-                                    )}
+                                    contactEnabled={Boolean(data.company.whatsappNumber)}
                                     onContactClick={() =>
-                                        trackPublicLeadEvent(data.company.id, {
+                                        setLeadCapture({
+                                            redirectUrl: buildTrackedWhatsappHref(
+                                                data.company.whatsappNumber,
+                                                `Ola! Tenho interesse no veiculo ${vehicle.title}.`,
+                                                tracking
+                                            ),
                                             vehicleId: vehicle.id,
+                                            vehicleTitle: vehicle.title,
                                             eventType: "INTEREST_CLICK",
-                                            sourceType: tracking.sourceType,
-                                            sourceReference: tracking.sourceReference,
                                         })
                                     }
                                 />
@@ -537,6 +533,17 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                     )}
                 </section>
             </div>
+
+            <PublicCatalogLeadCaptureModal
+                open={Boolean(leadCapture)}
+                companyId={data.company.id}
+                redirectUrl={leadCapture?.redirectUrl ?? null}
+                vehicleId={leadCapture?.vehicleId ?? null}
+                vehicleTitle={leadCapture?.vehicleTitle ?? null}
+                eventType={leadCapture?.eventType ?? "CONTACT_CLICK"}
+                tracking={tracking}
+                onClose={() => setLeadCapture(null)}
+            />
         </main>
     );
 }

@@ -108,7 +108,7 @@ function NavIcon({ icon }: { icon: NavItem["icon"] }) {
 function getDefaultSidebarItems(): NavItem[] {
     return [
         { label: "Dashboard", href: "/protected/dashboard", icon: "dashboard" },
-        { label: "Leads", href: "/protected/conversas", icon: "conversas" },
+        { label: "Leads", href: "/protected/leads", icon: "conversas" },
         { label: "CRM", href: "/protected/crm", icon: "crm" },
         { label: "Estoque", href: "/protected/estoque", icon: "estoque" },
         { label: "Financeiro", href: "/protected/financeiro", icon: "financeiro" },
