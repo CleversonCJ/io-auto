@@ -19,6 +19,7 @@ import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehiclePublicationEn
 import com.io.appioweb.application.auth.port.out.CompanyRepositoryPort;
 import com.io.appioweb.application.auth.port.out.CurrentUserPort;
 import com.io.appioweb.application.ioauto.VehicleAutoPublicationService;
+import com.io.appioweb.realtime.RealtimeGateway;
 import com.io.appioweb.shared.errors.BusinessException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -137,6 +138,7 @@ public class IoAutoController {
     private final IoAutoPublicCatalogLeadRepositoryJpa publicCatalogLeads;
     private final IoAutoBillingService billingService;
     private final VehicleAutoPublicationService vehicleAutoPublicationService;
+    private final RealtimeGateway realtime;
     private final MeliAdService meliAdService;
     private final MeliCategoryService meliCategoryService;
     private final MeliListingTypeService meliListingTypeService;
@@ -155,6 +157,7 @@ public class IoAutoController {
             IoAutoPublicCatalogLeadRepositoryJpa publicCatalogLeads,
             IoAutoBillingService billingService,
             VehicleAutoPublicationService vehicleAutoPublicationService,
+            RealtimeGateway realtime,
             MeliAdService meliAdService,
             MeliCategoryService meliCategoryService,
             MeliListingTypeService meliListingTypeService,
@@ -172,6 +175,7 @@ public class IoAutoController {
         this.publicCatalogLeads = publicCatalogLeads;
         this.billingService = billingService;
         this.vehicleAutoPublicationService = vehicleAutoPublicationService;
+        this.realtime = realtime;
         this.meliAdService = meliAdService;
         this.meliCategoryService = meliCategoryService;
         this.meliListingTypeService = meliListingTypeService;
@@ -436,6 +440,17 @@ public class IoAutoController {
         entity.setCreatedAt(Instant.now());
         publicCatalogLeads.save(entity);
 
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    realtime.publicCatalogLeadCreated(companyId);
+                }
+            });
+        } else {
+            realtime.publicCatalogLeadCreated(companyId);
+        }
+
         return ResponseEntity.noContent().build();
     }
 
@@ -616,6 +631,9 @@ public class IoAutoController {
     ) {
         UUID companyId = currentUser.companyId();
         PublicCatalogLeadPeriodSelection periodSelection = resolvePublicCatalogLeadPeriod(preset, from, to);
+        String publicSlug = companies.findById(companyId)
+                .map(company -> slugifyPublicPathSegment(company.name()))
+                .orElse("catalogo");
 
         List<JpaIoAutoPublicCatalogLeadEntity> leads = publicCatalogLeads
                 .findAllByCompanyIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
@@ -644,6 +662,7 @@ public class IoAutoController {
                             normalizeText(lead.getCustomerPhone()),
                             lead.getVehicleId(),
                             vehicle == null ? null : normalizeNullableText(vehicle.getTitle()),
+                            vehicle == null ? null : "/estoque-publico/" + publicSlug + "/veiculo/" + lead.getVehicleId(),
                             normalizeNullableText(lead.getSourceType()),
                             normalizeNullableText(lead.getSourceReference()),
                             normalizeNullableText(lead.getPagePath()),
@@ -2039,6 +2058,7 @@ public class IoAutoController {
                 String customerPhone,
                 UUID vehicleId,
                 String vehicleTitle,
+                String publicVehiclePath,
                 String sourceType,
                 String sourceReference,
                 String pagePath,

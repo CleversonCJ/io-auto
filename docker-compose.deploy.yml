@@ -50,6 +50,11 @@ services:
       ASAAS_ACCESS_TOKEN: ${ASAAS_ACCESS_TOKEN}
       LOGIN_URL: ${LOGIN_URL:-https://app.ioauto.com.br/login}
       SET_PASSWORD_URL: ${SET_PASSWORD_URL:-https://app.ioauto.com.br/definir-senha}
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-contato@ioauto.com.br}
     expose:
       - "8080"
     networks:

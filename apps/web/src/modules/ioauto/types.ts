@@ -532,6 +532,7 @@ export type PublicCatalogLeadList = {
         customerPhone: string;
         vehicleId: string | null;
         vehicleTitle: string | null;
+        publicVehiclePath: string | null;
         sourceType: string | null;
         sourceReference: string | null;
         pagePath: string | null;

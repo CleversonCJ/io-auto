@@ -114,6 +114,11 @@ public class RealtimeWebSocketHandler extends TextWebSocketHandler implements Re
         publish(companyId, new RealtimeEvent("crm.state.changed", companyId, null, Instant.now()));
     }
 
+    @Override
+    public void publicCatalogLeadCreated(UUID companyId) {
+        publish(companyId, new RealtimeEvent("public.catalog.lead.created", companyId, null, Instant.now()));
+    }
+
     private void publish(UUID companyId, RealtimeEvent event) {
         Set<WebSocketSession> sessions = sessionsByCompany.get(companyId);
         if (sessions == null || sessions.isEmpty()) return;
