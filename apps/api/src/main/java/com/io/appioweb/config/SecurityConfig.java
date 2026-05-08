@@ -4,10 +4,12 @@ import com.io.appioweb.adapters.security.AccessBlacklistFilter;
 import com.io.appioweb.adapters.security.OnboardingSecurityFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
@@ -28,11 +30,37 @@ public class SecurityConfig {
         return authenticationConverter;
     }
 
+    /**
+     * HIGH PRIORITY chain for Onboarding API.
+     * This chain DOES NOT use OAuth2/JWT resource server, so it won't conflict with the Bearer token.
+     */
     @Bean
-    SecurityFilterChain securityFilterChain(
+    @Order(1)
+    SecurityFilterChain onboardingFilterChain(
+            HttpSecurity http,
+            OnboardingSecurityFilter onboardingSecurityFilter
+    ) throws Exception {
+        http
+                .securityMatcher("/v1/onboarding/**")
+                .csrf(csrf -> csrf.disable())
+                .cors(Customizer.withDefaults())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .anyRequest().authenticated()
+                )
+                .addFilterBefore(onboardingSecurityFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    /**
+     * Standard chain for the rest of the application.
+     */
+    @Bean
+    @Order(2)
+    SecurityFilterChain defaultFilterChain(
             HttpSecurity http,
             AccessBlacklistFilter blacklistFilter,
-            OnboardingSecurityFilter onboardingSecurityFilter,
             JwtAuthenticationConverter jwtAuthenticationConverter
     ) throws Exception {
         http
@@ -53,15 +81,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/integrations/mercadolivre/oauth/callback").permitAll()
                         .requestMatchers("/webhooks/**").permitAll()
                         .requestMatchers("/api/webhooks/**").permitAll()
-                        .requestMatchers("/v1/onboarding/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)));
 
-        // Onboarding filter MUST come before standard filters to handle its own token validation
-        http.addFilterBefore(onboardingSecurityFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(blacklistFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
