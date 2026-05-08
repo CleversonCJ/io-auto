@@ -22,6 +22,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -752,21 +754,16 @@ public class IoAutoController {
             publications.saveAll(nextPublications);
         }
 
-        for (String providerKey : selectedIntegrations) {
-            JpaIoAutoVehiclePublicationEntity publication = nextPublications.stream()
-                    .filter(item -> providerKey.equalsIgnoreCase(item.getProviderKey()))
-                    .findFirst()
-                    .orElse(null);
-            try {
-                vehicleAutoPublicationService.publish(companyId, entity.getId(), providerKey);
-            } catch (Exception exception) {
-                if (publication != null) {
-                    publication.setStatus("ERROR");
-                    publication.setLastError(normalizeText(exception.getMessage(), "Falha ao publicar automaticamente nesta integracao."));
-                    publication.setUpdatedAt(Instant.now());
-                    publications.save(publication);
+        if (!selectedIntegrations.isEmpty() && TransactionSynchronizationManager.isSynchronizationActive()) {
+            UUID savedVehicleId = entity.getId();
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    for (String providerKey : selectedIntegrations) {
+                        vehicleAutoPublicationService.publishAfterCommit(companyId, savedVehicleId, providerKey);
+                    }
                 }
-            }
+            });
         }
 
         Map<String, JpaIoAutoIntegrationEntity> integrationsByKey = integrations.findAllByCompanyIdOrderByDisplayNameAsc(companyId).stream()
