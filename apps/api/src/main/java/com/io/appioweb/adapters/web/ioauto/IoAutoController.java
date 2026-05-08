@@ -16,6 +16,7 @@ import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehicleEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehiclePublicationEntity;
 import com.io.appioweb.application.auth.port.out.CompanyRepositoryPort;
 import com.io.appioweb.application.auth.port.out.CurrentUserPort;
+import com.io.appioweb.application.ioauto.VehicleAutoPublicationService;
 import com.io.appioweb.shared.errors.BusinessException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -72,6 +73,7 @@ public class IoAutoController {
     private final IoAutoPublicLinkRepositoryJpa publicLinks;
     private final IoAutoPublicLeadEventRepositoryJpa publicLeadEvents;
     private final IoAutoBillingService billingService;
+    private final VehicleAutoPublicationService vehicleAutoPublicationService;
     private final MeliAdService meliAdService;
     private final MeliCategoryService meliCategoryService;
     private final MeliListingTypeService meliListingTypeService;
@@ -88,6 +90,7 @@ public class IoAutoController {
             IoAutoPublicLinkRepositoryJpa publicLinks,
             IoAutoPublicLeadEventRepositoryJpa publicLeadEvents,
             IoAutoBillingService billingService,
+            VehicleAutoPublicationService vehicleAutoPublicationService,
             MeliAdService meliAdService,
             MeliCategoryService meliCategoryService,
             MeliListingTypeService meliListingTypeService,
@@ -103,6 +106,7 @@ public class IoAutoController {
         this.publicLinks = publicLinks;
         this.publicLeadEvents = publicLeadEvents;
         this.billingService = billingService;
+        this.vehicleAutoPublicationService = vehicleAutoPublicationService;
         this.meliAdService = meliAdService;
         this.meliCategoryService = meliCategoryService;
         this.meliListingTypeService = meliListingTypeService;
@@ -749,15 +753,19 @@ public class IoAutoController {
         }
 
         for (String providerKey : selectedIntegrations) {
+            JpaIoAutoVehiclePublicationEntity publication = nextPublications.stream()
+                    .filter(item -> providerKey.equalsIgnoreCase(item.getProviderKey()))
+                    .findFirst()
+                    .orElse(null);
             try {
-                if ("mercadolivre".equalsIgnoreCase(providerKey)) {
-                    meliAdService.publishVehicle(companyId, entity.getId());
-                } else if ("olx".equalsIgnoreCase(providerKey)) {
-                    olxAdService.publishVehicle(companyId, entity.getId());
+                vehicleAutoPublicationService.publish(companyId, entity.getId(), providerKey);
+            } catch (Exception exception) {
+                if (publication != null) {
+                    publication.setStatus("ERROR");
+                    publication.setLastError(normalizeText(exception.getMessage(), "Falha ao publicar automaticamente nesta integracao."));
+                    publication.setUpdatedAt(Instant.now());
+                    publications.save(publication);
                 }
-            } catch (Exception ignored) {
-                // Ignore sync errors during creation to avoid rollback of the vehicle itself.
-                // The AdService will have saved the error status in the corresponding ad table.
             }
         }
 
