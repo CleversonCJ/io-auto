@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.io.appioweb.adapters.persistence.onboarding.EmailOutboxRepositoryJpa;
 import com.io.appioweb.adapters.persistence.onboarding.JpaEmailOutboxEntity;
-import com.io.appioweb.shared.domain.EmailStatus;
+import com.io.appioweb.domain.onboarding.EmailStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -38,7 +38,7 @@ public class EmailOutboxProcessor {
     @Scheduled(fixedDelay = 30000) // Every 30 seconds
     @Transactional
     public void processPendingEmails() {
-        List<JpaEmailOutboxEntity> pendingEmails = outboxRepository.findAllByStatus(EmailStatus.PENDING.name());
+        List<JpaEmailOutboxEntity> pendingEmails = outboxRepository.findByStatusOrderByCreatedAtAsc(EmailStatus.PENDING.name());
 
         if (pendingEmails.isEmpty()) {
             return;
@@ -82,8 +82,8 @@ public class EmailOutboxProcessor {
         email.setErrorMessage(e.getMessage());
 
         if (retries >= MAX_RETRIES) {
-            email.setStatus(EmailStatus.FAILED.name());
-            log.error("Email ID {} reached max retries and is now FAILED", email.getId());
+            email.setStatus(EmailStatus.ERROR.name());
+            log.error("Email ID {} reached max retries and is now ERROR", email.getId());
         }
 
         outboxRepository.save(email);
