@@ -70,9 +70,7 @@ public class MeliAdService {
         String sellerSku = resolveSellerSku(vehicle);
         validateSellerSkuUniqueness(companyId, vehicleId, sellerSku);
         validateListingType(companyId, categoryId, listingTypeId);
-        ensureCategoryAttributes(categoryId);
-
-        List<MeliCategoryService.CategoryAttributeSnapshot> categoryAttributes = categoryService.listAttributes(categoryId);
+        List<MeliCategoryService.CategoryAttributeSnapshot> categoryAttributes = refreshCategoryAttributes(categoryId);
         List<MeliVehicleAttributeValue> selectedAttributes = readVehicleAttributes(vehicle);
         MeliLocationService.LocationSnapshot location = locationService.resolveListingLocation(companyId, account, vehicle);
         MeliVehicleAdMapper.Payload payload = mapper.buildCreatePayload(
@@ -124,8 +122,7 @@ public class MeliAdService {
             throw new BusinessException("MELI_AD_NOT_PUBLISHED", "Este anuncio ainda nao foi publicado no Mercado Livre.");
         }
         String categoryId = firstNonBlank(ad.getCategoryId(), vehicle.getMeliCategoryId());
-        ensureCategoryAttributes(categoryId);
-        List<MeliCategoryService.CategoryAttributeSnapshot> categoryAttributes = categoryService.listAttributes(categoryId);
+        List<MeliCategoryService.CategoryAttributeSnapshot> categoryAttributes = refreshCategoryAttributes(categoryId);
         MeliVehicleAdMapper.Payload payload = mapper.buildUpdatePayload(
                 vehicle,
                 locationService.resolveListingLocation(companyId, account, vehicle),
@@ -408,10 +405,9 @@ public class MeliAdService {
         }
     }
 
-    private void ensureCategoryAttributes(String categoryId) {
-        if (categoryService.listAttributes(categoryId).isEmpty()) {
-            categoryService.syncCategoryAttributes(categoryId);
-        }
+    private List<MeliCategoryService.CategoryAttributeSnapshot> refreshCategoryAttributes(String categoryId) {
+        categoryService.syncCategoryAttributes(categoryId);
+        return categoryService.listAttributes(categoryId);
     }
 
     private void validateListingType(UUID companyId, String categoryId, String listingTypeId) {
