@@ -63,7 +63,13 @@ public class AsaasClient {
                 escapeJsonString(safeRef)
         );
 
-        String url = properties.getBaseUrl() + "/v3/subscriptions/" + subscriptionId.trim();
+        String baseUrl = properties.getBaseUrl().endsWith("/") 
+                ? properties.getBaseUrl().substring(0, properties.getBaseUrl().length() - 1) 
+                : properties.getBaseUrl();
+        
+        // Asaas base URL usually ends with /v3. Let's make sure we don't duplicate it.
+        String path = baseUrl.endsWith("/v3") ? "/subscriptions/" : "/v3/subscriptions/";
+        String url = baseUrl + path + subscriptionId.trim();
 
         log.info("[AsaasClient] PUT {} – updating description to '{}' (externalRef={})",
                 url, safeDescription, safeRef);

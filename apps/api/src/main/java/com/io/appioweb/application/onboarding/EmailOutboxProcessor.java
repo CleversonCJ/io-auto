@@ -75,6 +75,7 @@ public class EmailOutboxProcessor {
     }
 
     private void handleFailure(JpaEmailOutboxEntity email, Exception e) {
+        log.error("[EmailOutboxProcessor] Failure detected for email to {}: {}", email.getToEmail(), e.getMessage());
         int retries = email.getRetryCount() + 1;
         email.setRetryCount(retries);
         email.setErrorMessage(e.getMessage());
