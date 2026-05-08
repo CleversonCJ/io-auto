@@ -690,7 +690,9 @@ public class IoAutoController {
         if (selectedIntegrations.contains("mercadolivre")) {
             if (entity.getMeliCategoryId() == null) {
                 var suggestion = meliCategoryService.discoverVehicleCategory(entity.getTitle());
-                entity.setMeliCategoryId(suggestion.categoryId());
+                if (suggestion != null && normalizeText(suggestion.categoryId()).isBlank() == false) {
+                    entity.setMeliCategoryId(suggestion.categoryId());
+                }
             }
             if (entity.getMeliListingTypeId() == null && entity.getMeliCategoryId() != null) {
                 var listingTypes = meliListingTypeService.getAvailableListingTypes(companyId, entity.getMeliCategoryId());
