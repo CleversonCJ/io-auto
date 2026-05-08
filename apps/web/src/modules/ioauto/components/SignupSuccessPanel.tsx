@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, KeyRound, LoaderCircle } from "lucide-react";
+import { CheckCircle2, LoaderCircle } from "lucide-react";
 import type { SignupStatus } from "@/modules/ioauto/types";
 
 type SignupSuccessPanelProps = {
@@ -73,27 +73,21 @@ export function SignupSuccessPanel({ intentId, sessionId }: SignupSuccessPanelPr
                 </div>
             </div>
 
-            {ready && status?.temporaryPassword ? (
+            {ready ? (
                 <div className="mt-4 rounded-[28px] border border-[#6b00e3]/12 bg-[#f6f0ff] p-4">
-                    <div className="flex items-start gap-3">
-                        <div className="grid h-10 w-10 place-items-center rounded-2xl bg-[#6b00e3] text-white">
-                            <KeyRound className="h-4 w-4" />
-                        </div>
-                        <div>
-                            <p className="text-xs uppercase tracking-[0.24em] text-[#6b00e3]/75">Senha provisoria</p>
-                            <p className="mt-2 text-lg font-semibold text-[#2a0a53]">{status.temporaryPassword}</p>
-                            <p className="mt-2 text-sm leading-7 text-black/58">
-                                Use esta senha no primeiro acesso junto com o e-mail informado no cadastro.
-                            </p>
-                        </div>
-                    </div>
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#6b00e3]/75">Proximo passo</p>
+                    <p className="mt-2 text-sm leading-7 text-black/58">
+                        Abra o e-mail informado no cadastro e use o link recebido para definir sua senha antes do primeiro login.
+                    </p>
                 </div>
             ) : null}
 
             <div className="mt-6 flex flex-wrap gap-3">
-                <Link href="/login" className="rounded-full bg-[#6b00e3] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#5800bb]">
-                    Entrar na plataforma
-                </Link>
+                {ready ? (
+                    <Link href="/login" className="rounded-full bg-[#6b00e3] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#5800bb]">
+                        Entrar depois de definir a senha
+                    </Link>
+                ) : null}
                 <Link href="/" className="rounded-full border border-black/10 px-5 py-3 text-sm font-semibold text-black/65 transition hover:border-[#6b00e3]/20 hover:text-[#6b00e3]">
                     Voltar para a home
                 </Link>

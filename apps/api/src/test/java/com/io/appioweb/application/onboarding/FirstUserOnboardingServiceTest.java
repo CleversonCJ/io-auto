@@ -5,7 +5,9 @@ import com.io.appioweb.adapters.integrations.asaas.AsaasProperties;
 import com.io.appioweb.adapters.integrations.asaas.AsaasSubscriptionService;
 import com.io.appioweb.adapters.persistence.auth.CompanyRepositoryJpa;
 import com.io.appioweb.adapters.persistence.auth.JpaCompanyEntity;
+import com.io.appioweb.adapters.persistence.auth.JpaRoleEntity;
 import com.io.appioweb.adapters.persistence.auth.JpaUserEntity;
+import com.io.appioweb.adapters.persistence.auth.RoleRepositoryJpa;
 import com.io.appioweb.adapters.persistence.auth.TeamRepositoryJpa;
 import com.io.appioweb.adapters.persistence.auth.UserRepositoryJpa;
 import com.io.appioweb.adapters.persistence.onboarding.*;
@@ -38,6 +40,7 @@ class FirstUserOnboardingServiceTest {
     @Mock private OnboardingSubscriptionRepositoryJpa subscriptionRepo;
     @Mock private CompanyRepositoryJpa companyRepo;
     @Mock private UserRepositoryJpa userRepo;
+    @Mock private RoleRepositoryJpa roleRepo;
     @Mock private TeamRepositoryJpa teamRepo;
     @Mock private PasswordResetTokenRepositoryJpa passwordTokenRepo;
     @Mock private EmailOutboxRepositoryJpa emailOutboxRepo;
@@ -50,8 +53,12 @@ class FirstUserOnboardingServiceTest {
     @BeforeEach
     void setUp() {
         emailOutboxService = new EmailOutboxService(emailOutboxRepo);
+        JpaRoleEntity adminRole = new JpaRoleEntity();
+        adminRole.setId(UUID.randomUUID());
+        adminRole.setName("ADMIN");
+        lenient().when(roleRepo.findByName("ADMIN")).thenReturn(Optional.of(adminRole));
         service = new FirstUserOnboardingService(
-                eventRepo, subscriptionRepo, companyRepo, userRepo, teamRepo,
+                eventRepo, subscriptionRepo, companyRepo, userRepo, roleRepo, teamRepo,
                 passwordTokenRepo, emailOutboxService, asaasSubscriptionService,
                 "https://app.ioauto.com.br/definir-senha",
                 "https://app.ioauto.com.br/login"
@@ -148,7 +155,6 @@ class FirstUserOnboardingServiceTest {
             when(companyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(userRepo.findAllByEmail(anyString())).thenReturn(List.of());
             when(userRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
-            when(teamRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(subscriptionRepo.findByAsaasSubscriptionId(anyString())).thenReturn(Optional.empty());
             when(subscriptionRepo.findByAsaasPaymentId(anyString())).thenReturn(Optional.empty());
             when(subscriptionRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -172,7 +178,6 @@ class FirstUserOnboardingServiceTest {
             when(companyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(userRepo.findAllByEmail(anyString())).thenReturn(List.of());
             when(userRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
-            when(teamRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(subscriptionRepo.findByAsaasSubscriptionId(anyString())).thenReturn(Optional.empty());
             when(subscriptionRepo.findByAsaasPaymentId(anyString())).thenReturn(Optional.empty());
             when(subscriptionRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -234,7 +239,6 @@ class FirstUserOnboardingServiceTest {
             when(subscriptionRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(companyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(userRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
-            when(teamRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(passwordTokenRepo.findTopByUserIdAndUsedFalseOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
             when(passwordTokenRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -269,7 +273,6 @@ class FirstUserOnboardingServiceTest {
             when(subscriptionRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(companyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(userRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
-            when(teamRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(passwordTokenRepo.findTopByUserIdAndUsedFalseOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
             when(passwordTokenRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -330,7 +333,6 @@ class FirstUserOnboardingServiceTest {
             when(subscriptionRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(companyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(userRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
-            when(teamRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(passwordTokenRepo.findTopByUserIdAndUsedFalseOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
             when(passwordTokenRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -356,7 +358,6 @@ class FirstUserOnboardingServiceTest {
             when(subscriptionRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(companyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(userRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
-            when(teamRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(passwordTokenRepo.findTopByUserIdAndUsedFalseOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
             when(passwordTokenRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -386,7 +387,6 @@ class FirstUserOnboardingServiceTest {
             when(subscriptionRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(companyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(userRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
-            when(teamRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(passwordTokenRepo.findTopByUserIdAndUsedFalseOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
             when(passwordTokenRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -414,7 +414,6 @@ class FirstUserOnboardingServiceTest {
             when(subscriptionRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(companyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(userRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
-            when(teamRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(passwordTokenRepo.findTopByUserIdAndUsedFalseOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
             when(passwordTokenRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 

@@ -6,6 +6,7 @@ const REFRESH_COOKIE = "io_refresh";
 function isProtected(pathname: string) {
     return pathname.startsWith("/")
         && !pathname.startsWith("/login")
+        && !pathname.startsWith("/definir-senha")
         && !pathname.startsWith("/api")
         && !pathname.startsWith("/estoque-publico");
 }

@@ -6,11 +6,12 @@ import com.io.appioweb.domain.auth.entity.User;
 import com.io.appioweb.shared.errors.BusinessException;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class UserRepositoryAdapter implements UserRepositoryPort {
     private final UserRepositoryJpa jpa;
@@ -28,10 +29,11 @@ public class UserRepositoryAdapter implements UserRepositoryPort {
 
     @Override
     public Optional<User> findByEmailGlobal(String email) {
-        var list = jpa.findAllByEmail(email.toLowerCase());
-        if (list.isEmpty()) return Optional.empty();
+        List<JpaUserEntity> list = jpa.findAllByEmail(email.toLowerCase());
+        if (list.isEmpty()) {
+            return Optional.empty();
+        }
 
-        // mínimo: pega o mais antigo (ou o primeiro). Você pode evoluir pra selecionar empresa na tela.
         list.sort(Comparator.comparing(JpaUserEntity::getCreatedAt));
         return Optional.of(UserMapper.toDomain(list.get(0)));
     }
@@ -69,27 +71,37 @@ public class UserRepositoryAdapter implements UserRepositoryPort {
     @Override
     @Transactional
     public void save(User user) {
-        JpaUserEntity e = new JpaUserEntity();
-        e.setId(user.id());
-        e.setCompanyId(user.companyId());
-        e.setEmail(user.email().toLowerCase());
-        e.setPasswordHash(user.passwordHash());
-        e.setFullName(user.fullName());
-        e.setProfileImageUrl(user.profileImageUrl());
-        e.setJobTitle(user.jobTitle());
-        e.setBirthDate(user.birthDate());
-        e.setPermissionPreset(user.permissionPreset());
-        e.setModulePermissions(user.modulePermissions() == null ? null : user.modulePermissions().stream().sorted().collect(Collectors.joining(",")));
-        e.setTeamId(user.teamId());
-        e.setActive(user.isActive());
-        e.setCreatedAt(user.createdAt());
+        JpaUserEntity entity = jpa.findById(user.id()).orElseGet(JpaUserEntity::new);
+        boolean isNew = entity.getId() == null;
 
-        for (String r : user.roles()) {
-            JpaRoleEntity role = roleJpa.findByName(r)
-                    .orElseThrow(() -> new BusinessException("ROLE_INVALID", "Role inválida: " + r));
-            e.getRoles().add(role);
+        entity.setId(user.id());
+        entity.setCompanyId(user.companyId());
+        entity.setEmail(user.email().toLowerCase());
+        entity.setPasswordHash(user.passwordHash());
+        entity.setFullName(user.fullName());
+        entity.setProfileImageUrl(user.profileImageUrl());
+        entity.setJobTitle(user.jobTitle());
+        entity.setBirthDate(user.birthDate());
+        entity.setPermissionPreset(user.permissionPreset());
+        entity.setModulePermissions(user.modulePermissions() == null
+                ? null
+                : user.modulePermissions().stream().sorted().collect(Collectors.joining(",")));
+        entity.setTeamId(user.teamId());
+        entity.setActive(user.isActive());
+        entity.setCreatedAt(isNew ? user.createdAt() : entity.getCreatedAt());
+        entity.setUpdatedAt(Instant.now());
+        entity.setNome((entity.getNome() == null || entity.getNome().isBlank()) ? user.fullName() : entity.getNome());
+        if (isNew) {
+            entity.setPrimary(jpa.findAllByCompanyId(user.companyId()).isEmpty());
         }
 
-        jpa.save(e);
+        entity.getRoles().clear();
+        for (String roleName : user.roles()) {
+            JpaRoleEntity role = roleJpa.findByName(roleName)
+                    .orElseThrow(() -> new BusinessException("ROLE_INVALID", "Role invalida: " + roleName));
+            entity.getRoles().add(role);
+        }
+
+        jpa.save(entity);
     }
 }

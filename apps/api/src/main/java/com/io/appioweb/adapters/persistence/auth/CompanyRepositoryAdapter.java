@@ -3,6 +3,7 @@ package com.io.appioweb.adapters.persistence.auth;
 import com.io.appioweb.application.auth.port.out.CompanyRepositoryPort;
 import com.io.appioweb.domain.auth.entity.Company;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -114,15 +115,16 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
 
     @Override
     public void save(Company company) {
-        JpaCompanyEntity entity = new JpaCompanyEntity();
+        JpaCompanyEntity entity = jpa.findById(company.id()).orElseGet(JpaCompanyEntity::new);
+        boolean isNew = entity.getId() == null;
         entity.setId(company.id());
         entity.setName(company.name());
         entity.setProfileImageUrl(company.profileImageUrl());
         entity.setEmail(company.email());
         entity.setContractEndDate(company.contractEndDate());
-        entity.setCnpj(company.cnpj());
+        entity.setCnpj(company.cnpj() == null ? "" : company.cnpj());
         entity.setOpenedAt(company.openedAt());
-        entity.setWhatsappNumber(company.whatsappNumber());
+        entity.setWhatsappNumber(company.whatsappNumber() == null ? "" : company.whatsappNumber());
         entity.setZapiInstanceId(company.zapiInstanceId());
         entity.setZapiInstanceToken(company.zapiInstanceToken());
         entity.setZapiClientToken(company.zapiClientToken());
@@ -131,7 +133,9 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
         entity.setBusinessHoursWeeklyJson(company.businessHoursWeeklyJson());
         entity.setPublicStockBannerMode(company.publicStockBannerMode());
         entity.setPublicStockBannerImagesJson(company.publicStockBannerImagesJson());
-        entity.setCreatedAt(company.createdAt());
+        entity.setCreatedAt(isNew ? company.createdAt() : entity.getCreatedAt());
+        entity.setStatus(entity.getStatus() == null || entity.getStatus().isBlank() ? "ACTIVE" : entity.getStatus());
+        entity.setUpdatedAt(Instant.now());
         jpa.save(entity);
     }
 }

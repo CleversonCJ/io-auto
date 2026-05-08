@@ -6,14 +6,18 @@ import com.io.appioweb.adapters.persistence.ioauto.IoAutoSignupIntentRepositoryJ
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoBillingSubscriptionEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoIntegrationEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoSignupIntentEntity;
-import com.io.appioweb.application.auth.port.out.CompanyRepositoryPort;
-import com.io.appioweb.application.auth.port.out.PasswordHasherPort;
-import com.io.appioweb.application.auth.port.out.TeamRepositoryPort;
-import com.io.appioweb.application.auth.port.out.UserRepositoryPort;
-import com.io.appioweb.domain.auth.entity.Company;
-import com.io.appioweb.domain.auth.entity.Team;
-import com.io.appioweb.domain.auth.entity.User;
+import com.io.appioweb.adapters.persistence.auth.CompanyRepositoryJpa;
+import com.io.appioweb.adapters.persistence.auth.JpaCompanyEntity;
+import com.io.appioweb.adapters.persistence.auth.UserRepositoryJpa;
+import com.io.appioweb.adapters.persistence.onboarding.JpaOnboardingSubscriptionEntity;
+import com.io.appioweb.adapters.persistence.onboarding.OnboardingSubscriptionRepositoryJpa;
+import com.io.appioweb.adapters.web.onboarding.dto.FirstUserActivateRequest;
+import com.io.appioweb.adapters.web.onboarding.dto.FirstUserActivateResponse;
+import com.io.appioweb.adapters.web.onboarding.dto.FirstUserRegisterRequest;
+import com.io.appioweb.adapters.web.onboarding.dto.FirstUserRegisterResponse;
+import com.io.appioweb.adapters.web.onboarding.dto.SendAccessEmailRequest;
 import com.io.appioweb.shared.errors.BusinessException;
+import com.io.appioweb.application.onboarding.FirstUserOnboardingService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,20 +34,16 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -60,18 +60,15 @@ public class IoAutoBillingService {
     private static final String DEFAULT_PLAN_NAME = "IOAuto Growth";
     private static final String DEFAULT_PLAN_DESCRIPTION = "Assinatura recorrente do IOAuto";
     private static final String DEFAULT_PLAN_CYCLE = "MONTHLY";
-    private static final String DEFAULT_TEAM_NAME = "Equipe Comercial";
-    private static final String DEFAULT_BUSINESS_HOURS_WEEKLY_JSON = """
-            {"sunday":{"active":false,"start":"09:00","lunchStart":"12:00","lunchEnd":"13:00","end":"18:00"},"monday":{"active":true,"start":"09:00","lunchStart":"12:00","lunchEnd":"13:00","end":"18:00"},"tuesday":{"active":true,"start":"09:00","lunchStart":"12:00","lunchEnd":"13:00","end":"18:00"},"wednesday":{"active":true,"start":"09:00","lunchStart":"12:00","lunchEnd":"13:00","end":"18:00"},"thursday":{"active":true,"start":"09:00","lunchStart":"12:00","lunchEnd":"13:00","end":"18:00"},"friday":{"active":true,"start":"09:00","lunchStart":"12:00","lunchEnd":"13:00","end":"18:00"},"saturday":{"active":true,"start":"09:00","lunchStart":"12:00","lunchEnd":"13:00","end":"16:00"}}
-            """;
+    private static final String DEFAULT_SIGNUP_ORIGIN = "lp-asaas";
 
     private final IoAutoSignupIntentRepositoryJpa signupIntents;
     private final IoAutoBillingSubscriptionRepositoryJpa subscriptions;
     private final IoAutoIntegrationRepositoryJpa integrations;
-    private final CompanyRepositoryPort companies;
-    private final UserRepositoryPort users;
-    private final TeamRepositoryPort teams;
-    private final PasswordHasherPort hasher;
+    private final OnboardingSubscriptionRepositoryJpa onboardingSubscriptions;
+    private final CompanyRepositoryJpa companyRepo;
+    private final UserRepositoryJpa userRepo;
+    private final FirstUserOnboardingService onboardingService;
     private final String asaasApiKey;
     private final String asaasWebhookToken;
     private final String asaasApiBaseUrl;
@@ -83,16 +80,15 @@ public class IoAutoBillingService {
     private final BigDecimal planValue;
     private final String planCycle;
     private final List<String> billingTypes;
-    private final String signupPasswordSecret;
 
     public IoAutoBillingService(
             IoAutoSignupIntentRepositoryJpa signupIntents,
             IoAutoBillingSubscriptionRepositoryJpa subscriptions,
             IoAutoIntegrationRepositoryJpa integrations,
-            CompanyRepositoryPort companies,
-            UserRepositoryPort users,
-            TeamRepositoryPort teams,
-            PasswordHasherPort hasher,
+            OnboardingSubscriptionRepositoryJpa onboardingSubscriptions,
+            CompanyRepositoryJpa companyRepo,
+            UserRepositoryJpa userRepo,
+            FirstUserOnboardingService onboardingService,
             @Value("${ASAAS_API_KEY:}") String asaasApiKey,
             @Value("${ASAAS_WEBHOOK_TOKEN:}") String asaasWebhookToken,
             @Value("${ASAAS_API_BASE_URL:https://api.asaas.com/v3}") String asaasApiBaseUrl,
@@ -103,16 +99,15 @@ public class IoAutoBillingService {
             @Value("${IOAUTO_PLAN_DESCRIPTION:" + DEFAULT_PLAN_DESCRIPTION + "}") String planDescription,
             @Value("${IOAUTO_PLAN_VALUE:349.00}") BigDecimal planValue,
             @Value("${IOAUTO_PLAN_CYCLE:" + DEFAULT_PLAN_CYCLE + "}") String planCycle,
-            @Value("${ASAAS_BILLING_TYPES:CREDIT_CARD,BOLETO}") String billingTypes,
-            @Value("${IOAUTO_SIGNUP_PASSWORD_SECRET:${APP_DB_ENCRYPTION_KEY:ioauto-signup-secret}}") String signupPasswordSecret
+            @Value("${ASAAS_BILLING_TYPES:CREDIT_CARD,BOLETO}") String billingTypes
     ) {
         this.signupIntents = signupIntents;
         this.subscriptions = subscriptions;
         this.integrations = integrations;
-        this.companies = companies;
-        this.users = users;
-        this.teams = teams;
-        this.hasher = hasher;
+        this.onboardingSubscriptions = onboardingSubscriptions;
+        this.companyRepo = companyRepo;
+        this.userRepo = userRepo;
+        this.onboardingService = onboardingService;
         this.asaasApiKey = normalizeText(asaasApiKey);
         this.asaasWebhookToken = normalizeText(asaasWebhookToken);
         this.asaasApiBaseUrl = trimTrailingSlash(normalizeText(asaasApiBaseUrl, "https://api.asaas.com/v3"));
@@ -124,37 +119,56 @@ public class IoAutoBillingService {
         this.planValue = planValue == null ? new BigDecimal("349.00") : planValue.setScale(2, RoundingMode.HALF_UP);
         this.planCycle = normalizeText(planCycle, DEFAULT_PLAN_CYCLE).toUpperCase(Locale.ROOT);
         this.billingTypes = parseBillingTypes(billingTypes);
-        this.signupPasswordSecret = normalizeText(signupPasswordSecret, "ioauto-signup-secret");
     }
 
     @Transactional
     public CheckoutLaunch createSignupCheckout(PublicSignupPayload payload) {
         requireAsaasCheckoutConfiguration();
 
-        UUID intentId = UUID.randomUUID();
         String ownerFullName = requireText(payload.ownerFullName(), "Informe o nome completo.");
         String companyName = requireText(payload.companyName(), "Informe o nome da empresa.");
         String email = normalizeEmail(payload.email());
         String phone = normalizePhone(payload.phone());
+        Instant now = Instant.now();
 
-        if (users.findByEmailGlobal(email).isPresent()) {
-            throw new BusinessException("SIGNUP_EMAIL_ALREADY_EXISTS", "Ja existe uma conta criada com este e-mail.");
+        Optional<JpaIoAutoSignupIntentEntity> existingIntent = signupIntents.findTopByEmailOrderByCreatedAtDesc(email);
+        JpaIoAutoSignupIntentEntity intent;
+
+        if (existingIntent.isPresent()) {
+            intent = existingIntent.get();
+            if (SIGNUP_ACTIVE.equalsIgnoreCase(intent.getStatus())) {
+                throw new BusinessException("SIGNUP_EMAIL_ALREADY_EXISTS", "Ja existe uma conta ativa criada com este e-mail.");
+            }
+        } else {
+            if (!userRepo.findAllByEmail(email).isEmpty()) {
+                throw new BusinessException("SIGNUP_EMAIL_ALREADY_EXISTS", "Ja existe uma conta criada com este e-mail.");
+            }
+
+            intent = new JpaIoAutoSignupIntentEntity();
+            intent.setId(UUID.randomUUID());
+            intent.setCreatedAt(now);
         }
 
-        Instant now = Instant.now();
-        JpaIoAutoSignupIntentEntity intent = new JpaIoAutoSignupIntentEntity();
-        intent.setId(intentId);
         intent.setCompanyName(companyName);
         intent.setOwnerFullName(ownerFullName);
         intent.setEmail(email);
         intent.setWhatsappNumber(phone);
-        intent.setPasswordHash(hasher.hash(generateTemporaryPassword(intentId, phone)));
+        intent.setPasswordHash(normalizeText(intent.getPasswordHash(), "ONBOARDING_EMAIL_PENDING"));
         intent.setPlanKey(planKey);
         intent.setProvider(BILLING_PROVIDER);
         intent.setStatus(SIGNUP_PENDING);
         intent.setProviderPriceId(planKey);
-        intent.setCreatedAt(now);
         intent.setUpdatedAt(now);
+
+        if (intent.getCompanyId() == null || intent.getUserId() == null) {
+            FirstUserRegisterResponse registerResponse = registerInactiveSignup(intent);
+            if (registerResponse.companyId() == null || registerResponse.userId() == null) {
+                throw new BusinessException("SIGNUP_ONBOARDING_FAILED", "Nao foi possivel preparar a conta antes do checkout.");
+            }
+            intent.setCompanyId(registerResponse.companyId());
+            intent.setUserId(registerResponse.userId());
+        }
+
         signupIntents.save(intent);
 
         AsaasCheckout checkout = createAsaasCheckout(intent);
@@ -171,7 +185,7 @@ public class IoAutoBillingService {
                 .orElseThrow(() -> new BusinessException("SIGNUP_INTENT_NOT_FOUND", "Cadastro nao encontrado."));
 
         if (SIGNUP_ACTIVE.equalsIgnoreCase(intent.getStatus())) {
-            return toSignupStatus(intent, "Conta liberada. Use o e-mail informado e a senha provisoria exibida abaixo.");
+            return toSignupStatus(intent, "Pagamento confirmado. Enviamos para o seu e-mail o link para definir a senha e acessar a plataforma.");
         }
 
         if (!normalizeText(intent.getCheckoutSessionId()).isBlank() && !asaasApiKey.isBlank()) {
@@ -179,9 +193,7 @@ public class IoAutoBillingService {
             if (payment.isPresent()) {
                 syncIntentReferences(intent, payment.get(), intent.getCheckoutSessionId());
                 if (isPaidPaymentStatus(payment.get().status())) {
-                    activateIntent(intent, payment.get(), intent.getCheckoutSessionId());
-                    intent = signupIntents.findById(intentId).orElse(intent);
-                    return toSignupStatus(intent, "Pagamento confirmado e acesso liberado.");
+                    return toSignupStatus(intent, "Pagamento confirmado. Estamos finalizando a ativacao da conta e o envio do e-mail para definir sua senha.");
                 }
                 return toSignupStatus(intent, pendingMessageForPayment(payment.get()));
             }
@@ -267,7 +279,7 @@ public class IoAutoBillingService {
         if ("CHECKOUT_PAID".equals(event) && !checkoutId.isBlank()) {
             signupIntents.findByCheckoutSessionId(checkoutId).ifPresent(intent -> {
                 Optional<AsaasPayment> payment = findPaymentByCheckout(checkoutId);
-                payment.ifPresent(value -> activateIntent(intent, value, checkoutId));
+                payment.ifPresent(value -> processPaymentEvent(value, checkoutId));
             });
         }
     }
@@ -280,8 +292,7 @@ public class IoAutoBillingService {
                 message,
                 ready,
                 normalizeText(intent.getEmail()),
-                normalizeText(intent.getCompanyName()),
-                ready ? generateTemporaryPassword(intent.getId(), normalizeText(intent.getWhatsappNumber())) : ""
+                normalizeText(intent.getCompanyName())
         );
     }
 
@@ -417,7 +428,7 @@ public class IoAutoBillingService {
             JpaIoAutoSignupIntentEntity intent = intentByCheckout.get();
             syncIntentReferences(intent, payment, normalizedCheckoutId);
             if (isPaidPaymentStatus(payment.status())) {
-                activateIntent(intent, payment, normalizedCheckoutId);
+                activateConfirmedIntent(intent, payment, normalizedCheckoutId);
             }
             return;
         }
@@ -429,7 +440,7 @@ public class IoAutoBillingService {
                 signupIntents.findById(intentId).ifPresent(intent -> {
                     syncIntentReferences(intent, payment, normalizedCheckoutId);
                     if (isPaidPaymentStatus(payment.status())) {
-                        activateIntent(intent, payment, normalizedCheckoutId);
+                        activateConfirmedIntent(intent, payment, normalizedCheckoutId);
                     }
                 });
                 return;
@@ -479,68 +490,35 @@ public class IoAutoBillingService {
         };
     }
 
-    private void activateIntent(JpaIoAutoSignupIntentEntity intent, AsaasPayment payment, String checkoutId) {
-        if (SIGNUP_ACTIVE.equalsIgnoreCase(intent.getStatus()) && intent.getCompanyId() != null) {
-            syncSubscription(intent.getCompanyId(), payment, checkoutId);
-            return;
-        }
-
+    private void activateConfirmedIntent(JpaIoAutoSignupIntentEntity intent, AsaasPayment payment, String checkoutId) {
         if (!isPaidPaymentStatus(payment.status())) {
             return;
         }
 
-        String normalizedEmail = normalizeEmail(intent.getEmail());
-        users.findByEmailGlobal(normalizedEmail).ifPresent(existing -> {
-            if (intent.getUserId() == null || !existing.id().equals(intent.getUserId())) {
-                throw new BusinessException("SIGNUP_EMAIL_ALREADY_EXISTS", "Ja existe uma conta com este e-mail.");
+        if (intent.getCompanyId() == null || intent.getUserId() == null) {
+            FirstUserRegisterResponse registerResponse = registerInactiveSignup(intent);
+            if (registerResponse.companyId() != null) {
+                intent.setCompanyId(registerResponse.companyId());
             }
-        });
+            if (registerResponse.userId() != null) {
+                intent.setUserId(registerResponse.userId());
+            }
+        }
+
+        if (intent.getCompanyId() == null || intent.getUserId() == null) {
+            throw new BusinessException("SIGNUP_ONBOARDING_NOT_FOUND", "Nao foi possivel localizar a conta pendente para ativacao.");
+        }
+
+        attachPaymentToOnboardingSubscription(intent, payment);
+
+        FirstUserActivateRequest activateRequest = buildActivateRequest(intent, payment);
+        FirstUserActivateResponse activateResponse = onboardingService.activate(activateRequest, toJson(activateRequest));
+
+        SendAccessEmailRequest emailRequest = buildAccessEmailRequest(intent, activateResponse, payment);
+        onboardingService.sendAccessEmail(emailRequest, toJson(emailRequest));
 
         Instant now = Instant.now();
-        UUID companyId = intent.getCompanyId() != null ? intent.getCompanyId() : UUID.randomUUID();
-        UUID teamId = UUID.randomUUID();
-        UUID userId = intent.getUserId() != null ? intent.getUserId() : UUID.randomUUID();
-        LocalDate contractEndDate = toContractEndDate(payment, now);
-
-        Company company = new Company(
-                companyId,
-                normalizeText(intent.getCompanyName()),
-                null,
-                normalizedEmail,
-                contractEndDate,
-                "",
-                LocalDate.now(ZoneOffset.UTC),
-                "",
-                "",
-                "",
-                "",
-                "09:00",
-                "18:00",
-                DEFAULT_BUSINESS_HOURS_WEEKLY_JSON,
-                "VEHICLES",
-                "[]",
-                now
-        );
-        companies.save(company);
-
-        teams.save(new Team(teamId, companyId, DEFAULT_TEAM_NAME, now, now));
-
-        users.save(new User(
-                userId,
-                companyId,
-                normalizedEmail,
-                intent.getPasswordHash(),
-                normalizeText(intent.getOwnerFullName()),
-                null,
-                "Administrador",
-                null,
-                "admin",
-                null,
-                teamId,
-                true,
-                now,
-                Set.of("ADMIN")
-        ));
+        UUID companyId = activateResponse.companyId() != null ? activateResponse.companyId() : intent.getCompanyId();
 
         ensureDefaultIntegrations(companyId, now);
         syncSubscription(companyId, payment, checkoutId);
@@ -550,10 +528,130 @@ public class IoAutoBillingService {
         intent.setProviderCustomerId(normalizeText(payment.customer()));
         intent.setProviderSubscriptionId(normalizeText(payment.subscription()));
         intent.setCompanyId(companyId);
-        intent.setUserId(userId);
+        intent.setUserId(activateResponse.userId() != null ? activateResponse.userId() : intent.getUserId());
         intent.setActivatedAt(now);
         intent.setUpdatedAt(now);
         signupIntents.save(intent);
+    }
+
+    private FirstUserRegisterResponse registerInactiveSignup(JpaIoAutoSignupIntentEntity intent) {
+        FirstUserRegisterRequest registerRequest = buildRegisterRequest(intent);
+        FirstUserRegisterResponse response = onboardingService.register(registerRequest, toJson(registerRequest));
+
+        UUID companyId = response.companyId();
+        if (companyId == null) {
+            companyId = companyRepo.findByEmail(normalizeEmail(intent.getEmail()))
+                    .map(JpaCompanyEntity::getId)
+                    .orElse(null);
+        }
+
+        UUID resolvedCompanyId = companyId;
+        UUID userId = response.userId();
+        if (userId == null && resolvedCompanyId != null) {
+            userId = userRepo.findAllByEmail(normalizeEmail(intent.getEmail())).stream()
+                    .filter(user -> resolvedCompanyId.equals(user.getCompanyId()))
+                    .map(user -> user.getId())
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        return new FirstUserRegisterResponse(companyId, userId, response.created(), response.status());
+    }
+
+    private FirstUserRegisterRequest buildRegisterRequest(JpaIoAutoSignupIntentEntity intent) {
+        return new FirstUserRegisterRequest(
+                "public-signup:" + intent.getId() + ":register",
+                new FirstUserRegisterRequest.FirstUserRegistration(
+                        null,
+                        intent.getCompanyName(),
+                        intent.getCompanyName(),
+                        intent.getEmail(),
+                        null,
+                        null,
+                        intent.getWhatsappNumber(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        intent.getOwnerFullName(),
+                        intent.getEmail(),
+                        intent.getWhatsappNumber(),
+                        "INACTIVE"
+                ),
+                new FirstUserRegisterRequest.Comercial(
+                        planValue,
+                        toPortugueseRecurrence(planCycle),
+                        null,
+                        DEFAULT_SIGNUP_ORIGIN
+                ),
+                new FirstUserRegisterRequest.Billing(
+                        null,
+                        null,
+                        planName
+                )
+        );
+    }
+
+    private FirstUserActivateRequest buildActivateRequest(JpaIoAutoSignupIntentEntity intent, AsaasPayment payment) {
+        return new FirstUserActivateRequest(
+                "public-signup:" + intent.getId() + ":" + normalizeText(payment.id()) + ":activate",
+                normalizeText(payment.id()),
+                normalizeText(payment.subscription()),
+                normalizeText(payment.status()),
+                payment.value() != null ? payment.value() : planValue,
+                toPortugueseRecurrence(planCycle),
+                payment.confirmedAt() != null ? payment.confirmedAt().atZone(BILLING_ZONE).toLocalDate().toString() : null,
+                DEFAULT_SIGNUP_ORIGIN,
+                planName
+        );
+    }
+
+    private SendAccessEmailRequest buildAccessEmailRequest(
+            JpaIoAutoSignupIntentEntity intent,
+            FirstUserActivateResponse activateResponse,
+            AsaasPayment payment
+    ) {
+        UUID resolvedUserId = activateResponse.userId() != null ? activateResponse.userId() : intent.getUserId();
+        UUID resolvedCompanyId = activateResponse.companyId() != null ? activateResponse.companyId() : intent.getCompanyId();
+
+        return new SendAccessEmailRequest(
+                "public-signup:" + intent.getId() + ":" + normalizeText(payment.id()) + ":email",
+                resolvedUserId != null ? resolvedUserId.toString() : "",
+                resolvedCompanyId != null ? resolvedCompanyId.toString() : "",
+                intent.getEmail(),
+                intent.getOwnerFullName(),
+                null,
+                null,
+                null
+        );
+    }
+
+    private void attachPaymentToOnboardingSubscription(JpaIoAutoSignupIntentEntity intent, AsaasPayment payment) {
+        Instant now = Instant.now();
+        JpaOnboardingSubscriptionEntity subscription = onboardingSubscriptions.findByCompanyId(intent.getCompanyId())
+                .orElseGet(() -> {
+                    JpaOnboardingSubscriptionEntity created = new JpaOnboardingSubscriptionEntity();
+                    created.setId(UUID.randomUUID());
+                    created.setCompanyId(intent.getCompanyId());
+                    created.setCreatedAt(now);
+                    created.setAsaasDescriptionSynced(false);
+                    return created;
+                });
+
+        if (!normalizeText(payment.subscription()).isBlank()) {
+            subscription.setAsaasSubscriptionId(payment.subscription());
+        }
+        if (!normalizeText(payment.id()).isBlank()) {
+            subscription.setAsaasPaymentId(payment.id());
+        }
+
+        subscription.setValor(payment.value() != null ? payment.value() : (subscription.getValor() != null ? subscription.getValor() : planValue));
+        subscription.setRecorrencia(normalizeText(subscription.getRecorrencia(), toPortugueseRecurrence(planCycle)));
+        subscription.setOrigem(normalizeText(subscription.getOrigem(), DEFAULT_SIGNUP_ORIGIN));
+        subscription.setDescription(normalizeText(subscription.getDescription(), planName));
+        subscription.setStatus(normalizeText(subscription.getStatus(), "PENDING"));
+        subscription.setUpdatedAt(now);
+        onboardingSubscriptions.save(subscription);
     }
 
     private void syncSubscription(UUID companyId, AsaasPayment payment, String checkoutId) {
@@ -592,25 +690,11 @@ public class IoAutoBillingService {
         entity.setUpdatedAt(Instant.now());
         subscriptions.save(entity);
 
-        companies.findById(companyId).ifPresent(company -> companies.save(new Company(
-                company.id(),
-                company.name(),
-                company.profileImageUrl(),
-                company.email(),
-                toContractEndDate(payment, Instant.now()),
-                company.cnpj(),
-                company.openedAt(),
-                "",
-                "",
-                "",
-                "",
-                company.businessHoursStart(),
-                company.businessHoursEnd(),
-                company.businessHoursWeeklyJson(),
-                company.publicStockBannerMode(),
-                company.publicStockBannerImagesJson(),
-                company.createdAt()
-        )));
+        companyRepo.findById(companyId).ifPresent(company -> {
+            company.setContractEndDate(toContractEndDate(payment, Instant.now()));
+            company.setUpdatedAt(Instant.now());
+            companyRepo.save(company);
+        });
     }
 
     private Long toCents(BigDecimal value) {
@@ -843,15 +927,24 @@ public class IoAutoBillingService {
         return values.isEmpty() ? List.of("CREDIT_CARD", "BOLETO") : List.copyOf(values);
     }
 
-    private String generateTemporaryPassword(UUID intentId, String phone) {
-        String seed = signupPasswordSecret + "|" + intentId + "|" + normalizePhone(phone);
+    private String toJson(Object value) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            String hash = HexFormat.of().formatHex(digest.digest(seed.getBytes(StandardCharsets.UTF_8)));
-            return "IoAuto@" + hash.substring(0, 10) + "!";
+            return OBJECT_MAPPER.writeValueAsString(value);
         } catch (Exception exception) {
-            throw new BusinessException("SIGNUP_PASSWORD_GENERATION_FAILED", "Nao foi possivel gerar a senha provisoria.");
+            return "{}";
         }
+    }
+
+    private String toPortugueseRecurrence(String cycle) {
+        String normalized = normalizeText(cycle).toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "WEEKLY" -> "semanal";
+            case "BIWEEKLY" -> "quinzenal";
+            case "QUARTERLY" -> "trimestral";
+            case "SEMIANNUALLY" -> "semestral";
+            case "YEARLY" -> "anual";
+            default -> "mensal";
+        };
     }
 
     private String normalizePhone(String value) {
@@ -922,8 +1015,7 @@ record SignupStatusSnapshot(
         String message,
         boolean accessReady,
         String loginEmail,
-        String companyName,
-        String temporaryPassword
+        String companyName
 ) {
 }
 

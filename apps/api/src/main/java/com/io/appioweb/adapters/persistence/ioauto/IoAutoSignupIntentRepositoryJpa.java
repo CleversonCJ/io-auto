@@ -7,4 +7,5 @@ import java.util.UUID;
 
 public interface IoAutoSignupIntentRepositoryJpa extends JpaRepository<JpaIoAutoSignupIntentEntity, UUID> {
     Optional<JpaIoAutoSignupIntentEntity> findByCheckoutSessionId(String checkoutSessionId);
+    Optional<JpaIoAutoSignupIntentEntity> findTopByEmailOrderByCreatedAtDesc(String email);
 }

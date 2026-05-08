@@ -3,8 +3,10 @@ package com.io.appioweb.application.onboarding;
 import com.io.appioweb.adapters.integrations.asaas.AsaasSubscriptionService;
 import com.io.appioweb.adapters.persistence.auth.CompanyRepositoryJpa;
 import com.io.appioweb.adapters.persistence.auth.JpaCompanyEntity;
+import com.io.appioweb.adapters.persistence.auth.JpaRoleEntity;
 import com.io.appioweb.adapters.persistence.auth.JpaTeamEntity;
 import com.io.appioweb.adapters.persistence.auth.JpaUserEntity;
+import com.io.appioweb.adapters.persistence.auth.RoleRepositoryJpa;
 import com.io.appioweb.adapters.persistence.auth.TeamRepositoryJpa;
 import com.io.appioweb.adapters.persistence.auth.UserRepositoryJpa;
 import com.io.appioweb.adapters.persistence.onboarding.*;
@@ -34,13 +36,14 @@ public class FirstUserOnboardingService {
     private static final int PASSWORD_RESET_TOKEN_TTL_HOURS = 72;
 
     private static final Set<String> VALID_ACTIVATION_STATUSES = Set.of(
-            "CONFIRMED", "RECEIVED", "PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"
+            "CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH", "PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"
     );
 
     private final OnboardingEventRepositoryJpa eventRepo;
     private final OnboardingSubscriptionRepositoryJpa subscriptionRepo;
     private final CompanyRepositoryJpa companyRepo;
     private final UserRepositoryJpa userRepo;
+    private final RoleRepositoryJpa roleRepo;
     private final TeamRepositoryJpa teamRepo;
     private final PasswordResetTokenRepositoryJpa passwordTokenRepo;
     private final EmailOutboxService emailOutboxService;
@@ -53,6 +56,7 @@ public class FirstUserOnboardingService {
             OnboardingSubscriptionRepositoryJpa subscriptionRepo,
             CompanyRepositoryJpa companyRepo,
             UserRepositoryJpa userRepo,
+            RoleRepositoryJpa roleRepo,
             TeamRepositoryJpa teamRepo,
             PasswordResetTokenRepositoryJpa passwordTokenRepo,
             EmailOutboxService emailOutboxService,
@@ -64,6 +68,7 @@ public class FirstUserOnboardingService {
         this.subscriptionRepo = subscriptionRepo;
         this.companyRepo = companyRepo;
         this.userRepo = userRepo;
+        this.roleRepo = roleRepo;
         this.teamRepo = teamRepo;
         this.passwordTokenRepo = passwordTokenRepo;
         this.emailOutboxService = emailOutboxService;
@@ -120,6 +125,8 @@ public class FirstUserOnboardingService {
                 company.setId(UUID.randomUUID());
                 company.setCreatedAt(Instant.now());
                 company.setStatus(CompanyStatus.INACTIVE.name());
+                company.setCnpj("");
+                company.setWhatsappNumber("");
                 companyCreated = true;
             }
 
@@ -211,6 +218,9 @@ public class FirstUserOnboardingService {
             user.setEmail(email);
             user.setFullName(reg.responsavelNome().trim());
             user.setNome(reg.responsavelNome().trim());
+            user.setJobTitle("Administrador");
+            user.setPermissionPreset("admin");
+            user.setModulePermissions("");
 
             if (reg.responsavelWhatsapp() != null && !reg.responsavelWhatsapp().isBlank()) {
                 user.setWhatsapp(normalizeWhatsapp(reg.responsavelWhatsapp()));
@@ -227,6 +237,7 @@ public class FirstUserOnboardingService {
                 user.setPrimary(true);
             }
 
+            ensureAdminRole(user);
             user = userRepo.save(user);
 
             BigDecimal valor = comercial != null && comercial.valorPagoCliente() != null
@@ -617,6 +628,21 @@ public class FirstUserOnboardingService {
                 .filter(JpaUserEntity::isPrimary)
                 .findFirst()
                 .orElseGet(() -> users.stream().findFirst().orElse(null));
+    }
+
+    private void ensureAdminRole(JpaUserEntity user) {
+        JpaRoleEntity adminRole = roleRepo.findByName("ADMIN")
+                .orElseThrow(() -> new BusinessException(
+                        "ONBOARDING_ADMIN_ROLE_NOT_FOUND",
+                        "Role ADMIN nao cadastrada para o onboarding."
+                ));
+
+        boolean alreadyAssigned = user.getRoles().stream()
+                .anyMatch(role -> "ADMIN".equalsIgnoreCase(role.getName()));
+
+        if (!alreadyAssigned) {
+            user.getRoles().add(adminRole);
+        }
     }
 
     private String generatePasswordResetToken(UUID userId) {

@@ -420,7 +420,6 @@ export type SignupStatus = {
     accessReady: boolean;
     loginEmail: string;
     companyName: string;
-    temporaryPassword: string;
 };
 
 export type PublicInventoryCompany = {
