@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.util.Map;
 
 @Service
@@ -53,6 +55,18 @@ public class SmtpEmailSender implements EmailSenderService {
         } catch (MessagingException e) {
             log.error("Failed to send email to {}", to, e);
             throw new RuntimeException("Error sending email", e);
+        } catch (RuntimeException e) {
+            Throwable rootCause = rootCauseOf(e);
+            if (rootCause instanceof SocketTimeoutException || rootCause instanceof ConnectException) {
+                log.error(
+                        "SMTP connection failure while sending email to {}. Verifique host, porta, firewall de saida e se o servidor SMTP aceita conexoes a partir do container.",
+                        to,
+                        e
+                );
+            } else {
+                log.error("Unexpected failure while sending email to {}", to, e);
+            }
+            throw e;
         }
     }
 
@@ -65,5 +79,13 @@ public class SmtpEmailSender implements EmailSenderService {
         return normalized
                 .toLowerCase(java.util.Locale.ROOT)
                 .replace('_', '-');
+    }
+
+    private Throwable rootCauseOf(Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        return current;
     }
 }

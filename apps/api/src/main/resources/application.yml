@@ -28,13 +28,15 @@ spring:
     properties:
       mail:
         smtp:
-          auth: true
+          auth: ${MAIL_SMTP_AUTH:true}
           starttls:
-            enable: true
-            required: true
-        connectiontimeout: 10000
-        timeout: 10000
-        writetimeout: 10000
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
+            required: ${MAIL_SMTP_STARTTLS_REQUIRED:true}
+          ssl:
+            enable: ${MAIL_SMTP_SSL_ENABLE:false}
+        connectiontimeout: ${MAIL_CONNECTION_TIMEOUT_MS:10000}
+        timeout: ${MAIL_TIMEOUT_MS:10000}
+        writetimeout: ${MAIL_WRITE_TIMEOUT_MS:10000}
     from: ${MAIL_FROM:contato@ioauto.com.br}
 
   thymeleaf:
