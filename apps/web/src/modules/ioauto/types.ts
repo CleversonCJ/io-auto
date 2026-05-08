@@ -87,6 +87,7 @@ export type VehicleRecord = {
     transmission: string | null;
     fuelType: string | null;
     bodyType: string | null;
+    doors: number | null;
     color: string | null;
     plateFinal: string | null;
     plate: string | null;
@@ -462,6 +463,7 @@ export type PublicInventoryVehicle = {
     transmission: string | null;
     fuelType: string | null;
     bodyType: string | null;
+    doors: number | null;
     color: string | null;
     plateFinal: string | null;
     city: string | null;

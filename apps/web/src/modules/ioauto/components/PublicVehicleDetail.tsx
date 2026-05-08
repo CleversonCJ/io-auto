@@ -94,6 +94,7 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
         { label: "Cambio", value: data.vehicle.transmission ?? "Nao informado", icon: <Settings2 className="h-4 w-4" /> },
         { label: "Combustivel", value: data.vehicle.fuelType ?? "Nao informado", icon: <Sparkles className="h-4 w-4" /> },
         { label: "Carroceria", value: data.vehicle.bodyType ?? "Nao informado", icon: <ShieldCheck className="h-4 w-4" /> },
+        { label: "Portas", value: data.vehicle.doors != null ? `${data.vehicle.doors}` : "Nao informado", icon: <CarFront className="h-4 w-4" /> },
         { label: "Cor", value: data.vehicle.color ?? "Nao informado", icon: <Palette className="h-4 w-4" /> },
         { label: "Localizacao", value: buildVehicleLocation(data.vehicle), icon: <MapPin className="h-4 w-4" /> },
         { label: "Final da placa", value: data.vehicle.plateFinal ?? "Nao informado", icon: <Info className="h-4 w-4" /> },

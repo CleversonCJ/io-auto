@@ -468,6 +468,9 @@ public class MeliVehicleAdMapper {
     }
 
     private int resolveDoors(JpaIoAutoVehicleEntity vehicle) {
+        if (vehicle.getDoors() != null && vehicle.getDoors() > 0) {
+            return vehicle.getDoors();
+        }
         String normalizedBodyType = normalizeCatalogText(vehicle.getBodyType());
         return switch (normalizedBodyType) {
             case "cupe", "coupe", "conversivel", "convertible" -> 2;

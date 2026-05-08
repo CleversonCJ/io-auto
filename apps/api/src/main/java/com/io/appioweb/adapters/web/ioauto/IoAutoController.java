@@ -67,6 +67,63 @@ public class IoAutoController {
     private static final int MAX_PUBLIC_CATALOG_BANNER_IMAGES = 6;
     private static final int MAX_PUBLIC_CATALOG_IMAGE_LENGTH = 2_000_000;
     private static final List<String> DEFAULT_INTEGRATION_PROVIDER_KEYS = List.of("olx", "mercadolivre", "webmotors");
+    private static final Map<String, String> VEHICLE_TRANSMISSION_OPTIONS = Map.ofEntries(
+            Map.entry("automatica", "Automatica"),
+            Map.entry("automatico", "Automatica"),
+            Map.entry("cvt", "Automatica"),
+            Map.entry("manual", "Manual"),
+            Map.entry("semiautomatica", "Semiautomatica"),
+            Map.entry("semiautomatico", "Semiautomatica"),
+            Map.entry("automaticasequencial", "Automatica sequencial"),
+            Map.entry("automaticosequencial", "Automatica sequencial"),
+            Map.entry("sequencial", "Automatica sequencial")
+    );
+    private static final Map<String, String> VEHICLE_FUEL_OPTIONS = Map.ofEntries(
+            Map.entry("flex", "Flex"),
+            Map.entry("gasolina", "Gasolina"),
+            Map.entry("diesel", "Diesel"),
+            Map.entry("etanol", "Etanol"),
+            Map.entry("alcool", "Alcool"),
+            Map.entry("eletrico", "Eletrico"),
+            Map.entry("hibrido", "Hibrido"),
+            Map.entry("hibridoflex", "Hibrido/Flex"),
+            Map.entry("hibridogasolina", "Hibrido/Gasolina"),
+            Map.entry("hibridodiesel", "Hibrido/Diesel"),
+            Map.entry("gasolinaeeletrico", "Gasolina e eletrico"),
+            Map.entry("gasolinaegasnatural", "Gasolina e gas natural"),
+            Map.entry("alcoolegasnatural", "Alcool e gas natural"),
+            Map.entry("gasolinaalcoolegasnatural", "Gasolina-Alcool e gas natural"),
+            Map.entry("gasolinaealcool", "Flex")
+    );
+    private static final Map<String, String> VEHICLE_BODY_TYPE_OPTIONS = Map.ofEntries(
+            Map.entry("hatch", "Hatch"),
+            Map.entry("sedan", "Sedan"),
+            Map.entry("suv", "SUV"),
+            Map.entry("crossover", "Crossover"),
+            Map.entry("picape", "Picape"),
+            Map.entry("pickup", "Picape"),
+            Map.entry("coupe", "Coupe"),
+            Map.entry("cupe", "Coupe"),
+            Map.entry("conversivel", "Conversivel"),
+            Map.entry("convertible", "Conversivel"),
+            Map.entry("perua", "Perua"),
+            Map.entry("wagon", "Perua"),
+            Map.entry("van", "Van"),
+            Map.entry("minivan", "Minivan")
+    );
+    private static final Map<String, String> VEHICLE_COLOR_OPTIONS = Map.ofEntries(
+            Map.entry("prata", "Prata"),
+            Map.entry("preto", "Preto"),
+            Map.entry("branco", "Branco"),
+            Map.entry("cinza", "Cinza"),
+            Map.entry("cinzaescuro", "Cinza escuro"),
+            Map.entry("vermelho", "Vermelho"),
+            Map.entry("azul", "Azul"),
+            Map.entry("verde", "Verde"),
+            Map.entry("amarelo", "Amarelo"),
+            Map.entry("bege", "Bege"),
+            Map.entry("marrom", "Marrom")
+    );
 
     private final CurrentUserPort currentUser;
     private final CompanyRepositoryPort companies;
@@ -763,10 +820,11 @@ public class IoAutoController {
         entity.setManufactureYear(resolvedYear);
         entity.setPriceCents(request.priceCents());
         entity.setMileage(request.mileage());
-        entity.setTransmission(normalizeNullableText(request.transmission()));
-        entity.setFuelType(normalizeNullableText(request.fuelType()));
-        entity.setBodyType(normalizeNullableText(request.bodyType()));
-        entity.setColor(normalizeNullableText(request.color()));
+        entity.setTransmission(normalizeVehicleTransmission(request.transmission()));
+        entity.setFuelType(normalizeVehicleFuelType(request.fuelType()));
+        entity.setBodyType(normalizeVehicleBodyType(request.bodyType()));
+        entity.setDoors(normalizeVehicleDoors(request.doors()));
+        entity.setColor(normalizeVehicleColor(request.color()));
         entity.setPlateFinal(normalizeNullableText(request.plateFinal()));
         entity.setPlate(normalizeNullableText(request.plate()));
         entity.setContactPhone(normalizeNullableText(request.contactPhone()));
@@ -923,6 +981,7 @@ public class IoAutoController {
                 normalizeNullableText(vehicle.getTransmission()),
                 normalizeNullableText(vehicle.getFuelType()),
                 normalizeNullableText(vehicle.getBodyType()),
+                vehicle.getDoors(),
                 normalizeNullableText(vehicle.getColor()),
                 normalizeNullableText(vehicle.getPlateFinal()),
                 normalizeNullableText(vehicle.getPlate()),
@@ -1097,6 +1156,7 @@ public class IoAutoController {
                 normalizeNullableText(vehicle.getTransmission()),
                 normalizeNullableText(vehicle.getFuelType()),
                 normalizeNullableText(vehicle.getBodyType()),
+                vehicle.getDoors(),
                 normalizeNullableText(vehicle.getColor()),
                 normalizeNullableText(vehicle.getPlateFinal()),
                 normalizeNullableText(vehicle.getCity()),
@@ -1634,6 +1694,52 @@ public class IoAutoController {
         return normalizeText(raw, "DIRECT").toUpperCase(Locale.ROOT);
     }
 
+    private String normalizeVehicleTransmission(String raw) {
+        return normalizeVehiclePreset(raw, VEHICLE_TRANSMISSION_OPTIONS, "cambio");
+    }
+
+    private String normalizeVehicleFuelType(String raw) {
+        return normalizeVehiclePreset(raw, VEHICLE_FUEL_OPTIONS, "combustivel");
+    }
+
+    private String normalizeVehicleBodyType(String raw) {
+        return normalizeVehiclePreset(raw, VEHICLE_BODY_TYPE_OPTIONS, "carroceria");
+    }
+
+    private String normalizeVehicleColor(String raw) {
+        return normalizeVehiclePreset(raw, VEHICLE_COLOR_OPTIONS, "cor");
+    }
+
+    private Integer normalizeVehicleDoors(Integer raw) {
+        if (raw == null) {
+            return null;
+        }
+        if (raw < 2 || raw > 5) {
+            throw new BusinessException("IOAUTO_INVALID_PAYLOAD", "Selecione uma quantidade valida de portas.");
+        }
+        return raw;
+    }
+
+    private String normalizeVehiclePreset(String raw, Map<String, String> allowedValues, String fieldLabel) {
+        String normalized = normalizeNullableText(raw);
+        if (normalized == null) {
+            return null;
+        }
+        String key = normalizeVehicleChoiceKey(normalized);
+        String canonical = allowedValues.get(key);
+        if (canonical != null) {
+            return canonical;
+        }
+        throw new BusinessException("IOAUTO_INVALID_PAYLOAD", "Selecione uma opcao valida para " + fieldLabel + ".");
+    }
+
+    private String normalizeVehicleChoiceKey(String raw) {
+        return java.text.Normalizer.normalize(normalizeText(raw), java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "");
+    }
+
     private String normalizePublicCatalogLeadPhone(String raw) {
         String digits = normalizeText(raw).replaceAll("\\D", "");
         if (digits.length() < 10 || digits.length() > 11) {
@@ -1787,6 +1893,7 @@ public class IoAutoController {
             String transmission,
             String fuelType,
             String bodyType,
+            Integer doors,
             String color,
             String plateFinal,
             String plate,
@@ -1870,6 +1977,7 @@ public class IoAutoController {
             String transmission,
             String fuelType,
             String bodyType,
+            Integer doors,
             String color,
             String plateFinal,
             String city,
@@ -2010,6 +2118,7 @@ public class IoAutoController {
             String transmission,
             String fuelType,
             String bodyType,
+            Integer doors,
             String color,
             String plateFinal,
             String plate,

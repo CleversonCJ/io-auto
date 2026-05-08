@@ -44,6 +44,7 @@ type VehicleFormState = {
     transmission: string;
     fuelType: string;
     bodyType: string;
+    doors: string;
     color: string;
     plateFinal: string;
     plate: string;
@@ -64,6 +65,64 @@ type VehicleFormState = {
     olx: OlxVehicleFormState;
 };
 
+const TRANSMISSION_OPTIONS = [
+    { value: "Automatica", label: "Automático" },
+    { value: "Manual", label: "Manual" },
+    { value: "Semiautomatica", label: "Semiautomático" },
+    { value: "Automatica sequencial", label: "Automático sequencial" },
+];
+
+const FUEL_TYPE_OPTIONS = [
+    { value: "Flex", label: "Flex" },
+    { value: "Gasolina", label: "Gasolina" },
+    { value: "Diesel", label: "Diesel" },
+    { value: "Etanol", label: "Etanol" },
+    { value: "Alcool", label: "Álcool" },
+    { value: "Eletrico", label: "Elétrico" },
+    { value: "Hibrido", label: "Híbrido" },
+    { value: "Hibrido/Flex", label: "Híbrido/Flex" },
+    { value: "Hibrido/Gasolina", label: "Híbrido/Gasolina" },
+    { value: "Hibrido/Diesel", label: "Híbrido/Diesel" },
+    { value: "Gasolina e eletrico", label: "Gasolina e elétrico" },
+    { value: "Gasolina e gas natural", label: "Gasolina e gás natural" },
+    { value: "Alcool e gas natural", label: "Álcool e gás natural" },
+    { value: "Gasolina-Alcool e gas natural", label: "Gasolina-Álcool e gás natural" },
+];
+
+const BODY_TYPE_OPTIONS = [
+    { value: "Hatch", label: "Hatch" },
+    { value: "Sedan", label: "Sedã" },
+    { value: "SUV", label: "SUV" },
+    { value: "Crossover", label: "Crossover" },
+    { value: "Picape", label: "Picape" },
+    { value: "Coupe", label: "Coupé" },
+    { value: "Conversivel", label: "Conversível" },
+    { value: "Perua", label: "Perua" },
+    { value: "Van", label: "Van" },
+    { value: "Minivan", label: "Minivan" },
+];
+
+const DOORS_OPTIONS = [
+    { value: "2", label: "2 portas" },
+    { value: "3", label: "3 portas" },
+    { value: "4", label: "4 portas" },
+    { value: "5", label: "5 portas" },
+];
+
+const COLOR_OPTIONS = [
+    { value: "Prata", label: "Prata" },
+    { value: "Preto", label: "Preto" },
+    { value: "Branco", label: "Branco" },
+    { value: "Cinza", label: "Cinza" },
+    { value: "Cinza escuro", label: "Cinza escuro" },
+    { value: "Vermelho", label: "Vermelho" },
+    { value: "Azul", label: "Azul" },
+    { value: "Verde", label: "Verde" },
+    { value: "Amarelo", label: "Amarelo" },
+    { value: "Bege", label: "Bege" },
+    { value: "Marrom", label: "Marrom" },
+];
+
 function emptyForm(): VehicleFormState {
     return {
         stockNumber: "",
@@ -78,6 +137,7 @@ function emptyForm(): VehicleFormState {
         transmission: "",
         fuelType: "",
         bodyType: "",
+        doors: "",
         color: "",
         plateFinal: "",
         plate: "",
@@ -118,6 +178,7 @@ function vehicleToForm(vehicle: VehicleRecord): VehicleFormState {
         transmission: vehicle.transmission ?? "",
         fuelType: vehicle.fuelType ?? "",
         bodyType: vehicle.bodyType ?? "",
+        doors: vehicle.doors != null ? String(vehicle.doors) : "",
         color: vehicle.color ?? "",
         plateFinal: vehicle.plateFinal ?? "",
         plate: vehicle.plate ?? "",
@@ -653,8 +714,13 @@ export function InventoryStudio() {
     }
 
     useEffect(() => {
-        void loadMeliListingTypes("MLB1743");
-    }, []);
+        const categoryId = form.meli.categoryId.trim();
+        if (!categoryId) {
+            setMeliListingTypes([]);
+            return;
+        }
+        void loadMeliListingTypes(categoryId);
+    }, [form.meli.categoryId]);
 
     async function loadInventory() {
         setLoading(true);
@@ -810,6 +876,7 @@ export function InventoryStudio() {
                 transmission: form.transmission || null,
                 fuelType: form.fuelType || null,
                 bodyType: form.bodyType || null,
+                doors: form.doors ? Number(form.doors) : null,
                 color: form.color || null,
                 plateFinal: form.plateFinal || null,
                 plate: normalizePlateValue(form.plate) || null,
@@ -829,7 +896,7 @@ export function InventoryStudio() {
                     installmentValueCents: form.installmentValueCents ? Number(form.installmentValueCents) : null,
                 },
                 targetIntegrations,
-                meliCategoryId: "MLB1743",
+                meliCategoryId: form.meli.categoryId || null,
                 meliListingTypeId: form.meli.listingTypeId || null,
                 meliCondition: form.meli.condition || null,
             };
@@ -1001,10 +1068,11 @@ export function InventoryStudio() {
                                                     />
                                                 </div>
 
-                                                <Field label="Cambio" value={form.transmission} onChange={(value) => updateField("transmission", value)} placeholder="Automatico, manual..." />
-                                                <Field label="Combustivel" value={form.fuelType} onChange={(value) => updateField("fuelType", value)} placeholder="Flex, diesel, eletrico..." />
-                                                <Field label="Carroceria" value={form.bodyType} onChange={(value) => updateField("bodyType", value)} placeholder="SUV, hatch, sedan..." />
-                                                <Field label="Cor" value={form.color} onChange={(value) => updateField("color", value)} />
+                                                <SelectField label="Cambio" value={form.transmission} options={TRANSMISSION_OPTIONS} onChange={(value) => updateField("transmission", value)} />
+                                                <SelectField label="Combustivel" value={form.fuelType} options={FUEL_TYPE_OPTIONS} onChange={(value) => updateField("fuelType", value)} />
+                                                <SelectField label="Carroceria" value={form.bodyType} options={BODY_TYPE_OPTIONS} onChange={(value) => updateField("bodyType", value)} />
+                                                <SelectField label="Portas" value={form.doors} options={DOORS_OPTIONS} onChange={(value) => updateField("doors", value)} />
+                                                <SelectField label="Cor" value={form.color} options={COLOR_OPTIONS} onChange={(value) => updateField("color", value)} />
                                                 <Field
                                                     label="Placa completa"
                                                     value={form.plate}

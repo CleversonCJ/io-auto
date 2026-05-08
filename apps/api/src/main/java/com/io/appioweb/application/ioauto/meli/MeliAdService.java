@@ -517,6 +517,9 @@ public class MeliAdService {
     }
 
     private String friendlyApiMessage(MeliApiException exception) {
+        if (exception.httpStatus() == 402) {
+            return "A conta do Mercado Livre nao pode publicar este anuncio agora. Verifique o tipo de anuncio disponivel para a conta e eventuais pendencias comerciais ou de cobranca no Mercado Livre.";
+        }
         String message = safe(exception.getMessage());
         if (!message.isBlank()) {
             return message;

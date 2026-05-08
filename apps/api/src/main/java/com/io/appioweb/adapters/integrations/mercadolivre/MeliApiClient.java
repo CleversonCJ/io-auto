@@ -85,7 +85,7 @@ public class MeliApiClient {
                     return execute(method, path, companyId, body, true, true);
                 }
                 throw unauthorized;
-            } catch (MeliValidationException | MeliForbiddenException | MeliNotFoundException nonRetryable) {
+            } catch (MeliValidationException | MeliForbiddenException | MeliNotFoundException | MeliPaymentRequiredException nonRetryable) {
                 throw nonRetryable;
             } catch (MeliRateLimitException | MeliUnexpectedException retryable) {
                 lastRetryable = retryable;
@@ -199,6 +199,7 @@ public class MeliApiClient {
         return switch (response.httpStatus()) {
             case 400 -> new MeliValidationException(fallbackMessage, response.httpStatus(), reason);
             case 401 -> new MeliUnauthorizedException(fallbackMessage, response.httpStatus(), reason);
+            case 402 -> new MeliPaymentRequiredException(fallbackMessage, response.httpStatus(), reason);
             case 403 -> new MeliForbiddenException(fallbackMessage, response.httpStatus(), reason);
             case 404 -> new MeliNotFoundException(fallbackMessage, response.httpStatus(), reason);
             case 409 -> new MeliValidationException(fallbackMessage, response.httpStatus(), reason);

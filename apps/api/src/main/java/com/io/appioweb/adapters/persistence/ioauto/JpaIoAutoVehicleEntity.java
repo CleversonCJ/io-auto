@@ -59,6 +59,9 @@ public class JpaIoAutoVehicleEntity {
     @Column(name = "body_type", length = 60)
     private String bodyType;
 
+    @Column
+    private Integer doors;
+
     @Column(length = 60)
     private String color;
 
@@ -274,6 +277,14 @@ public class JpaIoAutoVehicleEntity {
 
     public void setBodyType(String bodyType) {
         this.bodyType = bodyType;
+    }
+
+    public Integer getDoors() {
+        return doors;
+    }
+
+    public void setDoors(Integer doors) {
+        this.doors = doors;
     }
 
     public String getColor() {
