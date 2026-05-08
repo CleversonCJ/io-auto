@@ -33,6 +33,12 @@ export async function POST(
         }, { status: 404 });
     }
 
+    if (upstream.status === 401 || upstream.status === 403) {
+        return NextResponse.json({
+            message: "O backend bloqueou o envio do formulário público. Atualize e reinicie a API para liberar o endpoint de leads do catálogo.",
+        }, { status: upstream.status });
+    }
+
     return NextResponse.json({
         message: payload?.message ?? "Falha ao registrar o lead do catálogo.",
     }, { status: upstream.status });

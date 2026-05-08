@@ -74,6 +74,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/logout").authenticated()
                         .requestMatchers(HttpMethod.POST, "/public/signup/checkout").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/public/stock/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/public/signup/status").permitAll()
                         .requestMatchers(HttpMethod.GET, "/public/stock/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/integrations/google/oauth/callback").permitAll()
