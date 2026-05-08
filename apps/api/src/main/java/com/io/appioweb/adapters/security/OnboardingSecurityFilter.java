@@ -67,6 +67,15 @@ public class OnboardingSecurityFilter extends OncePerRequestFilter {
         }
 
         log.debug("[OnboardingSecurity] Token validated for: {}", request.getRequestURI());
+        
+        // Register a temporary internal authentication so other filters (like JWT) don't try to process this request
+        org.springframework.security.authentication.UsernamePasswordAuthenticationToken auth = 
+            new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                "onboarding-internal", null, 
+                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ONBOARDING_INTERNAL"))
+            );
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
+
         filterChain.doFilter(request, response);
     }
 

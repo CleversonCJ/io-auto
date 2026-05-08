@@ -1,6 +1,7 @@
 package com.io.appioweb.config;
 
 import com.io.appioweb.adapters.security.AccessBlacklistFilter;
+import com.io.appioweb.adapters.security.OnboardingSecurityFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -31,6 +32,7 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             AccessBlacklistFilter blacklistFilter,
+            OnboardingSecurityFilter onboardingSecurityFilter,
             JwtAuthenticationConverter jwtAuthenticationConverter
     ) throws Exception {
         http
@@ -58,6 +60,8 @@ public class SecurityConfig {
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)));
 
+        // Onboarding filter MUST come before standard filters to handle its own token validation
+        http.addFilterBefore(onboardingSecurityFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(blacklistFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
