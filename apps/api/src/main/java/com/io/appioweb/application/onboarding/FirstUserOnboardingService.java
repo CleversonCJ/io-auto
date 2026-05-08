@@ -16,6 +16,7 @@ import com.io.appioweb.shared.errors.BusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -89,10 +90,10 @@ public class FirstUserOnboardingService {
         Optional<JpaOnboardingEventEntity> existingEvent = eventRepo.findByIdempotencyKey(key);
         if (existingEvent.isPresent() && OnboardingEventStatus.DONE.name().equals(existingEvent.get().getStatus())) {
             log.info("[Onboarding:Register] Idempotent hit – returning cached result for key={}", key);
-            return buildRegisterResponseFromEvent(existingEvent.get());
+            return buildRegisterResponseFromRequest(request);
         }
 
-        JpaOnboardingEventEntity event = createEvent(key, "REGISTER", payloadJson);
+        JpaOnboardingEventEntity event = createOrResetEvent(key, "REGISTER", payloadJson, existingEvent.orElse(null));
 
         try {
             FirstUserRegisterRequest.FirstUserRegistration reg = request.firstUserRegistration();
@@ -310,10 +311,10 @@ public class FirstUserOnboardingService {
         Optional<JpaOnboardingEventEntity> existingEvent = eventRepo.findByIdempotencyKey(key);
         if (existingEvent.isPresent() && OnboardingEventStatus.DONE.name().equals(existingEvent.get().getStatus())) {
             log.info("[Onboarding:Activate] Idempotent hit – key={}", key);
-            return buildActivateResponseFromEvent(existingEvent.get(), true);
+            return buildActivateResponseFromRequest(request);
         }
 
-        JpaOnboardingEventEntity event = createEvent(key, "ACTIVATE", payloadJson);
+        JpaOnboardingEventEntity event = createOrResetEvent(key, "ACTIVATE", payloadJson, existingEvent.orElse(null));
 
         try {
             String paymentStatus = request.paymentStatus() != null
@@ -480,7 +481,7 @@ public class FirstUserOnboardingService {
             return new SendAccessEmailResponse(true, "");
         }
 
-        JpaOnboardingEventEntity event = createEvent(key, "SEND_ACCESS_EMAIL", payloadJson);
+        JpaOnboardingEventEntity event = createOrResetEvent(key, "SEND_ACCESS_EMAIL", payloadJson, existingEvent.orElse(null));
 
         try {
             String email = normalizeEmail(request.email());
@@ -574,6 +575,33 @@ public class FirstUserOnboardingService {
         event.setCreatedAt(Instant.now());
 
         return eventRepo.save(event);
+    }
+
+    private JpaOnboardingEventEntity createOrResetEvent(
+            String idempotencyKey,
+            String eventType,
+            String payloadJson,
+            JpaOnboardingEventEntity existingEvent
+    ) {
+        if (existingEvent != null) {
+            existingEvent.setEventType(eventType);
+            existingEvent.setPayloadJson(payloadJson != null ? payloadJson : "{}");
+            existingEvent.setStatus(OnboardingEventStatus.PENDING.name());
+            existingEvent.setErrorMessage(null);
+            existingEvent.setProcessedAt(null);
+            return eventRepo.save(existingEvent);
+        }
+
+        try {
+            return createEvent(idempotencyKey, eventType, payloadJson);
+        } catch (DataIntegrityViolationException ignored) {
+            return eventRepo.findByIdempotencyKey(idempotencyKey)
+                    .map(event -> createOrResetEvent(idempotencyKey, eventType, payloadJson, event))
+                    .orElseThrow(() -> new BusinessException(
+                            "ONBOARDING_EVENT_CONFLICT",
+                            "Nao foi possivel registrar o evento de onboarding."
+                    ));
+        }
     }
 
     private JpaOnboardingSubscriptionEntity findOrCreateSubscription(String paymentId, String subscriptionId) {
@@ -677,12 +705,84 @@ public class FirstUserOnboardingService {
         return setPasswordBaseUrl + "?token=" + token;
     }
 
-    private FirstUserRegisterResponse buildRegisterResponseFromEvent(JpaOnboardingEventEntity event) {
-        return new FirstUserRegisterResponse(null, null, false, CompanyStatus.INACTIVE.name());
+    private FirstUserRegisterResponse buildRegisterResponseFromRequest(FirstUserRegisterRequest request) {
+        if (request == null || request.firstUserRegistration() == null) {
+            return new FirstUserRegisterResponse(null, null, false, CompanyStatus.INACTIVE.name());
+        }
+
+        FirstUserRegisterRequest.FirstUserRegistration reg = request.firstUserRegistration();
+        String email = normalizeEmail(reg.responsavelEmail());
+        String cnpj = normalizeCnpj(reg.cnpj());
+        String companyEmail = reg.companyEmail() != null ? reg.companyEmail().trim().toLowerCase(Locale.ROOT) : "";
+
+        JpaCompanyEntity company = null;
+        if (!cnpj.isBlank()) {
+            company = companyRepo.findByCnpj(cnpj).orElse(null);
+        }
+        if (company == null && !companyEmail.isBlank()) {
+            company = companyRepo.findByEmail(companyEmail).orElse(null);
+        }
+        if (company == null) {
+            company = userRepo.findAllByEmail(email).stream()
+                    .map(user -> companyRepo.findById(user.getCompanyId()).orElse(null))
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        UUID companyId = company != null ? company.getId() : null;
+        UUID userId = null;
+
+        if (companyId != null) {
+            userId = userRepo.findAllByEmail(email).stream()
+                    .filter(user -> Objects.equals(companyId, user.getCompanyId()))
+                    .map(JpaUserEntity::getId)
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        String status = company != null && company.getStatus() != null && !company.getStatus().isBlank()
+                ? company.getStatus()
+                : CompanyStatus.INACTIVE.name();
+
+        return new FirstUserRegisterResponse(companyId, userId, false, status);
     }
 
-    private FirstUserActivateResponse buildActivateResponseFromEvent(JpaOnboardingEventEntity event, boolean wasDone) {
-        return new FirstUserActivateResponse(false, true, null, null, null);
+    private FirstUserActivateResponse buildActivateResponseFromRequest(FirstUserActivateRequest request) {
+        if (request == null) {
+            return new FirstUserActivateResponse(false, true, null, null, null);
+        }
+
+        String subscriptionId = trimOrEmpty(request.subscriptionId());
+        String paymentId = trimOrEmpty(request.paymentId());
+
+        JpaOnboardingSubscriptionEntity subscription = null;
+        if (!subscriptionId.isBlank()) {
+            subscription = subscriptionRepo.findByAsaasSubscriptionId(subscriptionId).orElse(null);
+        }
+        if (subscription == null && !paymentId.isBlank()) {
+            subscription = subscriptionRepo.findByAsaasPaymentId(paymentId).orElse(null);
+        }
+        if (subscription == null) {
+            return new FirstUserActivateResponse(false, true, null, null, null);
+        }
+
+        UUID companyId = subscription.getCompanyId();
+        JpaCompanyEntity company = companyId != null ? companyRepo.findById(companyId).orElse(null) : null;
+        JpaUserEntity primaryUser = companyId != null ? findPrimaryUser(companyId) : null;
+
+        boolean alreadyActive = company != null
+                && CompanyStatus.ACTIVE.name().equals(company.getStatus())
+                && primaryUser != null
+                && primaryUser.isActive();
+
+        return new FirstUserActivateResponse(
+                false,
+                alreadyActive,
+                companyId,
+                primaryUser != null ? primaryUser.getId() : null,
+                subscription.getId()
+        );
     }
 
     private String normalizeCnpj(String cnpj) {

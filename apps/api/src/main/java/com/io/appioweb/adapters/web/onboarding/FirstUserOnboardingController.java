@@ -118,7 +118,7 @@ public class FirstUserOnboardingController {
         SendAccessEmailResponse emailResponse = new SendAccessEmailResponse(false, "");
         if (activateResponse.activated() || activateResponse.alreadyActive()) {
             try {
-                SendAccessEmailRequest emailRequest = mapToEmailRequest(request, registerResponse, baseKey);
+                SendAccessEmailRequest emailRequest = mapToEmailRequest(request, registerResponse, activateResponse, baseKey);
                 emailResponse = onboardingService.sendAccessEmail(emailRequest, payloadJson);
             } catch (Exception e) {
                 log.error("[OnboardingController] Failed to send access email (non-blocking): {}", e.getMessage());
@@ -192,12 +192,24 @@ public class FirstUserOnboardingController {
         );
     }
 
-    private SendAccessEmailRequest mapToEmailRequest(PaymentEventRequest event, FirstUserRegisterResponse registerResponse, String baseKey) {
+    private SendAccessEmailRequest mapToEmailRequest(
+            PaymentEventRequest event,
+            FirstUserRegisterResponse registerResponse,
+            FirstUserActivateResponse activateResponse,
+            String baseKey
+    ) {
         PaymentEventRequest.Customer c = event.customer();
+        String userId = activateResponse.userId() != null
+                ? activateResponse.userId().toString()
+                : (registerResponse.userId() != null ? registerResponse.userId().toString() : "");
+        String companyId = activateResponse.companyId() != null
+                ? activateResponse.companyId().toString()
+                : (registerResponse.companyId() != null ? registerResponse.companyId().toString() : "");
+
         return new SendAccessEmailRequest(
                 baseKey + ":email",
-                registerResponse.userId() != null ? registerResponse.userId().toString() : "",
-                registerResponse.companyId() != null ? registerResponse.companyId().toString() : "",
+                userId,
+                companyId,
                 c.responsavelEmail(),
                 c.responsavelNome(),
                 null,

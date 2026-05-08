@@ -1,34 +1,38 @@
 import { BrandMark } from "@/modules/ioauto/components/BrandMark";
-import { SignupCheckoutForm } from "@/modules/ioauto/components/SignupCheckoutForm";
 
 export default function AssinarPage() {
     return (
         <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(107,0,227,0.16),transparent_28%),linear-gradient(180deg,#f6f1ff_0%,#f4f4f6_58%,#f7f3ff_100%)] px-6 py-10">
             <div className="mx-auto max-w-6xl">
                 <BrandMark />
-                <div className="mt-10 grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
+                <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_1fr]">
                     <section className="rounded-[40px] bg-[#180a2d] p-8 text-white shadow-[0_30px_80px_rgba(31,4,64,0.20)]">
-                        <p className="text-xs uppercase tracking-[0.28em] text-white/45">Cadastro rapido + checkout</p>
+                        <p className="text-xs uppercase tracking-[0.28em] text-white/45">Onboarding via LP</p>
                         <h1 className="mt-5 font-display text-5xl font-bold leading-[1.04]">
-                            Leve o visitante do interesse ao pagamento sem alongar o formulario.
+                            O cadastro inicial e ativacao agora acontecem via LP + webhook de pagamento.
                         </h1>
                         <p className="mt-5 text-sm leading-8 text-white/72">
-                            Nesta etapa o usuario informa apenas os dados essenciais da loja e segue para o checkout hospedado do Asaas para concluir a assinatura.
+                            Este ambiente nao cria mais checkout publico. A LP externa envia o pre-cadastro para o backend (INACTIVE) e, apos pagamento confirmado, ativa a conta e dispara o e-mail para definir senha.
                         </p>
 
                         <div className="mt-8 grid gap-3">
-                            <StepCard step="01" title="Dados basicos" body="Nome completo, nome da empresa, e-mail e telefone." />
-                            <StepCard step="02" title="Checkout Asaas" body="Pagamento recorrente em ambiente externo e seguro." />
-                            <StepCard step="03" title="Ativacao da conta" body="A operacao e liberada apos a confirmacao do pagamento." />
+                            <StepCard step="01" title="Register" body="A LP envia dados do cliente para /v1/onboarding/first-user/register e cria usuario/empresa INACTIVE." />
+                            <StepCard step="02" title="Activate" body="Ao confirmar pagamento, a LP chama /v1/onboarding/first-user/activate." />
+                            <StepCard step="03" title="Send Access Email" body="Com a conta ativa, o backend gera token e envia e-mail de definicao de senha." />
                         </div>
                     </section>
 
                     <div className="grid gap-6">
-                        <SignupCheckoutForm compact />
                         <div className="rounded-[34px] border border-[#6b00e3]/12 bg-white p-6 shadow-[0_18px_45px_rgba(90,10,160,0.10)]">
-                            <p className="text-xs uppercase tracking-[0.28em] text-[#6b00e3]/75">Importante</p>
+                            <p className="text-xs uppercase tracking-[0.28em] text-[#6b00e3]/75">Endpoints oficiais</p>
                             <p className="mt-3 text-sm leading-7 text-black/58">
-                                O fluxo depende da configuracao do checkout e do webhook no Asaas. Eu tambem vou deixar o passo a passo para voce finalizar isso em producao sem faltar nenhuma etapa.
+                                Use somente: /v1/onboarding/first-user/register, /v1/onboarding/first-user/activate e /v1/onboarding/first-user/send-access-email.
+                            </p>
+                        </div>
+                        <div className="rounded-[34px] border border-[#6b00e3]/12 bg-white p-6 shadow-[0_18px_45px_rgba(90,10,160,0.10)]">
+                            <p className="text-xs uppercase tracking-[0.28em] text-[#6b00e3]/75">Seguranca</p>
+                            <p className="mt-3 text-sm leading-7 text-black/58">
+                                As chamadas de onboarding devem usar Authorization Bearer com token interno e idempotencyKey unica por evento.
                             </p>
                         </div>
                     </div>

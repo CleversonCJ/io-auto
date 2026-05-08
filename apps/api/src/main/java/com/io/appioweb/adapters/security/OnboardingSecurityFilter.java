@@ -14,6 +14,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.security.MessageDigest;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * Security filter for the onboarding API endpoints (/v1/onboarding/**).
@@ -29,11 +32,14 @@ public class OnboardingSecurityFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final String internalApiToken;
+    private final Set<String> allowedIps;
 
     public OnboardingSecurityFilter(
-            @Value("${ONBOARDING_INTERNAL_API_TOKEN:}") String internalApiToken
+            @Value("${ONBOARDING_INTERNAL_API_TOKEN:}") String internalApiToken,
+            @Value("${ONBOARDING_ALLOWED_IPS:}") String allowedIps
     ) {
         this.internalApiToken = internalApiToken != null ? internalApiToken.trim() : "";
+        this.allowedIps = parseAllowedIps(allowedIps);
     }
 
     @Override
@@ -63,6 +69,13 @@ public class OnboardingSecurityFilter extends OncePerRequestFilter {
         if (!constantTimeEquals(internalApiToken, providedToken)) {
             log.warn("[OnboardingSecurity] Invalid token for onboarding request: {}", request.getRequestURI());
             sendUnauthorized(response, "Invalid authorization token.");
+            return;
+        }
+
+        String requesterIp = resolveRequesterIp(request);
+        if (!isAllowedIp(requesterIp)) {
+            log.warn("[OnboardingSecurity] Blocked IP {} for onboarding request: {}", requesterIp, request.getRequestURI());
+            sendUnauthorized(response, "IP not allowed.");
             return;
         }
 
@@ -97,5 +110,43 @@ public class OnboardingSecurityFilter extends OncePerRequestFilter {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private Set<String> parseAllowedIps(String rawValue) {
+        if (rawValue == null || rawValue.isBlank()) {
+            return Set.of();
+        }
+
+        Set<String> ips = new LinkedHashSet<>();
+        Arrays.stream(rawValue.split(","))
+                .map(String::trim)
+                .filter(ip -> !ip.isBlank())
+                .forEach(ips::add);
+        return ips;
+    }
+
+    private String resolveRequesterIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            String[] values = forwardedFor.split(",");
+            if (values.length > 0 && values[0] != null && !values[0].isBlank()) {
+                return values[0].trim();
+            }
+        }
+
+        String realIp = request.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
+        }
+
+        return request.getRemoteAddr() != null ? request.getRemoteAddr().trim() : "";
+    }
+
+    private boolean isAllowedIp(String requesterIp) {
+        if (allowedIps.isEmpty()) {
+            return true;
+        }
+
+        return requesterIp != null && allowedIps.contains(requesterIp.trim());
     }
 }
