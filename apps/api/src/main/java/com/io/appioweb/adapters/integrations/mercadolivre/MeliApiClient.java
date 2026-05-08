@@ -85,6 +85,8 @@ public class MeliApiClient {
                     return execute(method, path, companyId, body, true, true);
                 }
                 throw unauthorized;
+            } catch (MeliValidationException | MeliForbiddenException | MeliNotFoundException nonRetryable) {
+                throw nonRetryable;
             } catch (MeliRateLimitException | MeliUnexpectedException retryable) {
                 lastRetryable = retryable;
                 if (attempt >= DEFAULT_BACKOFF_MS.size() || !shouldRetry(retryable.httpStatus())) {
@@ -183,7 +185,12 @@ public class MeliApiClient {
     private MeliApiException mapHttpError(JsonResponse response) {
         JsonNode root = response.body();
         String reason = firstNonBlank(text(root, "error"), text(root, "message"));
-        String message = firstNonBlank(text(root, "message"), text(root, "error_description"), text(root, "error"));
+        String message = firstNonBlank(
+                extractDetailedMessage(root),
+                text(root, "message"),
+                text(root, "error_description"),
+                text(root, "error")
+        );
         String fallbackMessage = message.isBlank() ? "O Mercado Livre rejeitou a requisicao." : message;
         return switch (response.httpStatus()) {
             case 400 -> new MeliValidationException(fallbackMessage, response.httpStatus(), reason);
@@ -213,6 +220,36 @@ public class MeliApiClient {
 
     private String safe(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private String extractDetailedMessage(JsonNode root) {
+        List<String> parts = new java.util.ArrayList<>();
+        addIfPresent(parts, text(root, "message"));
+        addIfPresent(parts, text(root, "error_description"));
+
+        JsonNode cause = root.path("cause");
+        if (cause.isArray()) {
+            for (JsonNode item : cause) {
+                addIfPresent(parts, firstNonBlank(
+                        text(item, "message"),
+                        text(item, "error"),
+                        text(item, "code")
+                ));
+            }
+        }
+
+        return parts.stream()
+                .distinct()
+                .filter(value -> !value.isBlank())
+                .reduce((left, right) -> left.equalsIgnoreCase(right) ? left : left + " | " + right)
+                .orElse("");
+    }
+
+    private void addIfPresent(List<String> parts, String value) {
+        String normalized = safe(value);
+        if (!normalized.isBlank()) {
+            parts.add(normalized);
+        }
     }
 
     private void sleep(long millis) {
