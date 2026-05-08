@@ -350,30 +350,6 @@ export function PublicCatalogLeadsPage() {
                             {"Acompanhe quem preencheu o formulário do catálogo público, veja o veículo de interesse e filtre o resultado pelo período que fizer mais sentido para a operação."}
                         </p>
                     </div>
-
-                    <div className="flex flex-col items-start gap-3 rounded-[28px] border border-[#6b00e3]/10 bg-white/80 px-5 py-4 shadow-[0_14px_28px_rgba(107,0,227,0.06)] md:items-end">
-                        <div>
-                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-black/36">
-                                {"Período aplicado"}
-                            </p>
-                            <p className="mt-2 text-base font-semibold text-io-dark">{periodLabel}</p>
-                        </div>
-
-                        <div className="flex flex-wrap items-center justify-end gap-2">
-                            <span className="inline-flex items-center gap-2 rounded-full border border-[#6b00e3]/12 bg-[#f8f2ff] px-4 py-2 text-xs font-semibold text-io-purple">
-                                <span className="h-2 w-2 rounded-full bg-[#7b2cff]" />
-                                {liveStatus}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => setRefreshTick((value) => value + 1)}
-                                className="inline-flex items-center gap-2 rounded-full border border-[#6b00e3]/12 bg-[#f8f2ff] px-4 py-2 text-sm font-semibold text-io-purple transition hover:border-[#6b00e3]/25 hover:bg-white"
-                            >
-                                <RefreshCw className="h-4 w-4" />
-                                {"Atualizar"}
-                            </button>
-                        </div>
-                    </div>
                 </div>
             </section>
 

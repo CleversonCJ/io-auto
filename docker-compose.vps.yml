@@ -69,9 +69,9 @@ services:
       SET_PASSWORD_URL: ${SET_PASSWORD_URL:-https://app.ioauto.com.br/definir-senha}
       MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
       MAIL_PORT: ${MAIL_PORT:-587}
-      MAIL_USERNAME: ${MAIL_USERNAME:-}
-      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
-      MAIL_FROM: ${MAIL_FROM:-contato@ioauto.com.br}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
     ports:
       - "127.0.0.1:${API_PORT:-8080}:8080"
     networks:
