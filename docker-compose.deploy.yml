@@ -45,6 +45,11 @@ services:
       OLX_API_BASE_URL: ${OLX_API_BASE_URL}
       OLX_WEBHOOK_URL: ${OLX_WEBHOOK_URL}
       OLX_WEBHOOK_TOKEN: ${OLX_WEBHOOK_TOKEN}
+      ONBOARDING_INTERNAL_API_TOKEN: ${ONBOARDING_INTERNAL_API_TOKEN}
+      ASAAS_BASE_URL: ${ASAAS_BASE_URL:-https://api.asaas.com}
+      ASAAS_ACCESS_TOKEN: ${ASAAS_ACCESS_TOKEN}
+      LOGIN_URL: ${LOGIN_URL:-https://app.ioauto.com.br/login}
+      SET_PASSWORD_URL: ${SET_PASSWORD_URL:-https://app.ioauto.com.br/definir-senha}
     expose:
       - "8080"
     networks:
@@ -71,6 +76,7 @@ services:
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
       JWT_SECRET_FOR_MIDDLEWARE: ${JWT_SECRET_FOR_MIDDLEWARE}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+      ONBOARDING_INTERNAL_API_TOKEN: ${ONBOARDING_INTERNAL_API_TOKEN}
     expose:
       - "3000"
     networks:

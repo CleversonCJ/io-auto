@@ -228,3 +228,218 @@ Redis pode continuar compartilhado na VPS.
 - o dominio principal foi preparado para operar como landing page comercial
 - o fluxo de pagamento atual usa Asaas, nao Stripe
 - a documentacao de deploy do projeto ja foi ajustada para esse modelo
+
+---
+
+## Onboarding API (Pos-Pagamento com Asaas)
+
+### Visao geral
+
+O modulo de onboarding permite que a Landing Page (ou um servico intermediario) chame o backend principal para:
+
+1. Cadastrar empresa e primeiro usuario (INACTIVE)
+2. Ativar empresa/usuario apos confirmacao de pagamento
+3. Enviar e-mail de acesso ao primeiro usuario
+
+Todos os endpoints sao idempotentes e protegidos com token interno.
+
+### Variaveis de ambiente
+
+```properties
+# Token interno para comunicacao LP → Backend
+ONBOARDING_INTERNAL_API_TOKEN=token_seguro_para_lp_chamar_backend
+
+# Asaas API
+ASAAS_BASE_URL=https://api-sandbox.asaas.com
+ASAAS_ACCESS_TOKEN=token_asaas
+
+# Em producao:
+# ASAAS_BASE_URL=https://api.asaas.com
+
+# URLs da aplicacao
+APP_PUBLIC_URL=https://app.ioauto.com.br
+LOGIN_URL=https://app.ioauto.com.br/login
+SET_PASSWORD_URL=https://app.ioauto.com.br/definir-senha
+```
+
+### Endpoints
+
+#### Fluxo com 3 endpoints separados
+
+##### 1. POST /v1/onboarding/first-user/register
+
+Cria empresa e usuario como INACTIVE. Nao ativa, nao envia e-mail.
+
+```bash
+curl -X POST https://api.ioauto.com.br/v1/onboarding/first-user/register \
+  -H "Authorization: Bearer $ONBOARDING_INTERNAL_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "idempotencyKey": "evt_xxx:PAYMENT_CONFIRMED:register",
+    "firstUserRegistration": {
+      "razaoSocial": "Empresa X",
+      "nomeFantasia": "Empresa X",
+      "companyEmail": "contato@empresa.com",
+      "cnpj": "12345678000199",
+      "whatsappNumber": "47999999999",
+      "endereco": "Rua X, 123, Centro",
+      "cidade": "Blumenau",
+      "uf": "SC",
+      "cep": "89000000",
+      "responsavelNome": "Joao Silva",
+      "responsavelEmail": "joao@empresa.com",
+      "responsavelWhatsapp": "47999999999",
+      "status": "INACTIVE"
+    },
+    "comercial": {
+      "valorPagoCliente": 197,
+      "recorrenciaPagamento": "mensal",
+      "dataAssinatura": "2026-05-08",
+      "origem": "meta-campanha-maio"
+    },
+    "billing": {
+      "paymentId": "pay_xxx",
+      "subscriptionId": "sub_xxx",
+      "planName": "IO Connect - Plano Mensal"
+    }
+  }'
+```
+
+##### 2. POST /v1/onboarding/first-user/activate
+
+Ativa empresa, usuario e assinatura. So aceita status CONFIRMED, RECEIVED, PAYMENT_CONFIRMED ou PAYMENT_RECEIVED.
+
+```bash
+curl -X POST https://api.ioauto.com.br/v1/onboarding/first-user/activate \
+  -H "Authorization: Bearer $ONBOARDING_INTERNAL_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "idempotencyKey": "evt_xxx:PAYMENT_CONFIRMED:activate",
+    "paymentId": "pay_xxx",
+    "subscriptionId": "sub_xxx",
+    "paymentStatus": "PAYMENT_CONFIRMED",
+    "valorPagoCliente": 197,
+    "recorrenciaPagamento": "mensal",
+    "dataAssinatura": "2026-05-08",
+    "origem": "meta-campanha-maio",
+    "planName": "IO Connect - Plano Mensal"
+  }'
+```
+
+##### 3. POST /v1/onboarding/first-user/send-access-email
+
+Envia e-mail de acesso. So envia se empresa e usuario estiverem ACTIVE.
+
+```bash
+curl -X POST https://api.ioauto.com.br/v1/onboarding/first-user/send-access-email \
+  -H "Authorization: Bearer $ONBOARDING_INTERNAL_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "idempotencyKey": "evt_xxx:PAYMENT_CONFIRMED:email",
+    "userId": "usr_123",
+    "companyId": "cmp_123",
+    "email": "joao@empresa.com",
+    "nome": "Joao Silva",
+    "loginUrl": "https://app.ioauto.com.br/login"
+  }'
+```
+
+#### Fluxo simplificado (1 chamada)
+
+##### POST /v1/onboarding/asaas/payment-event
+
+Recebe um evento normalizado e executa register → activate → send-access-email internamente.
+
+```bash
+curl -X POST https://api.ioauto.com.br/v1/onboarding/asaas/payment-event \
+  -H "Authorization: Bearer $ONBOARDING_INTERNAL_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "idempotencyKey": "evt_xxx:PAYMENT_CONFIRMED",
+    "eventType": "PAYMENT_CONFIRMED",
+    "paymentStatus": "PAYMENT_CONFIRMED",
+    "customer": {
+      "razaoSocial": "Empresa X",
+      "nomeFantasia": "Empresa X",
+      "companyEmail": "contato@empresa.com",
+      "cnpj": "12345678000199",
+      "whatsappNumber": "47999999999",
+      "endereco": "Rua X, 123, Centro",
+      "cidade": "Blumenau",
+      "uf": "SC",
+      "cep": "89000000",
+      "responsavelNome": "Joao Silva",
+      "responsavelEmail": "joao@empresa.com",
+      "responsavelWhatsapp": "47999999999"
+    },
+    "billing": {
+      "paymentId": "pay_xxx",
+      "subscriptionId": "sub_xxx",
+      "valorPagoCliente": 197,
+      "recorrenciaPagamento": "mensal",
+      "dataAssinatura": "2026-05-08",
+      "origem": "meta-campanha-maio",
+      "planName": "IO Connect - Plano Mensal"
+    }
+  }'
+```
+
+### Exemplo fetch/axios da LP
+
+```javascript
+// Exemplo com fetch (Node.js / LP)
+const BACKEND_URL = process.env.BACKEND_URL;
+const INTERNAL_TOKEN = process.env.ONBOARDING_INTERNAL_API_TOKEN;
+
+// Fluxo simplificado
+const response = await fetch(`${BACKEND_URL}/v1/onboarding/asaas/payment-event`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${INTERNAL_TOKEN}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    idempotencyKey: `${paymentId}:${eventType}`,
+    eventType: 'PAYMENT_CONFIRMED',
+    paymentStatus: 'PAYMENT_CONFIRMED',
+    customer: { /* ... dados do cliente ... */ },
+    billing: { /* ... dados do pagamento ... */ }
+  })
+});
+
+const result = await response.json();
+console.log('Onboarding result:', result);
+```
+
+```javascript
+// Exemplo com axios
+const axios = require('axios');
+
+await axios.post(`${BACKEND_URL}/v1/onboarding/asaas/payment-event`, payload, {
+  headers: {
+    'Authorization': `Bearer ${INTERNAL_TOKEN}`,
+    'Content-Type': 'application/json'
+  }
+});
+```
+
+### Regras importantes
+
+- **register** sempre cria empresa e usuario como INACTIVE
+- **activate** so roda com pagamento confirmado/recebido (CONFIRMED, RECEIVED, PAYMENT_CONFIRMED, PAYMENT_RECEIVED)
+- **send-access-email** so envia se usuario e empresa estiverem ACTIVE
+- O Asaas pode reenviar eventos (webhooks duplicados) – a idempotencia e obrigatoria
+- A descricao da assinatura no painel do Asaas deve ser atualizada via `PUT /v3/subscriptions/{id}`, pois a descricao do item do checkout nao garante o preenchimento da descricao da assinatura
+- Toda chamada exige `idempotencyKey` unico
+- Chamadas duplicadas retornam 200 sem efeitos colaterais
+- Falha no envio de e-mail nao desfaz a ativacao
+- Falha na sincronizacao da descricao no Asaas nao desfaz a ativacao
+
+### Tabelas criadas (migration V47)
+
+- `onboarding_events` – auditoria de eventos recebidos
+- `onboarding_subscriptions` – assinaturas vinculadas ao onboarding
+- `email_outbox` – fila de e-mails com idempotencia
+- `password_reset_tokens` – tokens para definicao de senha
+- Colunas adicionais em `companies`: razao_social, nome_fantasia, endereco, cidade, uf, cep, status, updated_at
+- Colunas adicionais em `users`: nome, whatsapp, is_primary, updated_at

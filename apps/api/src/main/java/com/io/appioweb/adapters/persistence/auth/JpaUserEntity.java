@@ -20,7 +20,7 @@ public class JpaUserEntity {
     @Column(nullable = false, length = 180)
     private String email;
 
-    @Column(name = "password_hash", nullable = false)
+    @Column(name = "password_hash")
     private String passwordHash;
 
     @Column(name = "full_name", nullable = false, length = 180)
@@ -49,6 +49,18 @@ public class JpaUserEntity {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    @Column(name = "nome", length = 255)
+    private String nome;
+
+    @Column(name = "whatsapp", length = 50)
+    private String whatsapp;
+
+    @Column(name = "is_primary", nullable = false)
+    private boolean primary;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
@@ -99,4 +111,16 @@ public class JpaUserEntity {
 
     public Set<JpaRoleEntity> getRoles() { return roles; }
     public void setRoles(Set<JpaRoleEntity> roles) { this.roles = roles; }
+
+    public String getNome() { return nome; }
+    public void setNome(String nome) { this.nome = nome; }
+
+    public String getWhatsapp() { return whatsapp; }
+    public void setWhatsapp(String whatsapp) { this.whatsapp = whatsapp; }
+
+    public boolean isPrimary() { return primary; }
+    public void setPrimary(boolean primary) { this.primary = primary; }
+
+    public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }
