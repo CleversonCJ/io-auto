@@ -4,6 +4,7 @@ import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehicleEntity;
 import com.io.appioweb.shared.errors.BusinessException;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -130,10 +131,12 @@ public class MeliVehicleAdMapper {
         putCatalogAwareValue(values, attributesById, "BRAND", vehicle.getBrand());
         putCatalogAwareValue(values, attributesById, "MODEL", vehicle.getModel());
         putCatalogAwareValue(values, attributesById, "TRIM", firstNonBlank(vehicle.getVersion(), vehicle.getEngine()));
-        putCatalogAwareValue(values, attributesById, "VEHICLE_YEAR", String.valueOf(resolveYear(vehicle)));
+        putNumericValue(values, attributesById, "VEHICLE_YEAR", BigDecimal.valueOf(resolveYear(vehicle)), null);
+        putCatalogAwareValue(values, attributesById, "VEHICLE_TYPE", resolveVehicleType(vehicle));
         if (vehicle.getMileage() != null && vehicle.getMileage() >= 0) {
-            putIfPresent(values, "KILOMETERS", null, vehicle.getMileage() + " km");
+            putNumericValue(values, attributesById, "KILOMETERS", BigDecimal.valueOf(vehicle.getMileage()), "km");
         }
+        putNumericValue(values, attributesById, "DOORS", BigDecimal.valueOf(resolveDoors(vehicle)), null);
         putCatalogAwareValue(values, attributesById, "FUEL_TYPE", vehicle.getFuelType());
         putCatalogAwareValue(values, attributesById, "COLOR", vehicle.getColor());
         putCatalogAwareValue(values, attributesById, "BODY_TYPE", vehicle.getBodyType());
@@ -200,6 +203,24 @@ public class MeliVehicleAdMapper {
         }
 
         putIfPresent(values, normalizedId, null, normalizedValue);
+    }
+
+    private void putNumericValue(
+            Map<String, MeliVehicleAttributeValue> values,
+            Map<String, MeliCategoryService.CategoryAttributeSnapshot> attributesById,
+            String id,
+            BigDecimal number,
+            String fallbackUnit
+    ) {
+        if (number == null) {
+            return;
+        }
+
+        String normalizedId = id.toUpperCase(Locale.ROOT);
+        MeliCategoryService.CategoryAttributeSnapshot attribute = attributesById.get(normalizedId);
+        String unit = resolveUnit(attribute, fallbackUnit);
+        String valueName = unit == null ? formatWholeNumber(number) : formatWholeNumber(number) + " " + unit;
+        values.put(normalizedId, new MeliVehicleAttributeValue(normalizedId, null, valueName, number, unit));
     }
 
     private MeliCategoryService.AllowedValueSnapshot matchAllowedValue(
@@ -271,6 +292,7 @@ public class MeliVehicleAdMapper {
                 case "marrom" -> "marrom";
                 default -> "";
             };
+            case "VEHICLE_TYPE" -> "carrosecaminhonetes";
             default -> "";
         };
     }
@@ -339,6 +361,7 @@ public class MeliVehicleAdMapper {
                 case "marrom" -> new MeliVehicleAttributeValue("COLOR", "52005", "Marrom");
                 default -> null;
             };
+            case "VEHICLE_TYPE" -> new MeliVehicleAttributeValue("VEHICLE_TYPE", "398351", "Carros e caminhonetes");
             default -> null;
         };
     }
@@ -410,6 +433,15 @@ public class MeliVehicleAdMapper {
             if (attribute.valueName() != null) {
                 node.put("value_name", attribute.valueName());
             }
+            if (attribute.valueStructNumber() != null || attribute.valueStructUnit() != null) {
+                ObjectNode valueStruct = node.putObject("value_struct");
+                if (attribute.valueStructNumber() != null) {
+                    valueStruct.put("number", attribute.valueStructNumber());
+                }
+                if (attribute.valueStructUnit() != null) {
+                    valueStruct.put("unit", attribute.valueStructUnit());
+                }
+            }
         }
         return items;
     }
@@ -429,6 +461,39 @@ public class MeliVehicleAdMapper {
             return vehicle.getManufactureYear();
         }
         throw new BusinessException("MELI_YEAR_REQUIRED", "Informe o ano do veiculo para publicar no Mercado Livre.");
+    }
+
+    private String resolveVehicleType(JpaIoAutoVehicleEntity vehicle) {
+        return "Carros e caminhonetes";
+    }
+
+    private int resolveDoors(JpaIoAutoVehicleEntity vehicle) {
+        String normalizedBodyType = normalizeCatalogText(vehicle.getBodyType());
+        return switch (normalizedBodyType) {
+            case "cupe", "coupe", "conversivel", "convertible" -> 2;
+            case "cabinesimples", "cabinesingle", "singlecab", "roadster" -> 2;
+            case "hatch", "sedan", "suv", "crossover", "perua", "wagon", "sw", "minivan", "pickup", "picape", "utilitario", "van" -> 4;
+            default -> 4;
+        };
+    }
+
+    private String resolveUnit(MeliCategoryService.CategoryAttributeSnapshot attribute, String fallbackUnit) {
+        if (attribute != null) {
+            try {
+                JsonNode raw = OBJECT_MAPPER.readTree(attribute.raw() == null || attribute.raw().isBlank() ? "{}" : attribute.raw());
+                String defaultUnit = nullable(raw.path("default_unit").asText(""));
+                if (defaultUnit != null) {
+                    return defaultUnit;
+                }
+            } catch (Exception ignored) {
+                // Ignore malformed cached metadata and fallback to the inferred unit.
+            }
+        }
+        return nullable(fallbackUnit);
+    }
+
+    private String formatWholeNumber(BigDecimal value) {
+        return value.stripTrailingZeros().toPlainString();
     }
 
     private void putIfPresent(Map<String, MeliVehicleAttributeValue> values, String id, String valueId, String valueName) {

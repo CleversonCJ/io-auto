@@ -21,6 +21,7 @@ class MeliVehicleAdMapperTest {
         vehicle.setFuelType("Flex");
         vehicle.setTransmission("Automatico");
         vehicle.setColor("Prata");
+        vehicle.setBodyType("Hatch");
 
         MeliVehicleAdMapper.Payload payload = mapper.buildCreatePayload(
                 UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
@@ -47,13 +48,17 @@ class MeliVehicleAdMapperTest {
                         attribute("BRAND", true),
                         attribute("MODEL", true),
                         attribute("VEHICLE_YEAR", true),
+                        listAttribute("VEHICLE_TYPE", true,
+                                allowed("398351", "Carros e caminhonetes")
+                        ),
+                        attribute("DOORS", true),
                         attribute("KILOMETERS", false),
                         listAttribute("FUEL_TYPE", false,
-                                allowed("372591", "Gasolina e álcool"),
+                                allowed("372591", "Gasolina e alcool"),
                                 allowed("64364", "Gasolina")
                         ),
                         listAttribute("TRANSMISSION", false,
-                                allowed("370876", "Automática"),
+                                allowed("370876", "Automatica"),
                                 allowed("370877", "Manual")
                         ),
                         listAttribute("COLOR", false,
@@ -73,16 +78,28 @@ class MeliVehicleAdMapperTest {
         assertThat(root.path("seller_custom_field").asText("")).isEqualTo("VEHICLE-" + vehicle.getId());
         assertThat(root.path("pictures")).hasSize(2);
         assertThat(root.path("location").path("city").path("name").asText("")).isEqualTo("Cascavel");
-        assertThat(root.path("attributes")).extracting(node -> node.path("id").asText("")).contains("BRAND", "MODEL", "VEHICLE_YEAR", "KILOMETERS");
+        assertThat(root.path("attributes")).extracting(node -> node.path("id").asText("")).contains(
+                "BRAND", "MODEL", "VEHICLE_YEAR", "VEHICLE_TYPE", "DOORS", "KILOMETERS", "FUEL_TYPE", "TRANSMISSION", "COLOR"
+        );
+
         JsonNode fuelType = findAttribute(root, "FUEL_TYPE");
         JsonNode transmission = findAttribute(root, "TRANSMISSION");
         JsonNode color = findAttribute(root, "COLOR");
+        JsonNode doors = findAttribute(root, "DOORS");
+        JsonNode vehicleType = findAttribute(root, "VEHICLE_TYPE");
         assertThat(fuelType.path("value_id").asText("")).isEqualTo("372591");
-        assertThat(fuelType.path("value_name").asText("")).isEqualTo("Gasolina e álcool");
+        assertThat(fuelType.path("value_name").asText("")).isEqualTo("Gasolina e alcool");
         assertThat(transmission.path("value_id").asText("")).isEqualTo("370876");
-        assertThat(transmission.path("value_name").asText("")).isEqualTo("Automática");
+        assertThat(transmission.path("value_name").asText("")).isEqualTo("Automatica");
         assertThat(color.path("value_id").asText("")).isEqualTo("52053");
         assertThat(color.path("value_name").asText("")).isEqualTo("Prateado");
+        assertThat(doors.path("value_name").asText("")).isEqualTo("4");
+        assertThat(doors.path("value_struct").path("number").decimalValue()).isEqualByComparingTo("4");
+        assertThat(vehicleType.path("value_id").asText("")).isEqualTo("398351");
+        assertThat(vehicleType.path("value_name").asText("")).isEqualTo("Carros e caminhonetes");
+        assertThat(findAttribute(root, "VEHICLE_YEAR").path("value_struct").path("number").decimalValue()).isEqualByComparingTo("2020");
+        assertThat(findAttribute(root, "KILOMETERS").path("value_struct").path("number").decimalValue()).isEqualByComparingTo("45000");
+        assertThat(findAttribute(root, "KILOMETERS").path("value_struct").path("unit").asText("")).isEqualTo("km");
     }
 
     @Test
@@ -115,7 +132,7 @@ class MeliVehicleAdMapperTest {
                         attribute("BRAND", true),
                         attribute("MODEL", true),
                         attribute("VEHICLE_YEAR", true),
-                        attribute("DOORS", true)
+                        attribute("STEERING", true)
                 ),
                 List.of(),
                 "BRL"
@@ -130,6 +147,7 @@ class MeliVehicleAdMapperTest {
         JpaIoAutoVehicleEntity vehicle = baseVehicle();
         vehicle.setFuelType("Flex");
         vehicle.setTransmission("Automatico");
+        vehicle.setBodyType("Hatch");
 
         MeliVehicleAdMapper.Payload payload = mapper.buildCreatePayload(
                 UUID.randomUUID(),
@@ -156,6 +174,8 @@ class MeliVehicleAdMapperTest {
                         attribute("BRAND", true),
                         attribute("MODEL", true),
                         attribute("VEHICLE_YEAR", true),
+                        listAttribute("VEHICLE_TYPE", true),
+                        attribute("DOORS", true),
                         listAttribute("FUEL_TYPE", true),
                         listAttribute("TRANSMISSION", false)
                 ),
@@ -165,8 +185,13 @@ class MeliVehicleAdMapperTest {
 
         JsonNode fuelType = findAttribute(payload.payloadNode(), "FUEL_TYPE");
         JsonNode transmission = findAttribute(payload.payloadNode(), "TRANSMISSION");
+        JsonNode doors = findAttribute(payload.payloadNode(), "DOORS");
+        JsonNode vehicleType = findAttribute(payload.payloadNode(), "VEHICLE_TYPE");
         assertThat(fuelType.path("value_id").asText("")).isEqualTo("372591");
         assertThat(transmission.path("value_id").asText("")).isEqualTo("370876");
+        assertThat(doors.path("value_name").asText("")).isEqualTo("4");
+        assertThat(doors.path("value_struct").path("number").decimalValue()).isEqualByComparingTo("4");
+        assertThat(vehicleType.path("value_id").asText("")).isEqualTo("398351");
     }
 
     private JpaIoAutoVehicleEntity baseVehicle() {
