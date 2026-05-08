@@ -31,6 +31,7 @@ import java.util.*;
 public class FirstUserOnboardingService {
 
     private static final Logger log = LoggerFactory.getLogger(FirstUserOnboardingService.class);
+    private static final int PASSWORD_RESET_TOKEN_TTL_HOURS = 72;
 
     private static final Set<String> VALID_ACTIVATION_STATUSES = Set.of(
             "CONFIRMED", "RECEIVED", "PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"
@@ -476,6 +477,7 @@ public class FirstUserOnboardingService {
 
             UUID companyId = parseUuidOrNull(request.companyId());
             UUID userId = parseUuidOrNull(request.userId());
+            String companyName = "";
 
             if (companyId != null) {
                 JpaCompanyEntity company = companyRepo.findById(companyId).orElse(null);
@@ -485,6 +487,15 @@ public class FirstUserOnboardingService {
                             "ONBOARDING_COMPANY_NOT_ACTIVE",
                             "Empresa não está ativa. Ative primeiro via /activate."
                     );
+                }
+            }
+
+            if (companyId != null) {
+                JpaCompanyEntity company = companyRepo.findById(companyId).orElse(null);
+                if (company != null) {
+                    companyName = company.getNomeFantasia() != null && !company.getNomeFantasia().isBlank()
+                            ? company.getNomeFantasia().trim()
+                            : company.getName();
                 }
             }
 
@@ -513,9 +524,10 @@ public class FirstUserOnboardingService {
                     key,
                     email,
                     nome,
+                    companyName,
                     resolvedLoginUrl,
                     setPasswordTokenUrl,
-                    payloadJson
+                    PASSWORD_RESET_TOKEN_TTL_HOURS
             );
 
             event.setStatus(OnboardingEventStatus.DONE.name());
@@ -618,7 +630,7 @@ public class FirstUserOnboardingService {
         token.setId(UUID.randomUUID());
         token.setUserId(userId);
         token.setToken(UUID.randomUUID().toString());
-        token.setExpiresAt(Instant.now().plusSeconds(72 * 3600));
+        token.setExpiresAt(Instant.now().plusSeconds(PASSWORD_RESET_TOKEN_TTL_HOURS * 3600L));
         token.setUsed(false);
         token.setCreatedAt(Instant.now());
 

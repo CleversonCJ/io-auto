@@ -33,7 +33,7 @@ public class EmailOutboxProcessor {
         this.emailSenderService = emailSenderService;
     }
 
-    @Scheduled(fixedDelay = 30000) // Every 30 seconds
+    @Scheduled(fixedDelay = 30000)
     @Transactional
     public void processPendingEmails() {
         List<JpaEmailOutboxEntity> pendingEmails = outboxRepository.findByStatusOrderByCreatedAtAsc(EmailStatus.PENDING.name());
@@ -56,7 +56,7 @@ public class EmailOutboxProcessor {
 
     private void processEmail(JpaEmailOutboxEntity email) throws Exception {
         Map<String, Object> model = OBJECT_MAPPER.readValue(
-                email.getPayloadJson(), 
+                email.getPayloadJson(),
                 new TypeReference<Map<String, Object>>() {}
         );
 
@@ -92,8 +92,8 @@ public class EmailOutboxProcessor {
         String normalized = template == null ? "" : template.trim().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
 
         return switch (normalized) {
-            case "first-user-access" -> "Bem-vindo ao IO Connect! Dados de Acesso";
-            default -> "Notificação IO Connect";
+            case "first-user-access" -> "Bem-vindo ao IO Auto! Dados de acesso";
+            default -> "Notificação IO Auto";
         };
     }
 }

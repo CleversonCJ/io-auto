@@ -1,5 +1,6 @@
 package com.io.appioweb.application.onboarding;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.io.appioweb.adapters.persistence.onboarding.EmailOutboxRepositoryJpa;
 import com.io.appioweb.adapters.persistence.onboarding.JpaEmailOutboxEntity;
 import com.io.appioweb.domain.onboarding.EmailStatus;
@@ -9,18 +10,20 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
  * Service for managing the email outbox.
- * Creates outbox entries and (when an email sender is available) sends them inline.
- * If no email sender is configured, entries remain PENDING for a worker to pick up.
+ * Creates outbox entries and stores the exact template model expected by the email renderer.
  */
 @Service
 public class EmailOutboxService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailOutboxService.class);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final EmailOutboxRepositoryJpa emailOutboxRepo;
 
@@ -28,30 +31,22 @@ public class EmailOutboxService {
         this.emailOutboxRepo = emailOutboxRepo;
     }
 
-    /**
-     * Checks if an email with this idempotency key was already sent or queued.
-     */
     public Optional<JpaEmailOutboxEntity> findByIdempotencyKey(String idempotencyKey) {
         return emailOutboxRepo.findByIdempotencyKey(idempotencyKey);
     }
 
-    /**
-     * Creates and optionally sends an email for first-user access.
-     *
-     * @return the outbox entity (with status SENT or PENDING)
-     */
     public JpaEmailOutboxEntity createFirstUserAccessEmail(
             String idempotencyKey,
             String toEmail,
             String nome,
+            String companyName,
             String loginUrl,
             String setPasswordTokenUrl,
-            String payloadJson
+            int expirationHours
     ) {
-        // Check idempotency
         Optional<JpaEmailOutboxEntity> existing = emailOutboxRepo.findByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
-            log.info("[EmailOutbox] Email already exists for idempotencyKey={} – returning existing", idempotencyKey);
+            log.info("[EmailOutbox] Email already exists for idempotencyKey={} - returning existing", idempotencyKey);
             return existing.get();
         }
 
@@ -59,61 +54,79 @@ public class EmailOutboxService {
         outbox.setId(UUID.randomUUID());
         outbox.setTemplate(EmailTemplateType.FIRST_USER_ACCESS.name());
         outbox.setToEmail(toEmail);
-        outbox.setPayloadJson(payloadJson);
         outbox.setStatus(EmailStatus.PENDING.name());
         outbox.setRetryCount(0);
         outbox.setIdempotencyKey(idempotencyKey);
         outbox.setCreatedAt(Instant.now());
 
-        // Try to send inline (best effort)
         try {
-            String messageContent = buildFirstUserAccessEmailBody(nome, loginUrl, setPasswordTokenUrl);
-            String subject = "Seu acesso ao IO Connect está liberado";
+            outbox.setPayloadJson(writeTemplatePayload(
+                    nome,
+                    companyName,
+                    loginUrl,
+                    setPasswordTokenUrl,
+                    expirationHours
+            ));
 
-            // TODO: integrate with actual email provider (SES, SMTP, etc.)
-            // For now, log the email content and mark as PENDING for worker processing
-            log.info("[EmailOutbox] Email queued for {} – subject: '{}' – idempotencyKey={}", toEmail, subject, idempotencyKey);
+            String messageContent = buildFirstUserAccessEmailBody(nome, companyName, loginUrl, setPasswordTokenUrl, expirationHours);
+            String subject = "Seu acesso ao IO Auto está liberado";
+
+            log.info("[EmailOutbox] Email queued for {} - subject: '{}' - idempotencyKey={}", toEmail, subject, idempotencyKey);
             log.debug("[EmailOutbox] Email body:\n{}", messageContent);
-
-            // If a real mail sender were available:
-            // mailSender.send(toEmail, subject, messageContent);
-            // outbox.setStatus(EmailStatus.SENT.name());
-            // outbox.setSentAt(Instant.now());
-            // outbox.setProviderId("provider-msg-id");
-
-            outbox.setStatus(EmailStatus.PENDING.name());
         } catch (Exception e) {
-            log.error("[EmailOutbox] Failed to send email to {}: {}", toEmail, e.getMessage(), e);
+            log.error("[EmailOutbox] Failed to prepare email for {}: {}", toEmail, e.getMessage(), e);
             outbox.setStatus(EmailStatus.ERROR.name());
             outbox.setErrorMessage(e.getMessage());
+            outbox.setPayloadJson("{}");
         }
 
         emailOutboxRepo.save(outbox);
         return outbox;
     }
 
-    /**
-     * Builds the plain-text email body for first-user access.
-     */
-    public String buildFirstUserAccessEmailBody(String nome, String loginUrl, String setPasswordTokenUrl) {
-        String safeName = nome != null && !nome.isBlank() ? nome.trim() : "Usuário";
+    public String buildFirstUserAccessEmailBody(
+            String nome,
+            String companyName,
+            String loginUrl,
+            String setPasswordTokenUrl,
+            int expirationHours
+    ) {
+        String safeName = nome != null && !nome.isBlank() ? nome.trim() : "Cliente";
+        String safeCompanyName = companyName != null && !companyName.isBlank() ? companyName.trim() : "sua empresa";
         String safeLoginUrl = loginUrl != null ? loginUrl.trim() : "";
         String safeSetPasswordUrl = setPasswordTokenUrl != null ? setPasswordTokenUrl.trim() : "";
 
         StringBuilder sb = new StringBuilder();
         sb.append("Olá, ").append(safeName).append("!\n\n");
-        sb.append("Seu pagamento foi confirmado e o acesso da sua empresa ao IO Connect já está liberado.\n\n");
-
-        if (!safeLoginUrl.isBlank()) {
-            sb.append("Acesse:\n").append(safeLoginUrl).append("\n\n");
-        }
+        sb.append("Seu acesso à empresa ").append(safeCompanyName).append(" no IO Auto já está liberado.\n\n");
 
         if (!safeSetPasswordUrl.isBlank()) {
-            sb.append("Para definir sua senha, clique no link abaixo:\n").append(safeSetPasswordUrl).append("\n\n");
+            sb.append("Defina sua senha pelo link abaixo:\n").append(safeSetPasswordUrl).append("\n\n");
+            sb.append("Esse link é válido por ").append(expirationHours).append(" horas.\n\n");
+        }
+
+        if (!safeLoginUrl.isBlank()) {
+            sb.append("Depois disso, você poderá entrar por aqui:\n").append(safeLoginUrl).append("\n\n");
         }
 
         sb.append("Se você não solicitou esse acesso, ignore este e-mail.\n\n");
-        sb.append("Atenciosamente,\nEquipe IO Connect\n");
+        sb.append("Atenciosamente,\nEquipe IO Auto\n");
         return sb.toString();
+    }
+
+    private String writeTemplatePayload(
+            String nome,
+            String companyName,
+            String loginUrl,
+            String setPasswordTokenUrl,
+            int expirationHours
+    ) throws Exception {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("userName", nome != null && !nome.isBlank() ? nome.trim() : "Cliente");
+        payload.put("companyName", companyName != null && !companyName.isBlank() ? companyName.trim() : "sua empresa");
+        payload.put("loginUrl", loginUrl != null ? loginUrl.trim() : "");
+        payload.put("setPasswordUrl", setPasswordTokenUrl != null ? setPasswordTokenUrl.trim() : "");
+        payload.put("expirationHours", expirationHours);
+        return OBJECT_MAPPER.writeValueAsString(payload);
     }
 }
