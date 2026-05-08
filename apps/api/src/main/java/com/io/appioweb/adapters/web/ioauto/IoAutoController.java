@@ -4,12 +4,14 @@ import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoConversation
 import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoSessionRepositoryJpa;
 import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoConversationEntity;
 import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoSessionEntity;
+import com.io.appioweb.adapters.persistence.ioauto.IoAutoPublicCatalogLeadRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoIntegrationRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoPublicLinkRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoPublicLeadEventRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoVehiclePublicationRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoVehicleRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoIntegrationEntity;
+import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoPublicCatalogLeadEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoPublicLinkEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoPublicLeadEventEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehicleEntity;
@@ -44,6 +46,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -74,6 +77,7 @@ public class IoAutoController {
     private final IoAutoIntegrationRepositoryJpa integrations;
     private final IoAutoPublicLinkRepositoryJpa publicLinks;
     private final IoAutoPublicLeadEventRepositoryJpa publicLeadEvents;
+    private final IoAutoPublicCatalogLeadRepositoryJpa publicCatalogLeads;
     private final IoAutoBillingService billingService;
     private final VehicleAutoPublicationService vehicleAutoPublicationService;
     private final MeliAdService meliAdService;
@@ -91,6 +95,7 @@ public class IoAutoController {
             IoAutoIntegrationRepositoryJpa integrations,
             IoAutoPublicLinkRepositoryJpa publicLinks,
             IoAutoPublicLeadEventRepositoryJpa publicLeadEvents,
+            IoAutoPublicCatalogLeadRepositoryJpa publicCatalogLeads,
             IoAutoBillingService billingService,
             VehicleAutoPublicationService vehicleAutoPublicationService,
             MeliAdService meliAdService,
@@ -107,6 +112,7 @@ public class IoAutoController {
         this.integrations = integrations;
         this.publicLinks = publicLinks;
         this.publicLeadEvents = publicLeadEvents;
+        this.publicCatalogLeads = publicCatalogLeads;
         this.billingService = billingService;
         this.vehicleAutoPublicationService = vehicleAutoPublicationService;
         this.meliAdService = meliAdService;
@@ -339,6 +345,39 @@ public class IoAutoController {
         entity.setSessionId(trimToMaxLength(normalizeNullableText(request.sessionId()), 120));
         entity.setCreatedAt(Instant.now());
         publicLeadEvents.save(entity);
+
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/public/stock/{companyId}/lead")
+    @Transactional
+    public ResponseEntity<Void> createPublicCatalogLead(
+            @PathVariable UUID companyId,
+            @Valid @RequestBody CreatePublicCatalogLeadHttpRequest request
+    ) {
+        var company = companies.findById(companyId).orElse(null);
+        if (company == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        UUID trackedVehicleId = request.vehicleId();
+        if (trackedVehicleId != null && vehicles.findByIdAndCompanyId(trackedVehicleId, companyId).isEmpty()) {
+            trackedVehicleId = null;
+        }
+
+        JpaIoAutoPublicCatalogLeadEntity entity = new JpaIoAutoPublicCatalogLeadEntity();
+        entity.setId(UUID.randomUUID());
+        entity.setCompanyId(companyId);
+        entity.setVehicleId(trackedVehicleId);
+        entity.setCustomerName(trimToMaxLength(requireText(request.customerName(), "Informe o nome."), 160));
+        entity.setCustomerPhone(normalizePublicCatalogLeadPhone(request.customerPhone()));
+        entity.setSourceType(trimToMaxLength(normalizePublicCatalogLeadSourceType(request.sourceType()), 40));
+        entity.setSourceReference(trimToMaxLength(normalizeNullableText(request.sourceReference()), 160));
+        entity.setPagePath(trimToMaxLength(normalizeNullableText(request.pagePath()), 255));
+        entity.setSourceUrl(normalizeNullableText(request.sourceUrl()));
+        entity.setSessionId(trimToMaxLength(normalizeNullableText(request.sessionId()), 120));
+        entity.setCreatedAt(Instant.now());
+        publicCatalogLeads.save(entity);
 
         return ResponseEntity.noContent().build();
     }
