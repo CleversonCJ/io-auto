@@ -7,6 +7,7 @@ import com.io.appioweb.application.ioauto.webmotors.WebmotorsAdsService;
 import com.io.appioweb.application.ioauto.webmotors.WebmotorsCredentialService;
 import com.io.appioweb.application.ioauto.webmotors.WebmotorsLeadService;
 import com.io.appioweb.application.ioauto.webmotors.modules.auth.WmAuthService;
+import com.io.appioweb.application.superadmin.FeatureUsageService;
 import com.io.appioweb.domain.ioauto.webmotors.WebmotorsCatalogEntry;
 import com.io.appioweb.domain.ioauto.webmotors.WebmotorsCredentialSnapshot;
 import com.io.appioweb.domain.ioauto.webmotors.WebmotorsRestAccessToken;
@@ -28,19 +29,22 @@ public class WebmotorsController {
     private final WebmotorsAdsService adsService;
     private final WebmotorsLeadService leadService;
     private final WmAuthService authService;
+    private final FeatureUsageService featureUsageService;
 
     public WebmotorsController(
             CurrentUserPort currentUser,
             WebmotorsCredentialService credentialService,
             WebmotorsAdsService adsService,
             WebmotorsLeadService leadService,
-            WmAuthService authService
+            WmAuthService authService,
+            FeatureUsageService featureUsageService
     ) {
         this.currentUser = currentUser;
         this.credentialService = credentialService;
         this.adsService = adsService;
         this.leadService = leadService;
         this.authService = authService;
+        this.featureUsageService = featureUsageService;
     }
 
     @GetMapping("/ioauto/webmotors/settings")
@@ -81,6 +85,7 @@ public class WebmotorsController {
     @PostMapping("/ioauto/webmotors/ads/{vehicleId}/publish")
     @Transactional
     public ResponseEntity<?> publishAd(@PathVariable UUID vehicleId, @RequestParam(defaultValue = "default") String storeKey) {
+        featureUsageService.registerUsage(currentUser.companyId(), FeatureUsageService.FEATURE_MARKETPLACE_INTEGRATION, java.util.Map.of("provider", "WEBMOTORS", "action", "PUBLISH"));
         return ResponseEntity.ok(adsService.enqueuePublish(currentUser.companyId(), vehicleId, storeKey));
     }
 

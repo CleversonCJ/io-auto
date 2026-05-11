@@ -5,15 +5,24 @@ import com.io.appioweb.application.auth.dto.AuthTokens;
 import com.io.appioweb.application.auth.port.out.TokenServicePort;
 import com.io.appioweb.domain.auth.entity.User;
 import com.io.appioweb.shared.errors.BusinessException;
-import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwsHeader;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.List;
 import java.util.UUID;
 
 public class JwtTokenService implements TokenServicePort {
+    private static final Duration IMPERSONATION_ACCESS_TTL = Duration.ofMinutes(15);
+    private static final Duration IMPERSONATION_REFRESH_TTL = Duration.ofMinutes(30);
+
     private final JwtEncoder encoder;
     private final JwtDecoder decoder;
     private final RedisTokenStore store;
@@ -21,8 +30,14 @@ public class JwtTokenService implements TokenServicePort {
     private final Duration accessTtl;
     private final Duration refreshTtl;
 
-    public JwtTokenService(JwtEncoder encoder, JwtDecoder decoder, RedisTokenStore store,
-                           String issuer, Duration accessTtl, Duration refreshTtl) {
+    public JwtTokenService(
+            JwtEncoder encoder,
+            JwtDecoder decoder,
+            RedisTokenStore store,
+            String issuer,
+            Duration accessTtl,
+            Duration refreshTtl
+    ) {
         this.encoder = encoder;
         this.decoder = decoder;
         this.store = store;
@@ -33,53 +48,33 @@ public class JwtTokenService implements TokenServicePort {
 
     @Override
     public AuthTokens issueTokens(User user) {
-        Instant now = Instant.now();
+        return issueTokensInternal(user, accessTtl, refreshTtl, false, null, null, "refresh");
+    }
 
-        String accessJti = UUID.randomUUID().toString();
-        JwtClaimsSet accessClaims = JwtClaimsSet.builder()
-                .issuer(issuer)
-                .issuedAt(now)
-                .expiresAt(now.plus(accessTtl))
-                .subject(user.id().toString())
-                .id(accessJti)
-                .claim("cid", user.companyId().toString())
-                .claim("roles", user.roles().stream().toList())
-                .build();
-
-        String refreshJti = UUID.randomUUID().toString();
-        JwtClaimsSet refreshClaims = JwtClaimsSet.builder()
-                .issuer(issuer)
-                .issuedAt(now)
-                .expiresAt(now.plus(refreshTtl))
-                .subject(user.id().toString())
-                .id(refreshJti)
-                .claim("cid", user.companyId().toString())
-                .claim("type", "refresh")
-                .claim("roles", user.roles().stream().toList())
-                .build();
-
-        var header = JwsHeader.with(MacAlgorithm.HS256)
-                .keyId("io-hs256")
-                .build();
-
-        String access = encoder.encode(JwtEncoderParameters.from(header, accessClaims)).getTokenValue();
-        String refresh = encoder.encode(JwtEncoderParameters.from(header, refreshClaims)).getTokenValue();
-
-        // guarda refresh no redis (payload mínimo)
-        store.storeRefresh(refreshJti,
-                user.id() + "|" + user.companyId(),
-                refreshTtl
+    @Override
+    public AuthTokens issueImpersonationTokens(User user, UUID actorSuperAdminId, UUID impersonatedTenantId) {
+        if (actorSuperAdminId == null || impersonatedTenantId == null) {
+            throw new BusinessException("IMPERSONATION_TOKEN_INVALID", "Dados invalidos para emissao de token de impersonacao.");
+        }
+        return issueTokensInternal(
+                user,
+                IMPERSONATION_ACCESS_TTL,
+                IMPERSONATION_REFRESH_TTL,
+                true,
+                actorSuperAdminId,
+                impersonatedTenantId,
+                "impersonation_refresh"
         );
-
-        return new AuthTokens(access, refresh, accessTtl.toSeconds());
     }
 
     @Override
     public AuthTokens rotateRefresh(String refreshToken) {
         Jwt jwt = decodeSafe(refreshToken);
 
-        if (!"refresh".equals(jwt.getClaimAsString("type")))
-            throw new BusinessException("AUTH_INVALID", "Refresh inválido");
+        String type = jwt.getClaimAsString("type");
+        if (!"refresh".equals(type) && !"impersonation_refresh".equals(type)) {
+            throw new BusinessException("AUTH_INVALID", "Refresh invalido");
+        }
 
         String jti = jwt.getId();
         String saved = store.getRefresh(jti);
@@ -90,7 +85,7 @@ public class JwtTokenService implements TokenServicePort {
         UUID userId = UUID.fromString(jwt.getSubject());
         UUID companyId = UUID.fromString(jwt.getClaimAsString("cid"));
 
-        var roles = jwt.getClaimAsStringList("roles");
+        List<String> roles = jwt.getClaimAsStringList("roles");
         User user = new User(
                 userId,
                 companyId,
@@ -105,8 +100,17 @@ public class JwtTokenService implements TokenServicePort {
                 null,
                 true,
                 Instant.now(),
-                new java.util.HashSet<>(roles)
+                new HashSet<>(roles == null ? List.of() : roles)
         );
+
+        if ("impersonation_refresh".equals(type)) {
+            String actorRaw = jwt.getClaimAsString("actorSuperAdminId");
+            String tenantRaw = jwt.getClaimAsString("impersonatedTenantId");
+            if (actorRaw == null || tenantRaw == null) {
+                throw new BusinessException("AUTH_INVALID", "Refresh de impersonacao invalido");
+            }
+            return issueImpersonationTokens(user, UUID.fromString(actorRaw), UUID.fromString(tenantRaw));
+        }
 
         return issueTokens(user);
     }
@@ -124,7 +128,7 @@ public class JwtTokenService implements TokenServicePort {
         String jti = jwt.getId();
         Instant exp = jwt.getExpiresAt();
 
-        if (jti == null || jti.isBlank() || exp == null) return; // não explode
+        if (jti == null || jti.isBlank() || exp == null) return;
 
         Duration ttl = Duration.between(Instant.now(), exp);
         if (!ttl.isNegative() && !ttl.isZero()) {
@@ -137,11 +141,68 @@ public class JwtTokenService implements TokenServicePort {
         return store.isAccessBlacklisted(jti);
     }
 
+    private AuthTokens issueTokensInternal(
+            User user,
+            Duration accessDuration,
+            Duration refreshDuration,
+            boolean impersonation,
+            UUID actorSuperAdminId,
+            UUID impersonatedTenantId,
+            String refreshType
+    ) {
+        Instant now = Instant.now();
+        List<String> roles = user.roles() == null ? List.of() : user.roles().stream().toList();
+
+        String accessJti = UUID.randomUUID().toString();
+        JwtClaimsSet.Builder accessBuilder = JwtClaimsSet.builder()
+                .issuer(issuer)
+                .issuedAt(now)
+                .expiresAt(now.plus(accessDuration))
+                .subject(user.id().toString())
+                .id(accessJti)
+                .claim("cid", user.companyId().toString())
+                .claim("roles", roles);
+
+        String refreshJti = UUID.randomUUID().toString();
+        JwtClaimsSet.Builder refreshBuilder = JwtClaimsSet.builder()
+                .issuer(issuer)
+                .issuedAt(now)
+                .expiresAt(now.plus(refreshDuration))
+                .subject(user.id().toString())
+                .id(refreshJti)
+                .claim("cid", user.companyId().toString())
+                .claim("type", refreshType)
+                .claim("roles", roles);
+
+        if (impersonation) {
+            accessBuilder
+                    .claim("impersonation", true)
+                    .claim("actorSuperAdminId", actorSuperAdminId.toString())
+                    .claim("impersonatedTenantId", impersonatedTenantId.toString());
+
+            refreshBuilder
+                    .claim("impersonation", true)
+                    .claim("actorSuperAdminId", actorSuperAdminId.toString())
+                    .claim("impersonatedTenantId", impersonatedTenantId.toString());
+        }
+
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
+                .keyId("io-hs256")
+                .build();
+
+        String access = encoder.encode(JwtEncoderParameters.from(header, accessBuilder.build())).getTokenValue();
+        String refresh = encoder.encode(JwtEncoderParameters.from(header, refreshBuilder.build())).getTokenValue();
+
+        store.storeRefresh(refreshJti, user.id() + "|" + user.companyId(), refreshDuration);
+
+        return new AuthTokens(access, refresh, accessDuration.toSeconds());
+    }
+
     private Jwt decodeSafe(String token) {
         try {
             return decoder.decode(token);
         } catch (Exception e) {
-            throw new BusinessException("AUTH_INVALID", "Token inválido");
+            throw new BusinessException("AUTH_INVALID", "Token invalido");
         }
     }
 }

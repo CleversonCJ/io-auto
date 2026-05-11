@@ -72,6 +72,9 @@ public class JpaAtendimentoSessionEntity {
     @Column(name = "sale_completed_at")
     private Instant saleCompletedAt;
 
+    @Column(name = "sale_origin_platform", length = 40)
+    private String saleOriginPlatform;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private AtendimentoSessionStatus status;
@@ -138,6 +141,9 @@ public class JpaAtendimentoSessionEntity {
 
     public Instant getSaleCompletedAt() { return saleCompletedAt; }
     public void setSaleCompletedAt(Instant saleCompletedAt) { this.saleCompletedAt = saleCompletedAt; }
+
+    public String getSaleOriginPlatform() { return saleOriginPlatform; }
+    public void setSaleOriginPlatform(String saleOriginPlatform) { this.saleOriginPlatform = saleOriginPlatform; }
 
     public AtendimentoSessionStatus getStatus() { return status; }
     public void setStatus(AtendimentoSessionStatus status) { this.status = status; }

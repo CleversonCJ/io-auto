@@ -21,11 +21,17 @@ public class JpaIoAutoPublicCatalogLeadEntity {
     @Column(name = "vehicle_id")
     private UUID vehicleId;
 
+    @Column(name = "seller_user_id")
+    private UUID sellerUserId;
+
     @Column(name = "customer_name", nullable = false, length = 160)
     private String customerName;
 
     @Column(name = "customer_phone", nullable = false, length = 20)
     private String customerPhone;
+
+    @Column(name = "vehicle_interest_name", length = 200)
+    private String vehicleInterestName;
 
     @Column(name = "source_type", length = 40)
     private String sourceType;
@@ -39,8 +45,17 @@ public class JpaIoAutoPublicCatalogLeadEntity {
     @Column(name = "source_url", columnDefinition = "text")
     private String sourceUrl;
 
+    @Column(name = "origin_source", length = 255)
+    private String originSource;
+
     @Column(name = "session_id", length = 120)
     private String sessionId;
+
+    @Column(name = "converted_to_sale", nullable = false)
+    private boolean convertedToSale;
+
+    @Column(name = "converted_sale_id")
+    private UUID convertedSaleId;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -69,6 +84,14 @@ public class JpaIoAutoPublicCatalogLeadEntity {
         this.vehicleId = vehicleId;
     }
 
+    public UUID getSellerUserId() {
+        return sellerUserId;
+    }
+
+    public void setSellerUserId(UUID sellerUserId) {
+        this.sellerUserId = sellerUserId;
+    }
+
     public String getCustomerName() {
         return customerName;
     }
@@ -83,6 +106,14 @@ public class JpaIoAutoPublicCatalogLeadEntity {
 
     public void setCustomerPhone(String customerPhone) {
         this.customerPhone = customerPhone;
+    }
+
+    public String getVehicleInterestName() {
+        return vehicleInterestName;
+    }
+
+    public void setVehicleInterestName(String vehicleInterestName) {
+        this.vehicleInterestName = vehicleInterestName;
     }
 
     public String getSourceType() {
@@ -117,12 +148,36 @@ public class JpaIoAutoPublicCatalogLeadEntity {
         this.sourceUrl = sourceUrl;
     }
 
+    public String getOriginSource() {
+        return originSource;
+    }
+
+    public void setOriginSource(String originSource) {
+        this.originSource = originSource;
+    }
+
     public String getSessionId() {
         return sessionId;
     }
 
     public void setSessionId(String sessionId) {
         this.sessionId = sessionId;
+    }
+
+    public boolean isConvertedToSale() {
+        return convertedToSale;
+    }
+
+    public void setConvertedToSale(boolean convertedToSale) {
+        this.convertedToSale = convertedToSale;
+    }
+
+    public UUID getConvertedSaleId() {
+        return convertedSaleId;
+    }
+
+    public void setConvertedSaleId(UUID convertedSaleId) {
+        this.convertedSaleId = convertedSaleId;
     }
 
     public Instant getCreatedAt() {

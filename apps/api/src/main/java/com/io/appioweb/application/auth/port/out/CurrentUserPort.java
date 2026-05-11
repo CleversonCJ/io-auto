@@ -8,4 +8,8 @@ public interface CurrentUserPort {
     UUID companyId();
     String email();
     Set<String> roles();
+
+    default boolean impersonation() { return false; }
+    default UUID actorSuperAdminId() { return null; }
+    default UUID impersonatedTenantId() { return null; }
 }

@@ -3,6 +3,7 @@ package com.io.appioweb.application.auth.usecase;
 import com.io.appioweb.application.auth.dto.AuthTokens;
 import com.io.appioweb.application.auth.dto.LoginCommand;
 import com.io.appioweb.application.auth.port.in.AuthUseCase;
+import com.io.appioweb.application.auth.port.out.CompanyRepositoryPort;
 import com.io.appioweb.application.auth.port.out.PasswordHasherPort;
 import com.io.appioweb.application.auth.port.out.TokenServicePort;
 import com.io.appioweb.application.auth.port.out.UserRepositoryPort;
@@ -17,11 +18,13 @@ public class LoginUseCase implements AuthUseCase {
     private static final Logger log = LoggerFactory.getLogger(LoginUseCase.class);
 
     private final UserRepositoryPort users;
+    private final CompanyRepositoryPort companies;
     private final PasswordHasherPort hasher;
     private final TokenServicePort tokens;
 
-    public LoginUseCase(UserRepositoryPort users, PasswordHasherPort hasher, TokenServicePort tokens) {
+    public LoginUseCase(UserRepositoryPort users, CompanyRepositoryPort companies, PasswordHasherPort hasher, TokenServicePort tokens) {
         this.users = users;
+        this.companies = companies;
         this.hasher = hasher;
         this.tokens = tokens;
     }
@@ -60,6 +63,7 @@ public class LoginUseCase implements AuthUseCase {
             throw new BusinessException("AUTH_INVALID", "Credenciais invalidas");
         }
 
+        companies.touchLastAccess(user.companyId(), java.time.Instant.now());
         return tokens.issueTokens(user);
     }
 

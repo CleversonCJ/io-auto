@@ -2,6 +2,7 @@ package com.io.appioweb.application.auth.port.out;
 
 import com.io.appioweb.domain.auth.entity.Company;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -13,4 +14,5 @@ public interface CompanyRepositoryPort {
     List<Company> findAll();
     void deleteById(UUID id);
     void save(Company company);
+    void touchLastAccess(UUID companyId, Instant accessAt);
 }

@@ -27,4 +27,29 @@ public class SpringCurrentUserAdapter implements CurrentUserPort {
         var list = auth().getToken().getClaimAsStringList("roles");
         return list == null ? Set.of() : list.stream().collect(Collectors.toSet());
     }
+
+    @Override public boolean impersonation() {
+        Boolean claim = auth().getToken().getClaim("impersonation");
+        return Boolean.TRUE.equals(claim);
+    }
+
+    @Override public UUID actorSuperAdminId() {
+        String raw = auth().getToken().getClaimAsString("actorSuperAdminId");
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return UUID.fromString(raw);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    @Override public UUID impersonatedTenantId() {
+        String raw = auth().getToken().getClaimAsString("impersonatedTenantId");
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return UUID.fromString(raw);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
 }

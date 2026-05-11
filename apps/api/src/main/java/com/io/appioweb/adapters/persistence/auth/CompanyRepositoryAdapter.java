@@ -138,4 +138,9 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
         entity.setUpdatedAt(Instant.now());
         jpa.save(entity);
     }
+
+    @Override
+    public void touchLastAccess(java.util.UUID companyId, Instant accessAt) {
+        jpa.touchLastAccess(companyId, accessAt == null ? Instant.now() : accessAt);
+    }
 }

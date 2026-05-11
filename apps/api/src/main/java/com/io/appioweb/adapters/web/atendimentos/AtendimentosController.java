@@ -33,6 +33,7 @@ import com.io.appioweb.adapters.web.atendimentos.response.ConversationLabelHttpR
 import com.io.appioweb.adapters.web.atendimentos.response.MessageHttpResponse;
 import com.io.appioweb.adapters.web.atendimentos.response.SendTextHttpResponse;
 import com.io.appioweb.adapters.web.ioauto.IoAutoSalesService;
+import com.io.appioweb.application.superadmin.FeatureUsageService;
 import com.io.appioweb.application.auth.port.out.CompanyRepositoryPort;
 import com.io.appioweb.application.auth.port.out.CurrentUserPort;
 import com.io.appioweb.application.auth.port.out.TeamRepositoryPort;
@@ -99,6 +100,7 @@ public class AtendimentosController {
     private final KanbanMoveDecisionService kanbanMoveDecisionService;
     private final SupervisorRoutingService supervisorRoutingService;
     private final IoAutoSalesService ioAutoSalesService;
+    private final FeatureUsageService featureUsageService;
 
     public AtendimentosController(
             CompanyRepositoryPort companies,
@@ -116,7 +118,8 @@ public class AtendimentosController {
             AiAgentOrchestrationService aiAgentOrchestration,
             KanbanMoveDecisionService kanbanMoveDecisionService,
             SupervisorRoutingService supervisorRoutingService,
-            IoAutoSalesService ioAutoSalesService
+            IoAutoSalesService ioAutoSalesService,
+            FeatureUsageService featureUsageService
     ) {
         this.companies = companies;
         this.currentUser = currentUser;
@@ -134,6 +137,7 @@ public class AtendimentosController {
         this.kanbanMoveDecisionService = kanbanMoveDecisionService;
         this.supervisorRoutingService = supervisorRoutingService;
         this.ioAutoSalesService = ioAutoSalesService;
+        this.featureUsageService = featureUsageService;
     }
 
     @GetMapping("/atendimentos/users")
@@ -398,7 +402,16 @@ public class AtendimentosController {
             if (classificationResult != AtendimentoClassificationResult.OBJECTIVE_ACHIEVED) {
                 throw new BusinessException("ATENDIMENTO_SALE_INVALID_CLASSIFICATION", "Venda concluída deve usar uma classificação de objetivo alcançado.");
             }
-            ioAutoSalesService.registerCompletedSale(companyId, session, req.soldVehicleId(), now);
+            String saleOriginPlatform = normalizeSaleOriginPlatform(req.saleOriginPlatform(), conversation.getSourcePlatform());
+            if (saleOriginPlatform == null) {
+                throw new BusinessException("ATENDIMENTO_SALE_ORIGIN_REQUIRED", "Informe a origem da venda para concluir o atendimento.");
+            }
+            ioAutoSalesService.registerCompletedSale(companyId, session, req.soldVehicleId(), now, saleOriginPlatform);
+            featureUsageService.registerUsage(
+                    companyId,
+                    FeatureUsageService.FEATURE_SALES_MANAGEMENT,
+                    Map.of("action", "REGISTER_SALE", "saleOriginPlatform", saleOriginPlatform)
+            );
         }
         conversation.setUpdatedAt(now);
         conversations.saveAndFlush(conversation);
@@ -2323,6 +2336,29 @@ public class AtendimentosController {
                 .replaceAll("\\s+", " ")
                 .trim();
         return normalized.isBlank() ? null : normalized;
+    }
+
+    private String normalizeSaleOriginPlatform(String raw, String fallbackSourcePlatform) {
+        String source = trimToNull(raw);
+        if (source == null) {
+            source = trimToNull(fallbackSourcePlatform);
+        }
+        if (source == null) {
+            return null;
+        }
+        String normalized = source.toUpperCase(Locale.ROOT)
+                .replace('-', '_')
+                .replace(' ', '_');
+        return switch (normalized) {
+            case "CATALOG", "PUBLIC_CATALOG" -> "CATALOG";
+            case "MERCADO_LIVRE", "MERCADOLIVRE", "MELI" -> "MERCADO_LIVRE";
+            case "OLX" -> "OLX";
+            case "WEBMOTORS", "WEB_MOTORS" -> "WEBMOTORS";
+            case "WHATSAPP" -> "WHATSAPP";
+            case "MANUAL" -> "MANUAL";
+            case "OTHER", "OUTRA", "OUTRO" -> "OTHER";
+            default -> "OTHER";
+        };
     }
 
     private ZapiContactMetadata fetchZapiContactMetadata(Company company, String phone) {

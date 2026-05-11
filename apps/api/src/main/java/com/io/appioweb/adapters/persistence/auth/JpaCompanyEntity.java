@@ -78,6 +78,33 @@ public class JpaCompanyEntity {
     @Column(name = "status", nullable = false, length = 30)
     private String status;
 
+    @Column(name = "subscription_amount_cents")
+    private Long subscriptionAmountCents;
+
+    @Column(name = "billing_recurrence", length = 20)
+    private String billingRecurrence;
+
+    @Column(name = "subscription_started_at")
+    private Instant subscriptionStartedAt;
+
+    @Column(name = "subscription_canceled_at")
+    private Instant subscriptionCanceledAt;
+
+    @Column(name = "subscription_status", length = 30)
+    private String subscriptionStatus;
+
+    @Column(name = "plan_id")
+    private UUID planId;
+
+    @Column(name = "origin_source", length = 255)
+    private String originSource;
+
+    @Column(name = "last_access_at")
+    private Instant lastAccessAt;
+
+    @Column(name = "blocked_at")
+    private Instant blockedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -155,6 +182,33 @@ public class JpaCompanyEntity {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public Long getSubscriptionAmountCents() { return subscriptionAmountCents; }
+    public void setSubscriptionAmountCents(Long subscriptionAmountCents) { this.subscriptionAmountCents = subscriptionAmountCents; }
+
+    public String getBillingRecurrence() { return billingRecurrence; }
+    public void setBillingRecurrence(String billingRecurrence) { this.billingRecurrence = billingRecurrence; }
+
+    public Instant getSubscriptionStartedAt() { return subscriptionStartedAt; }
+    public void setSubscriptionStartedAt(Instant subscriptionStartedAt) { this.subscriptionStartedAt = subscriptionStartedAt; }
+
+    public Instant getSubscriptionCanceledAt() { return subscriptionCanceledAt; }
+    public void setSubscriptionCanceledAt(Instant subscriptionCanceledAt) { this.subscriptionCanceledAt = subscriptionCanceledAt; }
+
+    public String getSubscriptionStatus() { return subscriptionStatus; }
+    public void setSubscriptionStatus(String subscriptionStatus) { this.subscriptionStatus = subscriptionStatus; }
+
+    public UUID getPlanId() { return planId; }
+    public void setPlanId(UUID planId) { this.planId = planId; }
+
+    public String getOriginSource() { return originSource; }
+    public void setOriginSource(String originSource) { this.originSource = originSource; }
+
+    public Instant getLastAccessAt() { return lastAccessAt; }
+    public void setLastAccessAt(Instant lastAccessAt) { this.lastAccessAt = lastAccessAt; }
+
+    public Instant getBlockedAt() { return blockedAt; }
+    public void setBlockedAt(Instant blockedAt) { this.blockedAt = blockedAt; }
 
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }

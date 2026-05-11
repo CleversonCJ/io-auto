@@ -19,6 +19,7 @@ import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehiclePublicationEn
 import com.io.appioweb.application.auth.port.out.CompanyRepositoryPort;
 import com.io.appioweb.application.auth.port.out.CurrentUserPort;
 import com.io.appioweb.application.ioauto.VehicleAutoPublicationService;
+import com.io.appioweb.application.superadmin.FeatureUsageService;
 import com.io.appioweb.realtime.RealtimeGateway;
 import com.io.appioweb.shared.errors.BusinessException;
 import jakarta.validation.Valid;
@@ -138,6 +139,7 @@ public class IoAutoController {
     private final IoAutoPublicCatalogLeadRepositoryJpa publicCatalogLeads;
     private final IoAutoBillingService billingService;
     private final VehicleAutoPublicationService vehicleAutoPublicationService;
+    private final FeatureUsageService featureUsageService;
     private final RealtimeGateway realtime;
     private final MeliAdService meliAdService;
     private final MeliCategoryService meliCategoryService;
@@ -157,6 +159,7 @@ public class IoAutoController {
             IoAutoPublicCatalogLeadRepositoryJpa publicCatalogLeads,
             IoAutoBillingService billingService,
             VehicleAutoPublicationService vehicleAutoPublicationService,
+            FeatureUsageService featureUsageService,
             RealtimeGateway realtime,
             MeliAdService meliAdService,
             MeliCategoryService meliCategoryService,
@@ -175,6 +178,7 @@ public class IoAutoController {
         this.publicCatalogLeads = publicCatalogLeads;
         this.billingService = billingService;
         this.vehicleAutoPublicationService = vehicleAutoPublicationService;
+        this.featureUsageService = featureUsageService;
         this.realtime = realtime;
         this.meliAdService = meliAdService;
         this.meliCategoryService = meliCategoryService;
@@ -306,6 +310,7 @@ public class IoAutoController {
     @GetMapping("/ioauto/vehicles")
     public ResponseEntity<List<IoAutoVehicleHttpResponse>> listVehicles() {
         UUID companyId = currentUser.companyId();
+        featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_VEHICLE_MANAGEMENT, Map.of("action", "LIST_VEHICLES"));
         List<JpaIoAutoVehicleEntity> companyVehicles = vehicles.findAllByCompanyIdOrderByUpdatedAtDesc(companyId);
         Map<UUID, List<JpaIoAutoVehiclePublicationEntity>> publicationsByVehicle = groupPublicationsByVehicle(companyId, companyVehicles);
         Map<String, JpaIoAutoIntegrationEntity> integrationsByKey = integrations.findAllByCompanyIdOrderByDisplayNameAsc(companyId).stream()
@@ -430,13 +435,19 @@ public class IoAutoController {
         entity.setId(UUID.randomUUID());
         entity.setCompanyId(companyId);
         entity.setVehicleId(trackedVehicleId);
+        entity.setSellerUserId(parseUuidOrNull(request.sourceReference()));
         entity.setCustomerName(trimToMaxLength(requireText(request.customerName(), "Informe o nome."), 160));
         entity.setCustomerPhone(normalizePublicCatalogLeadPhone(request.customerPhone()));
-        entity.setSourceType(trimToMaxLength(normalizePublicCatalogLeadSourceType(request.sourceType()), 40));
+        entity.setVehicleInterestName(resolveVehicleInterestName(companyId, trackedVehicleId, request.customerName()));
+        String normalizedSourceType = trimToMaxLength(normalizePublicCatalogLeadSourceType(request.sourceType()), 40);
+        entity.setSourceType(normalizedSourceType);
         entity.setSourceReference(trimToMaxLength(normalizeNullableText(request.sourceReference()), 160));
         entity.setPagePath(trimToMaxLength(normalizeNullableText(request.pagePath()), 255));
         entity.setSourceUrl(normalizeNullableText(request.sourceUrl()));
+        entity.setOriginSource(trimToMaxLength(normalizedSourceType, 255));
         entity.setSessionId(trimToMaxLength(normalizeNullableText(request.sessionId()), 120));
+        entity.setConvertedToSale(false);
+        entity.setConvertedSaleId(null);
         entity.setCreatedAt(Instant.now());
         publicCatalogLeads.save(entity);
 
@@ -630,6 +641,7 @@ public class IoAutoController {
             @RequestParam(name = "to", required = false) String to
     ) {
         UUID companyId = currentUser.companyId();
+        featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_LEAD_MANAGEMENT, Map.of("action", "LIST_CATALOG_LEADS"));
         PublicCatalogLeadPeriodSelection periodSelection = resolvePublicCatalogLeadPeriod(preset, from, to);
         String publicSlug = companies.findById(companyId)
                 .map(company -> slugifyPublicPathSegment(company.name()))
@@ -687,6 +699,7 @@ public class IoAutoController {
     @GetMapping("/ioauto/public-links")
     public ResponseEntity<List<PublicLinkHttpResponse>> listPublicLinks() {
         UUID companyId = currentUser.companyId();
+        featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "LIST_PUBLIC_LINKS"));
         var company = companies.findById(companyId).orElse(null);
         if (company == null) {
             return ResponseEntity.ok(List.of());
@@ -708,6 +721,7 @@ public class IoAutoController {
     @GetMapping("/ioauto/public-catalog-settings")
     public ResponseEntity<PublicCatalogSettingsHttpResponse> getPublicCatalogSettings() {
         UUID companyId = currentUser.companyId();
+        featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "GET_CATALOG_SETTINGS"));
         var company = companies.findById(companyId)
                 .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
         return ResponseEntity.ok(toPublicCatalogSettingsResponse(company));
@@ -719,6 +733,7 @@ public class IoAutoController {
             @Valid @RequestBody SavePublicCatalogSettingsHttpRequest request
     ) {
         UUID companyId = currentUser.companyId();
+        featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "UPDATE_CATALOG_SETTINGS"));
         var company = companies.findById(companyId)
                 .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
 
@@ -753,6 +768,7 @@ public class IoAutoController {
     @Transactional
     public ResponseEntity<PublicLinkHttpResponse> createPublicLink(@Valid @RequestBody SavePublicLinkHttpRequest request) {
         UUID companyId = currentUser.companyId();
+        featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "CREATE_PUBLIC_LINK"));
         var company = companies.findById(companyId)
                 .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
 
@@ -795,6 +811,7 @@ public class IoAutoController {
     @Transactional
     public ResponseEntity<Void> deletePublicLink(@PathVariable UUID linkId) {
         UUID companyId = currentUser.companyId();
+        featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "DELETE_PUBLIC_LINK"));
         JpaIoAutoPublicLinkEntity entity = publicLinks.findByIdAndCompanyId(linkId, companyId)
                 .orElseThrow(() -> new BusinessException("IOAUTO_PUBLIC_LINK_NOT_FOUND", "Link nao encontrado."));
         publicLinks.delete(entity);
@@ -813,6 +830,11 @@ public class IoAutoController {
 
     private IoAutoVehicleHttpResponse saveVehicle(UUID vehicleId, SaveVehicleHttpRequest request) {
         UUID companyId = currentUser.companyId();
+        featureUsageService.registerUsage(
+                companyId,
+                FeatureUsageService.FEATURE_VEHICLE_MANAGEMENT,
+                Map.of("action", vehicleId == null ? "CREATE_VEHICLE" : "UPDATE_VEHICLE")
+        );
         Instant now = Instant.now();
         JpaIoAutoVehicleEntity entity = vehicleId == null
                 ? new JpaIoAutoVehicleEntity()
@@ -1711,6 +1733,27 @@ public class IoAutoController {
 
     private String normalizePublicCatalogLeadSourceType(String raw) {
         return normalizeText(raw, "DIRECT").toUpperCase(Locale.ROOT);
+    }
+
+    private String resolveVehicleInterestName(UUID companyId, UUID vehicleId, String fallbackName) {
+        if (vehicleId == null) {
+            return trimToMaxLength(requireText(fallbackName, "Informe o nome."), 200);
+        }
+        JpaIoAutoVehicleEntity vehicle = vehicles.findByIdAndCompanyId(vehicleId, companyId).orElse(null);
+        if (vehicle == null || normalizeNullableText(vehicle.getTitle()) == null) {
+            return trimToMaxLength(requireText(fallbackName, "Informe o nome."), 200);
+        }
+        return trimToMaxLength(vehicle.getTitle(), 200);
+    }
+
+    private UUID parseUuidOrNull(String raw) {
+        String normalized = normalizeNullableText(raw);
+        if (normalized == null) return null;
+        try {
+            return UUID.fromString(normalized);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     private String normalizeVehicleTransmission(String raw) {

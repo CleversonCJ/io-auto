@@ -98,7 +98,10 @@ public class CreateUserUseCase implements UserAdminUseCase {
                 null,
                 null,
                 null,
-                current.roles()
+                current.roles(),
+                current.impersonation(),
+                current.actorSuperAdminId(),
+                current.impersonatedTenantId()
         );
     }
 }

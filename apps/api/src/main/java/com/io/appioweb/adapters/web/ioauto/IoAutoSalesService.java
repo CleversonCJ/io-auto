@@ -41,7 +41,13 @@ public class IoAutoSalesService {
     }
 
     @Transactional
-    public SaleVehicleSnapshot registerCompletedSale(UUID companyId, JpaAtendimentoSessionEntity session, UUID soldVehicleId, Instant soldAt) {
+    public SaleVehicleSnapshot registerCompletedSale(
+            UUID companyId,
+            JpaAtendimentoSessionEntity session,
+            UUID soldVehicleId,
+            Instant soldAt,
+            String saleOriginPlatform
+    ) {
         JpaIoAutoVehicleEntity vehicle = vehicles.findByIdAndCompanyId(soldVehicleId, companyId)
                 .orElseThrow(() -> new BusinessException("IOAUTO_SOLD_VEHICLE_NOT_FOUND", "Veículo não encontrado para concluir a venda."));
 
@@ -77,6 +83,7 @@ public class IoAutoSalesService {
         session.setSoldVehicleId(vehicle.getId());
         session.setSoldVehicleTitle(vehicle.getTitle());
         session.setSaleCompletedAt(soldAt);
+        session.setSaleOriginPlatform(normalizeSaleOriginPlatform(saleOriginPlatform));
         session.setUpdatedAt(soldAt);
         sessions.saveAndFlush(session);
 
@@ -86,6 +93,12 @@ public class IoAutoSalesService {
     private String normalizeStatus(String value) {
         String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
         return normalized.isBlank() ? "SOLD" : normalized;
+    }
+
+    private String normalizeSaleOriginPlatform(String value) {
+        String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        if (normalized.isBlank()) return "MANUAL";
+        return normalized;
     }
 
     public record SaleVehicleSnapshot(UUID vehicleId, String vehicleTitle, String vehicleStatus) {

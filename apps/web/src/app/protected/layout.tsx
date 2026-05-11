@@ -4,6 +4,7 @@ import { ACCESS_COOKIE } from "@/core/auth/cookies";
 import { getServerApiBase } from "@/core/http/getServerApiBase";
 import { fetchUpstream } from "@/core/http/upstream";
 import { AuthSessionWatcher } from "@/modules/auth/components/AuthSessionWatcher";
+import { ImpersonationBanner } from "@/modules/protected/components/ImpersonationBanner";
 import { ProtectedSidebar } from "@/modules/protected/components/ProtectedSidebar";
 import { ProtectedNotificationsRail } from "@/modules/protected/components/ProtectedNotificationsRail";
 
@@ -16,6 +17,10 @@ type MeResponse = {
     permissionPreset?: string | null;
     modulePermissions?: string[] | null;
     roles: string[];
+    companyName?: string | null;
+    impersonation?: boolean;
+    actorSuperAdminId?: string | null;
+    impersonatedTenantId?: string | null;
 };
 
 async function getCurrentUser() {
@@ -55,7 +60,12 @@ export default async function ProtectedLayout({ children }: { children: React.Re
 
             <div className="relative flex min-h-screen flex-col md:h-screen md:min-h-0 md:flex-row md:overflow-hidden">
                 <ProtectedSidebar user={me} />
-                <main className="min-h-0 min-w-0 flex-1 p-4 md:h-screen md:overflow-y-auto md:p-6">{children}</main>
+                <main className="min-h-0 min-w-0 flex-1 p-4 md:h-screen md:overflow-y-auto md:p-6">
+                    <div className="grid gap-4">
+                        {me?.impersonation ? <ImpersonationBanner companyName={me.companyName} /> : null}
+                        {children}
+                    </div>
+                </main>
                 <ProtectedNotificationsRail />
             </div>
         </div>

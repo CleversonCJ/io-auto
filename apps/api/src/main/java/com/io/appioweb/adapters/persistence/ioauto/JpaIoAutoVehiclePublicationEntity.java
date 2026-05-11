@@ -3,9 +3,12 @@ package com.io.appioweb.adapters.persistence.ioauto;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.UUID;
 
 @Entity
@@ -23,6 +26,9 @@ public class JpaIoAutoVehiclePublicationEntity {
 
     @Column(name = "provider_key", nullable = false, length = 60)
     private String providerKey;
+
+    @Column(name = "platform", length = 60)
+    private String platform;
 
     @Column(name = "provider_listing_id", length = 180)
     private String providerListingId;
@@ -78,6 +84,14 @@ public class JpaIoAutoVehiclePublicationEntity {
 
     public void setProviderKey(String providerKey) {
         this.providerKey = providerKey;
+    }
+
+    public String getPlatform() {
+        return platform;
+    }
+
+    public void setPlatform(String platform) {
+        this.platform = platform;
     }
 
     public String getProviderListingId() {
@@ -142,5 +156,19 @@ public class JpaIoAutoVehiclePublicationEntity {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    @PrePersist
+    @PreUpdate
+    void ensurePlatform() {
+        if (platform != null && !platform.isBlank()) return;
+        String normalized = providerKey == null ? "" : providerKey.trim().toLowerCase(Locale.ROOT);
+        platform = switch (normalized) {
+            case "mercadolivre", "meli", "mercado_livre" -> "MERCADO_LIVRE";
+            case "olx" -> "OLX";
+            case "webmotors" -> "WEBMOTORS";
+            case "site", "site_proprio" -> "SITE_PROPRIO";
+            default -> "OUTRA";
+        };
     }
 }

@@ -70,8 +70,8 @@ public class AuthBootstrap {
     }
 
     @Bean
-    AuthUseCase authUseCase(UserRepositoryPort users, PasswordHasherPort hasher, TokenServicePort tokens) {
-        return new LoginUseCase(users, hasher, tokens);
+    AuthUseCase authUseCase(UserRepositoryPort users, CompanyRepositoryPort companies, PasswordHasherPort hasher, TokenServicePort tokens) {
+        return new LoginUseCase(users, companies, hasher, tokens);
     }
 
     @Bean

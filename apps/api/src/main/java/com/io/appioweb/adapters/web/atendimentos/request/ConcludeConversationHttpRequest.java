@@ -12,6 +12,7 @@ public record ConcludeConversationHttpRequest(
         @NotBlank @Size(max = 180) String classificationLabel,
         @Valid List<ConversationLabelHttpRequest> labels,
         Boolean saleCompleted,
-        UUID soldVehicleId
+        UUID soldVehicleId,
+        @Size(max = 40) String saleOriginPlatform
 ) {
 }

@@ -1,25 +1,224 @@
-"use client";
+﻿"use client";
 
-import { BellRing, LogOut } from "lucide-react";
+import { useMemo, useState, type FormEvent } from "react";
+import { BellRing, LifeBuoy, LogOut, X } from "lucide-react";
+
+type GuidedAnswer = {
+    question: string;
+    answer: string;
+};
+
+const GUIDED_QUESTIONS: string[] = [
+    "O problema impede voce de usar o sistema?",
+    "Isso acontece sempre ou as vezes?",
+    "Em qual tela ou funcionalidade aconteceu?",
+    "Houve alguma mensagem de erro?",
+    "Voce ja tentou atualizar a pagina ou sair e entrar novamente?",
+    "Quantos usuarios ou atendimentos estao impactados?",
+];
 
 export function ProtectedNotificationsRail() {
-    return (
-        <aside className="hidden w-[80px] shrink-0 border-l border-white/10 bg-io-dark xl:flex xl:h-screen xl:flex-col xl:items-center xl:justify-between xl:px-4 xl:py-8">
-            <button
-                type="button"
-                aria-label="Notificações"
-                className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:border-white/20 hover:bg-io-purple hover:text-white"
-            >
-                <BellRing className="h-5 w-5" strokeWidth={2} />
-            </button>
+    const [open, setOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
 
-            <a
-                href="/api/auth/logout"
-                aria-label="Sair do sistema"
-                className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:border-red-500/30 hover:bg-red-500 hover:text-white"
-            >
-                <LogOut className="h-5 w-5" strokeWidth={2} />
-            </a>
-        </aside>
+    const [title, setTitle] = useState("");
+    const [description, setDescription] = useState("");
+    const [category, setCategory] = useState("BUG");
+    const [bugArea, setBugArea] = useState("");
+    const [answers, setAnswers] = useState<string[]>(GUIDED_QUESTIONS.map(() => ""));
+
+    const guidedAnswers = useMemo<GuidedAnswer[]>(() => {
+        return GUIDED_QUESTIONS.map((question, index) => ({
+            question,
+            answer: answers[index] ?? "",
+        })).filter((item) => item.answer.trim().length > 0);
+    }, [answers]);
+
+    function resetForm() {
+        setTitle("");
+        setDescription("");
+        setCategory("BUG");
+        setBugArea("");
+        setAnswers(GUIDED_QUESTIONS.map(() => ""));
+    }
+
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        if (loading) return;
+
+        setLoading(true);
+        setError(null);
+        setSuccess(null);
+
+        try {
+            const response = await fetch("/api/support/tickets", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    title,
+                    description,
+                    category,
+                    bugArea: bugArea.trim() || undefined,
+                    guidedAnswers,
+                }),
+            });
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => null);
+                throw new Error(payload?.message ?? "Nao foi possivel abrir o ticket.");
+            }
+
+            setSuccess("Ticket aberto com sucesso. Nosso time ja recebeu a solicitacao.");
+            resetForm();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Nao foi possivel abrir o ticket.");
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    return (
+        <>
+            <aside className="hidden w-[80px] shrink-0 border-l border-white/10 bg-io-dark xl:flex xl:h-screen xl:flex-col xl:items-center xl:justify-between xl:px-4 xl:py-8">
+                <div className="grid gap-3">
+                    <button
+                        type="button"
+                        aria-label="Notificacoes"
+                        className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:border-white/20 hover:bg-io-purple hover:text-white"
+                    >
+                        <BellRing className="h-5 w-5" strokeWidth={2} />
+                    </button>
+
+                    <button
+                        type="button"
+                        aria-label="Abrir ticket de suporte"
+                        onClick={() => {
+                            setOpen(true);
+                            setError(null);
+                            setSuccess(null);
+                        }}
+                        className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:border-cyan-300/40 hover:bg-cyan-500 hover:text-white"
+                    >
+                        <LifeBuoy className="h-5 w-5" strokeWidth={2} />
+                    </button>
+                </div>
+
+                <a
+                    href="/api/auth/logout"
+                    aria-label="Sair do sistema"
+                    className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:border-red-500/30 hover:bg-red-500 hover:text-white"
+                >
+                    <LogOut className="h-5 w-5" strokeWidth={2} />
+                </a>
+            </aside>
+
+            {open ? (
+                <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4">
+                    <form onSubmit={handleSubmit} className="w-full max-w-2xl rounded-3xl border border-black/10 bg-white p-6 shadow-xl">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Suporte IO Auto</p>
+                                <h2 className="mt-1 text-2xl font-bold text-io-dark">Abrir ticket</h2>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setOpen(false)}
+                                className="rounded-full border border-black/10 p-2 text-black/55 transition hover:bg-black/5"
+                                aria-label="Fechar"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        <div className="mt-4 grid gap-3">
+                            <input
+                                value={title}
+                                onChange={(event) => setTitle(event.target.value)}
+                                placeholder="Titulo do ticket"
+                                maxLength={220}
+                                required
+                                className="h-11 rounded-xl border border-black/12 px-3 text-sm"
+                            />
+
+                            <textarea
+                                value={description}
+                                onChange={(event) => setDescription(event.target.value)}
+                                placeholder="Explique o problema em detalhes"
+                                required
+                                rows={4}
+                                className="rounded-xl border border-black/12 px-3 py-2 text-sm"
+                            />
+
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <label className="grid gap-1 text-xs text-black/55">
+                                    Categoria
+                                    <select value={category} onChange={(event) => setCategory(event.target.value)} className="h-11 rounded-xl border border-black/12 px-3 text-sm text-io-dark">
+                                        <option value="BUG">Bug</option>
+                                        <option value="QUESTION">Duvida</option>
+                                        <option value="BILLING">Cobranca</option>
+                                        <option value="INTEGRATION">Integracao</option>
+                                        <option value="FEATURE_REQUEST">Solicitacao de feature</option>
+                                        <option value="OTHER">Outro</option>
+                                    </select>
+                                </label>
+
+                                <label className="grid gap-1 text-xs text-black/55">
+                                    Area do bug (opcional)
+                                    <input
+                                        value={bugArea}
+                                        onChange={(event) => setBugArea(event.target.value)}
+                                        placeholder="Ex.: Publicacoes / Financeiro"
+                                        maxLength={120}
+                                        className="h-11 rounded-xl border border-black/12 px-3 text-sm"
+                                    />
+                                </label>
+                            </div>
+
+                            <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-4">
+                                <p className="text-sm font-semibold text-io-dark">Perguntas guiadas</p>
+                                <div className="mt-3 grid gap-2">
+                                    {GUIDED_QUESTIONS.map((question, index) => (
+                                        <label key={question} className="grid gap-1 text-xs text-black/60">
+                                            {question}
+                                            <input
+                                                value={answers[index] ?? ""}
+                                                onChange={(event) => {
+                                                    const next = [...answers];
+                                                    next[index] = event.target.value;
+                                                    setAnswers(next);
+                                                }}
+                                                className="h-10 rounded-lg border border-black/12 px-3 text-sm"
+                                            />
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
+                        {success ? <p className="mt-3 text-sm text-emerald-700">{success}</p> : null}
+
+                        <div className="mt-5 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setOpen(false)}
+                                className="rounded-full border border-black/15 px-4 py-2 text-sm font-semibold text-black/65"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="rounded-full bg-io-dark px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                            >
+                                {loading ? "Enviando..." : "Abrir ticket"}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            ) : null}
+        </>
     );
 }

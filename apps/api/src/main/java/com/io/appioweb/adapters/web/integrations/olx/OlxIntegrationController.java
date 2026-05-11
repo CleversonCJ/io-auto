@@ -7,6 +7,7 @@ import com.io.appioweb.application.ioauto.olx.OlxCatalogService;
 import com.io.appioweb.application.ioauto.olx.OlxNotificationConfigService;
 import com.io.appioweb.application.ioauto.olx.OlxOAuthService;
 import com.io.appioweb.application.ioauto.olx.OlxVehicleSettingsService;
+import com.io.appioweb.application.superadmin.FeatureUsageService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ public class OlxIntegrationController {
     private final OlxAdService adService;
     private final OlxNotificationConfigService notificationConfigService;
     private final OlxVehicleSettingsService vehicleSettingsService;
+    private final FeatureUsageService featureUsageService;
 
     public OlxIntegrationController(
             CurrentUserPort currentUser,
@@ -41,7 +43,8 @@ public class OlxIntegrationController {
             OlxCatalogService catalogService,
             OlxAdService adService,
             OlxNotificationConfigService notificationConfigService,
-            OlxVehicleSettingsService vehicleSettingsService
+            OlxVehicleSettingsService vehicleSettingsService,
+            FeatureUsageService featureUsageService
     ) {
         this.currentUser = currentUser;
         this.oauthService = oauthService;
@@ -50,6 +53,7 @@ public class OlxIntegrationController {
         this.adService = adService;
         this.notificationConfigService = notificationConfigService;
         this.vehicleSettingsService = vehicleSettingsService;
+        this.featureUsageService = featureUsageService;
     }
 
     @GetMapping("/api/integrations/olx/connect-url")
@@ -131,6 +135,7 @@ public class OlxIntegrationController {
     @PostMapping("/api/integrations/olx/vehicles/{vehicleId}/publish")
     @Transactional
     public ResponseEntity<OlxAdService.OlxAdSnapshot> publishVehicle(@PathVariable UUID vehicleId) {
+        featureUsageService.registerUsage(currentUser.companyId(), FeatureUsageService.FEATURE_MARKETPLACE_INTEGRATION, java.util.Map.of("provider", "OLX", "action", "PUBLISH"));
         return ResponseEntity.ok(adService.publishVehicle(currentUser.companyId(), vehicleId));
     }
 

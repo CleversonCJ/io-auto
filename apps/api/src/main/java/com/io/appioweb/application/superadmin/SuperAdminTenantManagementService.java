@@ -1,0 +1,619 @@
+package com.io.appioweb.application.superadmin;
+
+import com.io.appioweb.adapters.persistence.auth.JpaUserEntity;
+import com.io.appioweb.adapters.persistence.auth.UserRepositoryJpa;
+import com.io.appioweb.adapters.persistence.onboarding.JpaPasswordResetTokenEntity;
+import com.io.appioweb.adapters.persistence.onboarding.PasswordResetTokenRepositoryJpa;
+import com.io.appioweb.adapters.persistence.superadmin.JpaTenantAdminLogEntity;
+import com.io.appioweb.adapters.persistence.superadmin.TenantAdminLogRepositoryJpa;
+import com.io.appioweb.application.auth.dto.AuthTokens;
+import com.io.appioweb.application.auth.port.out.CurrentUserPort;
+import com.io.appioweb.application.auth.port.out.TokenServicePort;
+import com.io.appioweb.domain.auth.entity.User;
+import com.io.appioweb.shared.errors.BusinessException;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
+
+import java.security.SecureRandom;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@Service
+public class SuperAdminTenantManagementService {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    private final NamedParameterJdbcTemplate jdbc;
+    private final CustomerHealthScoreService healthScoreService;
+    private final TenantAdminLogRepositoryJpa logs;
+    private final UserRepositoryJpa users;
+    private final TokenServicePort tokens;
+    private final CurrentUserPort currentUser;
+    private final PasswordResetTokenRepositoryJpa passwordResetTokens;
+
+    public SuperAdminTenantManagementService(
+            NamedParameterJdbcTemplate jdbc,
+            CustomerHealthScoreService healthScoreService,
+            TenantAdminLogRepositoryJpa logs,
+            UserRepositoryJpa users,
+            TokenServicePort tokens,
+            CurrentUserPort currentUser,
+            PasswordResetTokenRepositoryJpa passwordResetTokens
+    ) {
+        this.jdbc = jdbc;
+        this.healthScoreService = healthScoreService;
+        this.logs = logs;
+        this.users = users;
+        this.tokens = tokens;
+        this.currentUser = currentUser;
+        this.passwordResetTokens = passwordResetTokens;
+    }
+
+    @Transactional(readOnly = true)
+    public List<TenantRow> listTenants(SuperAdminFilter filter) {
+        Map<UUID, CustomerHealthScoreService.CustomerHealthScoreRow> healthByTenant = healthScoreService.listHealthScores(filter).stream()
+                .collect(Collectors.toMap(CustomerHealthScoreService.CustomerHealthScoreRow::tenantId, row -> row, (left, right) -> left));
+
+        MapSqlParameterSource params = new MapSqlParameterSource();
+        StringBuilder where = new StringBuilder(" where 1=1 ");
+        SuperAdminSqlFilterBuilder.appendCompanyFilters(where, params, filter, "c");
+        SuperAdminSqlFilterBuilder.appendStockFilter(where, params, "stock", filter.stockSize());
+
+        String sql = """
+                with stock as (
+                    select v.company_id, count(*) as stock_count
+                    from ioauto_vehicles v
+                    group by v.company_id
+                ),
+                ads as (
+                    select p.company_id,
+                           sum(case when upper(coalesce(p.status, '')) in ('ACTIVE', 'PUBLISHED', 'ONLINE', 'SYNCED') then 1 else 0 end) as active_ads
+                    from ioauto_vehicle_publications p
+                    group by p.company_id
+                ),
+                latest_billing as (
+                    select distinct on (b.company_id)
+                        b.company_id,
+                        b.plan_name,
+                        b.plan_key,
+                        b.amount_cents,
+                        b.billing_interval
+                    from ioauto_billing_subscriptions b
+                    order by b.company_id, b.updated_at desc
+                )
+                select
+                    c.id,
+                    c.name,
+                    c.email,
+                    c.cidade,
+                    c.uf,
+                    c.origin_source,
+                    c.subscription_started_at,
+                    c.created_at,
+                    c.last_access_at,
+                    upper(coalesce(nullif(c.subscription_status, ''), nullif(c.status, ''), 'ACTIVE')) as subscription_status,
+                    coalesce(latest_billing.plan_name, 'Plano principal') as plan_name,
+                    coalesce(latest_billing.plan_key, 'default') as plan_key,
+                    coalesce(c.subscription_amount_cents, latest_billing.amount_cents, 0) as subscription_amount_cents,
+                    upper(coalesce(c.billing_recurrence,
+                        case
+                            when upper(coalesce(latest_billing.billing_interval, 'MONTH')) in ('YEAR', 'ANNUAL', 'YEARLY') then 'ANNUAL'
+                            else 'MONTHLY'
+                        end
+                    )) as recurrence,
+                    coalesce(stock.stock_count, 0) as stock_count,
+                    coalesce(ads.active_ads, 0) as active_ads
+                from companies c
+                left join stock on stock.company_id = c.id
+                left join ads on ads.company_id = c.id
+                left join latest_billing on latest_billing.company_id = c.id
+                %s
+                order by c.name asc
+                """.formatted(where);
+
+        List<TenantRow> rows = new ArrayList<>();
+        jdbc.query(sql, params, rs -> {
+            UUID tenantId = UUID.fromString(rs.getString("id"));
+            long subscriptionAmountCents = rs.getLong("subscription_amount_cents");
+            String recurrence = rs.getString("recurrence");
+            long mrrCents = toMrrCents(subscriptionAmountCents, recurrence);
+
+            CustomerHealthScoreService.CustomerHealthScoreRow health = healthByTenant.get(tenantId);
+            int healthScore = health == null ? 0 : health.score();
+            String healthClassification = health == null ? "INTERMEDIARIO" : health.classification();
+
+            rows.add(new TenantRow(
+                    tenantId,
+                    rs.getString("name"),
+                    rs.getString("email"),
+                    rs.getString("plan_name"),
+                    rs.getString("plan_key"),
+                    rs.getString("subscription_status"),
+                    rs.getTimestamp("subscription_started_at") == null
+                            ? rs.getTimestamp("created_at").toInstant()
+                            : rs.getTimestamp("subscription_started_at").toInstant(),
+                    rs.getTimestamp("last_access_at") == null ? null : rs.getTimestamp("last_access_at").toInstant(),
+                    mrrCents,
+                    rs.getString("cidade"),
+                    rs.getString("uf"),
+                    rs.getString("origin_source"),
+                    rs.getLong("stock_count"),
+                    rs.getLong("active_ads"),
+                    healthScore,
+                    healthClassification
+            ));
+        });
+
+        return rows;
+    }
+
+    @Transactional
+    public ImpersonationResult impersonateTenant(UUID tenantId) {
+        List<JpaUserEntity> tenantUsers = users.findAllByCompanyId(tenantId).stream()
+                .filter(JpaUserEntity::isActive)
+                .sorted(Comparator
+                        .comparing((JpaUserEntity user) -> user.getRoles().stream().anyMatch(role -> "ADMIN".equalsIgnoreCase(role.getName()) || "SUPERADMIN".equalsIgnoreCase(role.getName())) ? 0 : 1)
+                        .thenComparing(user -> user.isPrimary() ? 0 : 1)
+                        .thenComparing(JpaUserEntity::getCreatedAt)
+                )
+                .toList();
+
+        if (tenantUsers.isEmpty()) {
+            throw new BusinessException("TENANT_IMPERSONATION_USER_NOT_FOUND", "Nao foi encontrado usuario ativo para impersonar este tenant.");
+        }
+
+        JpaUserEntity target = tenantUsers.get(0);
+        Set<String> roles = target.getRoles().stream().map(role -> role.getName().toUpperCase(Locale.ROOT)).collect(Collectors.toSet());
+        if (roles.isEmpty()) {
+            roles = Set.of("ADMIN");
+        }
+
+        User user = new User(
+                target.getId(),
+                target.getCompanyId(),
+                target.getEmail(),
+                target.getPasswordHash() == null ? "n/a" : target.getPasswordHash(),
+                target.getFullName(),
+                target.getProfileImageUrl(),
+                target.getJobTitle(),
+                target.getBirthDate(),
+                target.getPermissionPreset(),
+                parseModulePermissions(target.getModulePermissions()),
+                target.getTeamId(),
+                target.isActive(),
+                target.getCreatedAt(),
+                roles
+        );
+
+        AuthTokens issued = tokens.issueImpersonationTokens(user, currentUser.userId(), tenantId);
+
+        logAction(
+                tenantId,
+                "TENANT_IMPERSONATION_STARTED",
+                "Superadmin iniciou impersonacao da conta.",
+                Map.of(
+                        "targetUserId", target.getId().toString(),
+                        "targetUserEmail", safe(target.getEmail())
+                )
+        );
+
+        long expiresInSeconds = issued.accessExpiresInSeconds();
+        return new ImpersonationResult(
+                tenantId,
+                target.getId(),
+                safe(target.getFullName()),
+                safe(target.getEmail()),
+                issued.accessToken(),
+                issued.refreshToken(),
+                expiresInSeconds
+        );
+    }
+
+    @Transactional
+    public ImpersonationExitResult exitImpersonation() {
+        if (!currentUser.impersonation()) {
+            throw new BusinessException("IMPERSONATION_NOT_ACTIVE", "Nao existe impersonacao ativa para encerrar.");
+        }
+
+        UUID actorId = currentUser.actorSuperAdminId();
+        if (actorId == null) {
+            throw new BusinessException("IMPERSONATION_INVALID_ACTOR", "Nao foi possivel identificar o superadmin responsavel pela impersonacao.");
+        }
+
+        JpaUserEntity actor = users.findById(actorId)
+                .orElseThrow(() -> new BusinessException("IMPERSONATION_ACTOR_NOT_FOUND", "Superadmin de origem nao encontrado."));
+
+        boolean isSuperAdmin = actor.getRoles().stream().anyMatch(role -> "SUPERADMIN".equalsIgnoreCase(role.getName()));
+        if (!isSuperAdmin) {
+            throw new BusinessException("IMPERSONATION_ACTOR_NOT_SUPERADMIN", "Usuario de origem nao possui perfil SUPERADMIN.");
+        }
+
+        Set<String> actorRoles = actor.getRoles().stream().map(role -> role.getName().toUpperCase(Locale.ROOT)).collect(Collectors.toSet());
+
+        User actorUser = new User(
+                actor.getId(),
+                actor.getCompanyId(),
+                actor.getEmail(),
+                actor.getPasswordHash() == null ? "n/a" : actor.getPasswordHash(),
+                actor.getFullName(),
+                actor.getProfileImageUrl(),
+                actor.getJobTitle(),
+                actor.getBirthDate(),
+                actor.getPermissionPreset(),
+                parseModulePermissions(actor.getModulePermissions()),
+                actor.getTeamId(),
+                actor.isActive(),
+                actor.getCreatedAt(),
+                actorRoles
+        );
+
+        AuthTokens issued = tokens.issueTokens(actorUser);
+
+        return new ImpersonationExitResult(
+                actor.getId(),
+                actor.getCompanyId(),
+                safe(actor.getFullName()),
+                safe(actor.getEmail()),
+                issued.accessToken(),
+                issued.refreshToken(),
+                issued.accessExpiresInSeconds()
+        );
+    }
+
+    @Transactional
+    public TenantRow updatePlan(UUID tenantId, UpdateTenantPlanCommand command) {
+        ensureTenantExists(tenantId);
+
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("tenantId", tenantId)
+                .addValue("planId", command.planId())
+                .addValue("amountCents", command.subscriptionAmountCents())
+                .addValue("recurrence", normalizeRecurrence(command.billingRecurrence()))
+                .addValue("status", normalizeNullable(command.subscriptionStatus()))
+                .addValue("updatedAt", Instant.now());
+
+        jdbc.update("""
+                update companies
+                set
+                    plan_id = coalesce(:planId, plan_id),
+                    subscription_amount_cents = coalesce(:amountCents, subscription_amount_cents),
+                    billing_recurrence = coalesce(:recurrence, billing_recurrence),
+                    subscription_status = coalesce(:status, subscription_status),
+                    updated_at = :updatedAt
+                where id = :tenantId
+                """, params);
+
+        if (normalizeNullable(command.planName()) != null || normalizeNullable(command.planKey()) != null || command.subscriptionAmountCents() != null) {
+            MapSqlParameterSource billingParams = new MapSqlParameterSource()
+                    .addValue("tenantId", tenantId)
+                    .addValue("planName", normalizeNullable(command.planName()))
+                    .addValue("planKey", normalizeNullable(command.planKey()))
+                    .addValue("amountCents", command.subscriptionAmountCents())
+                    .addValue("billingInterval", mapBillingInterval(normalizeRecurrence(command.billingRecurrence())))
+                    .addValue("updatedAt", Instant.now());
+
+            jdbc.update("""
+                    update ioauto_billing_subscriptions b
+                    set
+                        plan_name = coalesce(:planName, b.plan_name),
+                        plan_key = coalesce(:planKey, b.plan_key),
+                        amount_cents = coalesce(:amountCents, b.amount_cents),
+                        billing_interval = coalesce(:billingInterval, b.billing_interval),
+                        updated_at = :updatedAt
+                    where b.id = (
+                        select id
+                        from ioauto_billing_subscriptions
+                        where company_id = :tenantId
+                        order by updated_at desc
+                        limit 1
+                    )
+                    """, billingParams);
+        }
+
+        logAction(
+                tenantId,
+                "TENANT_PLAN_UPDATED",
+                "Plano da conta alterado pelo superadmin.",
+                Map.of(
+                        "planId", safeUuid(command.planId()),
+                        "planName", safe(command.planName()),
+                        "planKey", safe(command.planKey()),
+                        "subscriptionAmountCents", command.subscriptionAmountCents() == null ? "" : String.valueOf(command.subscriptionAmountCents()),
+                        "billingRecurrence", safe(command.billingRecurrence())
+                )
+        );
+
+        return listTenants(new SuperAdminFilter(null, null, null, null, null, null, null, null, null, null, null, null)).stream()
+                .filter(row -> row.tenantId().equals(tenantId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("TENANT_NOT_FOUND", "Tenant nao encontrado."));
+    }
+
+    @Transactional
+    public void blockTenant(UUID tenantId, String reason) {
+        ensureTenantExists(tenantId);
+        Instant now = Instant.now();
+
+        jdbc.update("""
+                update companies
+                set
+                    status = 'BLOCKED',
+                    subscription_status = 'BLOCKED',
+                    blocked_at = :blockedAt,
+                    updated_at = :blockedAt
+                where id = :tenantId
+                """,
+                new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("blockedAt", now)
+        );
+
+        logAction(
+                tenantId,
+                "TENANT_BLOCKED",
+                "Conta bloqueada pelo superadmin.",
+                Map.of("reason", safe(reason))
+        );
+    }
+
+    @Transactional
+    public void unblockTenant(UUID tenantId, String reason) {
+        ensureTenantExists(tenantId);
+        Instant now = Instant.now();
+
+        jdbc.update("""
+                update companies
+                set
+                    status = 'ACTIVE',
+                    subscription_status = case
+                        when upper(coalesce(subscription_status, 'ACTIVE')) = 'BLOCKED' then 'ACTIVE'
+                        else subscription_status
+                    end,
+                    blocked_at = null,
+                    updated_at = :updatedAt
+                where id = :tenantId
+                """,
+                new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("updatedAt", now)
+        );
+
+        logAction(
+                tenantId,
+                "TENANT_UNBLOCKED",
+                "Conta desbloqueada pelo superadmin.",
+                Map.of("reason", safe(reason))
+        );
+    }
+
+    @Transactional
+    public ResetPasswordResult resetUserPassword(UUID tenantId, UUID userId) {
+        ensureTenantExists(tenantId);
+
+        JpaUserEntity user = users.findByIdAndCompanyId(userId, tenantId)
+                .orElseThrow(() -> new BusinessException("TENANT_USER_NOT_FOUND", "Usuario do tenant nao encontrado."));
+
+        jdbc.update(
+                "update password_reset_tokens set used = true where user_id = :userId and used = false",
+                new MapSqlParameterSource("userId", userId)
+        );
+
+        Instant now = Instant.now();
+        Instant expiresAt = now.plus(24, ChronoUnit.HOURS);
+        String tokenValue = generateResetToken();
+
+        JpaPasswordResetTokenEntity token = new JpaPasswordResetTokenEntity();
+        token.setId(UUID.randomUUID());
+        token.setUserId(userId);
+        token.setToken(tokenValue);
+        token.setExpiresAt(expiresAt);
+        token.setUsed(false);
+        token.setCreatedAt(now);
+        passwordResetTokens.save(token);
+
+        logAction(
+                tenantId,
+                "TENANT_USER_PASSWORD_RESET",
+                "Superadmin solicitou reset de senha do usuario.",
+                Map.of(
+                        "userId", userId.toString(),
+                        "userEmail", safe(user.getEmail())
+                )
+        );
+
+        return new ResetPasswordResult(
+                tenantId,
+                userId,
+                safe(user.getEmail()),
+                tokenValue,
+                expiresAt
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<TenantAdminLogRow> listLogs(UUID tenantId) {
+        return logs.findTop200ByCompanyIdOrderByCreatedAtDesc(tenantId).stream()
+                .map(log -> new TenantAdminLogRow(
+                        log.getId(),
+                        log.getCompanyId(),
+                        log.getActorUserId(),
+                        log.getAction(),
+                        log.getDescription(),
+                        log.getMetadata(),
+                        log.getCreatedAt()
+                ))
+                .toList();
+    }
+
+    private void ensureTenantExists(UUID tenantId) {
+        Long exists = jdbc.queryForObject(
+                "select count(*) from companies where id = :tenantId",
+                new MapSqlParameterSource("tenantId", tenantId),
+                Long.class
+        );
+        if (exists == null || exists == 0L) {
+            throw new BusinessException("TENANT_NOT_FOUND", "Tenant nao encontrado.");
+        }
+    }
+
+    private long toMrrCents(long amountCents, String recurrence) {
+        String normalized = recurrence == null ? "MONTHLY" : recurrence.trim().toUpperCase(Locale.ROOT);
+        if ("ANNUAL".equals(normalized)) {
+            return Math.round(amountCents / 12.0D);
+        }
+        return amountCents;
+    }
+
+    private Set<String> parseModulePermissions(String raw) {
+        if (raw == null || raw.isBlank()) return Set.of();
+        return Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toCollection(HashSet::new));
+    }
+
+    private String normalizeRecurrence(String raw) {
+        String normalized = normalizeNullable(raw);
+        if (normalized == null) return null;
+        String value = normalized.toUpperCase(Locale.ROOT);
+        if (!"MONTHLY".equals(value) && !"ANNUAL".equals(value)) {
+            throw new BusinessException("TENANT_PLAN_RECURRENCE_INVALID", "Recorrencia invalida. Use MONTHLY ou ANNUAL.");
+        }
+        return value;
+    }
+
+    private String mapBillingInterval(String recurrence) {
+        if (recurrence == null) return null;
+        return "ANNUAL".equals(recurrence) ? "year" : "month";
+    }
+
+    private String normalizeNullable(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isBlank() ? null : trimmed;
+    }
+
+    private String generateResetToken() {
+        byte[] random = new byte[16];
+        RANDOM.nextBytes(random);
+        StringBuilder sb = new StringBuilder();
+        for (byte value : random) {
+            sb.append(String.format("%02x", value));
+        }
+        return UUID.randomUUID() + sb.toString();
+    }
+
+    private void logAction(UUID tenantId, String action, String description, Map<String, String> metadata) {
+        try {
+            JpaTenantAdminLogEntity entity = new JpaTenantAdminLogEntity();
+            entity.setId(UUID.randomUUID());
+            entity.setCompanyId(tenantId);
+            entity.setActorUserId(currentUser.userId());
+            entity.setAction(action);
+            entity.setDescription(description);
+            Map<String, String> enriched = new HashMap<>(metadata == null ? Map.of() : metadata);
+            enriched.put("actorUserId", safeUuid(currentUser.userId()));
+            entity.setMetadata(OBJECT_MAPPER.writeValueAsString(enriched));
+            entity.setCreatedAt(Instant.now());
+            logs.save(entity);
+        } catch (Exception ignored) {
+            // keep admin action flow resilient even when log serialization fails
+        }
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String safeUuid(UUID value) {
+        return value == null ? "" : value.toString();
+    }
+
+    public record TenantRow(
+            UUID tenantId,
+            String companyName,
+            String companyEmail,
+            String planName,
+            String planKey,
+            String status,
+            Instant entryDate,
+            Instant lastAccessAt,
+            long mrrCents,
+            String city,
+            String region,
+            String originSource,
+            long stockCount,
+            long activeAdsCount,
+            int healthScore,
+            String healthClassification
+    ) {
+    }
+
+    public record UpdateTenantPlanCommand(
+            UUID planId,
+            String planName,
+            String planKey,
+            Long subscriptionAmountCents,
+            String billingRecurrence,
+            String subscriptionStatus
+    ) {
+    }
+
+    public record ImpersonationResult(
+            UUID tenantId,
+            UUID impersonatedUserId,
+            String impersonatedUserName,
+            String impersonatedUserEmail,
+            String accessToken,
+            String refreshToken,
+            long accessExpiresInSeconds
+    ) {
+    }
+
+    public record ImpersonationExitResult(
+            UUID actorUserId,
+            UUID actorTenantId,
+            String actorName,
+            String actorEmail,
+            String accessToken,
+            String refreshToken,
+            long accessExpiresInSeconds
+    ) {
+    }
+
+    public record ResetPasswordResult(
+            UUID tenantId,
+            UUID userId,
+            String userEmail,
+            String token,
+            Instant expiresAt
+    ) {
+    }
+
+    public record TenantAdminLogRow(
+            UUID id,
+            UUID tenantId,
+            UUID actorUserId,
+            String action,
+            String description,
+            String metadata,
+            Instant createdAt
+    ) {
+    }
+}
+

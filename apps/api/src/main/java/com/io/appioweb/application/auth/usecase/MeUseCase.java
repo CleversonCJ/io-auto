@@ -46,7 +46,10 @@ public class MeUseCase implements UserAdminUseCase {
                 user.teamId(),
                 team == null ? null : team.name(),
                 user.createdAt(),
-                user.roles()
+                user.roles(),
+                current.impersonation(),
+                current.actorSuperAdminId(),
+                current.impersonatedTenantId()
         );
     }
 }

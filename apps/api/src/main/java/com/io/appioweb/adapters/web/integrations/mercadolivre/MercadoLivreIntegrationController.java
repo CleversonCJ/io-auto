@@ -9,6 +9,7 @@ import com.io.appioweb.application.ioauto.meli.MeliOAuthService;
 import com.io.appioweb.application.ioauto.meli.MeliProfileService;
 import com.io.appioweb.application.ioauto.meli.MeliTokenService;
 import com.io.appioweb.application.ioauto.meli.MeliVehicleSettingsService;
+import com.io.appioweb.application.superadmin.FeatureUsageService;
 import com.io.appioweb.shared.errors.BusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +43,7 @@ public class MercadoLivreIntegrationController {
     private final MeliListingTypeService listingTypeService;
     private final MeliVehicleSettingsService settingsService;
     private final MeliAdService adService;
+    private final FeatureUsageService featureUsageService;
 
     public MercadoLivreIntegrationController(
             CurrentUserPort currentUser,
@@ -52,7 +54,8 @@ public class MercadoLivreIntegrationController {
             MeliCategoryService categoryService,
             MeliListingTypeService listingTypeService,
             MeliVehicleSettingsService settingsService,
-            MeliAdService adService
+            MeliAdService adService,
+            FeatureUsageService featureUsageService
     ) {
         this.currentUser = currentUser;
         this.oauthService = oauthService;
@@ -63,6 +66,7 @@ public class MercadoLivreIntegrationController {
         this.listingTypeService = listingTypeService;
         this.settingsService = settingsService;
         this.adService = adService;
+        this.featureUsageService = featureUsageService;
     }
 
     @GetMapping("/api/integrations/mercadolivre/connect-url")
@@ -182,6 +186,7 @@ public class MercadoLivreIntegrationController {
     @PostMapping("/api/integrations/mercadolivre/vehicles/{vehicleId}/publish")
     @Transactional
     public ResponseEntity<MeliAdService.MeliAdSnapshot> publishVehicle(@PathVariable UUID vehicleId) {
+        featureUsageService.registerUsage(currentUser.companyId(), FeatureUsageService.FEATURE_MARKETPLACE_INTEGRATION, java.util.Map.of("provider", "MERCADO_LIVRE", "action", "PUBLISH"));
         return ResponseEntity.ok(adService.publishVehicle(currentUser.companyId(), vehicleId));
     }
 

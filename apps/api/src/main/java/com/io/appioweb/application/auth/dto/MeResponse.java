@@ -16,5 +16,8 @@ public record MeResponse(
         UUID teamId,
         String teamName,
         Instant createdAt,
-        Set<String> roles
+        Set<String> roles,
+        boolean impersonation,
+        UUID actorSuperAdminId,
+        UUID impersonatedTenantId
 ) {}
