@@ -35,15 +35,18 @@ public class OnboardingSecurityFilter extends OncePerRequestFilter {
 
     private final String internalApiToken;
     private final String asaasWebhookToken;
+    private final boolean paymentEventAllowAnonymous;
     private final Set<String> allowedIps;
 
     public OnboardingSecurityFilter(
             @Value("${ONBOARDING_INTERNAL_API_TOKEN:}") String internalApiToken,
             @Value("${ASAAS_WEBHOOK_TOKEN:}") String asaasWebhookToken,
+            @Value("${ONBOARDING_PAYMENT_EVENT_ALLOW_ANONYMOUS:false}") boolean paymentEventAllowAnonymous,
             @Value("${ONBOARDING_ALLOWED_IPS:}") String allowedIps
     ) {
         this.internalApiToken = internalApiToken != null ? internalApiToken.trim() : "";
         this.asaasWebhookToken = asaasWebhookToken != null ? asaasWebhookToken.trim() : "";
+        this.paymentEventAllowAnonymous = paymentEventAllowAnonymous;
         this.allowedIps = parseAllowedIps(allowedIps);
     }
 
@@ -68,16 +71,20 @@ public class OnboardingSecurityFilter extends OncePerRequestFilter {
 
         boolean authenticated;
         if (paymentEventPath) {
+            if (paymentEventAllowAnonymous) {
+                authenticated = true;
+            } else {
             authenticated = validateBearerToken(request) || validateAsaasWebhookToken(request);
             if (!authenticated) {
-                log.warn("[OnboardingSecurity] Missing or invalid token for payment-event endpoint");
+                log.warn("[OnboardingSecurity] Missing or invalid token for payment-event endpoint: {}", request.getRequestURI());
                 sendUnauthorized(response, "Authorization header or asaas-access-token is required.");
                 return;
+            }
             }
         } else {
             authenticated = validateBearerToken(request);
             if (!authenticated) {
-                log.warn("[OnboardingSecurity] Missing or invalid Authorization token");
+                log.warn("[OnboardingSecurity] Missing or invalid Authorization token for path: {}", request.getRequestURI());
                 sendUnauthorized(response, "Authorization header is required.");
                 return;
             }
