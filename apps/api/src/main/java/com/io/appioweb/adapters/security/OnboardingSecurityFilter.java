@@ -159,7 +159,16 @@ public class OnboardingSecurityFilter extends OncePerRequestFilter {
     }
 
     private boolean isPaymentEventPath(String path) {
-        return path != null && path.equals(PAYMENT_EVENT_PATH);
+        if (path == null || path.isBlank()) {
+            return false;
+        }
+
+        String normalized = path.trim();
+        if (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+
+        return normalized.equals(PAYMENT_EVENT_PATH) || normalized.endsWith(PAYMENT_EVENT_PATH);
     }
 
     private boolean validateBearerToken(HttpServletRequest request) {
