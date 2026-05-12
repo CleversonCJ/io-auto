@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { SuperAdminDashboardSection } from "@/modules/superadmin/components/SuperAdminDashboardSection";
+import { buildSuperAdminVisualSection, type CatalogLeadRow, type CustomerHealthRow, type SupportTicketSummary, type TenantSnapshot } from "@/modules/superadmin/components/SuperAdminLiveSectionVisual";
 import { superAdminSections } from "@/modules/superadmin/data";
 
 export type SuperAdminLiveSectionKey =
@@ -30,51 +32,10 @@ type FilterState = {
     search: string;
 };
 
-type CustomerHealthRow = {
-    tenantId: string;
-    companyName: string;
-    planName: string;
-    city?: string | null;
-    region?: string | null;
-    score: number;
-    classification: string;
-    riskLevel: string;
-    lastAccessAt?: string | null;
-};
-
-type CatalogLeadRow = {
-    id: string;
-    tenantId: string;
-    companyName: string;
-    fullName: string;
-    whatsapp: string;
-    vehicleInterestName: string;
-    sellerName?: string | null;
-    originSource: string;
-    createdAt: string;
-    convertedToSale: boolean;
-    convertedSaleId?: string | null;
-};
-
 type CatalogLeadsPage = {
     fromDate: string;
     toDate: string;
     leads: CatalogLeadRow[];
-};
-
-type SupportTicketSummary = {
-    ticketId: string;
-    tenantId: string;
-    companyName: string;
-    title: string;
-    category: string;
-    urgency: string;
-    status: string;
-    bugArea?: string | null;
-    createdAt: string;
-    firstResponseAt?: string | null;
-    resolvedAt?: string | null;
-    closedAt?: string | null;
 };
 
 type SupportTicketMessage = {
@@ -199,16 +160,6 @@ async function fetchJson<T>(url: string, init?: RequestInit, fallbackMessage = "
     return payload as T;
 }
 
-function MetricCard({ title, value, subtitle }: { title: string; value: string; subtitle?: string }) {
-    return (
-        <article className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
-            <p className="text-xs uppercase tracking-[0.16em] text-black/45">{title}</p>
-            <p className="mt-2 text-2xl font-bold text-io-dark">{value}</p>
-            {subtitle ? <p className="mt-1 text-xs text-black/55">{subtitle}</p> : null}
-        </article>
-    );
-}
-
 function BarRows({ rows }: { rows: Array<{ label: string; value: number; detail?: string }> }) {
     if (!rows.length) {
         return <div className="rounded-xl border border-dashed border-black/12 bg-white p-4 text-sm text-black/55">Sem dados para este recorte.</div>;
@@ -239,6 +190,8 @@ export function SuperAdminLiveSection({ section }: Props) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [dashboardData, setDashboardData] = useState<DashboardPayload | null>(null);
+    const [tenantRows, setTenantRows] = useState<TenantSnapshot[]>([]);
+    const [billingSnapshot, setBillingSnapshot] = useState<DashboardPayload | null>(null);
     const [healthRows, setHealthRows] = useState<CustomerHealthRow[]>([]);
     const [catalogLeads, setCatalogLeads] = useState<CatalogLeadRow[]>([]);
     const [supportTickets, setSupportTickets] = useState<SupportTicketSummary[]>([]);
@@ -309,9 +262,17 @@ export function SuperAdminLiveSection({ section }: Props) {
                 ticketStatus: nextTicketStatusFilter,
                 ticketCategory: nextTicketCategoryFilter,
             });
+            const shouldLoadTenants = section === "financeiro" || section === "clientes";
+            const shouldLoadBillingSnapshot = section === "financeiro";
 
-            const [dashboardPayload, healthPayload, leadsPayload, supportPayload] = await Promise.all([
+            const [dashboardPayload, tenantPayload, billingPayload, healthPayload, leadsPayload, supportPayload] = await Promise.all([
                 fetchJson<DashboardPayload>(`${endpoint}?${baseQuery}`, undefined, "Falha ao carregar o dashboard."),
+                shouldLoadTenants
+                    ? fetchJson<TenantSnapshot[]>(`/api/superadmin/tenants?${sharedQuery}`, undefined, "Falha ao carregar os tenants.")
+                    : Promise.resolve<TenantSnapshot[] | null>(null),
+                shouldLoadBillingSnapshot
+                    ? fetchJson<DashboardPayload>(`/api/superadmin/dashboard/billing?${sharedQuery}`, undefined, "Falha ao carregar o resumo de cobranca.")
+                    : Promise.resolve<DashboardPayload | null>(null),
                 section === "clientes"
                     ? fetchJson<CustomerHealthRow[]>(`/api/superadmin/customers/health-score?${sharedQuery}`, undefined, "Falha ao carregar o health score.")
                     : Promise.resolve<CustomerHealthRow[] | null>(null),
@@ -324,6 +285,8 @@ export function SuperAdminLiveSection({ section }: Props) {
             ]);
 
             setDashboardData(dashboardPayload);
+            setTenantRows(Array.isArray(tenantPayload) ? tenantPayload : []);
+            setBillingSnapshot(billingPayload ?? null);
             setHealthRows(Array.isArray(healthPayload) ? healthPayload : []);
             setCatalogLeads(Array.isArray(leadsPayload?.leads) ? leadsPayload.leads : []);
 
@@ -350,6 +313,8 @@ export function SuperAdminLiveSection({ section }: Props) {
             }
         } catch (requestError) {
             setDashboardData(null);
+            setTenantRows([]);
+            setBillingSnapshot(null);
             setHealthRows([]);
             setCatalogLeads([]);
             setSupportTickets([]);
@@ -414,18 +379,21 @@ export function SuperAdminLiveSection({ section }: Props) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [section]);
 
+    const visualSection = useMemo(() => buildSuperAdminVisualSection({
+        section,
+        dashboardData,
+        tenantRows,
+        billingSnapshot,
+        healthRows,
+        catalogLeads,
+        supportTickets,
+    }), [billingSnapshot, catalogLeads, dashboardData, healthRows, section, supportTickets, tenantRows]);
+
     function renderFinanceiro() {
-        const cards = dashboardData?.cards ?? {};
         const chart = Array.isArray(dashboardData?.chart) ? dashboardData.chart : [];
         return (
             <div className="grid gap-5">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                    <MetricCard title="MRR" value={toCurrency(cards.mrrCents)} />
-                    <MetricCard title="ARR" value={toCurrency(cards.arrCents)} />
-                    <MetricCard title="Ticket medio" value={toCurrency(cards.averageTicketCents)} />
-                    <MetricCard title="LTV" value={toCurrency(cards.ltvCents)} />
-                    <MetricCard title="Churn financeiro" value={toPercent(cards.financialChurnRate)} />
-                </div>
+                <SuperAdminDashboardSection section={visualSection} resolveAlerts={false} />
 
                 <section className="rounded-2xl border border-black/10 bg-white p-4">
                     <p className="text-sm font-semibold text-io-dark">Churn financeiro por mes</p>
@@ -459,13 +427,7 @@ export function SuperAdminLiveSection({ section }: Props) {
     function renderClientes() {
         return (
             <div className="grid gap-5">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                    <MetricCard title="Clientes ativos" value={toNumber(dashboardData?.totalActiveCustomers)} />
-                    <MetricCard title="Novos no periodo" value={toNumber(dashboardData?.newCustomersInPeriod)} />
-                    <MetricCard title="Cancelados no periodo" value={toNumber(dashboardData?.canceledCustomersInPeriod)} />
-                    <MetricCard title="Churn" value={toPercent(dashboardData?.churnRate)} />
-                    <MetricCard title="Permanencia media" value={`${(dashboardData?.averageLifetimeMonths ?? 0).toFixed(2)} meses`} />
-                </div>
+                <SuperAdminDashboardSection section={visualSection} resolveAlerts={false} />
 
                 <section className="rounded-2xl border border-black/10 bg-white p-4">
                     <p className="text-sm font-semibold text-io-dark">Health score por cliente</p>
@@ -506,12 +468,7 @@ export function SuperAdminLiveSection({ section }: Props) {
         const usage = Array.isArray(dashboardData?.featureUsage) ? dashboardData.featureUsage : [];
         return (
             <div className="grid gap-5">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <MetricCard title="Veiculos cadastrados" value={toNumber(dashboardData?.totalVehicles)} />
-                    <MetricCard title="Media de veiculos por cliente" value={(dashboardData?.averageVehiclesPerCustomer ?? 0).toFixed(2)} />
-                    <MetricCard title="Anuncios ativos" value={toNumber(dashboardData?.activeMarketplaceAds)} />
-                    <MetricCard title="Integracoes ativas" value={toNumber(dashboardData?.activeIntegrations)} subtitle="Periodo fixado em ultimos 30 dias" />
-                </div>
+                <SuperAdminDashboardSection section={visualSection} resolveAlerts={false} />
 
                 <section className="rounded-2xl border border-black/10 bg-white p-4">
                     <p className="text-sm font-semibold text-io-dark">Uso por feature</p>
@@ -534,6 +491,8 @@ export function SuperAdminLiveSection({ section }: Props) {
 
         return (
             <div className="grid gap-5">
+                <SuperAdminDashboardSection section={visualSection} resolveAlerts={false} />
+
                 <div className="grid gap-5 xl:grid-cols-2">
                     <section className="rounded-2xl border border-black/10 bg-white p-4">
                         <p className="text-sm font-semibold text-io-dark">Anuncios por plataforma</p>
@@ -602,40 +561,9 @@ export function SuperAdminLiveSection({ section }: Props) {
     }
 
     function renderCrescimento() {
-        const leadsByOrigin = Array.isArray(dashboardData?.leadsByOrigin) ? dashboardData.leadsByOrigin : [];
-        const customerOrigins = Array.isArray(dashboardData?.customerOrigins) ? dashboardData.customerOrigins : [];
-
         return (
             <div className="grid gap-5">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                    <MetricCard title="Leads gerados" value={toNumber(dashboardData?.leadsGenerated)} />
-                    <MetricCard title="Vendas fechadas" value={toNumber(dashboardData?.closedSales)} />
-                    <MetricCard title="Taxa de conversao" value={toPercent(dashboardData?.conversionRate)} />
-                    <MetricCard title="CAC" value="Nao aplicado" subtitle="Desconsiderado por enquanto" />
-                    <MetricCard title="Payback" value="Nao aplicado" subtitle="Desconsiderado por enquanto" />
-                </div>
-
-                <div className="grid gap-5 xl:grid-cols-2">
-                    <section className="rounded-2xl border border-black/10 bg-white p-4">
-                        <p className="text-sm font-semibold text-io-dark">Leads por origem</p>
-                        <div className="mt-3">
-                            <BarRows rows={leadsByOrigin.map((row: Record<string, any>) => ({
-                                label: row.origin,
-                                value: row.total ?? 0,
-                            }))} />
-                        </div>
-                    </section>
-
-                    <section className="rounded-2xl border border-black/10 bg-white p-4">
-                        <p className="text-sm font-semibold text-io-dark">Origem dos clientes</p>
-                        <div className="mt-3">
-                            <BarRows rows={customerOrigins.map((row: Record<string, any>) => ({
-                                label: row.origin,
-                                value: row.total ?? 0,
-                            }))} />
-                        </div>
-                    </section>
-                </div>
+                <SuperAdminDashboardSection section={visualSection} resolveAlerts={false} />
 
                 <section className="rounded-2xl border border-black/10 bg-white p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -681,17 +609,11 @@ export function SuperAdminLiveSection({ section }: Props) {
     }
 
     function renderCobranca() {
-        const cards = dashboardData?.cards ?? {};
         const overdueCustomers = Array.isArray(dashboardData?.overdueCustomers) ? dashboardData.overdueCustomers : [];
 
         return (
             <div className="grid gap-5">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <MetricCard title="Clientes inadimplentes" value={toNumber(cards.overdueCustomers)} />
-                    <MetricCard title="Receita em atraso" value={toCurrency(cards.overdueRevenueCents)} />
-                    <MetricCard title="Atraso medio em dias" value={(cards.averageDelayDays ?? 0).toFixed(2)} />
-                    <MetricCard title="Falha de pagamento" value={toPercent(cards.paymentFailureRate)} />
-                </div>
+                <SuperAdminDashboardSection section={visualSection} resolveAlerts={false} />
 
                 <section className="rounded-2xl border border-black/10 bg-white p-4">
                     <p className="text-sm font-semibold text-io-dark">Clientes em atraso</p>
@@ -727,17 +649,11 @@ export function SuperAdminLiveSection({ section }: Props) {
     }
 
     function renderOperacional() {
-        const cards = dashboardData?.cards ?? {};
         const bugsByArea = Array.isArray(dashboardData?.bugsByArea) ? dashboardData.bugsByArea : [];
 
         return (
             <div className="grid gap-5">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <MetricCard title="Tickets abertos" value={toNumber(cards.openTickets)} />
-                    <MetricCard title="Primeira resposta em min" value={(cards.averageFirstResponseMinutes ?? 0).toFixed(2)} />
-                    <MetricCard title="Resolucao em horas" value={(cards.averageResolutionHours ?? 0).toFixed(2)} />
-                    <MetricCard title="Bugs reportados" value={toNumber(cards.bugsReported)} />
-                </div>
+                <SuperAdminDashboardSection section={visualSection} resolveAlerts={false} />
 
                 <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
                     <section className="rounded-2xl border border-black/10 bg-white p-4">
@@ -757,11 +673,27 @@ export function SuperAdminLiveSection({ section }: Props) {
                                 <p className="text-xs text-black/55">Tickets reais, com resposta e troca de status pelo superadmin.</p>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                                <select value={ticketStatusFilter} onChange={(event) => setTicketStatusFilter(event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
+                                <select
+                                    value={ticketStatusFilter}
+                                    onChange={(event) => {
+                                        const nextValue = event.target.value;
+                                        setTicketStatusFilter(nextValue);
+                                        void load(filters, nextValue, ticketCategoryFilter);
+                                    }}
+                                    className="h-10 rounded-lg border border-black/12 px-3 text-sm"
+                                >
                                     <option value="">Todos os status</option>
                                     {SUPPORT_STATUS_OPTIONS.map((value) => <option key={value} value={value}>{titleCase(value)}</option>)}
                                 </select>
-                                <select value={ticketCategoryFilter} onChange={(event) => setTicketCategoryFilter(event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
+                                <select
+                                    value={ticketCategoryFilter}
+                                    onChange={(event) => {
+                                        const nextValue = event.target.value;
+                                        setTicketCategoryFilter(nextValue);
+                                        void load(filters, ticketStatusFilter, nextValue);
+                                    }}
+                                    className="h-10 rounded-lg border border-black/12 px-3 text-sm"
+                                >
                                     <option value="">Todas as categorias</option>
                                     {SUPPORT_CATEGORY_OPTIONS.map((value) => <option key={value} value={value}>{titleCase(value)}</option>)}
                                 </select>
@@ -882,6 +814,8 @@ export function SuperAdminLiveSection({ section }: Props) {
 
         return (
             <div className="grid gap-5">
+                <SuperAdminDashboardSection section={visualSection} resolveAlerts={false} />
+
                 <div className="grid gap-5 xl:grid-cols-2">
                     <section className="rounded-2xl border border-black/10 bg-white p-4">
                         <p className="text-sm font-semibold text-io-dark">Maior risco de cancelamento</p>

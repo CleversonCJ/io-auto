@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
-import { ArrowUpRight, CircleAlert, ShieldAlert, TrendingUp } from "lucide-react";
+import { ArrowUpRight, Banknote, BarChart3, BriefcaseBusiness, CircleAlert, CircleDollarSign, Gauge, Globe2, LayoutGrid, LineChart, MapPinned, ShieldAlert, TrendingUp, Users, Wrench } from "lucide-react";
 import type { SuperAdminAlert, SuperAdminChart, SuperAdminInsight, SuperAdminMetric, SuperAdminSection } from "@/modules/superadmin/data";
 
 type ResolvedAlert = {
@@ -19,6 +19,23 @@ function getMetricToneClasses(tone?: SuperAdminMetric["tone"]) {
     if (tone === "rose") return "bg-rose-100 text-rose-700";
     if (tone === "sky") return "bg-sky-100 text-sky-700";
     return "bg-violet-100 text-violet-700";
+}
+
+function getMetricIcon(label: string) {
+    const normalized = label.trim().toLowerCase();
+    if (normalized.includes("mrr") || normalized.includes("arr")) return <CircleDollarSign className="h-5 w-5" />;
+    if (normalized.includes("ticket") || normalized.includes("ltv") || normalized.includes("receita")) return <Banknote className="h-5 w-5" />;
+    if (normalized.includes("churn")) return <LineChart className="h-5 w-5" />;
+    if (normalized.includes("cliente") || normalized.includes("conta")) return <Users className="h-5 w-5" />;
+    if (normalized.includes("veículo") || normalized.includes("veiculo") || normalized.includes("estoque")) return <BriefcaseBusiness className="h-5 w-5" />;
+    if (normalized.includes("anúncio") || normalized.includes("anuncio") || normalized.includes("feature")) return <LayoutGrid className="h-5 w-5" />;
+    if (normalized.includes("integra")) return <Globe2 className="h-5 w-5" />;
+    if (normalized.includes("lead") || normalized.includes("convers")) return <BarChart3 className="h-5 w-5" />;
+    if (normalized.includes("cobran") || normalized.includes("falha") || normalized.includes("atraso")) return <CircleDollarSign className="h-5 w-5" />;
+    if (normalized.includes("ticket") || normalized.includes("bug") || normalized.includes("resolução") || normalized.includes("resolucao")) return <Wrench className="h-5 w-5" />;
+    if (normalized.includes("risco") || normalized.includes("saúde") || normalized.includes("saude")) return <Gauge className="h-5 w-5" />;
+    if (normalized.includes("região") || normalized.includes("regiao")) return <MapPinned className="h-5 w-5" />;
+    return <TrendingUp className="h-5 w-5" />;
 }
 
 function getAlertClasses(severity: SuperAdminAlert["severity"]) {
@@ -660,7 +677,13 @@ function ChartCard({ chart }: { chart: SuperAdminChart }) {
     );
 }
 
-export function SuperAdminDashboardSection({ section }: { section: SuperAdminSection }) {
+export function SuperAdminDashboardSection({
+    section,
+    resolveAlerts = true,
+}: {
+    section: SuperAdminSection;
+    resolveAlerts?: boolean;
+}) {
     return (
         <div className="grid gap-6">
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -668,17 +691,20 @@ export function SuperAdminDashboardSection({ section }: { section: SuperAdminSec
                     <article key={metric.label} className="rounded-[28px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                         <div className="flex items-center justify-between gap-3">
                             <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getMetricToneClasses(metric.tone)}`}>{metric.label}</span>
-                            {metric.delta ? <span className="text-xs font-semibold text-black/45">{metric.delta}</span> : null}
+                            <span className={`grid h-10 w-10 place-items-center rounded-2xl ${getMetricToneClasses(metric.tone)}`}>
+                                {getMetricIcon(metric.label)}
+                            </span>
                         </div>
                         <p className="mt-5 text-3xl font-bold text-io-dark">{metric.value}</p>
                         <p className="mt-2 text-sm text-black/52">{metric.hint}</p>
+                        {metric.delta ? <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-black/45">{metric.delta}</p> : null}
                     </article>
                 ))}
             </section>
 
             <section className="grid gap-4 xl:grid-cols-3">
                 {section.alerts.map((alert, index) => {
-                    const resolvedAlert = getResolvedAlert(section, alert, index);
+                    const resolvedAlert = resolveAlerts ? getResolvedAlert(section, alert, index) : alert;
 
                     return (
                         <article key={alert.title} className={`rounded-[28px] border p-5 shadow-[0_18px_45px_rgba(0,0,0,0.04)] ${getAlertClasses(resolvedAlert.severity)}`}>
