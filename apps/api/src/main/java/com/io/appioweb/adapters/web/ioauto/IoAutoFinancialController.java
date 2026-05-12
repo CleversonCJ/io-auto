@@ -8,6 +8,7 @@ import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoFinancialEntryEntity
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehicleEntity;
 import com.io.appioweb.application.auth.port.out.CurrentUserPort;
 import com.io.appioweb.application.superadmin.FeatureUsageService;
+import com.io.appioweb.application.superadmin.SuperAdminPlanManagementService;
 import com.io.appioweb.shared.errors.BusinessException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -99,25 +100,29 @@ public class IoAutoFinancialController {
     private final IoAutoFinancialEntryRepositoryJpa financialEntries;
     private final IoAutoVehicleRepositoryJpa vehicles;
     private final IoAutoDreSubcategoryRepositoryJpa dreSubcategories;
+    private final SuperAdminPlanManagementService planManagementService;
 
     public IoAutoFinancialController(
             CurrentUserPort currentUser,
             FeatureUsageService featureUsageService,
             IoAutoFinancialEntryRepositoryJpa financialEntries,
             IoAutoVehicleRepositoryJpa vehicles,
-            IoAutoDreSubcategoryRepositoryJpa dreSubcategories
+            IoAutoDreSubcategoryRepositoryJpa dreSubcategories,
+            SuperAdminPlanManagementService planManagementService
     ) {
         this.currentUser = currentUser;
         this.featureUsageService = featureUsageService;
         this.financialEntries = financialEntries;
         this.vehicles = vehicles;
         this.dreSubcategories = dreSubcategories;
+        this.planManagementService = planManagementService;
     }
 
     @GetMapping("/ioauto/financial/overview")
     @Transactional
     public ResponseEntity<FinancialOverviewHttpResponse> getOverview() {
         UUID companyId = currentUser.companyId();
+        enforceFinancePlan(companyId);
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_FINANCE, Map.of("action", "GET_OVERVIEW"));
         List<JpaIoAutoDreSubcategoryEntity> allSubcategories = ensureDreStructure(companyId);
         List<FinancialEntryView> allEntries = buildFinancialEntries(companyId, allSubcategories);
@@ -180,6 +185,7 @@ public class IoAutoFinancialController {
     @PostMapping("/ioauto/financial/entries")
     @Transactional
     public ResponseEntity<FinancialEntryHttpResponse> createEntry(@Valid @RequestBody SaveFinancialEntryHttpRequest request) {
+        enforceFinancePlan(currentUser.companyId());
         featureUsageService.registerUsage(currentUser.companyId(), FeatureUsageService.FEATURE_FINANCE, Map.of("action", "CREATE_ENTRY"));
         return ResponseEntity.ok(saveEntry(null, request));
     }
@@ -190,6 +196,7 @@ public class IoAutoFinancialController {
             @PathVariable UUID entryId,
             @Valid @RequestBody SaveFinancialEntryHttpRequest request
     ) {
+        enforceFinancePlan(currentUser.companyId());
         featureUsageService.registerUsage(currentUser.companyId(), FeatureUsageService.FEATURE_FINANCE, Map.of("action", "UPDATE_ENTRY"));
         return ResponseEntity.ok(saveEntry(entryId, request));
     }
@@ -198,6 +205,7 @@ public class IoAutoFinancialController {
     @Transactional
     public ResponseEntity<Void> deleteEntry(@PathVariable UUID entryId) {
         UUID companyId = currentUser.companyId();
+        enforceFinancePlan(companyId);
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_FINANCE, Map.of("action", "DELETE_ENTRY"));
         JpaIoAutoFinancialEntryEntity entity = financialEntries.findByIdAndCompanyId(entryId, companyId)
                 .orElseThrow(() -> new BusinessException("FINANCIAL_ENTRY_NOT_FOUND", "Lancamento financeiro nao encontrado."));
@@ -209,6 +217,7 @@ public class IoAutoFinancialController {
     @PostMapping("/ioauto/financial/dre/subcategories")
     @Transactional
     public ResponseEntity<DreSubcategoryHttpResponse> createDreSubcategory(@Valid @RequestBody SaveDreSubcategoryHttpRequest request) {
+        enforceFinancePlan(currentUser.companyId());
         featureUsageService.registerUsage(currentUser.companyId(), FeatureUsageService.FEATURE_FINANCE, Map.of("action", "CREATE_DRE_SUBCATEGORY"));
         return ResponseEntity.ok(saveDreSubcategory(null, request));
     }
@@ -219,6 +228,7 @@ public class IoAutoFinancialController {
             @PathVariable UUID subcategoryId,
             @Valid @RequestBody SaveDreSubcategoryHttpRequest request
     ) {
+        enforceFinancePlan(currentUser.companyId());
         featureUsageService.registerUsage(currentUser.companyId(), FeatureUsageService.FEATURE_FINANCE, Map.of("action", "UPDATE_DRE_SUBCATEGORY"));
         return ResponseEntity.ok(saveDreSubcategory(subcategoryId, request));
     }
@@ -227,6 +237,7 @@ public class IoAutoFinancialController {
     @Transactional
     public ResponseEntity<Void> deleteDreSubcategory(@PathVariable UUID subcategoryId) {
         UUID companyId = currentUser.companyId();
+        enforceFinancePlan(companyId);
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_FINANCE, Map.of("action", "DELETE_DRE_SUBCATEGORY"));
         JpaIoAutoDreSubcategoryEntity entity = dreSubcategories.findByIdAndCompanyId(subcategoryId, companyId)
                 .orElseThrow(() -> new BusinessException("DRE_SUBCATEGORY_NOT_FOUND", "Subcategoria do DRE nao encontrada."));
@@ -241,6 +252,10 @@ public class IoAutoFinancialController {
 
         dreSubcategories.delete(entity);
         return ResponseEntity.noContent().build();
+    }
+
+    private void enforceFinancePlan(UUID companyId) {
+        planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_FINANCE);
     }
 
     private FinancialEntryHttpResponse saveEntry(UUID entryId, SaveFinancialEntryHttpRequest request) {

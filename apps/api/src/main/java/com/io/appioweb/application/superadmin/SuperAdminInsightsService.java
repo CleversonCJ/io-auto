@@ -96,27 +96,23 @@ public class SuperAdminInsightsService {
                     where l.created_at >= :thirtyDaysAgo
                     group by l.company_id
                 ),
-                latest_billing as (
-                    select distinct on (b.company_id)
-                        b.company_id,
-                        b.plan_name
-                    from ioauto_billing_subscriptions b
-                    order by b.company_id, b.updated_at desc
-                )
                 select
                     c.id,
                     c.name,
-                    coalesce(latest_billing.plan_name, 'START') as plan_name,
+                    coalesce(plan.plan_name, 'Start') as plan_name,
+                    plan.vehicles_limit as stock_limit,
+                    plan.active_ads_limit as ads_limit,
+                    plan.users_limit as users_limit,
                     coalesce(stock.stock_count, 0) as stock_count,
                     coalesce(ads.active_ads, 0) as active_ads,
                     coalesce(users_count.users_count, 0) as users_count,
                     coalesce(leads.leads_30d, 0) as leads_30d
                 from companies c
+                left join ioauto_subscription_plans plan on plan.id = c.plan_id
                 left join stock on stock.company_id = c.id
                 left join ads on ads.company_id = c.id
                 left join users_count on users_count.company_id = c.id
                 left join leads on leads.company_id = c.id
-                left join latest_billing on latest_billing.company_id = c.id
                 %s
                 and upper(coalesce(c.subscription_status, 'ACTIVE')) not in ('CANCELED', 'BLOCKED')
                 """.formatted(where);
@@ -124,15 +120,17 @@ public class SuperAdminInsightsService {
         List<UpgradeReadyCustomer> rows = new ArrayList<>();
         jdbc.query(sql, params, rs -> {
             String planName = rs.getString("plan_name");
-            Limits limits = limitsForPlan(planName);
+            long stockLimit = rs.getObject("stock_limit") == null ? 0L : rs.getLong("stock_limit");
+            long adsLimit = rs.getObject("ads_limit") == null ? 0L : rs.getLong("ads_limit");
+            long usersLimit = rs.getObject("users_limit") == null ? 0L : rs.getLong("users_limit");
             long stockCount = rs.getLong("stock_count");
             long activeAds = rs.getLong("active_ads");
             long usersCount = rs.getLong("users_count");
             long leads30d = rs.getLong("leads_30d");
 
-            double stockUsage = limits.stockLimit() <= 0 ? 0D : (stockCount * 100D) / limits.stockLimit();
-            double adsUsage = limits.adsLimit() <= 0 ? 0D : (activeAds * 100D) / limits.adsLimit();
-            double usersUsage = limits.usersLimit() <= 0 ? 0D : (usersCount * 100D) / limits.usersLimit();
+            double stockUsage = stockLimit <= 0 ? 0D : (stockCount * 100D) / stockLimit;
+            double adsUsage = adsLimit <= 0 ? 0D : (activeAds * 100D) / adsLimit;
+            double usersUsage = usersLimit <= 0 ? 0D : (usersCount * 100D) / usersLimit;
             double maxUsage = Math.max(stockUsage, Math.max(adsUsage, usersUsage));
             if (maxUsage < 75D && leads30d < 12) {
                 return;
@@ -292,20 +290,9 @@ public class SuperAdminInsightsService {
         return rows;
     }
 
-    private Limits limitsForPlan(String planName) {
-        String normalized = planName == null ? "" : planName.trim().toUpperCase(Locale.ROOT);
-        if (normalized.contains("ENTERPRISE")) return new Limits(400, 900, 80);
-        if (normalized.contains("SCALE")) return new Limits(120, 260, 25);
-        if (normalized.contains("PRO")) return new Limits(50, 120, 10);
-        return new Limits(20, 50, 3);
-    }
-
     private double round(double value) {
         if (!Double.isFinite(value)) return 0D;
         return Math.round(value * 100D) / 100D;
-    }
-
-    private record Limits(long stockLimit, long adsLimit, long usersLimit) {
     }
 
     private record UsageAgg(long uniqueCustomers, long usageCount) {

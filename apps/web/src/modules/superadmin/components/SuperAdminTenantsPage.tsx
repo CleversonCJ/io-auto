@@ -8,6 +8,7 @@ type TenantRow = {
     tenantId: string;
     companyName: string;
     companyEmail?: string | null;
+    planId?: string | null;
     planName: string;
     planKey: string;
     status: string;
@@ -43,6 +44,18 @@ type ResetPasswordResult = {
     expiresAt: string;
 };
 
+type PlanOption = {
+    planId: string;
+    planKey: string;
+    planName: string;
+    billingRecurrence?: string | null;
+    priceCents?: number | null;
+    customPlan: boolean;
+    usersLimit?: number | null;
+    vehiclesLimit?: number | null;
+    activeAdsLimit?: number | null;
+};
+
 type FilterState = {
     status: string;
     search: string;
@@ -52,8 +65,7 @@ type FilterState = {
 };
 
 type PlanFormState = {
-    planName: string;
-    planKey: string;
+    planId: string;
     amount: string;
     billingRecurrence: string;
     subscriptionStatus: string;
@@ -68,8 +80,7 @@ const DEFAULT_FILTERS: FilterState = {
 };
 
 const EMPTY_PLAN_FORM: PlanFormState = {
-    planName: "",
-    planKey: "",
+    planId: "",
     amount: "",
     billingRecurrence: "MONTHLY",
     subscriptionStatus: "ACTIVE",
@@ -155,6 +166,7 @@ export function SuperAdminTenantsPage() {
     const [busyAction, setBusyAction] = useState<string | null>(null);
     const [planTenant, setPlanTenant] = useState<TenantRow | null>(null);
     const [planForm, setPlanForm] = useState<PlanFormState>(EMPTY_PLAN_FORM);
+    const [planOptions, setPlanOptions] = useState<PlanOption[]>([]);
     const [planSaving, setPlanSaving] = useState(false);
     const [logsTenant, setLogsTenant] = useState<TenantRow | null>(null);
     const [logsRows, setLogsRows] = useState<TenantAdminLogRow[]>([]);
@@ -184,6 +196,9 @@ export function SuperAdminTenantsPage() {
 
     useEffect(() => {
         void loadTenants(DEFAULT_FILTERS);
+        void fetchJson<PlanOption[]>("/api/superadmin/plans/options", undefined, "Falha ao carregar os planos disponiveis.")
+            .then((payload) => setPlanOptions(Array.isArray(payload) ? payload : []))
+            .catch(() => setPlanOptions([]));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -210,8 +225,7 @@ export function SuperAdminTenantsPage() {
     function openPlanEditor(tenant: TenantRow) {
         setPlanTenant(tenant);
         setPlanForm({
-            planName: tenant.planName ?? "",
-            planKey: tenant.planKey ?? "",
+            planId: tenant.planId ?? "",
             amount: ((tenant.subscriptionAmountCents ?? 0) / 100).toFixed(2),
             billingRecurrence: tenant.billingRecurrence || "MONTHLY",
             subscriptionStatus: tenant.status || "ACTIVE",
@@ -321,8 +335,7 @@ export function SuperAdminTenantsPage() {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        planName: planForm.planName.trim() || null,
-                        planKey: planForm.planKey.trim() || null,
+                        planId: planForm.planId || null,
                         subscriptionAmountCents,
                         billingRecurrence: planForm.billingRecurrence,
                         subscriptionStatus: planForm.subscriptionStatus,
@@ -441,12 +454,15 @@ export function SuperAdminTenantsPage() {
                     </div>
                     <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                         <label className="grid gap-1 text-xs text-black/55">
-                            Nome do plano
-                            <input value={planForm.planName} onChange={(event) => setPlanForm((current) => ({ ...current, planName: event.target.value }))} className="h-10 rounded-lg border border-black/12 px-3 text-sm" />
-                        </label>
-                        <label className="grid gap-1 text-xs text-black/55">
-                            Chave do plano
-                            <input value={planForm.planKey} onChange={(event) => setPlanForm((current) => ({ ...current, planKey: event.target.value }))} className="h-10 rounded-lg border border-black/12 px-3 text-sm" />
+                            Plano
+                            <select value={planForm.planId} onChange={(event) => setPlanForm((current) => ({ ...current, planId: event.target.value }))} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
+                                <option value="">Selecione</option>
+                                {planOptions.map((plan) => (
+                                    <option key={plan.planId} value={plan.planId}>
+                                        {plan.planName}
+                                    </option>
+                                ))}
+                            </select>
                         </label>
                         <label className="grid gap-1 text-xs text-black/55">
                             Valor contratado (BRL)
@@ -469,6 +485,15 @@ export function SuperAdminTenantsPage() {
                                 <option value="CANCELED">Cancelado</option>
                             </select>
                         </label>
+                        <div className="rounded-lg border border-dashed border-black/10 bg-black/[0.02] px-3 py-2 text-xs text-black/55">
+                            {planForm.planId
+                                ? (() => {
+                                      const plan = planOptions.find((item) => item.planId === planForm.planId);
+                                      if (!plan) return "Plano selecionado sem detalhes disponiveis.";
+                                      return `${plan.planName} | ${plan.usersLimit ?? "ilimitado"} usuarios | ${plan.vehiclesLimit ?? "ilimitado"} veiculos`;
+                                  })()
+                                : "Selecione um plano do catalogo para aplicar a conta."}
+                        </div>
                     </div>
                     <div className="mt-4 flex justify-end">
                         <button type="button" onClick={() => void handlePlanSubmit()} disabled={planSaving} className="h-10 rounded-full bg-io-dark px-4 text-sm font-semibold text-white disabled:opacity-60">

@@ -6,6 +6,7 @@ import com.io.appioweb.adapters.security.*;
 import com.io.appioweb.application.auth.port.in.*;
 import com.io.appioweb.application.auth.port.out.*;
 import com.io.appioweb.application.auth.usecase.*;
+import com.io.appioweb.application.superadmin.SuperAdminPlanManagementService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -85,8 +86,15 @@ public class AuthBootstrap {
     }
 
     @Bean(name = "createUserUseCase")
-    UserAdminUseCase createUserUseCase(UserRepositoryPort users, RoleRepositoryPort roles, PasswordHasherPort hasher, CurrentUserPort current, TeamRepositoryPort teams) {
-        return new CreateUserUseCase(users, roles, hasher, current, teams);
+    UserAdminUseCase createUserUseCase(
+            UserRepositoryPort users,
+            RoleRepositoryPort roles,
+            PasswordHasherPort hasher,
+            CurrentUserPort current,
+            TeamRepositoryPort teams,
+            SuperAdminPlanManagementService planManagementService
+    ) {
+        return new CreateUserUseCase(users, roles, hasher, current, teams, planManagementService);
     }
 
     @Bean

@@ -36,14 +36,25 @@ public final class SuperAdminSqlFilterBuilder {
         }
         if (hasText(filter.plan())) {
             sql.append("""
-                     and exists (
-                         select 1
-                         from ioauto_billing_subscriptions plan_filter
-                         where plan_filter.company_id = %s.id
-                           and (
-                               lower(coalesce(plan_filter.plan_name, '')) like :planFilter
-                               or lower(coalesce(plan_filter.plan_key, '')) like :planFilter
-                           )
+                     and (
+                         exists (
+                             select 1
+                             from ioauto_subscription_plans plan_catalog
+                             where plan_catalog.id = %s.plan_id
+                               and (
+                                   lower(coalesce(plan_catalog.plan_name, '')) like :planFilter
+                                   or lower(coalesce(plan_catalog.plan_key, '')) like :planFilter
+                               )
+                         )
+                         or exists (
+                             select 1
+                             from ioauto_billing_subscriptions plan_filter
+                             where plan_filter.company_id = %s.id
+                               and (
+                                   lower(coalesce(plan_filter.plan_name, '')) like :planFilter
+                                   or lower(coalesce(plan_filter.plan_key, '')) like :planFilter
+                               )
+                         )
                      )
                     """.formatted(alias));
             params.addValue("planFilter", "%" + filter.plan().trim().toLowerCase() + "%");

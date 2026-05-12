@@ -8,6 +8,7 @@ import com.io.appioweb.application.ioauto.webmotors.WebmotorsCredentialService;
 import com.io.appioweb.application.ioauto.webmotors.WebmotorsLeadService;
 import com.io.appioweb.application.ioauto.webmotors.modules.auth.WmAuthService;
 import com.io.appioweb.application.superadmin.FeatureUsageService;
+import com.io.appioweb.application.superadmin.SuperAdminPlanManagementService;
 import com.io.appioweb.domain.ioauto.webmotors.WebmotorsCatalogEntry;
 import com.io.appioweb.domain.ioauto.webmotors.WebmotorsCredentialSnapshot;
 import com.io.appioweb.domain.ioauto.webmotors.WebmotorsRestAccessToken;
@@ -30,6 +31,7 @@ public class WebmotorsController {
     private final WebmotorsLeadService leadService;
     private final WmAuthService authService;
     private final FeatureUsageService featureUsageService;
+    private final SuperAdminPlanManagementService planManagementService;
 
     public WebmotorsController(
             CurrentUserPort currentUser,
@@ -37,7 +39,8 @@ public class WebmotorsController {
             WebmotorsAdsService adsService,
             WebmotorsLeadService leadService,
             WmAuthService authService,
-            FeatureUsageService featureUsageService
+            FeatureUsageService featureUsageService,
+            SuperAdminPlanManagementService planManagementService
     ) {
         this.currentUser = currentUser;
         this.credentialService = credentialService;
@@ -45,16 +48,19 @@ public class WebmotorsController {
         this.leadService = leadService;
         this.authService = authService;
         this.featureUsageService = featureUsageService;
+        this.planManagementService = planManagementService;
     }
 
     @GetMapping("/ioauto/webmotors/settings")
     public ResponseEntity<WebmotorsCredentialSnapshot> getSettings(@RequestParam(defaultValue = "default") String storeKey) {
+        enforceWebmotorsPlan();
         return ResponseEntity.ok(credentialService.getOrCreate(currentUser.companyId(), storeKey));
     }
 
     @PutMapping("/ioauto/webmotors/settings")
     @Transactional
     public ResponseEntity<WebmotorsCredentialSnapshot> updateSettings(@Valid @RequestBody UpdateWebmotorsSettingsRequest request) {
+        enforceWebmotorsPlan();
         return ResponseEntity.ok(credentialService.save(currentUser.companyId(), request.toServiceRequest()));
     }
 
@@ -62,6 +68,7 @@ public class WebmotorsController {
     public ResponseEntity<ValidateWebmotorsSettingsResponse> validateSettings(
             @RequestParam(defaultValue = "default") String storeKey
     ) {
+        enforceWebmotorsPlan();
         WebmotorsCredentialSnapshot credentials = credentialService.getOrCreate(currentUser.companyId(), storeKey);
         WebmotorsTransportResult<WebmotorsRestAccessToken> tokenTransport = authService.issueAccessToken(credentials);
         return ResponseEntity.ok(new ValidateWebmotorsSettingsResponse(
@@ -74,17 +81,20 @@ public class WebmotorsController {
 
     @GetMapping("/ioauto/webmotors/ads")
     public ResponseEntity<List<JpaWebmotorsAdEntity>> listAds() {
+        enforceWebmotorsPlan();
         return ResponseEntity.ok(adsService.listAds(currentUser.companyId()));
     }
 
     @GetMapping("/ioauto/webmotors/ads/{vehicleId}")
     public ResponseEntity<JpaWebmotorsAdEntity> getAd(@PathVariable UUID vehicleId) {
+        enforceWebmotorsPlan();
         return ResponseEntity.ok(adsService.getAd(currentUser.companyId(), vehicleId));
     }
 
     @PostMapping("/ioauto/webmotors/ads/{vehicleId}/publish")
     @Transactional
     public ResponseEntity<?> publishAd(@PathVariable UUID vehicleId, @RequestParam(defaultValue = "default") String storeKey) {
+        enforceWebmotorsPlan();
         featureUsageService.registerUsage(currentUser.companyId(), FeatureUsageService.FEATURE_MARKETPLACE_INTEGRATION, java.util.Map.of("provider", "WEBMOTORS", "action", "PUBLISH"));
         return ResponseEntity.ok(adsService.enqueuePublish(currentUser.companyId(), vehicleId, storeKey));
     }
@@ -92,12 +102,14 @@ public class WebmotorsController {
     @PostMapping("/ioauto/webmotors/ads/{vehicleId}/sync")
     @Transactional
     public ResponseEntity<?> syncAd(@PathVariable UUID vehicleId, @RequestParam(defaultValue = "default") String storeKey) {
+        enforceWebmotorsPlan();
         return ResponseEntity.ok(adsService.enqueuePublish(currentUser.companyId(), vehicleId, storeKey));
     }
 
     @DeleteMapping("/ioauto/webmotors/ads/{vehicleId}")
     @Transactional
     public ResponseEntity<?> deleteAd(@PathVariable UUID vehicleId, @RequestParam(defaultValue = "default") String storeKey) {
+        enforceWebmotorsPlan();
         return ResponseEntity.ok(adsService.enqueueDelete(currentUser.companyId(), vehicleId, storeKey));
     }
 
@@ -107,11 +119,13 @@ public class WebmotorsController {
             @RequestParam(defaultValue = "default") String storeKey,
             @RequestParam @NotBlank String type
     ) {
+        enforceWebmotorsPlan();
         return ResponseEntity.ok(adsService.refreshCatalog(currentUser.companyId(), storeKey, type));
     }
 
     @GetMapping("/ioauto/webmotors/leads")
     public ResponseEntity<List<JpaWebmotorsLeadEntity>> listLeads() {
+        enforceWebmotorsPlan();
         return ResponseEntity.ok(leadService.listLeads(currentUser.companyId()));
     }
 
@@ -121,6 +135,7 @@ public class WebmotorsController {
             @RequestParam(defaultValue = "default") String storeKey,
             @RequestParam(defaultValue = "") String since
     ) {
+        enforceWebmotorsPlan();
         return ResponseEntity.ok(leadService.pullLeads(currentUser.companyId(), storeKey, since));
     }
 
@@ -130,7 +145,12 @@ public class WebmotorsController {
             @RequestParam(defaultValue = "default") String storeKey,
             @RequestParam(defaultValue = "50") int pageSize
     ) {
+        enforceWebmotorsPlan();
         return ResponseEntity.ok(java.util.Map.of("processed", adsService.reconcileRemoteInventory(currentUser.companyId(), storeKey, pageSize)));
+    }
+
+    private void enforceWebmotorsPlan() {
+        planManagementService.assertProviderIntegrationEnabled(currentUser.companyId(), SuperAdminPlanManagementService.PROVIDER_WEBMOTORS);
     }
 
     public record UpdateWebmotorsSettingsRequest(

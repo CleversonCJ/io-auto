@@ -7,6 +7,7 @@ import com.io.appioweb.application.auth.port.out.PasswordHasherPort;
 import com.io.appioweb.application.auth.port.out.RoleRepositoryPort;
 import com.io.appioweb.application.auth.port.out.TeamRepositoryPort;
 import com.io.appioweb.application.auth.port.out.UserRepositoryPort;
+import com.io.appioweb.application.superadmin.SuperAdminPlanManagementService;
 import com.io.appioweb.domain.auth.entity.User;
 import com.io.appioweb.shared.errors.BusinessException;
 
@@ -21,19 +22,22 @@ public class CreateUserUseCase implements UserAdminUseCase {
     private final PasswordHasherPort hasher;
     private final CurrentUserPort current;
     private final TeamRepositoryPort teams;
+    private final SuperAdminPlanManagementService planManagementService;
 
     public CreateUserUseCase(
             UserRepositoryPort users,
             RoleRepositoryPort roles,
             PasswordHasherPort hasher,
             CurrentUserPort current,
-            TeamRepositoryPort teams
+            TeamRepositoryPort teams,
+            SuperAdminPlanManagementService planManagementService
     ) {
         this.users = users;
         this.roles = roles;
         this.hasher = hasher;
         this.current = current;
         this.teams = teams;
+        this.planManagementService = planManagementService;
     }
 
     @Override
@@ -61,6 +65,8 @@ public class CreateUserUseCase implements UserAdminUseCase {
         if (users.findByEmailGlobal(normalizedEmail).isPresent()) {
             throw new BusinessException("USER_EMAIL_ALREADY_EXISTS", "Ja existe usuario com este e-mail");
         }
+
+        planManagementService.assertUserCreationAllowed(command.companyId());
 
         String hash = hasher.hash(command.password());
 

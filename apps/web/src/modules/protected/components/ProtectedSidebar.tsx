@@ -58,6 +58,7 @@ type NavItem = {
         | "cobranca"
         | "operacional"
         | "insights"
+        | "planos"
         | "tenants";
 };
 
@@ -101,6 +102,7 @@ function NavIcon({ icon }: { icon: NavItem["icon"] }) {
     if (icon === "cobranca") return <CreditCard className="h-5 w-5" strokeWidth={2} />;
     if (icon === "operacional") return <MonitorCog className="h-5 w-5" strokeWidth={2} />;
     if (icon === "insights") return <Lightbulb className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "planos") return <Settings2 className="h-5 w-5" strokeWidth={2} />;
     if (icon === "tenants") return <MapPinned className="h-5 w-5" strokeWidth={2} />;
     return <Users2 className="h-5 w-5" strokeWidth={2} />;
 }
@@ -128,6 +130,7 @@ function getSuperAdminSidebarItems(): NavItem[] {
         if (item.href.endsWith("/cobranca")) return { label: item.label, href: item.href, icon: "cobranca" };
         if (item.href.endsWith("/operacional")) return { label: item.label, href: item.href, icon: "operacional" };
         if (item.href.endsWith("/insights")) return { label: item.label, href: item.href, icon: "insights" };
+        if (item.href.endsWith("/planos")) return { label: item.label, href: item.href, icon: "planos" };
         return { label: item.label, href: item.href, icon: "tenants" };
     });
 }

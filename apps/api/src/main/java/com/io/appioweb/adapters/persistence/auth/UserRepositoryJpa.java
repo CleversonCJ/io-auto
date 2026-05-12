@@ -11,6 +11,7 @@ public interface UserRepositoryJpa extends JpaRepository<JpaUserEntity, UUID> {
     List<JpaUserEntity> findAllByEmail(String email);
     List<JpaUserEntity> findAllByCompanyId(UUID companyId);
     Optional<JpaUserEntity> findByIdAndCompanyId(UUID id, UUID companyId);
+    long countByCompanyIdAndIsActiveTrue(UUID companyId);
     long countByCompanyIdAndTeamId(UUID companyId, UUID teamId);
     void deleteByCompanyId(UUID companyId);
 }

@@ -2,6 +2,7 @@ package com.io.appioweb.adapters.web.relatorios;
 
 import com.io.appioweb.application.auth.port.out.CurrentUserPort;
 import com.io.appioweb.application.superadmin.FeatureUsageService;
+import com.io.appioweb.application.superadmin.SuperAdminPlanManagementService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -16,15 +17,18 @@ public class AtendimentoReportsController {
     private final CurrentUserPort currentUser;
     private final FeatureUsageService featureUsageService;
     private final AtendimentoReportsService reportsService;
+    private final SuperAdminPlanManagementService planManagementService;
 
     public AtendimentoReportsController(
             CurrentUserPort currentUser,
             FeatureUsageService featureUsageService,
-            AtendimentoReportsService reportsService
+            AtendimentoReportsService reportsService,
+            SuperAdminPlanManagementService planManagementService
     ) {
         this.currentUser = currentUser;
         this.featureUsageService = featureUsageService;
         this.reportsService = reportsService;
+        this.planManagementService = planManagementService;
     }
 
     @GetMapping("/reports/atendimentos/overview")
@@ -36,6 +40,7 @@ public class AtendimentoReportsController {
             @RequestParam(required = false) String channelId,
             @RequestParam(required = false) String timeZone
     ) {
+        planManagementService.assertFeatureEnabled(currentUser.companyId(), SuperAdminPlanManagementService.FEATURE_REPORTS);
         featureUsageService.registerUsage(currentUser.companyId(), FeatureUsageService.FEATURE_REPORTS, java.util.Map.of("action", "OVERVIEW"));
         return reportsService.loadOverview(currentUser.companyId(), new AtendimentoReportsService.AtendimentoReportFilter(
                 startDate,
@@ -56,6 +61,7 @@ public class AtendimentoReportsController {
             @RequestParam(required = false) String channelId,
             @RequestParam(required = false) String timeZone
     ) {
+        planManagementService.assertFeatureEnabled(currentUser.companyId(), SuperAdminPlanManagementService.FEATURE_REPORTS);
         featureUsageService.registerUsage(currentUser.companyId(), FeatureUsageService.FEATURE_REPORTS, java.util.Map.of("action", "USERS"));
         return reportsService.loadUserReport(currentUser.companyId(), new AtendimentoReportsService.AtendimentoReportFilter(
                 startDate,
@@ -76,6 +82,7 @@ public class AtendimentoReportsController {
             @RequestParam(required = false) String channelId,
             @RequestParam(required = false) String timeZone
     ) {
+        planManagementService.assertFeatureEnabled(currentUser.companyId(), SuperAdminPlanManagementService.FEATURE_REPORTS);
         featureUsageService.registerUsage(currentUser.companyId(), FeatureUsageService.FEATURE_REPORTS, java.util.Map.of("action", "RESULTS"));
         return reportsService.loadResults(currentUser.companyId(), new AtendimentoReportsService.AtendimentoReportFilter(
                 startDate,

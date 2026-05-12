@@ -45,6 +45,7 @@ public class SuperAdminTenantManagementService {
     private final TokenServicePort tokens;
     private final CurrentUserPort currentUser;
     private final PasswordResetTokenRepositoryJpa passwordResetTokens;
+    private final SuperAdminPlanManagementService planManagementService;
 
     public SuperAdminTenantManagementService(
             NamedParameterJdbcTemplate jdbc,
@@ -53,7 +54,8 @@ public class SuperAdminTenantManagementService {
             UserRepositoryJpa users,
             TokenServicePort tokens,
             CurrentUserPort currentUser,
-            PasswordResetTokenRepositoryJpa passwordResetTokens
+            PasswordResetTokenRepositoryJpa passwordResetTokens,
+            SuperAdminPlanManagementService planManagementService
     ) {
         this.jdbc = jdbc;
         this.healthScoreService = healthScoreService;
@@ -62,6 +64,7 @@ public class SuperAdminTenantManagementService {
         this.tokens = tokens;
         this.currentUser = currentUser;
         this.passwordResetTokens = passwordResetTokens;
+        this.planManagementService = planManagementService;
     }
 
     @Transactional(readOnly = true)
@@ -103,14 +106,16 @@ public class SuperAdminTenantManagementService {
                     c.cidade,
                     c.uf,
                     c.origin_source,
+                    c.plan_id,
                     c.subscription_started_at,
                     c.created_at,
                     c.last_access_at,
                     upper(coalesce(nullif(c.subscription_status, ''), nullif(c.status, ''), 'ACTIVE')) as subscription_status,
-                    coalesce(latest_billing.plan_name, 'Plano principal') as plan_name,
-                    coalesce(latest_billing.plan_key, 'default') as plan_key,
-                    coalesce(c.subscription_amount_cents, latest_billing.amount_cents, 0) as subscription_amount_cents,
+                    coalesce(plan.plan_name, latest_billing.plan_name, 'Start') as plan_name,
+                    coalesce(plan.plan_key, latest_billing.plan_key, 'start') as plan_key,
+                    coalesce(c.subscription_amount_cents, latest_billing.amount_cents, plan.price_cents, 0) as subscription_amount_cents,
                     upper(coalesce(c.billing_recurrence,
+                        plan.billing_recurrence,
                         case
                             when upper(coalesce(latest_billing.billing_interval, 'MONTH')) in ('YEAR', 'ANNUAL', 'YEARLY') then 'ANNUAL'
                             else 'MONTHLY'
@@ -119,6 +124,7 @@ public class SuperAdminTenantManagementService {
                     coalesce(stock.stock_count, 0) as stock_count,
                     coalesce(ads.active_ads, 0) as active_ads
                 from companies c
+                left join ioauto_subscription_plans plan on plan.id = c.plan_id
                 left join stock on stock.company_id = c.id
                 left join ads on ads.company_id = c.id
                 left join latest_billing on latest_billing.company_id = c.id
@@ -141,6 +147,7 @@ public class SuperAdminTenantManagementService {
                     tenantId,
                     rs.getString("name"),
                     rs.getString("email"),
+                    rs.getObject("plan_id") == null ? null : UUID.fromString(rs.getObject("plan_id").toString()),
                     rs.getString("plan_name"),
                     rs.getString("plan_key"),
                     rs.getString("subscription_status"),
@@ -268,11 +275,32 @@ public class SuperAdminTenantManagementService {
     public TenantRow updatePlan(UUID tenantId, UpdateTenantPlanCommand command) {
         ensureTenantExists(tenantId);
 
+        boolean hasPlanReference = command.planId() != null
+                || normalizeNullable(command.planName()) != null
+                || normalizeNullable(command.planKey()) != null;
+        var resolvedPlan = planManagementService.resolveReferencedPlan(command.planId(), command.planKey(), command.planName());
+        if (hasPlanReference && resolvedPlan.isEmpty()) {
+            throw new BusinessException("PLAN_NOT_FOUND", "Selecione um plano valido para a conta.");
+        }
+        resolvedPlan.ifPresent(plan -> planManagementService.assertTenantFitsPlan(tenantId, plan));
+
+        UUID resolvedPlanId = resolvedPlan.map(SuperAdminPlanManagementService.PlanSnapshot::planId).orElse(null);
+        String resolvedPlanName = resolvedPlan.map(SuperAdminPlanManagementService.PlanSnapshot::planName).orElse(normalizeNullable(command.planName()));
+        String resolvedPlanKey = resolvedPlan.map(SuperAdminPlanManagementService.PlanSnapshot::planKey).orElse(normalizeNullable(command.planKey()));
+        Long resolvedAmountCents = command.subscriptionAmountCents() != null
+                ? Math.max(command.subscriptionAmountCents(), 0L)
+                : resolvedPlan.map(SuperAdminPlanManagementService.PlanSnapshot::priceCents).orElse(null);
+        String resolvedRecurrence = normalizeRecurrence(
+                command.billingRecurrence() != null
+                        ? command.billingRecurrence()
+                        : resolvedPlan.map(SuperAdminPlanManagementService.PlanSnapshot::billingRecurrence).orElse(null)
+        );
+
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("tenantId", tenantId)
-                .addValue("planId", command.planId())
-                .addValue("amountCents", command.subscriptionAmountCents())
-                .addValue("recurrence", normalizeRecurrence(command.billingRecurrence()))
+                .addValue("planId", resolvedPlanId)
+                .addValue("amountCents", resolvedAmountCents)
+                .addValue("recurrence", resolvedRecurrence)
                 .addValue("status", normalizeNullable(command.subscriptionStatus()))
                 .addValue("updatedAt", SuperAdminSqlValues.timestamp(Instant.now()));
 
@@ -287,13 +315,13 @@ public class SuperAdminTenantManagementService {
                 where id = :tenantId
                 """, params);
 
-        if (normalizeNullable(command.planName()) != null || normalizeNullable(command.planKey()) != null || command.subscriptionAmountCents() != null) {
+        if (resolvedPlanName != null || resolvedPlanKey != null || resolvedAmountCents != null) {
             MapSqlParameterSource billingParams = new MapSqlParameterSource()
                     .addValue("tenantId", tenantId)
-                    .addValue("planName", normalizeNullable(command.planName()))
-                    .addValue("planKey", normalizeNullable(command.planKey()))
-                    .addValue("amountCents", command.subscriptionAmountCents())
-                    .addValue("billingInterval", mapBillingInterval(normalizeRecurrence(command.billingRecurrence())))
+                    .addValue("planName", resolvedPlanName)
+                    .addValue("planKey", resolvedPlanKey)
+                    .addValue("amountCents", resolvedAmountCents)
+                    .addValue("billingInterval", mapBillingInterval(resolvedRecurrence))
                     .addValue("updatedAt", SuperAdminSqlValues.timestamp(Instant.now()));
 
             jdbc.update("""
@@ -319,11 +347,11 @@ public class SuperAdminTenantManagementService {
                 "TENANT_PLAN_UPDATED",
                 "Plano da conta alterado pelo superadmin.",
                 Map.of(
-                        "planId", safeUuid(command.planId()),
-                        "planName", safe(command.planName()),
-                        "planKey", safe(command.planKey()),
-                        "subscriptionAmountCents", command.subscriptionAmountCents() == null ? "" : String.valueOf(command.subscriptionAmountCents()),
-                        "billingRecurrence", safe(command.billingRecurrence())
+                        "planId", safeUuid(resolvedPlanId),
+                        "planName", safe(resolvedPlanName),
+                        "planKey", safe(resolvedPlanKey),
+                        "subscriptionAmountCents", resolvedAmountCents == null ? "" : String.valueOf(resolvedAmountCents),
+                        "billingRecurrence", safe(resolvedRecurrence)
                 )
         );
 
@@ -560,6 +588,7 @@ public class SuperAdminTenantManagementService {
             UUID tenantId,
             String companyName,
             String companyEmail,
+            UUID planId,
             String planName,
             String planKey,
             String status,

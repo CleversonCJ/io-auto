@@ -20,6 +20,7 @@ import com.io.appioweb.application.auth.port.out.CompanyRepositoryPort;
 import com.io.appioweb.application.auth.port.out.CurrentUserPort;
 import com.io.appioweb.application.ioauto.VehicleAutoPublicationService;
 import com.io.appioweb.application.superadmin.FeatureUsageService;
+import com.io.appioweb.application.superadmin.SuperAdminPlanManagementService;
 import com.io.appioweb.realtime.RealtimeGateway;
 import com.io.appioweb.shared.errors.BusinessException;
 import jakarta.validation.Valid;
@@ -140,6 +141,7 @@ public class IoAutoController {
     private final IoAutoBillingService billingService;
     private final VehicleAutoPublicationService vehicleAutoPublicationService;
     private final FeatureUsageService featureUsageService;
+    private final SuperAdminPlanManagementService planManagementService;
     private final RealtimeGateway realtime;
     private final MeliAdService meliAdService;
     private final MeliCategoryService meliCategoryService;
@@ -160,6 +162,7 @@ public class IoAutoController {
             IoAutoBillingService billingService,
             VehicleAutoPublicationService vehicleAutoPublicationService,
             FeatureUsageService featureUsageService,
+            SuperAdminPlanManagementService planManagementService,
             RealtimeGateway realtime,
             MeliAdService meliAdService,
             MeliCategoryService meliCategoryService,
@@ -179,6 +182,7 @@ public class IoAutoController {
         this.billingService = billingService;
         this.vehicleAutoPublicationService = vehicleAutoPublicationService;
         this.featureUsageService = featureUsageService;
+        this.planManagementService = planManagementService;
         this.realtime = realtime;
         this.meliAdService = meliAdService;
         this.meliCategoryService = meliCategoryService;
@@ -503,6 +507,7 @@ public class IoAutoController {
         if (!isSupportedProvider(normalizedProviderKey)) {
             throw new BusinessException("IOAUTO_INTEGRATION_UNSUPPORTED", "Esta integração não está mais disponível.");
         }
+        planManagementService.assertProviderIntegrationEnabled(companyId, normalizedProviderKey);
 
         JpaIoAutoIntegrationEntity entity = integrations.findByCompanyIdAndProviderKey(companyId, normalizedProviderKey)
                 .orElseGet(() -> {
@@ -568,6 +573,7 @@ public class IoAutoController {
     @GetMapping("/ioauto/public-lead-events/summary")
     public ResponseEntity<PublicLeadEventSummaryHttpResponse> getPublicLeadEventSummary() {
         UUID companyId = currentUser.companyId();
+        planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_TRACKABLE_LINKS);
         List<JpaIoAutoPublicLeadEventEntity> events = publicLeadEvents.findAllByCompanyIdOrderByCreatedAtDesc(companyId);
 
         long trackedInteractions = events.size();
@@ -641,6 +647,7 @@ public class IoAutoController {
             @RequestParam(name = "to", required = false) String to
     ) {
         UUID companyId = currentUser.companyId();
+        planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_LEAD_MANAGEMENT);
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_LEAD_MANAGEMENT, Map.of("action", "LIST_CATALOG_LEADS"));
         PublicCatalogLeadPeriodSelection periodSelection = resolvePublicCatalogLeadPeriod(preset, from, to);
         String publicSlug = companies.findById(companyId)
@@ -699,6 +706,7 @@ public class IoAutoController {
     @GetMapping("/ioauto/public-links")
     public ResponseEntity<List<PublicLinkHttpResponse>> listPublicLinks() {
         UUID companyId = currentUser.companyId();
+        planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_OWN_SITE);
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "LIST_PUBLIC_LINKS"));
         var company = companies.findById(companyId).orElse(null);
         if (company == null) {
@@ -721,6 +729,7 @@ public class IoAutoController {
     @GetMapping("/ioauto/public-catalog-settings")
     public ResponseEntity<PublicCatalogSettingsHttpResponse> getPublicCatalogSettings() {
         UUID companyId = currentUser.companyId();
+        planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_OWN_SITE);
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "GET_CATALOG_SETTINGS"));
         var company = companies.findById(companyId)
                 .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
@@ -733,6 +742,7 @@ public class IoAutoController {
             @Valid @RequestBody SavePublicCatalogSettingsHttpRequest request
     ) {
         UUID companyId = currentUser.companyId();
+        planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_OWN_SITE);
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "UPDATE_CATALOG_SETTINGS"));
         var company = companies.findById(companyId)
                 .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
@@ -768,12 +778,16 @@ public class IoAutoController {
     @Transactional
     public ResponseEntity<PublicLinkHttpResponse> createPublicLink(@Valid @RequestBody SavePublicLinkHttpRequest request) {
         UUID companyId = currentUser.companyId();
+        planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_OWN_SITE);
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "CREATE_PUBLIC_LINK"));
         var company = companies.findById(companyId)
                 .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
 
         String linkKind = normalizePublicLinkKind(request.linkKind());
         String scopeType = normalizePublicLinkScope(request.scopeType());
+        if ("PUBLIC".equals(linkKind) == false) {
+            planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_TRACKABLE_LINKS);
+        }
         String sourceType = "PUBLIC".equals(linkKind) ? null : normalizePublicLinkSourceType(request.sourceType());
         String sourceReference = "PUBLIC".equals(linkKind) ? null : normalizePublicLinkSourceReference(request.sourceReference());
 
@@ -811,6 +825,7 @@ public class IoAutoController {
     @Transactional
     public ResponseEntity<Void> deletePublicLink(@PathVariable UUID linkId) {
         UUID companyId = currentUser.companyId();
+        planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_OWN_SITE);
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "DELETE_PUBLIC_LINK"));
         JpaIoAutoPublicLinkEntity entity = publicLinks.findByIdAndCompanyId(linkId, companyId)
                 .orElseThrow(() -> new BusinessException("IOAUTO_PUBLIC_LINK_NOT_FOUND", "Link nao encontrado."));
@@ -830,6 +845,9 @@ public class IoAutoController {
 
     private IoAutoVehicleHttpResponse saveVehicle(UUID vehicleId, SaveVehicleHttpRequest request) {
         UUID companyId = currentUser.companyId();
+        if (vehicleId == null) {
+            planManagementService.assertVehicleCreationAllowed(companyId);
+        }
         featureUsageService.registerUsage(
                 companyId,
                 FeatureUsageService.FEATURE_VEHICLE_MANAGEMENT,

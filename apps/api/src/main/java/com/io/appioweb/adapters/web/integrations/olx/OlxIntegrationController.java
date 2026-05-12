@@ -8,6 +8,7 @@ import com.io.appioweb.application.ioauto.olx.OlxNotificationConfigService;
 import com.io.appioweb.application.ioauto.olx.OlxOAuthService;
 import com.io.appioweb.application.ioauto.olx.OlxVehicleSettingsService;
 import com.io.appioweb.application.superadmin.FeatureUsageService;
+import com.io.appioweb.application.superadmin.SuperAdminPlanManagementService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +36,7 @@ public class OlxIntegrationController {
     private final OlxNotificationConfigService notificationConfigService;
     private final OlxVehicleSettingsService vehicleSettingsService;
     private final FeatureUsageService featureUsageService;
+    private final SuperAdminPlanManagementService planManagementService;
 
     public OlxIntegrationController(
             CurrentUserPort currentUser,
@@ -44,7 +46,8 @@ public class OlxIntegrationController {
             OlxAdService adService,
             OlxNotificationConfigService notificationConfigService,
             OlxVehicleSettingsService vehicleSettingsService,
-            FeatureUsageService featureUsageService
+            FeatureUsageService featureUsageService,
+            SuperAdminPlanManagementService planManagementService
     ) {
         this.currentUser = currentUser;
         this.oauthService = oauthService;
@@ -54,10 +57,12 @@ public class OlxIntegrationController {
         this.notificationConfigService = notificationConfigService;
         this.vehicleSettingsService = vehicleSettingsService;
         this.featureUsageService = featureUsageService;
+        this.planManagementService = planManagementService;
     }
 
     @GetMapping("/api/integrations/olx/connect-url")
     public ResponseEntity<ConnectUrlResponse> getConnectUrl() {
+        enforceOlxPlan();
         OlxOAuthService.AuthorizationUrlResponse response = oauthService.buildAuthorizationUrl(currentUser.companyId());
         return ResponseEntity.ok(new ConnectUrlResponse(response.url()));
     }
@@ -85,6 +90,7 @@ public class OlxIntegrationController {
 
     @GetMapping("/api/integrations/olx/status")
     public ResponseEntity<StatusResponse> getStatus() {
+        enforceOlxPlan();
         OlxAccountService.OlxConnectionSnapshot account = accountService.getStatus(currentUser.companyId());
         OlxNotificationConfigService.WebhookConfigSnapshot webhook = account.connected()
                 ? notificationConfigService.getWebhookConfig(currentUser.companyId())
@@ -104,6 +110,7 @@ public class OlxIntegrationController {
     @PostMapping("/api/integrations/olx/disconnect")
     @Transactional
     public ResponseEntity<Void> disconnect() {
+        enforceOlxPlan();
         accountService.disconnect(currentUser.companyId());
         return ResponseEntity.noContent().build();
     }
@@ -111,6 +118,7 @@ public class OlxIntegrationController {
     @PostMapping("/api/integrations/olx/catalog/sync")
     @Transactional
     public ResponseEntity<OlxCatalogService.CatalogSyncSummary> syncCatalog() {
+        enforceOlxPlan();
         return ResponseEntity.ok(catalogService.syncCatalog(currentUser.companyId()));
     }
 
@@ -135,12 +143,14 @@ public class OlxIntegrationController {
     @PostMapping("/api/integrations/olx/vehicles/{vehicleId}/publish")
     @Transactional
     public ResponseEntity<OlxAdService.OlxAdSnapshot> publishVehicle(@PathVariable UUID vehicleId) {
+        enforceOlxPlan();
         featureUsageService.registerUsage(currentUser.companyId(), FeatureUsageService.FEATURE_MARKETPLACE_INTEGRATION, java.util.Map.of("provider", "OLX", "action", "PUBLISH"));
         return ResponseEntity.ok(adService.publishVehicle(currentUser.companyId(), vehicleId));
     }
 
     @GetMapping("/api/integrations/olx/vehicles/{vehicleId}/mapping")
     public ResponseEntity<OlxVehicleSettingsService.VehicleOlxSettingsSnapshot> getVehicleMapping(@PathVariable UUID vehicleId) {
+        enforceOlxPlan();
         return ResponseEntity.ok(vehicleSettingsService.getSettings(currentUser.companyId(), vehicleId));
     }
 
@@ -150,24 +160,28 @@ public class OlxIntegrationController {
             @PathVariable UUID vehicleId,
             @org.springframework.web.bind.annotation.RequestBody OlxVehicleSettingsService.SaveVehicleOlxSettingsRequest request
     ) {
+        enforceOlxPlan();
         return ResponseEntity.ok(vehicleSettingsService.saveSettings(currentUser.companyId(), vehicleId, request));
     }
 
     @PutMapping("/api/integrations/olx/vehicles/{vehicleId}/ad")
     @Transactional
     public ResponseEntity<OlxAdService.OlxAdSnapshot> updateVehicleAd(@PathVariable UUID vehicleId) {
+        enforceOlxPlan();
         return ResponseEntity.ok(adService.updateVehicleAd(currentUser.companyId(), vehicleId));
     }
 
     @DeleteMapping("/api/integrations/olx/vehicles/{vehicleId}/ad")
     @Transactional
     public ResponseEntity<OlxAdService.OlxAdSnapshot> unpublishVehicle(@PathVariable UUID vehicleId) {
+        enforceOlxPlan();
         return ResponseEntity.ok(adService.unpublishVehicle(currentUser.companyId(), vehicleId));
     }
 
     @PostMapping("/api/integrations/olx/ads/{olxAdIdOrToken}/sync-status")
     @Transactional
     public ResponseEntity<OlxAdService.OlxAdSnapshot> syncAdStatus(@PathVariable String olxAdIdOrToken) {
+        enforceOlxPlan();
         try {
             return ResponseEntity.ok(adService.checkImportStatus(currentUser.companyId(), UUID.fromString(olxAdIdOrToken)));
         } catch (IllegalArgumentException ignored) {
@@ -182,6 +196,7 @@ public class OlxIntegrationController {
             @RequestParam(name = "from", required = false) LocalDate from,
             @RequestParam(name = "to", required = false) LocalDate to
     ) {
+        enforceOlxPlan();
         return ResponseEntity.ok(adService.listLocalAds(currentUser.companyId(), status, vehicleId, from, to));
     }
 
@@ -191,36 +206,46 @@ public class OlxIntegrationController {
             @RequestParam(name = "pageToken", required = false) String pageToken,
             @RequestParam(name = "fetchSize", required = false) Integer fetchSize
     ) {
+        enforceOlxPlan();
         return ResponseEntity.ok(adService.listPublishedAds(currentUser.companyId(), adsStatus, pageToken, fetchSize));
     }
 
     @GetMapping("/api/integrations/olx/balance")
     public ResponseEntity<OlxAdService.BalanceSnapshot> getBalance() {
+        enforceOlxPlan();
         return ResponseEntity.ok(adService.getBalance(currentUser.companyId()));
     }
 
     @PostMapping("/api/integrations/olx/webhook/configure")
     @Transactional
     public ResponseEntity<OlxNotificationConfigService.WebhookConfigSnapshot> configureWebhook() {
+        enforceOlxPlan();
         return ResponseEntity.ok(notificationConfigService.configureWebhook(currentUser.companyId()));
     }
 
     @GetMapping("/api/integrations/olx/webhook")
     public ResponseEntity<OlxNotificationConfigService.WebhookConfigSnapshot> getWebhook() {
+        enforceOlxPlan();
         return ResponseEntity.ok(notificationConfigService.getWebhookConfig(currentUser.companyId()));
     }
 
     @PutMapping("/api/integrations/olx/webhook")
     @Transactional
     public ResponseEntity<OlxNotificationConfigService.WebhookConfigSnapshot> updateWebhook() {
+        enforceOlxPlan();
         return ResponseEntity.ok(notificationConfigService.updateWebhookConfig(currentUser.companyId()));
     }
 
     @DeleteMapping("/api/integrations/olx/webhook")
     @Transactional
     public ResponseEntity<Void> deleteWebhook() {
+        enforceOlxPlan();
         notificationConfigService.deleteWebhookConfig(currentUser.companyId());
         return ResponseEntity.noContent().build();
+    }
+
+    private void enforceOlxPlan() {
+        planManagementService.assertProviderIntegrationEnabled(currentUser.companyId(), SuperAdminPlanManagementService.PROVIDER_OLX);
     }
 
     public record ConnectUrlResponse(String url) {

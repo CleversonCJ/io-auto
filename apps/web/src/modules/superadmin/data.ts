@@ -57,6 +57,7 @@ export type SuperAdminSectionKey =
     | "cobranca"
     | "operacional"
     | "insights"
+    | "planos"
     | "tenants";
 
 export type SuperAdminSection = {
@@ -98,6 +99,7 @@ export const superAdminNavItems: SuperAdminNavItem[] = [
     { href: "/protected/superadmin/operacional", label: "Operacional", summary: "Suporte e bugs" },
     { href: "/protected/superadmin/insights", label: "Insights", summary: "Risco, upgrade e upsell" },
     { href: "/protected/superadmin/tenants", label: "Tenants", summary: "Gestão operacional das contas" },
+    { href: "/protected/superadmin/planos", label: "Planos", summary: "Catalogo, limites e recursos" },
 ];
 
 export const superAdminPillars: SuperAdminPillar[] = [
@@ -707,6 +709,21 @@ export const superAdminSections: Record<SuperAdminSectionKey, SuperAdminSection>
             { title: "Upgrade é mais fácil que aquisição nova", description: "As contas certas já mostram comportamento de expansão e podem baratear crescimento.", tone: "positive" },
             { title: "Feature subutilizada é receita escondida", description: "Quando a adoção sobe, o produto prova mais valor e a retenção tende a acompanhar.", tone: "warning" },
         ],
+    },
+    planos: {
+        key: "planos",
+        label: "Planos",
+        eyebrow: "Catalogo comercial",
+        title: "Gestao de planos",
+        description: "Configure os planos oficiais do IO Auto com limites, recursos e regras reais aplicadas no backend.",
+        spotlight: "Tudo o que for salvo aqui passa a governar o acesso das empresas aos modulos e limites contratados.",
+        metrics: [],
+        alerts: [],
+        charts: [],
+        statCards: [],
+        leaderboardTitle: "",
+        leaderboard: [],
+        insights: [],
     },
     tenants: {
         key: "tenants",

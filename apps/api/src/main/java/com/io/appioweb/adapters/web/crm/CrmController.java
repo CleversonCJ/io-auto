@@ -7,6 +7,7 @@ import com.io.appioweb.adapters.persistence.crm.JpaCrmCompanyStateEntity;
 import com.io.appioweb.adapters.web.crm.request.CrmStateHttpRequest;
 import com.io.appioweb.adapters.web.crm.response.CrmStateHttpResponse;
 import com.io.appioweb.application.auth.port.out.CurrentUserPort;
+import com.io.appioweb.application.superadmin.SuperAdminPlanManagementService;
 import com.io.appioweb.realtime.RealtimeGateway;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,16 +26,24 @@ public class CrmController {
     private final CurrentUserPort currentUser;
     private final CrmCompanyStateRepositoryJpa crmState;
     private final RealtimeGateway realtime;
+    private final SuperAdminPlanManagementService planManagementService;
 
-    public CrmController(CurrentUserPort currentUser, CrmCompanyStateRepositoryJpa crmState, RealtimeGateway realtime) {
+    public CrmController(
+            CurrentUserPort currentUser,
+            CrmCompanyStateRepositoryJpa crmState,
+            RealtimeGateway realtime,
+            SuperAdminPlanManagementService planManagementService
+    ) {
         this.currentUser = currentUser;
         this.crmState = crmState;
         this.realtime = realtime;
+        this.planManagementService = planManagementService;
     }
 
     @GetMapping("/crm/state")
     public ResponseEntity<CrmStateHttpResponse> getState() {
         UUID companyId = currentUser.companyId();
+        planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_CRM_KANBAN);
         var entity = crmState.findById(companyId).orElseGet(() -> defaultEntity(companyId));
         return ResponseEntity.ok(new CrmStateHttpResponse(
                 parseJson(entity.getStagesJson(), "[]"),
@@ -48,6 +57,7 @@ public class CrmController {
     @PutMapping("/crm/state")
     public ResponseEntity<CrmStateHttpResponse> saveState(@RequestBody CrmStateHttpRequest req) {
         UUID companyId = currentUser.companyId();
+        planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_CRM_KANBAN);
         Instant now = Instant.now();
         var entity = crmState.findById(companyId).orElseGet(() -> {
             var created = defaultEntity(companyId);
