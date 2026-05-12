@@ -167,7 +167,7 @@ public class SuperAdminPlanManagementService {
     public void assertUserCreationAllowed(UUID companyId) {
         PlanSnapshot plan = resolvePlanForCompany(companyId);
         if (plan.usersLimit() == null) return;
-        long activeUsers = users.countByCompanyIdAndIsActiveTrue(companyId);
+        long activeUsers = users.countByCompanyIdAndActiveTrue(companyId);
         if (activeUsers >= plan.usersLimit()) {
             throw new BusinessException(
                     "PLAN_USER_LIMIT_REACHED",
@@ -219,7 +219,7 @@ public class SuperAdminPlanManagementService {
 
     @Transactional(readOnly = true)
     public void assertTenantFitsPlan(UUID companyId, PlanSnapshot plan) {
-        long activeUsers = users.countByCompanyIdAndIsActiveTrue(companyId);
+        long activeUsers = users.countByCompanyIdAndActiveTrue(companyId);
         long activeVehicles = vehicles.countActiveByCompanyId(companyId);
         long activeAds = countActiveAds(companyId);
 
