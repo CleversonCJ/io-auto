@@ -16,6 +16,8 @@ export type SuperAdminChart = {
     title: string;
     subtitle: string;
     type: "line" | "area" | "column" | "bar" | "pie";
+    valueFormat?: "currency" | "number" | "percent";
+    valueDecimals?: number;
     categories?: string[];
     series: Array<{
         name: string;

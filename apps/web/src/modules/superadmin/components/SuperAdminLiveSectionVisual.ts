@@ -81,6 +81,8 @@ type Pair = {
     value: number;
 };
 
+type ChartFormat = "currency" | "number" | "percent";
+
 const PIE_COLORS = ["#6b00e3", "#14b8a6", "#0f172a", "#f59e0b", "#ef4444", "#38bdf8"];
 
 function toNumber(value: unknown) {
@@ -98,6 +100,13 @@ function decimal(value: number, digits = 1) {
     });
 }
 
+function preciseDecimal(value: number, digits = 2) {
+    return value.toLocaleString("pt-BR", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: digits,
+    });
+}
+
 function currency(cents: number) {
     return new Intl.NumberFormat("pt-BR", {
         style: "currency",
@@ -109,9 +118,54 @@ function percent(value: number, digits = 2) {
     return `${decimal(value, digits)}%`;
 }
 
-function signedPercent(value: number, digits = 1) {
+function signedPercent(value: number, digits = 2) {
     const prefix = value > 0 ? "+" : "";
     return `${prefix}${decimal(value, digits)}%`;
+}
+
+function monthLabelFromCount(value: number) {
+    return value === 1 ? "mes" : "meses";
+}
+
+function dayLabel(value: number) {
+    return value === 1 ? "dia" : "dias";
+}
+
+function minuteLabel(value: number) {
+    return value === 1 ? "min" : "min";
+}
+
+function formatMonthsDuration(months: number) {
+    const totalDays = Math.round(Math.max(months, 0) * 30);
+    if (totalDays <= 0) return `0 ${dayLabel(0)}`;
+    if (totalDays < 30) return `${integer(totalDays)} ${dayLabel(totalDays)}`;
+
+    const wholeMonths = Math.floor(totalDays / 30);
+    const remainingDays = totalDays % 30;
+    if (remainingDays === 0) {
+        return `${integer(wholeMonths)} ${monthLabelFromCount(wholeMonths)}`;
+    }
+
+    return `${integer(wholeMonths)} ${monthLabelFromCount(wholeMonths)} e ${integer(remainingDays)} ${dayLabel(remainingDays)}`;
+}
+
+function formatHoursDuration(hours: number) {
+    const totalMinutes = Math.round(Math.max(hours, 0) * 60);
+    if (totalMinutes < 60) return `${integer(totalMinutes)} ${minuteLabel(totalMinutes)}`;
+
+    const wholeHours = Math.floor(totalMinutes / 60);
+    const remainingMinutes = totalMinutes % 60;
+    if (remainingMinutes === 0) return `${integer(wholeHours)} h`;
+    return `${integer(wholeHours)} h ${integer(remainingMinutes)} min`;
+}
+
+function formatMinutesDuration(minutes: number) {
+    const roundedMinutes = Math.round(Math.max(minutes, 0));
+    if (roundedMinutes < 60) return `${integer(roundedMinutes)} min`;
+    const wholeHours = Math.floor(roundedMinutes / 60);
+    const remainingMinutes = roundedMinutes % 60;
+    if (remainingMinutes === 0) return `${integer(wholeHours)} h`;
+    return `${integer(wholeHours)} h ${integer(remainingMinutes)} min`;
 }
 
 function changeRate(current: number, previous: number) {
@@ -260,8 +314,8 @@ function chartFromPairs(
     options?: {
         name?: string;
         color?: string;
-        valuePrefix?: string;
-        valueSuffix?: string;
+        valueFormat?: ChartFormat;
+        valueDecimals?: number;
         pieColors?: string[];
     },
 ): SuperAdminChart {
@@ -278,14 +332,14 @@ function chartFromPairs(
                 color: options?.color,
             },
         ],
+        valueFormat: options?.valueFormat,
+        valueDecimals: options?.valueDecimals,
         pieColors: options?.pieColors,
-        valuePrefix: options?.valuePrefix,
-        valueSuffix: options?.valueSuffix,
     };
 }
 
-function toThousandsFromCents(value: number) {
-    return value / 100_000;
+function toCurrencyUnitsFromCents(value: number) {
+    return value / 100;
 }
 
 function buildFinanceSection(args: BuildArgs): SuperAdminSection {
@@ -302,9 +356,9 @@ function buildFinanceSection(args: BuildArgs): SuperAdminSection {
     const overdueRevenue = toNumber(billingCards.overdueRevenueCents);
     const overdueCustomers = toNumber(billingCards.overdueCustomers);
     const overdueRatio = currentMrr > 0 ? (overdueRevenue / currentMrr) * 100 : 0;
-    const revenueByPlan = topPairs(revenueRows, (row) => planLabel(row), (row) => toThousandsFromCents(toNumber(row.mrrCents)));
-    const revenueByRegion = topPairs(revenueRows, (row) => row.region || "Nao informado", (row) => toThousandsFromCents(toNumber(row.mrrCents)));
-    const revenueByStock = topPairs(revenueRows, (row) => stockBucket(row.stockCount), (row) => toThousandsFromCents(toNumber(row.mrrCents)));
+    const revenueByPlan = topPairs(revenueRows, (row) => planLabel(row), (row) => toCurrencyUnitsFromCents(toNumber(row.mrrCents)));
+    const revenueByRegion = topPairs(revenueRows, (row) => row.region || "Nao informado", (row) => toCurrencyUnitsFromCents(toNumber(row.mrrCents)));
+    const revenueByStock = topPairs(revenueRows, (row) => stockBucket(row.stockCount), (row) => toCurrencyUnitsFromCents(toNumber(row.mrrCents)));
     const annualCustomers = revenueRows.filter((row) => (row.billingRecurrence || "").toUpperCase() === "ANNUAL");
     const totalLostMrr = total(chartRows.map((row: Record<string, any>) => toNumber(row.lostMrrCents)));
     const averageChurn = average(chartRows.map((row: Record<string, any>) => toNumber(row.churnRate)));
@@ -322,13 +376,13 @@ function buildFinanceSection(args: BuildArgs): SuperAdminSection {
             alert(
                 mrrDelta < 0 ? "Queda de MRR detectada" : "MRR em trajetoria positiva",
                 mrrDelta < 0
-                    ? `O MRR atual recuou ${percent(Math.abs(mrrDelta), 1)} frente ao fechamento anterior.`
-                    : `O MRR atual cresceu ${percent(mrrDelta, 1)} frente ao fechamento anterior.`,
+                    ? `O MRR atual recuou ${percent(Math.abs(mrrDelta), 2)} frente ao fechamento anterior.`
+                    : `O MRR atual cresceu ${percent(mrrDelta, 2)} frente ao fechamento anterior.`,
                 mrrDelta < 0 ? "critical" : mrrDelta < 5 ? "attention" : "stable",
             ),
             alert(
                 overdueRatio >= 8 ? "Inadimplencia pressionando caixa" : "Inadimplencia monitorada",
-                `Ha ${integer(overdueCustomers)} clientes com ${currency(overdueRevenue)} em atraso, equivalente a ${percent(overdueRatio, 1)} do MRR atual.`,
+                `Ha ${integer(overdueCustomers)} clientes com ${currency(overdueRevenue)} em atraso, equivalente a ${percent(overdueRatio, 2)} do MRR atual.`,
                 overdueRatio >= 8 ? "critical" : overdueRatio >= 4 ? "attention" : "stable",
             ),
             alert(
@@ -344,14 +398,14 @@ function buildFinanceSection(args: BuildArgs): SuperAdminSection {
                 type: "line",
                 categories: fallbackPairs(chartRows.map((row: Record<string, any>) => ({
                     label: monthLabel(row.month),
-                    value: toThousandsFromCents(toNumber(row.totalMrrCents)),
+                    value: toCurrencyUnitsFromCents(toNumber(row.totalMrrCents)),
                 }))).map((row) => row.label),
                 series: [
                     {
                         name: "MRR",
                         data: fallbackPairs(chartRows.map((row: Record<string, any>) => ({
                             label: monthLabel(row.month),
-                            value: toThousandsFromCents(toNumber(row.totalMrrCents)),
+                            value: toCurrencyUnitsFromCents(toNumber(row.totalMrrCents)),
                         }))).map((row) => Number(row.value.toFixed(2))),
                         color: "#6b00e3",
                     },
@@ -359,31 +413,31 @@ function buildFinanceSection(args: BuildArgs): SuperAdminSection {
                         name: "MRR perdido",
                         data: fallbackPairs(chartRows.map((row: Record<string, any>) => ({
                             label: monthLabel(row.month),
-                            value: toThousandsFromCents(toNumber(row.lostMrrCents)),
+                            value: toCurrencyUnitsFromCents(toNumber(row.lostMrrCents)),
                         }))).map((row) => Number(row.value.toFixed(2))),
                         color: "#ef4444",
                     },
                 ],
-                valuePrefix: "R$ ",
-                valueSuffix: " mil",
+                valueFormat: "currency",
+                valueDecimals: 2,
             },
             chartFromPairs("Receita por plano", "MRR agrupado pela assinatura ativa.", "column", revenueByPlan, {
                 name: "Receita",
                 color: "#0f172a",
-                valuePrefix: "R$ ",
-                valueSuffix: " mil",
+                valueFormat: "currency",
+                valueDecimals: 2,
             }),
             chartFromPairs("Receita por regiao", "Concentracao geografica da carteira.", "bar", revenueByRegion, {
                 name: "Receita",
                 color: "#14b8a6",
-                valuePrefix: "R$ ",
-                valueSuffix: " mil",
+                valueFormat: "currency",
+                valueDecimals: 2,
             }),
             chartFromPairs("MRR por porte da revenda", "Leitura de pricing por tamanho do estoque.", "column", revenueByStock, {
                 name: "MRR",
                 color: "#f59e0b",
-                valuePrefix: "R$ ",
-                valueSuffix: " mil",
+                valueFormat: "currency",
+                valueDecimals: 2,
             }),
         ],
         statCards: [
@@ -393,13 +447,13 @@ function buildFinanceSection(args: BuildArgs): SuperAdminSection {
         ],
         leaderboardTitle: "Blocos com maior retorno",
         leaderboard: [
-            ...(revenueByPlan[0] ? [{ name: revenueByPlan[0].label, detail: "Plano com maior MRR", value: `R$ ${decimal(revenueByPlan[0].value, 1)} mil`, badge: "Plano lider" }] : []),
-            ...(revenueByRegion[0] ? [{ name: revenueByRegion[0].label, detail: "Regiao que mais concentra receita", value: `R$ ${decimal(revenueByRegion[0].value, 1)} mil`, badge: "Maior concentracao" }] : []),
-            ...(revenueByStock[0] ? [{ name: revenueByStock[0].label, detail: "Faixa de estoque dominante", value: `R$ ${decimal(revenueByStock[0].value, 1)} mil`, badge: "Base de pricing" }] : []),
+            ...(revenueByPlan[0] ? [{ name: revenueByPlan[0].label, detail: "Plano com maior MRR", value: revenueByPlan[0].value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 2 }), badge: "Plano lider" }] : []),
+            ...(revenueByRegion[0] ? [{ name: revenueByRegion[0].label, detail: "Regiao que mais concentra receita", value: revenueByRegion[0].value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 2 }), badge: "Maior concentracao" }] : []),
+            ...(revenueByStock[0] ? [{ name: revenueByStock[0].label, detail: "Faixa de estoque dominante", value: revenueByStock[0].value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 2 }), badge: "Base de pricing" }] : []),
         ],
         insights: [
             insight("Pricing guiado por porte", `A faixa ${revenueByStock[0]?.label || "principal"} concentra a maior parte do MRR e deve liderar ajustes de valor e limites.`, "positive"),
-            insight("Cobranca impacta visao de caixa", `A carteira em atraso ja equivale a ${percent(overdueRatio, 1)} do MRR atual.`, overdueRatio >= 4 ? "warning" : "positive"),
+            insight("Cobranca impacta visao de caixa", `A carteira em atraso ja equivale a ${percent(overdueRatio, 2)} do MRR atual.`, overdueRatio >= 4 ? "warning" : "positive"),
             insight("Churn deixou rastro mensuravel", `O painel financeiro agora mostra mes a mes quanto de receita se perde com cancelamentos, sem precisar de consolidacao manual.`, "positive"),
         ],
     };
@@ -441,7 +495,7 @@ function buildCustomersSection(args: BuildArgs): SuperAdminSection {
             metric("Novos clientes", integer(toNumber(args.dashboardData?.newCustomersInPeriod)), "Entradas registradas no periodo.", undefined, "sky"),
             metric("Cancelados", integer(toNumber(args.dashboardData?.canceledCustomersInPeriod)), "Saidas confirmadas da base.", undefined, "rose"),
             metric("Taxa de churn", percent(toNumber(args.dashboardData?.churnRate)), "Churn de clientes no recorte filtrado.", undefined, "violet"),
-            metric("Permanencia media", `${decimal(toNumber(args.dashboardData?.averageLifetimeMonths), 1)} meses`, "Tempo medio de contrato ativo.", undefined, "amber"),
+            metric("Permanencia media", formatMonthsDuration(toNumber(args.dashboardData?.averageLifetimeMonths)), "Tempo medio de contrato ativo.", undefined, "amber"),
         ],
         alerts: [
             alert(
@@ -480,7 +534,7 @@ function buildCustomersSection(args: BuildArgs): SuperAdminSection {
         ],
         statCards: [
             statCard("Sem acesso ha 7 dias", integer(inactiveRows.length), "Fila ideal para reativacao e CS preventivo."),
-            statCard("Health medio", decimal(healthAverage, 1), "Media consolidada do Customer Health Score."),
+            statCard("Health medio", preciseDecimal(healthAverage, 2), "Media consolidada do Customer Health Score."),
             statCard("Clientes criticos", integer(criticalRows.length), "Contas nas faixas mais proximas de cancelamento."),
         ],
         leaderboardTitle: "Clientes que pedem acao",
@@ -521,7 +575,7 @@ function buildProductSection(args: BuildArgs): SuperAdminSection {
         ...meta,
         metrics: [
             metric("Veiculos cadastrados", integer(toNumber(args.dashboardData?.totalVehicles)), "Total de veiculos cadastrados no sistema.", undefined, "emerald"),
-            metric("Media por cliente", decimal(toNumber(args.dashboardData?.averageVehiclesPerCustomer), 1), "Media de veiculos nas contas ativas.", undefined, "sky"),
+            metric("Media por cliente", preciseDecimal(toNumber(args.dashboardData?.averageVehiclesPerCustomer), 2), "Media de veiculos nas contas ativas.", undefined, "sky"),
             metric("Anuncios ativos", integer(toNumber(args.dashboardData?.activeMarketplaceAds)), "Anuncios ativos nas plataformas integradas.", undefined, "violet"),
             metric("Integracoes ativas", integer(toNumber(args.dashboardData?.activeIntegrations)), "Integracoes funcionando no recorte atual.", undefined, "amber"),
         ],
@@ -550,7 +604,8 @@ function buildProductSection(args: BuildArgs): SuperAdminSection {
             chartFromPairs("Adocao por feature", "Percentual de clientes ativos que usam cada funcionalidade.", "column", adoptionPairs, {
                 name: "Adocao",
                 color: "#14b8a6",
-                valueSuffix: "%",
+                valueFormat: "percent",
+                valueDecimals: 2,
             }),
             chartFromPairs("Uso total por feature", "Volume bruto de interacoes registradas.", "column", totalUsagePairs, {
                 name: "Eventos",
@@ -589,7 +644,7 @@ function buildMarketplaceSection(args: BuildArgs): SuperAdminSection {
     const adsPairs = adsByPlatform.map((row: Record<string, any>) => ({ label: platformLabel(row.platform), value: toNumber(row.count) }));
     const salesPairs = salesByPlatform.map((row: Record<string, any>) => ({ label: platformLabel(row.platform), value: toNumber(row.salesCount) }));
     const conversionPairs = performance.map((row: Record<string, any>) => ({ label: platformLabel(row.platform), value: toNumber(row.conversionRate) }));
-    const soldValuePairs = performance.map((row: Record<string, any>) => ({ label: platformLabel(row.platform), value: toThousandsFromCents(toNumber(row.totalValueCents)) }));
+    const soldValuePairs = performance.map((row: Record<string, any>) => ({ label: platformLabel(row.platform), value: toCurrencyUnitsFromCents(toNumber(row.totalValueCents)) }));
     const totalAds = total(adsPairs.map((row) => row.value));
     const totalLeads = total(performance.map((row: Record<string, any>) => toNumber(row.leadsCount)));
     const totalSales = total(salesPairs.map((row) => row.value));
@@ -613,7 +668,7 @@ function buildMarketplaceSection(args: BuildArgs): SuperAdminSection {
         alerts: [
             alert(
                 topAdsShare >= 60 ? "Dependencia alta de um unico canal" : "Mix de canais equilibrado",
-                `${topAds?.label || "A principal plataforma"} concentra ${percent(topAdsShare, 1)} dos anuncios ativos monitorados.`,
+                `${topAds?.label || "A principal plataforma"} concentra ${percent(topAdsShare, 2)} dos anuncios ativos monitorados.`,
                 topAdsShare >= 60 ? "attention" : "stable",
             ),
             alert(
@@ -641,19 +696,20 @@ function buildMarketplaceSection(args: BuildArgs): SuperAdminSection {
             chartFromPairs("Conversao por plataforma", "Leads convertidos em venda por canal.", "bar", conversionPairs, {
                 name: "Conversao",
                 color: "#f59e0b",
-                valueSuffix: "%",
+                valueFormat: "percent",
+                valueDecimals: 2,
             }),
             chartFromPairs("Valor vendido por plataforma", "Receita vendida por canal no periodo.", "bar", soldValuePairs, {
                 name: "Valor vendido",
                 color: "#0f172a",
-                valuePrefix: "R$ ",
-                valueSuffix: " mil",
+                valueFormat: "currency",
+                valueDecimals: 2,
             }),
         ],
         statCards: [
             statCard("Canal com mais anuncios", topAds?.label || "Sem dados", `${integer(topAds?.value || 0)} anuncios ativos no recorte.`),
             statCard("Melhor conversao", topConversion?.label || "Sem dados", `${percent(topConversion?.value || 0, 2)} de conversao.`),
-            statCard("Maior valor vendido", topValue?.label || "Sem dados", `R$ ${decimal(topValue?.value || 0, 1)} mil vendidos.`),
+            statCard("Maior valor vendido", topValue?.label || "Sem dados", `${(topValue?.value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 2 })} vendidos.`),
         ],
         leaderboardTitle: "Plataformas de maior impacto",
         leaderboard: formatTopRows(
@@ -695,7 +751,7 @@ function buildGrowthSection(args: BuildArgs): SuperAdminSection {
             metric("Vendas fechadas", integer(closedSales), "Vendas atribuidas ao recorte atual.", undefined, "sky"),
             metric("Taxa de conversao", percent(conversionRate), "Relacao entre leads e vendas fechadas.", undefined, "violet"),
             metric("CAC", args.dashboardData?.cac == null ? "Nao aplicado" : currency(toNumber(args.dashboardData?.cac) * 100), "Estrutura pronta para quando o modulo de custos entrar.", undefined, "amber"),
-            metric("Payback", args.dashboardData?.payback == null ? "Nao aplicado" : `${decimal(toNumber(args.dashboardData?.payback), 1)} meses`, "Mantido em espera conforme a regra atual do produto.", undefined, "rose"),
+            metric("Payback", args.dashboardData?.payback == null ? "Nao aplicado" : formatMonthsDuration(toNumber(args.dashboardData?.payback)), "Mantido em espera conforme a regra atual do produto.", undefined, "rose"),
         ],
         alerts: [
             alert(
@@ -705,7 +761,7 @@ function buildGrowthSection(args: BuildArgs): SuperAdminSection {
             ),
             alert(
                 topLeadOriginShare >= 60 ? "Origem dominante na aquisicao" : "Mix de origem bem distribuido",
-                `${topLeadOrigin?.label || "A principal origem"} responde por ${percent(topLeadOriginShare, 1)} dos leads gerados.`,
+                `${topLeadOrigin?.label || "A principal origem"} responde por ${percent(topLeadOriginShare, 2)} dos leads gerados.`,
                 topLeadOriginShare >= 60 ? "attention" : "stable",
             ),
             alert(
@@ -776,11 +832,11 @@ function buildBillingSection(args: BuildArgs): SuperAdminSection {
     const overduePairs = overdueCustomers
         .map((row: Record<string, any>) => ({
             label: row.companyName || "Empresa",
-            value: toThousandsFromCents(toNumber(row.overdueAmountCents)),
+            value: toCurrencyUnitsFromCents(toNumber(row.overdueAmountCents)),
         }))
         .sort((left: Pair, right: Pair) => right.value - left.value)
         .slice(0, 6);
-    const planPairs = topPairs(overdueCustomers, (row: Record<string, any>) => row.planName || "Sem plano", (row: Record<string, any>) => toThousandsFromCents(toNumber(row.overdueAmountCents)));
+    const planPairs = topPairs(overdueCustomers, (row: Record<string, any>) => row.planName || "Sem plano", (row: Record<string, any>) => toCurrencyUnitsFromCents(toNumber(row.overdueAmountCents)));
     const statusPairs = topPairs(overdueCustomers, (row: Record<string, any>) => titleCase(row.billingStatus) || "Nao informado", () => 1);
     const agingPairs = [
         { label: "Ate 7 dias", value: overdueCustomers.filter((row: Record<string, any>) => toNumber(row.delayDays) <= 7).length },
@@ -799,7 +855,7 @@ function buildBillingSection(args: BuildArgs): SuperAdminSection {
         metrics: [
             metric("Clientes inadimplentes", integer(toNumber(cards.overdueCustomers)), "Clientes com cobranca em atraso.", undefined, "emerald"),
             metric("Receita em atraso", currency(toNumber(cards.overdueRevenueCents)), "Valor total vencido no recorte filtrado.", undefined, "rose"),
-            metric("Atraso medio", `${decimal(averageDelay, 1)} dias`, "Tempo medio de atraso das cobrancas vencidas.", undefined, "amber"),
+            metric("Atraso medio", `${preciseDecimal(averageDelay, 2)} dias`, "Tempo medio de atraso das cobrancas vencidas.", undefined, "amber"),
             metric("Falha de pagamento", percent(paymentFailureRate), "Taxa consolidada de falha em cobranca.", undefined, "violet"),
         ],
         alerts: [
@@ -810,7 +866,7 @@ function buildBillingSection(args: BuildArgs): SuperAdminSection {
             ),
             alert(
                 averageDelay >= 10 ? "Boletos vencidos em excesso" : "Atraso medio sob monitoramento",
-                `O atraso medio atual esta em ${decimal(averageDelay, 1)} dias na carteira filtrada.`,
+                `O atraso medio atual esta em ${preciseDecimal(averageDelay, 2)} dias na carteira filtrada.`,
                 averageDelay >= 10 ? "critical" : averageDelay >= 6 ? "attention" : "stable",
             ),
             alert(
@@ -827,8 +883,8 @@ function buildBillingSection(args: BuildArgs): SuperAdminSection {
             chartFromPairs("Receita em atraso por plano", "Peso da inadimplencia em cada assinatura.", "bar", planPairs, {
                 name: "Receita em atraso",
                 color: "#6b00e3",
-                valuePrefix: "R$ ",
-                valueSuffix: " mil",
+                valueFormat: "currency",
+                valueDecimals: 2,
             }),
             chartFromPairs("Status de cobranca", "Carteira agrupada por billing status.", "pie", statusPairs, {
                 name: "Clientes",
@@ -837,8 +893,8 @@ function buildBillingSection(args: BuildArgs): SuperAdminSection {
             chartFromPairs("Maiores valores em atraso", "Contas que mais pressionam a carteira.", "bar", overduePairs, {
                 name: "Receita em atraso",
                 color: "#0f172a",
-                valuePrefix: "R$ ",
-                valueSuffix: " mil",
+                valueFormat: "currency",
+                valueDecimals: 2,
             }),
         ],
         statCards: [
@@ -853,7 +909,7 @@ function buildBillingSection(args: BuildArgs): SuperAdminSection {
                 name: row.companyName,
                 detail: `${row.planName || "Sem plano"} | ${titleCase(row.billingStatus)}`,
                 value: currency(toNumber(row.overdueAmountCents)),
-                badge: `${decimal(toNumber(row.delayDays), 1)} dias`,
+                badge: `${preciseDecimal(toNumber(row.delayDays), 2)} dias`,
             }),
         ),
         insights: [
@@ -888,8 +944,8 @@ function buildOperationsSection(args: BuildArgs): SuperAdminSection {
         ...meta,
         metrics: [
             metric("Tickets abertos", integer(toNumber(cards.openTickets)), "Fila aberta de suporte no momento.", undefined, "emerald"),
-            metric("Resposta media", `${decimal(responseMinutes, 1)} min`, "Tempo medio ate a primeira resposta.", undefined, "sky"),
-            metric("Resolucao media", `${decimal(resolutionHours, 1)} h`, "Tempo medio ate a conclusao do ticket.", undefined, "amber"),
+            metric("Resposta media", formatMinutesDuration(responseMinutes), "Tempo medio ate a primeira resposta.", undefined, "sky"),
+            metric("Resolucao media", formatHoursDuration(resolutionHours), "Tempo medio ate a conclusao do ticket.", undefined, "amber"),
             metric("Bugs reportados", integer(toNumber(cards.bugsReported)), "Tickets categorizados como bug.", undefined, "rose"),
         ],
         alerts: [
@@ -900,7 +956,7 @@ function buildOperationsSection(args: BuildArgs): SuperAdminSection {
             ),
             alert(
                 responseMinutes > 30 ? "Tempo de primeira resposta lento" : "Primeira resposta em faixa saudavel",
-                `O tempo medio atual esta em ${decimal(responseMinutes, 1)} minutos.`,
+                `O tempo medio atual esta em ${formatMinutesDuration(responseMinutes)}.`,
                 responseMinutes > 30 ? "critical" : responseMinutes > 20 ? "attention" : "stable",
             ),
             alert(
@@ -1003,7 +1059,8 @@ function buildInsightsSection(args: BuildArgs): SuperAdminSection {
             chartFromPairs("Clientes prontos para upgrade", "Pressao de uso das contas mais proximas de expansao.", "bar", upgradePairs, {
                 name: "Pressao",
                 color: "#14b8a6",
-                valueSuffix: "%",
+                valueFormat: "percent",
+                valueDecimals: 2,
             }),
             chartFromPairs("Potencial de faturamento", "Score das contas com maior chance de expandir resultado.", "bar", potentialPairs, {
                 name: "Score",
@@ -1012,12 +1069,13 @@ function buildInsightsSection(args: BuildArgs): SuperAdminSection {
             chartFromPairs("Features subutilizadas", "Adocao percentual das funcionalidades com menor uso.", "column", underusedPairs, {
                 name: "Adocao",
                 color: "#f59e0b",
-                valueSuffix: "%",
+                valueFormat: "percent",
+                valueDecimals: 2,
             }),
         ],
         statCards: [
-            statCard("Score medio de risco", decimal(averageRiskScore, 1), "Media dos clientes presentes no radar de churn."),
-            statCard("Pressao media de upgrade", percent(averagePressure, 1), "Quanto as contas prontas ja pressionam o plano atual."),
+            statCard("Score medio de risco", preciseDecimal(averageRiskScore, 2), "Media dos clientes presentes no radar de churn."),
+            statCard("Pressao media de upgrade", percent(averagePressure, 2), "Quanto as contas prontas ja pressionam o plano atual."),
             statCard("Valor vendido das top oportunidades", currency(topPotentialSoldValue), "Soma das vendas 90d das cinco contas com maior potencial."),
         ],
         leaderboardTitle: "Clientes que merecem prioridade",

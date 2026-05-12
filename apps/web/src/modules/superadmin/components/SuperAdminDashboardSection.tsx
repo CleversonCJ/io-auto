@@ -115,6 +115,29 @@ function formatInteger(value: number) {
     return value.toLocaleString("pt-BR");
 }
 
+function formatChartValue(chart: SuperAdminChart, value: number) {
+    if (chart.valueFormat === "currency") {
+        return value.toLocaleString("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+            minimumFractionDigits: chart.valueDecimals ?? 2,
+            maximumFractionDigits: chart.valueDecimals ?? 2,
+        });
+    }
+
+    if (chart.valueFormat === "percent") {
+        return value.toLocaleString("pt-BR", {
+            minimumFractionDigits: chart.valueDecimals ?? 2,
+            maximumFractionDigits: chart.valueDecimals ?? 2,
+        }) + "%";
+    }
+
+    return value.toLocaleString("pt-BR", {
+        minimumFractionDigits: chart.valueDecimals ?? 0,
+        maximumFractionDigits: chart.valueDecimals ?? 2,
+    });
+}
+
 function getMetricByLabel(section: SuperAdminSection, label: string) {
     return section.metrics.find((metric) => metric.label === label);
 }
@@ -581,9 +604,7 @@ function buildChartOptions(chart: SuperAdminChart): Highcharts.Options {
             style: { color: "#ffffff" },
             shared: chart.type !== "pie",
             pointFormatter: function pointFormatter() {
-                const prefix = chart.valuePrefix ?? "";
-                const suffix = chart.valueSuffix ?? "";
-                return `<span style="color:${this.color}">\u25CF</span> ${this.series.name}: <b>${prefix}${this.y}${suffix}</b><br/>`;
+                return `<span style="color:${this.color}">\u25CF</span> ${this.series.name}: <b>${formatChartValue(chart, Number(this.y ?? 0))}</b><br/>`;
             },
         },
         xAxis: chart.type === "pie"
@@ -610,9 +631,7 @@ function buildChartOptions(chart: SuperAdminChart): Highcharts.Options {
                         fontSize: "11px",
                     },
                     formatter: function formatter() {
-                        const prefix = chart.valuePrefix ?? "";
-                        const suffix = chart.valueSuffix ?? "";
-                        return `${prefix}${this.value}${suffix}`;
+                        return formatChartValue(chart, Number(this.value ?? 0));
                     },
                 },
             },
