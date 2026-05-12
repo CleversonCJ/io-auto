@@ -10,6 +10,7 @@ public record SuperAdminFilter(
         Integer year,
         Integer month,
         UUID planId,
+        String plan,
         String city,
         String region,
         String recurrence,

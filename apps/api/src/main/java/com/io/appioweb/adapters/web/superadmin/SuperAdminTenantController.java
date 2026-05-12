@@ -36,6 +36,7 @@ public class SuperAdminTenantController {
             @RequestParam(name = "year", required = false) Integer year,
             @RequestParam(name = "month", required = false) Integer month,
             @RequestParam(name = "planId", required = false) UUID planId,
+            @RequestParam(name = "plan", required = false) String plan,
             @RequestParam(name = "city", required = false) String city,
             @RequestParam(name = "region", required = false) String region,
             @RequestParam(name = "recurrence", required = false) String recurrence,
@@ -50,6 +51,7 @@ public class SuperAdminTenantController {
                 year,
                 month,
                 planId,
+                plan,
                 city,
                 region,
                 recurrence,
@@ -116,6 +118,12 @@ public class SuperAdminTenantController {
             @PathVariable UUID userId
     ) {
         return ResponseEntity.ok(tenantManagementService.resetUserPassword(tenantId, userId));
+    }
+
+    @PostMapping("/api/superadmin/tenants/{tenantId}/reset-password")
+    @PreAuthorize("hasRole('SUPERADMIN')")
+    public ResponseEntity<SuperAdminTenantManagementService.ResetPasswordResult> resetPrimaryPassword(@PathVariable UUID tenantId) {
+        return ResponseEntity.ok(tenantManagementService.resetPreferredUserPassword(tenantId));
     }
 
     @GetMapping("/api/superadmin/tenants/{tenantId}/logs")

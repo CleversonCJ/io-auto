@@ -144,6 +144,8 @@ public class SuperAdminTenantManagementService {
                     rs.getString("plan_name"),
                     rs.getString("plan_key"),
                     rs.getString("subscription_status"),
+                    subscriptionAmountCents,
+                    recurrence,
                     rs.getTimestamp("subscription_started_at") == null
                             ? rs.getTimestamp("created_at").toInstant()
                             : rs.getTimestamp("subscription_started_at").toInstant(),
@@ -164,20 +166,7 @@ public class SuperAdminTenantManagementService {
 
     @Transactional
     public ImpersonationResult impersonateTenant(UUID tenantId) {
-        List<JpaUserEntity> tenantUsers = users.findAllByCompanyId(tenantId).stream()
-                .filter(JpaUserEntity::isActive)
-                .sorted(Comparator
-                        .comparing((JpaUserEntity user) -> user.getRoles().stream().anyMatch(role -> "ADMIN".equalsIgnoreCase(role.getName()) || "SUPERADMIN".equalsIgnoreCase(role.getName())) ? 0 : 1)
-                        .thenComparing(user -> user.isPrimary() ? 0 : 1)
-                        .thenComparing(JpaUserEntity::getCreatedAt)
-                )
-                .toList();
-
-        if (tenantUsers.isEmpty()) {
-            throw new BusinessException("TENANT_IMPERSONATION_USER_NOT_FOUND", "Nao foi encontrado usuario ativo para impersonar este tenant.");
-        }
-
-        JpaUserEntity target = tenantUsers.get(0);
+        JpaUserEntity target = resolvePreferredTenantUser(tenantId);
         Set<String> roles = target.getRoles().stream().map(role -> role.getName().toUpperCase(Locale.ROOT)).collect(Collectors.toSet());
         if (roles.isEmpty()) {
             roles = Set.of("ADMIN");
@@ -338,7 +327,7 @@ public class SuperAdminTenantManagementService {
                 )
         );
 
-        return listTenants(new SuperAdminFilter(null, null, null, null, null, null, null, null, null, null, null, null)).stream()
+        return listTenants(new SuperAdminFilter(null, null, null, null, null, null, null, null, null, null, null, null, null)).stream()
                 .filter(row -> row.tenantId().equals(tenantId))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException("TENANT_NOT_FOUND", "Tenant nao encontrado."));
@@ -445,6 +434,12 @@ public class SuperAdminTenantManagementService {
         );
     }
 
+    @Transactional
+    public ResetPasswordResult resetPreferredUserPassword(UUID tenantId) {
+        JpaUserEntity preferredUser = resolvePreferredTenantUser(tenantId);
+        return resetUserPassword(tenantId, preferredUser.getId());
+    }
+
     @Transactional(readOnly = true)
     public List<TenantAdminLogRow> listLogs(UUID tenantId) {
         return logs.findTop200ByCompanyIdOrderByCreatedAtDesc(tenantId).stream()
@@ -544,6 +539,23 @@ public class SuperAdminTenantManagementService {
         return value == null ? "" : value.toString();
     }
 
+    private JpaUserEntity resolvePreferredTenantUser(UUID tenantId) {
+        List<JpaUserEntity> tenantUsers = users.findAllByCompanyId(tenantId).stream()
+                .filter(JpaUserEntity::isActive)
+                .sorted(Comparator
+                        .comparing((JpaUserEntity user) -> user.getRoles().stream().anyMatch(role -> "ADMIN".equalsIgnoreCase(role.getName()) || "SUPERADMIN".equalsIgnoreCase(role.getName())) ? 0 : 1)
+                        .thenComparing(user -> user.isPrimary() ? 0 : 1)
+                        .thenComparing(JpaUserEntity::getCreatedAt)
+                )
+                .toList();
+
+        if (tenantUsers.isEmpty()) {
+            throw new BusinessException("TENANT_IMPERSONATION_USER_NOT_FOUND", "Nao foi encontrado usuario ativo para este tenant.");
+        }
+
+        return tenantUsers.get(0);
+    }
+
     public record TenantRow(
             UUID tenantId,
             String companyName,
@@ -551,6 +563,8 @@ public class SuperAdminTenantManagementService {
             String planName,
             String planKey,
             String status,
+            long subscriptionAmountCents,
+            String billingRecurrence,
             Instant entryDate,
             Instant lastAccessAt,
             long mrrCents,

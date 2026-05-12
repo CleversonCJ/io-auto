@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { SuperAdminDashboardSection } from "@/modules/superadmin/components/SuperAdminDashboardSection";
+import { SuperAdminLiveSection, type SuperAdminLiveSectionKey } from "@/modules/superadmin/components/SuperAdminLiveSection";
 import { SuperAdminTenantsPage } from "@/modules/superadmin/components/SuperAdminTenantsPage";
 import { superAdminSections, type SuperAdminSectionKey } from "@/modules/superadmin/data";
 
@@ -19,5 +19,5 @@ export default async function SuperAdminSectionPage({
         return <SuperAdminTenantsPage />;
     }
 
-    return <SuperAdminDashboardSection section={superAdminSections[key]} />;
+    return <SuperAdminLiveSection section={key as SuperAdminLiveSectionKey} />;
 }

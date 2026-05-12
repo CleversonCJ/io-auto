@@ -63,6 +63,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "year", required = false) Integer year,
             @RequestParam(name = "month", required = false) Integer month,
             @RequestParam(name = "planId", required = false) UUID planId,
+            @RequestParam(name = "plan", required = false) String plan,
             @RequestParam(name = "city", required = false) String city,
             @RequestParam(name = "region", required = false) String region,
             @RequestParam(name = "recurrence", required = false) String recurrence,
@@ -71,7 +72,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "stockSize", required = false) String stockSize,
             @RequestParam(name = "search", required = false) String search
     ) {
-        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, city, region, recurrence, status, origin, stockSize, search);
+        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, plan, city, region, recurrence, status, origin, stockSize, search);
         return ResponseEntity.ok(financialDashboardService.getDashboard(filter));
     }
 
@@ -82,6 +83,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "year", required = false) Integer year,
             @RequestParam(name = "month", required = false) Integer month,
             @RequestParam(name = "planId", required = false) UUID planId,
+            @RequestParam(name = "plan", required = false) String plan,
             @RequestParam(name = "city", required = false) String city,
             @RequestParam(name = "region", required = false) String region,
             @RequestParam(name = "recurrence", required = false) String recurrence,
@@ -90,7 +92,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "stockSize", required = false) String stockSize,
             @RequestParam(name = "search", required = false) String search
     ) {
-        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, city, region, recurrence, status, origin, stockSize, search);
+        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, plan, city, region, recurrence, status, origin, stockSize, search);
         return ResponseEntity.ok(customerDashboardService.getDashboard(filter));
     }
 
@@ -101,6 +103,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "year", required = false) Integer year,
             @RequestParam(name = "month", required = false) Integer month,
             @RequestParam(name = "planId", required = false) UUID planId,
+            @RequestParam(name = "plan", required = false) String plan,
             @RequestParam(name = "city", required = false) String city,
             @RequestParam(name = "region", required = false) String region,
             @RequestParam(name = "recurrence", required = false) String recurrence,
@@ -109,7 +112,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "stockSize", required = false) String stockSize,
             @RequestParam(name = "search", required = false) String search
     ) {
-        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, city, region, recurrence, status, origin, stockSize, search);
+        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, plan, city, region, recurrence, status, origin, stockSize, search);
         return ResponseEntity.ok(customerHealthScoreService.listHealthScores(filter));
     }
 
@@ -121,6 +124,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "year", required = false) Integer year,
             @RequestParam(name = "month", required = false) Integer month,
             @RequestParam(name = "planId", required = false) UUID planId,
+            @RequestParam(name = "plan", required = false) String plan,
             @RequestParam(name = "city", required = false) String city,
             @RequestParam(name = "region", required = false) String region,
             @RequestParam(name = "recurrence", required = false) String recurrence,
@@ -129,7 +133,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "stockSize", required = false) String stockSize,
             @RequestParam(name = "search", required = false) String search
     ) {
-        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, city, region, recurrence, status, origin, stockSize, search);
+        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, plan, city, region, recurrence, status, origin, stockSize, search);
         return ResponseEntity.ok(productUsageService.getDashboard(filter, periodPreset));
     }
 
@@ -140,6 +144,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "year", required = false) Integer year,
             @RequestParam(name = "month", required = false) Integer month,
             @RequestParam(name = "planId", required = false) UUID planId,
+            @RequestParam(name = "plan", required = false) String plan,
             @RequestParam(name = "city", required = false) String city,
             @RequestParam(name = "region", required = false) String region,
             @RequestParam(name = "recurrence", required = false) String recurrence,
@@ -148,7 +153,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "stockSize", required = false) String stockSize,
             @RequestParam(name = "search", required = false) String search
     ) {
-        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, city, region, recurrence, status, origin, stockSize, search);
+        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, plan, city, region, recurrence, status, origin, stockSize, search);
         return ResponseEntity.ok(marketplaceDashboardService.getDashboard(filter));
     }
 
@@ -159,6 +164,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "year", required = false) Integer year,
             @RequestParam(name = "month", required = false) Integer month,
             @RequestParam(name = "planId", required = false) UUID planId,
+            @RequestParam(name = "plan", required = false) String plan,
             @RequestParam(name = "city", required = false) String city,
             @RequestParam(name = "region", required = false) String region,
             @RequestParam(name = "recurrence", required = false) String recurrence,
@@ -167,7 +173,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "stockSize", required = false) String stockSize,
             @RequestParam(name = "search", required = false) String search
     ) {
-        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, city, region, recurrence, status, origin, stockSize, search);
+        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, plan, city, region, recurrence, status, origin, stockSize, search);
         return ResponseEntity.ok(growthDashboardService.getDashboard(filter));
     }
 
@@ -178,6 +184,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "year", required = false) Integer year,
             @RequestParam(name = "month", required = false) Integer month,
             @RequestParam(name = "planId", required = false) UUID planId,
+            @RequestParam(name = "plan", required = false) String plan,
             @RequestParam(name = "city", required = false) String city,
             @RequestParam(name = "region", required = false) String region,
             @RequestParam(name = "recurrence", required = false) String recurrence,
@@ -186,7 +193,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "stockSize", required = false) String stockSize,
             @RequestParam(name = "search", required = false) String search
     ) {
-        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, city, region, recurrence, status, origin, stockSize, search);
+        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, plan, city, region, recurrence, status, origin, stockSize, search);
         return ResponseEntity.ok(growthDashboardService.listCatalogLeads(filter));
     }
 
@@ -197,6 +204,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "year", required = false) Integer year,
             @RequestParam(name = "month", required = false) Integer month,
             @RequestParam(name = "planId", required = false) UUID planId,
+            @RequestParam(name = "plan", required = false) String plan,
             @RequestParam(name = "city", required = false) String city,
             @RequestParam(name = "region", required = false) String region,
             @RequestParam(name = "recurrence", required = false) String recurrence,
@@ -205,7 +213,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "stockSize", required = false) String stockSize,
             @RequestParam(name = "search", required = false) String search
     ) {
-        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, city, region, recurrence, status, origin, stockSize, search);
+        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, plan, city, region, recurrence, status, origin, stockSize, search);
         return ResponseEntity.ok(billingDashboardService.getDashboard(filter));
     }
 
@@ -216,6 +224,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "year", required = false) Integer year,
             @RequestParam(name = "month", required = false) Integer month,
             @RequestParam(name = "planId", required = false) UUID planId,
+            @RequestParam(name = "plan", required = false) String plan,
             @RequestParam(name = "city", required = false) String city,
             @RequestParam(name = "region", required = false) String region,
             @RequestParam(name = "recurrence", required = false) String recurrence,
@@ -224,7 +233,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "stockSize", required = false) String stockSize,
             @RequestParam(name = "search", required = false) String search
     ) {
-        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, city, region, recurrence, status, origin, stockSize, search);
+        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, plan, city, region, recurrence, status, origin, stockSize, search);
         return ResponseEntity.ok(operationsDashboardService.getDashboard(filter));
     }
 
@@ -235,6 +244,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "year", required = false) Integer year,
             @RequestParam(name = "month", required = false) Integer month,
             @RequestParam(name = "planId", required = false) UUID planId,
+            @RequestParam(name = "plan", required = false) String plan,
             @RequestParam(name = "city", required = false) String city,
             @RequestParam(name = "region", required = false) String region,
             @RequestParam(name = "recurrence", required = false) String recurrence,
@@ -243,7 +253,7 @@ public class SuperAdminDashboardController {
             @RequestParam(name = "stockSize", required = false) String stockSize,
             @RequestParam(name = "search", required = false) String search
     ) {
-        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, city, region, recurrence, status, origin, stockSize, search);
+        SuperAdminFilter filter = buildFilter(startDate, endDate, year, month, planId, plan, city, region, recurrence, status, origin, stockSize, search);
         return ResponseEntity.ok(insightsService.getInsights(filter));
     }
 
@@ -253,6 +263,7 @@ public class SuperAdminDashboardController {
             Integer year,
             Integer month,
             UUID planId,
+            String plan,
             String city,
             String region,
             String recurrence,
@@ -267,6 +278,7 @@ public class SuperAdminDashboardController {
                 year,
                 month,
                 planId,
+                plan,
                 city,
                 region,
                 recurrence,

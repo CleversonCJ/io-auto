@@ -34,6 +34,20 @@ public final class SuperAdminSqlFilterBuilder {
             sql.append(" and ").append(alias).append(".plan_id = :planId");
             params.addValue("planId", filter.planId());
         }
+        if (hasText(filter.plan())) {
+            sql.append("""
+                     and exists (
+                         select 1
+                         from ioauto_billing_subscriptions plan_filter
+                         where plan_filter.company_id = %s.id
+                           and (
+                               lower(coalesce(plan_filter.plan_name, '')) like :planFilter
+                               or lower(coalesce(plan_filter.plan_key, '')) like :planFilter
+                           )
+                     )
+                    """.formatted(alias));
+            params.addValue("planFilter", "%" + filter.plan().trim().toLowerCase() + "%");
+        }
         if (hasText(filter.origin())) {
             sql.append(" and lower(coalesce(").append(alias).append(".origin_source, '')) = :originSource");
             params.addValue("originSource", filter.origin().trim().toLowerCase());
