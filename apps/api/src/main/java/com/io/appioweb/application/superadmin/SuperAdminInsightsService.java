@@ -68,7 +68,7 @@ public class SuperAdminInsightsService {
 
     private List<UpgradeReadyCustomer> buildUpgradeReadyCustomers(SuperAdminFilter filter) {
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("thirtyDaysAgo", Instant.now().minus(30, ChronoUnit.DAYS));
+                .addValue("thirtyDaysAgo", SuperAdminSqlValues.timestamp(Instant.now().minus(30, ChronoUnit.DAYS)));
         StringBuilder where = new StringBuilder(" where 1=1 ");
         SuperAdminSqlFilterBuilder.appendCompanyFilters(where, params, filter, "c");
 
@@ -164,7 +164,7 @@ public class SuperAdminInsightsService {
 
     private List<HighRevenuePotentialCustomer> buildHighRevenuePotentialCustomers(SuperAdminFilter filter) {
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("ninetyDaysAgo", Instant.now().minus(90, ChronoUnit.DAYS));
+                .addValue("ninetyDaysAgo", SuperAdminSqlValues.timestamp(Instant.now().minus(90, ChronoUnit.DAYS)));
         StringBuilder where = new StringBuilder(" where 1=1 ");
         SuperAdminSqlFilterBuilder.appendCompanyFilters(where, params, filter, "c");
 
@@ -243,8 +243,8 @@ public class SuperAdminInsightsService {
     private List<UnderusedFeature> buildUnderusedFeatures(SuperAdminFilter filter) {
         SuperAdminTimeWindow window = filter.resolveTimeWindow();
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("windowStart", window.fromAt())
-                .addValue("windowEnd", window.toExclusiveAt());
+                .addValue("windowStart", SuperAdminSqlValues.timestamp(window.fromAt()))
+                .addValue("windowEnd", SuperAdminSqlValues.timestamp(window.toExclusiveAt()));
         StringBuilder where = new StringBuilder(" where 1=1 ");
         SuperAdminSqlFilterBuilder.appendCompanyFilters(where, params, filter, "c");
 

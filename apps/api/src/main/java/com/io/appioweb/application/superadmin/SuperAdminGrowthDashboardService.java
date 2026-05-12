@@ -20,8 +20,8 @@ public class SuperAdminGrowthDashboardService {
     public GrowthDashboardResponse getDashboard(SuperAdminFilter filter) {
         SuperAdminTimeWindow window = filter.resolveTimeWindow();
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("windowStart", window.fromAt())
-                .addValue("windowEnd", window.toExclusiveAt());
+                .addValue("windowStart", SuperAdminSqlValues.timestamp(window.fromAt()))
+                .addValue("windowEnd", SuperAdminSqlValues.timestamp(window.toExclusiveAt()));
 
         StringBuilder where = new StringBuilder(" where 1=1 ");
         SuperAdminSqlFilterBuilder.appendCompanyFilters(where, params, filter, "c");
@@ -91,8 +91,8 @@ public class SuperAdminGrowthDashboardService {
     public CatalogLeadsPage listCatalogLeads(SuperAdminFilter filter) {
         SuperAdminTimeWindow window = filter.resolveTimeWindow();
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("windowStart", window.fromAt())
-                .addValue("windowEnd", window.toExclusiveAt());
+                .addValue("windowStart", SuperAdminSqlValues.timestamp(window.fromAt()))
+                .addValue("windowEnd", SuperAdminSqlValues.timestamp(window.toExclusiveAt()));
         StringBuilder where = new StringBuilder(" where 1=1 ");
         SuperAdminSqlFilterBuilder.appendCompanyFilters(where, params, filter, "c");
 

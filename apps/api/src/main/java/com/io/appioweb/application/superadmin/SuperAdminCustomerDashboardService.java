@@ -24,11 +24,11 @@ public class SuperAdminCustomerDashboardService {
         Instant monthEnd = referenceMonth.plusMonths(1).atDay(1).atStartOfDay(SuperAdminTimeWindow.ZONE).toInstant();
 
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("windowStart", window.fromAt())
-                .addValue("windowEnd", window.toExclusiveAt())
-                .addValue("monthStart", monthStart)
-                .addValue("monthEnd", monthEnd)
-                .addValue("nowAt", Instant.now());
+                .addValue("windowStart", SuperAdminSqlValues.timestamp(window.fromAt()))
+                .addValue("windowEnd", SuperAdminSqlValues.timestamp(window.toExclusiveAt()))
+                .addValue("monthStart", SuperAdminSqlValues.timestamp(monthStart))
+                .addValue("monthEnd", SuperAdminSqlValues.timestamp(monthEnd))
+                .addValue("nowAt", SuperAdminSqlValues.timestamp(Instant.now()));
 
         StringBuilder where = new StringBuilder(" where 1=1 ");
         SuperAdminSqlFilterBuilder.appendCompanyFilters(where, params, filter, "c");

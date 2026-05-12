@@ -274,7 +274,7 @@ public class SuperAdminTenantManagementService {
                 .addValue("amountCents", command.subscriptionAmountCents())
                 .addValue("recurrence", normalizeRecurrence(command.billingRecurrence()))
                 .addValue("status", normalizeNullable(command.subscriptionStatus()))
-                .addValue("updatedAt", Instant.now());
+                .addValue("updatedAt", SuperAdminSqlValues.timestamp(Instant.now()));
 
         jdbc.update("""
                 update companies
@@ -294,7 +294,7 @@ public class SuperAdminTenantManagementService {
                     .addValue("planKey", normalizeNullable(command.planKey()))
                     .addValue("amountCents", command.subscriptionAmountCents())
                     .addValue("billingInterval", mapBillingInterval(normalizeRecurrence(command.billingRecurrence())))
-                    .addValue("updatedAt", Instant.now());
+                    .addValue("updatedAt", SuperAdminSqlValues.timestamp(Instant.now()));
 
             jdbc.update("""
                     update ioauto_billing_subscriptions b
@@ -349,7 +349,7 @@ public class SuperAdminTenantManagementService {
                 """,
                 new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
-                        .addValue("blockedAt", now)
+                        .addValue("blockedAt", SuperAdminSqlValues.timestamp(now))
         );
 
         logAction(
@@ -379,7 +379,7 @@ public class SuperAdminTenantManagementService {
                 """,
                 new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
-                        .addValue("updatedAt", now)
+                        .addValue("updatedAt", SuperAdminSqlValues.timestamp(now))
         );
 
         logAction(

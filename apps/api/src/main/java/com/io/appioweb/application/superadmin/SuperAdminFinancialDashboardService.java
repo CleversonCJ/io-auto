@@ -26,9 +26,9 @@ public class SuperAdminFinancialDashboardService {
     public FinancialDashboardResponse getDashboard(SuperAdminFilter filter) {
         SuperAdminTimeWindow window = filter.resolveTimeWindow();
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("windowStart", window.fromAt())
-                .addValue("windowEnd", window.toExclusiveAt())
-                .addValue("nowAt", java.time.Instant.now());
+                .addValue("windowStart", SuperAdminSqlValues.timestamp(window.fromAt()))
+                .addValue("windowEnd", SuperAdminSqlValues.timestamp(window.toExclusiveAt()))
+                .addValue("nowAt", SuperAdminSqlValues.timestamp(java.time.Instant.now()));
 
         StringBuilder where = new StringBuilder(" where 1=1 ");
         SuperAdminSqlFilterBuilder.appendCompanyFilters(where, params, filter, "c");
@@ -108,8 +108,8 @@ public class SuperAdminFinancialDashboardService {
             LocalDate monthEndDate = yearMonth.plusMonths(1).atDay(1);
 
             MapSqlParameterSource params = new MapSqlParameterSource()
-                    .addValue("monthStart", monthStartDate.atStartOfDay(SuperAdminTimeWindow.ZONE).toInstant())
-                    .addValue("monthEnd", monthEndDate.atStartOfDay(SuperAdminTimeWindow.ZONE).toInstant());
+                    .addValue("monthStart", SuperAdminSqlValues.timestamp(monthStartDate.atStartOfDay(SuperAdminTimeWindow.ZONE).toInstant()))
+                    .addValue("monthEnd", SuperAdminSqlValues.timestamp(monthEndDate.atStartOfDay(SuperAdminTimeWindow.ZONE).toInstant()));
             StringBuilder where = new StringBuilder(" where 1=1 ");
             SuperAdminSqlFilterBuilder.appendCompanyFilters(where, params, filter, "c");
 

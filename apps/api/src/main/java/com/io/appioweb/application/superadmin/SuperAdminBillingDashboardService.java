@@ -28,9 +28,9 @@ public class SuperAdminBillingDashboardService {
     public BillingDashboardResponse getDashboard(SuperAdminFilter filter) {
         SuperAdminTimeWindow window = filter.resolveTimeWindow();
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("windowStart", window.fromAt())
-                .addValue("windowEnd", window.toExclusiveAt())
-                .addValue("nowAt", Instant.now())
+                .addValue("windowStart", SuperAdminSqlValues.timestamp(window.fromAt()))
+                .addValue("windowEnd", SuperAdminSqlValues.timestamp(window.toExclusiveAt()))
+                .addValue("nowAt", SuperAdminSqlValues.timestamp(Instant.now()))
                 .addValue("overdueStatuses", OVERDUE_STATUSES)
                 .addValue("failedStatuses", FAILED_PAYMENT_STATUSES);
 

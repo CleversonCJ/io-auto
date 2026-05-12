@@ -23,7 +23,7 @@ public class CustomerHealthScoreService {
 
     public List<CustomerHealthScoreRow> listHealthScores(SuperAdminFilter filter) {
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("thirtyDaysAgo", Instant.now().minus(30, ChronoUnit.DAYS));
+                .addValue("thirtyDaysAgo", SuperAdminSqlValues.timestamp(Instant.now().minus(30, ChronoUnit.DAYS)));
         StringBuilder where = new StringBuilder(" where 1=1 ");
         SuperAdminSqlFilterBuilder.appendCompanyFilters(where, params, filter, "c");
         SuperAdminSqlFilterBuilder.appendStockFilter(where, params, "stock", filter.stockSize());

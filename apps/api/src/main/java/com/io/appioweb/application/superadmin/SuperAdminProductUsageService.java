@@ -21,8 +21,8 @@ public class SuperAdminProductUsageService {
     public ProductUsageDashboardResponse getDashboard(SuperAdminFilter filter, String periodPreset) {
         SuperAdminTimeWindow usageWindow = resolveUsageWindow(filter, periodPreset);
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("usageStart", usageWindow.fromAt())
-                .addValue("usageEnd", usageWindow.toExclusiveAt());
+                .addValue("usageStart", SuperAdminSqlValues.timestamp(usageWindow.fromAt()))
+                .addValue("usageEnd", SuperAdminSqlValues.timestamp(usageWindow.toExclusiveAt()));
         StringBuilder companyWhere = new StringBuilder(" where 1=1 ");
         SuperAdminSqlFilterBuilder.appendCompanyFilters(companyWhere, params, filter, "c");
 

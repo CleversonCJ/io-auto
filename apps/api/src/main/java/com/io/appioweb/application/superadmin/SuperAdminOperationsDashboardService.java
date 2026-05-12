@@ -20,8 +20,8 @@ public class SuperAdminOperationsDashboardService {
     public OperationsDashboardResponse getDashboard(SuperAdminFilter filter) {
         SuperAdminTimeWindow window = filter.resolveTimeWindow();
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("windowStart", window.fromAt())
-                .addValue("windowEnd", window.toExclusiveAt());
+                .addValue("windowStart", SuperAdminSqlValues.timestamp(window.fromAt()))
+                .addValue("windowEnd", SuperAdminSqlValues.timestamp(window.toExclusiveAt()));
 
         StringBuilder companyWhere = new StringBuilder(" where 1=1 ");
         SuperAdminSqlFilterBuilder.appendCompanyFilters(companyWhere, params, filter, "c");
