@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Ban, ClipboardList, KeyRound, LogIn, PencilLine, X } from "lucide-react";
 
 type TenantRow = {
     tenantId: string;
@@ -71,6 +72,11 @@ type PlanFormState = {
     billingRecurrence: string;
     subscriptionStatus: string;
 };
+
+type TenantActionModalState =
+    | { type: "block"; tenant: TenantRow }
+    | { type: "reset"; tenant: TenantRow }
+    | null;
 
 const DEFAULT_FILTERS: FilterState = {
     status: "",
@@ -198,6 +204,7 @@ export function SuperAdminTenantsPage() {
     const [logsLoading, setLogsLoading] = useState(false);
     const [logsError, setLogsError] = useState<string | null>(null);
     const [resetResult, setResetResult] = useState<ResetPasswordResult | null>(null);
+    const [actionModal, setActionModal] = useState<TenantActionModalState>(null);
 
     async function loadTenants(nextFilters = filters) {
         setLoading(true);
@@ -246,6 +253,9 @@ export function SuperAdminTenantsPage() {
     }
 
     function openPlanEditor(tenant: TenantRow) {
+        setLogsTenant(null);
+        setResetResult(null);
+        setActionModal(null);
         setPlanTenant(tenant);
         setPlanForm({
             planId: tenant.planId ?? "",
@@ -295,6 +305,7 @@ export function SuperAdminTenantsPage() {
                 `Falha ao ${isBlocked ? "desbloquear" : "bloquear"} a conta.`,
             );
             setFeedback(`${tenant.companyName} foi ${isBlocked ? "desbloqueada" : "bloqueada"} com sucesso.`);
+            setActionModal(null);
             await loadTenants();
         } catch (requestError) {
             setFeedback(requestError instanceof Error ? requestError.message : "Falha ao atualizar o bloqueio da conta.");
@@ -313,6 +324,7 @@ export function SuperAdminTenantsPage() {
                 { method: "POST" },
                 "Falha ao gerar o reset de senha.",
             );
+            setActionModal(null);
             setResetResult(payload);
             setFeedback(`Reset de senha gerado para ${tenant.companyName}.`);
         } catch (requestError) {
@@ -323,6 +335,9 @@ export function SuperAdminTenantsPage() {
     }
 
     async function handleOpenLogs(tenant: TenantRow) {
+        setPlanTenant(null);
+        setResetResult(null);
+        setActionModal(null);
         setLogsTenant(tenant);
         setLogsLoading(true);
         setLogsError(null);
@@ -402,6 +417,13 @@ export function SuperAdminTenantsPage() {
         });
     }
 
+    function closeAllOverlays() {
+        setPlanTenant(null);
+        setLogsTenant(null);
+        setResetResult(null);
+        setActionModal(null);
+    }
+
     return (
         <div className="grid gap-6">
             <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -477,115 +499,6 @@ export function SuperAdminTenantsPage() {
                 {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
             </section>
 
-            {planTenant ? (
-                <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.05)]">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                            <p className="text-sm font-semibold text-io-dark">Editar plano de {planTenant.companyName}</p>
-                            <p className="text-xs text-black/55">Atualiza plano, ciclo, valor contratado e status da assinatura.</p>
-                        </div>
-                        <button type="button" onClick={() => setPlanTenant(null)} className="text-sm font-semibold text-black/55">Fechar</button>
-                    </div>
-                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                        <label className="grid gap-1 text-xs text-black/55">
-                            Plano
-                            <select value={planForm.planId} onChange={(event) => handlePlanSelection(event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
-                                <option value="">Selecione</option>
-                                {planOptions.map((plan) => (
-                                    <option key={plan.planId} value={plan.planId}>
-                                        {plan.planName}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                        <label className="grid gap-1 text-xs text-black/55">
-                            Valor contratado (BRL)
-                            <input value={planForm.amount} onChange={(event) => setPlanForm((current) => ({ ...current, amount: event.target.value }))} type="number" min="0" step="0.01" className="h-10 rounded-lg border border-black/12 px-3 text-sm" />
-                        </label>
-                        <label className="grid gap-1 text-xs text-black/55">
-                            Ciclo
-                            <select value={planForm.billingRecurrence} onChange={(event) => handleRecurrenceSelection(event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
-                                <option value="MONTHLY">Mensal</option>
-                                <option value="YEARLY">Anual</option>
-                            </select>
-                        </label>
-                        <label className="grid gap-1 text-xs text-black/55">
-                            Status da assinatura
-                            <select value={planForm.subscriptionStatus} onChange={(event) => setPlanForm((current) => ({ ...current, subscriptionStatus: event.target.value }))} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
-                                <option value="ACTIVE">Ativo</option>
-                                <option value="OVERDUE">Em atraso</option>
-                                <option value="BLOCKED">Bloqueado</option>
-                                <option value="CANCELED">Cancelado</option>
-                            </select>
-                        </label>
-                        <div className="rounded-lg border border-dashed border-black/10 bg-black/[0.02] px-3 py-2 text-xs text-black/55">
-                            {planForm.planId
-                                ? (() => {
-                                      const plan = planOptions.find((item) => item.planId === planForm.planId);
-                                      if (!plan) return "Plano selecionado sem detalhes disponiveis.";
-                                      return `${plan.planName} | mensal ${toOptionalCurrency(plan.monthlyPriceCents)} | anual ${toOptionalCurrency(plan.annualPriceCents)} | ${plan.usersLimit ?? "ilimitado"} usuarios | ${plan.vehiclesLimit ?? "ilimitado"} veiculos`;
-                                  })()
-                                : "Selecione um plano do catalogo para aplicar a conta."}
-                        </div>
-                    </div>
-                    <div className="mt-4 flex justify-end">
-                        <button type="button" onClick={() => void handlePlanSubmit()} disabled={planSaving} className="h-10 rounded-full bg-io-dark px-4 text-sm font-semibold text-white disabled:opacity-60">
-                            {planSaving ? "Salvando..." : "Salvar plano"}
-                        </button>
-                    </div>
-                </section>
-            ) : null}
-
-            {resetResult ? (
-                <section className="rounded-[28px] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-semibold">Reset de senha gerado</p>
-                        <button type="button" onClick={() => setResetResult(null)} className="font-semibold">Fechar</button>
-                    </div>
-                    <p className="mt-3">Usuario: {resetResult.userEmail || resetResult.userId}</p>
-                    <p className="mt-1">Token: {resetResult.token}</p>
-                    <p className="mt-1">Expira em: {toBrDateTime(resetResult.expiresAt)}</p>
-                </section>
-            ) : null}
-
-            {logsTenant ? (
-                <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.05)]">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                            <p className="text-sm font-semibold text-io-dark">Logs de {logsTenant.companyName}</p>
-                            <p className="text-xs text-black/55">Historico operacional real do tenant.</p>
-                        </div>
-                        <button type="button" onClick={() => setLogsTenant(null)} className="text-sm font-semibold text-black/55">Fechar</button>
-                    </div>
-                    {logsLoading ? <p className="mt-4 text-sm text-black/55">Carregando logs...</p> : null}
-                    {logsError ? <p className="mt-4 text-sm text-red-700">{logsError}</p> : null}
-                    {!logsLoading ? (
-                        <div className="mt-4 overflow-x-auto">
-                            <table className="min-w-full text-sm">
-                                <thead className="text-left text-black/55">
-                                    <tr>
-                                        <th className="py-2">Quando</th>
-                                        <th>Acao</th>
-                                        <th>Descricao</th>
-                                        <th>Metadata</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {logsRows.map((log) => (
-                                        <tr key={log.id} className="border-t border-black/8">
-                                            <td className="py-2">{toBrDateTime(log.createdAt)}</td>
-                                            <td>{titleCase(log.action)}</td>
-                                            <td>{log.description}</td>
-                                            <td className="max-w-[320px] whitespace-pre-wrap break-words text-xs text-black/60">{log.metadata || "-"}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : null}
-                </section>
-            ) : null}
-
             <section className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                 <div className="overflow-x-auto">
                     <table className="min-w-full border-separate border-spacing-y-3">
@@ -642,20 +555,53 @@ export function SuperAdminTenantsPage() {
                                             </td>
                                             <td className="rounded-r-[22px] px-3 py-4 align-top">
                                                 <div className="flex flex-wrap gap-2">
-                                                    <button type="button" onClick={() => void handleImpersonate(row)} disabled={busyAction === `impersonate:${row.tenantId}`} className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-io-dark transition hover:border-black/20 disabled:opacity-60">
-                                                        {busyAction === `impersonate:${row.tenantId}` ? "Entrando..." : "Entrar como admin"}
+                                                    <button
+                                                        type="button"
+                                                        title="Entrar como admin"
+                                                        aria-label="Entrar como admin"
+                                                        onClick={() => void handleImpersonate(row)}
+                                                        disabled={busyAction === `impersonate:${row.tenantId}`}
+                                                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white text-io-dark transition hover:border-black/20 disabled:opacity-60"
+                                                    >
+                                                        <LogIn className="h-4 w-4" />
                                                     </button>
-                                                    <button type="button" onClick={() => openPlanEditor(row)} className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-io-dark transition hover:border-black/20">
-                                                        Alterar plano
+                                                    <button
+                                                        type="button"
+                                                        title="Alterar plano"
+                                                        aria-label="Alterar plano"
+                                                        onClick={() => openPlanEditor(row)}
+                                                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white text-io-dark transition hover:border-black/20"
+                                                    >
+                                                        <PencilLine className="h-4 w-4" />
                                                     </button>
-                                                    <button type="button" onClick={() => void handleBlockToggle(row)} disabled={busyAction === `${blocked ? "unblock" : "block"}:${row.tenantId}`} className="rounded-full border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60">
-                                                        {busyAction === `${blocked ? "unblock" : "block"}:${row.tenantId}` ? "Salvando..." : blocked ? "Desbloquear" : "Bloquear"}
+                                                    <button
+                                                        type="button"
+                                                        title={blocked ? "Desbloquear tenant" : "Bloquear tenant"}
+                                                        aria-label={blocked ? "Desbloquear tenant" : "Bloquear tenant"}
+                                                        onClick={() => setActionModal({ type: "block", tenant: row })}
+                                                        disabled={busyAction === `${blocked ? "unblock" : "block"}:${row.tenantId}`}
+                                                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                                                    >
+                                                        <Ban className="h-4 w-4" />
                                                     </button>
-                                                    <button type="button" onClick={() => void handleResetPassword(row)} disabled={busyAction === `reset:${row.tenantId}`} className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-io-dark transition hover:border-black/20 disabled:opacity-60">
-                                                        {busyAction === `reset:${row.tenantId}` ? "Gerando..." : "Resetar senha"}
+                                                    <button
+                                                        type="button"
+                                                        title="Resetar senha"
+                                                        aria-label="Resetar senha"
+                                                        onClick={() => setActionModal({ type: "reset", tenant: row })}
+                                                        disabled={busyAction === `reset:${row.tenantId}`}
+                                                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white text-io-dark transition hover:border-black/20 disabled:opacity-60"
+                                                    >
+                                                        <KeyRound className="h-4 w-4" />
                                                     </button>
-                                                    <button type="button" onClick={() => void handleOpenLogs(row)} className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-io-dark transition hover:border-black/20">
-                                                        Ver logs
+                                                    <button
+                                                        type="button"
+                                                        title="Ver logs"
+                                                        aria-label="Ver logs"
+                                                        onClick={() => void handleOpenLogs(row)}
+                                                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white text-io-dark transition hover:border-black/20"
+                                                    >
+                                                        <ClipboardList className="h-4 w-4" />
                                                     </button>
                                                 </div>
                                             </td>
@@ -673,6 +619,192 @@ export function SuperAdminTenantsPage() {
                     </table>
                 </div>
             </section>
+
+            {planTenant ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6" onClick={closeAllOverlays}>
+                    <section
+                        className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.18)]"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <p className="text-sm font-semibold text-io-dark">Editar plano de {planTenant.companyName}</p>
+                                <p className="text-xs text-black/55">Atualiza plano, ciclo, valor contratado e status da assinatura.</p>
+                            </div>
+                            <button type="button" onClick={closeAllOverlays} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 text-black/55">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                            <label className="grid gap-1 text-xs text-black/55">
+                                Plano
+                                <select value={planForm.planId} onChange={(event) => handlePlanSelection(event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
+                                    <option value="">Selecione</option>
+                                    {planOptions.map((plan) => (
+                                        <option key={plan.planId} value={plan.planId}>
+                                            {plan.planName}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                            <label className="grid gap-1 text-xs text-black/55">
+                                Valor contratado (BRL)
+                                <input value={planForm.amount} onChange={(event) => setPlanForm((current) => ({ ...current, amount: event.target.value }))} type="number" min="0" step="0.01" className="h-10 rounded-lg border border-black/12 px-3 text-sm" />
+                            </label>
+                            <label className="grid gap-1 text-xs text-black/55">
+                                Ciclo
+                                <select value={planForm.billingRecurrence} onChange={(event) => handleRecurrenceSelection(event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
+                                    <option value="MONTHLY">Mensal</option>
+                                    <option value="YEARLY">Anual</option>
+                                </select>
+                            </label>
+                            <label className="grid gap-1 text-xs text-black/55">
+                                Status da assinatura
+                                <select value={planForm.subscriptionStatus} onChange={(event) => setPlanForm((current) => ({ ...current, subscriptionStatus: event.target.value }))} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
+                                    <option value="ACTIVE">Ativo</option>
+                                    <option value="OVERDUE">Em atraso</option>
+                                    <option value="BLOCKED">Bloqueado</option>
+                                    <option value="CANCELED">Cancelado</option>
+                                </select>
+                            </label>
+                            <div className="rounded-lg border border-dashed border-black/10 bg-black/[0.02] px-3 py-2 text-xs text-black/55">
+                                {planForm.planId
+                                    ? (() => {
+                                          const plan = planOptions.find((item) => item.planId === planForm.planId);
+                                          if (!plan) return "Plano selecionado sem detalhes disponiveis.";
+                                          return `${plan.planName} | mensal ${toOptionalCurrency(plan.monthlyPriceCents)} | anual ${toOptionalCurrency(plan.annualPriceCents)} | ${plan.usersLimit ?? "ilimitado"} usuarios | ${plan.vehiclesLimit ?? "ilimitado"} veiculos`;
+                                      })()
+                                    : "Selecione um plano do catalogo para aplicar a conta."}
+                            </div>
+                        </div>
+                        <div className="mt-4 flex justify-end gap-2">
+                            <button type="button" onClick={closeAllOverlays} className="h-10 rounded-full border border-black/10 px-4 text-sm font-semibold text-io-dark">
+                                Cancelar
+                            </button>
+                            <button type="button" onClick={() => void handlePlanSubmit()} disabled={planSaving} className="h-10 rounded-full bg-io-dark px-4 text-sm font-semibold text-white disabled:opacity-60">
+                                {planSaving ? "Salvando..." : "Salvar plano"}
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            ) : null}
+
+            {logsTenant ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6" onClick={closeAllOverlays}>
+                    <section
+                        className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.18)]"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <p className="text-sm font-semibold text-io-dark">Logs de {logsTenant.companyName}</p>
+                                <p className="text-xs text-black/55">Historico operacional real do tenant.</p>
+                            </div>
+                            <button type="button" onClick={closeAllOverlays} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 text-black/55">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        {logsLoading ? <p className="mt-4 text-sm text-black/55">Carregando logs...</p> : null}
+                        {logsError ? <p className="mt-4 text-sm text-red-700">{logsError}</p> : null}
+                        {!logsLoading ? (
+                            <div className="mt-4 overflow-x-auto">
+                                <table className="min-w-full text-sm">
+                                    <thead className="text-left text-black/55">
+                                        <tr>
+                                            <th className="py-2">Quando</th>
+                                            <th>Acao</th>
+                                            <th>Descricao</th>
+                                            <th>Metadata</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {logsRows.map((log) => (
+                                            <tr key={log.id} className="border-t border-black/8">
+                                                <td className="py-2">{toBrDateTime(log.createdAt)}</td>
+                                                <td>{titleCase(log.action)}</td>
+                                                <td>{log.description}</td>
+                                                <td className="max-w-[320px] whitespace-pre-wrap break-words text-xs text-black/60">{log.metadata || "-"}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : null}
+                    </section>
+                </div>
+            ) : null}
+
+            {resetResult ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6" onClick={closeAllOverlays}>
+                    <section
+                        className="w-full max-w-2xl rounded-[32px] border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950 shadow-[0_24px_60px_rgba(0,0,0,0.18)]"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-semibold">Reset de senha gerado</p>
+                            <button type="button" onClick={closeAllOverlays} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-amber-300 text-amber-950">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <p className="mt-4">Usuario: {resetResult.userEmail || resetResult.userId}</p>
+                        <p className="mt-2">Token: {resetResult.token}</p>
+                        <p className="mt-2">Expira em: {toBrDateTime(resetResult.expiresAt)}</p>
+                    </section>
+                </div>
+            ) : null}
+
+            {actionModal ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6" onClick={closeAllOverlays}>
+                    <section
+                        className="w-full max-w-xl rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.18)]"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between gap-2">
+                            <div>
+                                <p className="text-sm font-semibold text-io-dark">
+                                    {actionModal.type === "block"
+                                        ? `${actionModal.tenant.status?.toUpperCase() === "BLOCKED" ? "Desbloquear" : "Bloquear"} tenant`
+                                        : "Resetar senha"}
+                                </p>
+                                <p className="text-xs text-black/55">{actionModal.tenant.companyName}</p>
+                            </div>
+                            <button type="button" onClick={closeAllOverlays} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 text-black/55">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <p className="mt-4 text-sm text-black/65">
+                            {actionModal.type === "block"
+                                ? `Tem certeza que deseja ${actionModal.tenant.status?.toUpperCase() === "BLOCKED" ? "desbloquear" : "bloquear"} esse tenant?`
+                                : "Tem certeza que deseja gerar um reset de senha para esse tenant?"}
+                        </p>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button type="button" onClick={closeAllOverlays} className="h-10 rounded-full border border-black/10 px-4 text-sm font-semibold text-io-dark">
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => void (actionModal.type === "block" ? handleBlockToggle(actionModal.tenant) : handleResetPassword(actionModal.tenant))}
+                                disabled={
+                                    actionModal.type === "block"
+                                        ? busyAction === `${actionModal.tenant.status?.toUpperCase() === "BLOCKED" ? "unblock" : "block"}:${actionModal.tenant.tenantId}`
+                                        : busyAction === `reset:${actionModal.tenant.tenantId}`
+                                }
+                                className="h-10 rounded-full bg-io-dark px-4 text-sm font-semibold text-white disabled:opacity-60"
+                            >
+                                {actionModal.type === "block"
+                                    ? busyAction === `${actionModal.tenant.status?.toUpperCase() === "BLOCKED" ? "unblock" : "block"}:${actionModal.tenant.tenantId}`
+                                        ? "Salvando..."
+                                        : actionModal.tenant.status?.toUpperCase() === "BLOCKED"
+                                            ? "Desbloquear"
+                                            : "Bloquear"
+                                    : busyAction === `reset:${actionModal.tenant.tenantId}`
+                                        ? "Gerando..."
+                                        : "Gerar reset"}
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            ) : null}
         </div>
     );
 }
