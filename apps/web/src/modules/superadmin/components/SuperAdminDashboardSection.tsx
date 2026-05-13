@@ -791,7 +791,7 @@ export function SuperAdminDashboardSection({
                 </article>
             </section>
 
-            <section className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
+            <section className="hidden rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Leitura acionável</p>
                 <h2 className="mt-2 font-display text-3xl font-bold text-io-dark">Insights para decisão</h2>
                 <div className="mt-5 grid gap-3 xl:grid-cols-3">

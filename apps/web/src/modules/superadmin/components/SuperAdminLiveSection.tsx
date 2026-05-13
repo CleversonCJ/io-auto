@@ -132,6 +132,40 @@ function titleCase(value?: string | null) {
         .join(" ");
 }
 
+function formatHealthLabel(value?: string | null) {
+    const normalized = String(value ?? "").trim().toUpperCase();
+    if (!normalized) return "-";
+
+    const labels: Record<string, string> = {
+        RISCO_ALTISSIMO: "Risco Altíssimo",
+        RISCO_ALTO: "Risco Alto",
+        RISCO_MODERADO: "Risco Moderado",
+        RISCO_BAIXO: "Risco Baixo",
+        RISCO_MINIMO: "Risco Mínimo",
+        ALTISSIMO: "Altíssimo",
+        ALTO: "Alto",
+        INTERMEDIARIO: "Intermediário",
+        MODERADO: "Moderado",
+        BAIXO: "Baixo",
+        MINIMO: "Mínimo",
+        SAUDAVEL: "Saudável",
+        ESTAVEL: "Estável",
+        CRITICO: "Crítico",
+    };
+
+    return labels[normalized] ?? titleCase(normalized);
+}
+
+function healthLevelDotClasses(value?: string | null) {
+    const normalized = String(value ?? "").trim().toUpperCase();
+    if (!normalized) return "bg-slate-300";
+    if (normalized.includes("ALTISSIMO") || normalized.includes("CRITICO")) return "bg-red-500";
+    if (normalized.includes("ALTO")) return "bg-orange-500";
+    if (normalized.includes("INTERMEDIARIO") || normalized.includes("MODERADO")) return "bg-amber-500";
+    if (normalized.includes("BAIXO") || normalized.includes("MINIMO") || normalized.includes("SAUDAVEL") || normalized.includes("ESTAVEL")) return "bg-emerald-500";
+    return "bg-slate-400";
+}
+
 function buildQuery(filters: FilterState, extras?: Record<string, string | undefined>) {
     const query = new URLSearchParams();
     if (filters.startDate) query.set("startDate", filters.startDate);
@@ -180,6 +214,15 @@ function BarRows({ rows }: { rows: Array<{ label: string; value: number; detail?
                 </div>
             ))}
         </div>
+    );
+}
+
+function HealthLevelBadge({ value }: { value?: string | null }) {
+    return (
+        <span className="inline-flex items-center gap-2">
+            <span className={`h-2.5 w-2.5 rounded-full ${healthLevelDotClasses(value)}`} />
+            <span>{formatHealthLabel(value)}</span>
+        </span>
     );
 }
 
@@ -449,8 +492,8 @@ export function SuperAdminLiveSection({ section }: Props) {
                                         <td>{row.planName || "-"}</td>
                                         <td>{[row.city, row.region].filter(Boolean).join("/") || "-"}</td>
                                         <td>{toNumber(row.score)}</td>
-                                        <td>{row.classification}</td>
-                                        <td>{row.riskLevel}</td>
+                                        <td><HealthLevelBadge value={row.classification} /></td>
+                                        <td><HealthLevelBadge value={row.riskLevel} /></td>
                                         <td>{toBrDateTime(row.lastAccessAt)}</td>
                                     </tr>
                                 ))}
@@ -832,8 +875,8 @@ export function SuperAdminLiveSection({ section }: Props) {
                                         <tr key={row.tenantId} className="border-t border-black/8">
                                             <td className="py-2">{row.companyName}</td>
                                             <td>{toNumber(row.score)}</td>
-                                            <td>{row.classification}</td>
-                                            <td>{row.riskLevel}</td>
+                                            <td><HealthLevelBadge value={row.classification} /></td>
+                                            <td><HealthLevelBadge value={row.riskLevel} /></td>
                                         </tr>
                                     ))}
                                 </tbody>
