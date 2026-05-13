@@ -41,6 +41,8 @@ type PlanRow = {
     description?: string | null;
     billingRecurrence?: string | null;
     priceCents?: number | null;
+    monthlyPriceCents?: number | null;
+    annualPriceCents?: number | null;
     customPlan: boolean;
     systemPlan: boolean;
     active: boolean;
@@ -59,8 +61,8 @@ type PlanFormState = {
     planName: string;
     planKey: string;
     description: string;
-    billingRecurrence: string;
-    price: string;
+    monthlyPrice: string;
+    annualPrice: string;
     customPlan: boolean;
     systemPlan: boolean;
     active: boolean;
@@ -122,8 +124,8 @@ const EMPTY_FORM: PlanFormState = {
     planName: "",
     planKey: "",
     description: "",
-    billingRecurrence: "MONTHLY",
-    price: "",
+    monthlyPrice: "",
+    annualPrice: "",
     customPlan: false,
     systemPlan: false,
     active: true,
@@ -157,19 +159,14 @@ function toLimit(value: number | null | undefined, suffix: string) {
     return `Ate ${toNumber(value)} ${suffix}`;
 }
 
-function toRecurrence(value?: string | null) {
-    if (!value) return "Sob consulta";
-    return value === "ANNUAL" ? "Cobranca anual" : "Cobranca mensal";
-}
-
 function buildFormFromPlan(plan: PlanRow): PlanFormState {
     return {
         planId: plan.planId,
         planName: plan.planName ?? "",
         planKey: plan.planKey ?? "",
         description: plan.description ?? "",
-        billingRecurrence: plan.billingRecurrence ?? "",
-        price: plan.priceCents ? String(plan.priceCents / 100) : "",
+        monthlyPrice: plan.monthlyPriceCents ? String(plan.monthlyPriceCents / 100) : "",
+        annualPrice: plan.annualPriceCents ? String(plan.annualPriceCents / 100) : "",
         customPlan: Boolean(plan.customPlan),
         systemPlan: Boolean(plan.systemPlan),
         active: Boolean(plan.active),
@@ -182,7 +179,8 @@ function buildFormFromPlan(plan: PlanRow): PlanFormState {
 }
 
 function buildPayload(form: PlanFormState) {
-    const priceNumber = Number(form.price);
+    const monthlyPriceNumber = Number(form.monthlyPrice);
+    const annualPriceNumber = Number(form.annualPrice);
     const toLimitValue = (raw: string) => {
         const numeric = Number(raw);
         return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : null;
@@ -192,8 +190,10 @@ function buildPayload(form: PlanFormState) {
         planName: form.planName.trim(),
         planKey: form.planKey.trim() || null,
         description: form.description.trim() || null,
-        billingRecurrence: form.billingRecurrence || null,
-        priceCents: Number.isFinite(priceNumber) && priceNumber > 0 ? Math.round(priceNumber * 100) : null,
+        billingRecurrence: null,
+        priceCents: null,
+        monthlyPriceCents: Number.isFinite(monthlyPriceNumber) && monthlyPriceNumber > 0 ? Math.round(monthlyPriceNumber * 100) : null,
+        annualPriceCents: Number.isFinite(annualPriceNumber) && annualPriceNumber > 0 ? Math.round(annualPriceNumber * 100) : null,
         customPlan: form.customPlan,
         systemPlan: form.systemPlan,
         active: form.active,
@@ -441,8 +441,8 @@ export function SuperAdminPlansPage() {
                         <label className="grid gap-1 text-xs text-black/55">
                             Valor mensal (BRL)
                             <input
-                                value={form.price}
-                                onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))}
+                                value={form.monthlyPrice}
+                                onChange={(event) => setForm((current) => ({ ...current, monthlyPrice: event.target.value }))}
                                 className="h-11 rounded-xl border border-black/10 px-3 text-sm"
                                 type="number"
                                 min="0"
@@ -451,16 +451,16 @@ export function SuperAdminPlansPage() {
                             />
                         </label>
                         <label className="grid gap-1 text-xs text-black/55">
-                            Recorrencia
-                            <select
-                                value={form.billingRecurrence}
-                                onChange={(event) => setForm((current) => ({ ...current, billingRecurrence: event.target.value }))}
+                            Valor anual (BRL)
+                            <input
+                                value={form.annualPrice}
+                                onChange={(event) => setForm((current) => ({ ...current, annualPrice: event.target.value }))}
                                 className="h-11 rounded-xl border border-black/10 px-3 text-sm"
-                            >
-                                <option value="MONTHLY">Mensal</option>
-                                <option value="ANNUAL">Anual</option>
-                                <option value="">Sob consulta</option>
-                            </select>
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="1970.00"
+                            />
                         </label>
                         <label className="grid gap-1 text-xs text-black/55">
                             Limite de usuarios
@@ -588,8 +588,8 @@ export function SuperAdminPlansPage() {
                             <div className="mt-5 grid gap-3 sm:grid-cols-2">
                                 <div className="rounded-2xl bg-white/75 p-4">
                                     <p className="text-xs uppercase tracking-[0.14em] text-black/45">Preco</p>
-                                    <p className="mt-2 text-lg font-bold text-io-dark">{toCurrency(plan.priceCents)}</p>
-                                    <p className="mt-1 text-xs text-black/55">{toRecurrence(plan.billingRecurrence)}</p>
+                                    <p className="mt-2 text-sm font-semibold text-io-dark">Mensal: {toCurrency(plan.monthlyPriceCents)}</p>
+                                    <p className="mt-1 text-sm font-semibold text-io-dark">Anual: {toCurrency(plan.annualPriceCents)}</p>
                                 </div>
                                 <div className="rounded-2xl bg-white/75 p-4">
                                     <p className="text-xs uppercase tracking-[0.14em] text-black/45">Empresas</p>
@@ -662,8 +662,8 @@ export function SuperAdminPlansPage() {
                                                 <p className="mt-2 max-w-[280px] text-sm text-black/55">{plan.description || "Sem descricao."}</p>
                                             </td>
                                             <td className="px-3 py-4 align-top">
-                                                <p className="text-sm font-semibold text-io-dark">{toCurrency(plan.priceCents)}</p>
-                                                <p className="mt-1 text-xs text-black/55">{toRecurrence(plan.billingRecurrence)}</p>
+                                                <p className="text-sm font-semibold text-io-dark">Mensal: {toCurrency(plan.monthlyPriceCents)}</p>
+                                                <p className="mt-1 text-sm font-semibold text-io-dark">Anual: {toCurrency(plan.annualPriceCents)}</p>
                                             </td>
                                             <td className="px-3 py-4 align-top text-sm text-black/60">
                                                 <p>{toLimit(plan.usersLimit, "usuarios")}</p>

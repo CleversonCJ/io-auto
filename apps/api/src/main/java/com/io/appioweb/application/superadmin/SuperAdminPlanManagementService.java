@@ -34,6 +34,7 @@ public class SuperAdminPlanManagementService {
     public static final String PROVIDER_ICARROS = "icarros";
 
     private static final String DEFAULT_PLAN_KEY = "start";
+    private static final String DEFAULT_CUSTOM_PLAN_KEY = "personalizado";
 
     private final SubscriptionPlanRepositoryJpa plans;
     private final CompanyRepositoryJpa companies;
@@ -69,6 +70,7 @@ public class SuperAdminPlanManagementService {
         );
 
         return plans.findAllByOrderBySortOrderAscPlanNameAsc().stream()
+                .filter(plan -> !isDefaultCustomTemplate(plan))
                 .map(plan -> toRow(plan, assignedCounts.getOrDefault(plan.getId(), 0L)))
                 .toList();
     }
@@ -76,6 +78,7 @@ public class SuperAdminPlanManagementService {
     @Transactional(readOnly = true)
     public List<PlanOptionRow> listActivePlanOptions() {
         return plans.findAllByActiveTrueOrderBySortOrderAscPlanNameAsc().stream()
+                .filter(plan -> !isDefaultCustomTemplate(plan))
                 .map(this::toOptionRow)
                 .toList();
     }
@@ -345,6 +348,8 @@ public class SuperAdminPlanManagementService {
         entity.setDescription(values.description());
         entity.setBillingRecurrence(values.billingRecurrence());
         entity.setPriceCents(values.priceCents());
+        entity.setMonthlyPriceCents(values.monthlyPriceCents());
+        entity.setAnnualPriceCents(values.annualPriceCents());
         entity.setCustomPlan(values.customPlan());
         entity.setSystemPlan(values.systemPlan());
         entity.setActive(values.active());
@@ -394,12 +399,30 @@ public class SuperAdminPlanManagementService {
             throw new BusinessException("PLAN_KEY_ALREADY_EXISTS", "Ja existe um plano com esta chave.");
         }
 
+        String legacyBillingRecurrence = normalizeRecurrence(command.billingRecurrence());
+        Long legacyPriceCents = normalizePrice(command.priceCents());
+        Long monthlyPriceCents = normalizePrice(command.monthlyPriceCents());
+        Long annualPriceCents = normalizePrice(command.annualPriceCents());
+
+        if (legacyPriceCents != null) {
+            if ("ANNUAL".equals(legacyBillingRecurrence)) {
+                annualPriceCents = annualPriceCents == null ? legacyPriceCents : annualPriceCents;
+            } else {
+                monthlyPriceCents = monthlyPriceCents == null ? legacyPriceCents : monthlyPriceCents;
+            }
+        }
+
+        String billingRecurrence = resolveDefaultBillingRecurrence(monthlyPriceCents, annualPriceCents, legacyBillingRecurrence);
+        Long priceCents = resolveDefaultPriceCents(monthlyPriceCents, annualPriceCents, billingRecurrence);
+
         return new NormalizedPlanValues(
                 planKey,
                 planName,
                 normalizeNullable(command.description()),
-                normalizeRecurrence(command.billingRecurrence()),
-                normalizePrice(command.priceCents()),
+                billingRecurrence,
+                priceCents,
+                monthlyPriceCents,
+                annualPriceCents,
                 Boolean.TRUE.equals(command.customPlan()),
                 Boolean.TRUE.equals(command.systemPlan()),
                 command.active() == null || command.active(),
@@ -438,6 +461,8 @@ public class SuperAdminPlanManagementService {
                 entity.getDescription(),
                 entity.getBillingRecurrence(),
                 entity.getPriceCents(),
+                entity.getMonthlyPriceCents(),
+                entity.getAnnualPriceCents(),
                 entity.isCustomPlan(),
                 entity.isSystemPlan(),
                 entity.isActive(),
@@ -459,6 +484,8 @@ public class SuperAdminPlanManagementService {
                 entity.getPlanName(),
                 entity.getBillingRecurrence(),
                 entity.getPriceCents(),
+                entity.getMonthlyPriceCents(),
+                entity.getAnnualPriceCents(),
                 entity.isCustomPlan(),
                 entity.getUsersLimit(),
                 entity.getVehiclesLimit(),
@@ -473,6 +500,8 @@ public class SuperAdminPlanManagementService {
                 entity.getPlanName(),
                 entity.getBillingRecurrence(),
                 entity.getPriceCents(),
+                entity.getMonthlyPriceCents(),
+                entity.getAnnualPriceCents(),
                 entity.getUsersLimit(),
                 entity.getVehiclesLimit(),
                 entity.getActiveAdsLimit(),
@@ -510,6 +539,26 @@ public class SuperAdminPlanManagementService {
         if ("MONTH".equals(upper) || "MONTHLY".equals(upper) || "MENSAL".equals(upper)) return "MONTHLY";
         if ("YEAR".equals(upper) || "YEARLY".equals(upper) || "ANNUAL".equals(upper) || "ANUAL".equals(upper)) return "ANNUAL";
         throw new BusinessException("PLAN_RECURRENCE_INVALID", "Recorrencia do plano invalida.");
+    }
+
+    private String resolveDefaultBillingRecurrence(Long monthlyPriceCents, Long annualPriceCents, String fallback) {
+        if (monthlyPriceCents != null) return "MONTHLY";
+        if (annualPriceCents != null) return "ANNUAL";
+        return fallback;
+    }
+
+    private Long resolveDefaultPriceCents(Long monthlyPriceCents, Long annualPriceCents, String billingRecurrence) {
+        if ("ANNUAL".equals(billingRecurrence)) {
+            return annualPriceCents != null ? annualPriceCents : monthlyPriceCents;
+        }
+        if ("MONTHLY".equals(billingRecurrence)) {
+            return monthlyPriceCents != null ? monthlyPriceCents : annualPriceCents;
+        }
+        return monthlyPriceCents != null ? monthlyPriceCents : annualPriceCents;
+    }
+
+    private boolean isDefaultCustomTemplate(JpaSubscriptionPlanEntity entity) {
+        return entity.isSystemPlan() && DEFAULT_CUSTOM_PLAN_KEY.equalsIgnoreCase(normalizeText(entity.getPlanKey()));
     }
 
     private String normalizePlanKey(String raw, String fallbackName) {
@@ -557,6 +606,8 @@ public class SuperAdminPlanManagementService {
             String description,
             String billingRecurrence,
             Long priceCents,
+            Long monthlyPriceCents,
+            Long annualPriceCents,
             boolean customPlan,
             boolean systemPlan,
             boolean active,
@@ -597,6 +648,8 @@ public class SuperAdminPlanManagementService {
             String description,
             String billingRecurrence,
             Long priceCents,
+            Long monthlyPriceCents,
+            Long annualPriceCents,
             boolean customPlan,
             boolean systemPlan,
             boolean active,
@@ -617,6 +670,8 @@ public class SuperAdminPlanManagementService {
             String planName,
             String billingRecurrence,
             Long priceCents,
+            Long monthlyPriceCents,
+            Long annualPriceCents,
             boolean customPlan,
             Integer usersLimit,
             Integer vehiclesLimit,
@@ -630,11 +685,20 @@ public class SuperAdminPlanManagementService {
             String planName,
             String billingRecurrence,
             Long priceCents,
+            Long monthlyPriceCents,
+            Long annualPriceCents,
             Integer usersLimit,
             Integer vehiclesLimit,
             Integer activeAdsLimit,
             PlanFeatures features
     ) {
+        public Long priceForRecurrence(String recurrence) {
+            String normalized = recurrence == null ? "" : recurrence.trim().toUpperCase(Locale.ROOT);
+            if ("ANNUAL".equals(normalized) || "YEARLY".equals(normalized) || "YEAR".equals(normalized)) {
+                return annualPriceCents != null ? annualPriceCents : priceCents != null ? priceCents : monthlyPriceCents;
+            }
+            return monthlyPriceCents != null ? monthlyPriceCents : priceCents != null ? priceCents : annualPriceCents;
+        }
     }
 
     public record SavePlanCommand(
@@ -643,6 +707,8 @@ public class SuperAdminPlanManagementService {
             String description,
             String billingRecurrence,
             Long priceCents,
+            Long monthlyPriceCents,
+            Long annualPriceCents,
             Boolean customPlan,
             Boolean systemPlan,
             Boolean active,

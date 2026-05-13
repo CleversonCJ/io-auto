@@ -192,7 +192,7 @@ function resolveFinanceiroAlert(section: SuperAdminSection, index: number): Reso
     }
 
     if (index === 1) {
-        const overdueRevenueLabel = "R$ 32,6 mil";
+        const overdueRevenueLabel = section.statCards.find((card) => card.label === "Receita em atraso")?.value ?? "R$ 0";
         const overdueRevenue = parseCurrencyValue(overdueRevenueLabel);
         const currentMrr = parseCurrencyValue(getMetricByLabel(section, "MRR")?.value ?? "");
         if (overdueRevenue == null || currentMrr == null || currentMrr === 0) return null;

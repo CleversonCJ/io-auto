@@ -111,15 +111,38 @@ public class SuperAdminTenantManagementService {
                     c.created_at,
                     c.last_access_at,
                     upper(coalesce(nullif(c.subscription_status, ''), nullif(c.status, ''), 'ACTIVE')) as subscription_status,
-                    coalesce(plan.plan_name, latest_billing.plan_name, 'Start') as plan_name,
-                    coalesce(plan.plan_key, latest_billing.plan_key, 'start') as plan_key,
-                    coalesce(c.subscription_amount_cents, latest_billing.amount_cents, plan.price_cents, 0) as subscription_amount_cents,
-                    upper(coalesce(c.billing_recurrence,
-                        plan.billing_recurrence,
+                    coalesce(nullif(latest_billing.plan_name, ''), plan.plan_name, 'Start') as plan_name,
+                    coalesce(nullif(latest_billing.plan_key, ''), plan.plan_key, 'start') as plan_key,
+                    coalesce(
+                        c.subscription_amount_cents,
+                        latest_billing.amount_cents,
                         case
-                            when upper(coalesce(latest_billing.billing_interval, 'MONTH')) in ('YEAR', 'ANNUAL', 'YEARLY') then 'ANNUAL'
-                            else 'MONTHLY'
+                            when upper(
+                                coalesce(
+                                    nullif(c.billing_recurrence, ''),
+                                    case
+                                        when upper(coalesce(latest_billing.billing_interval, '')) in ('YEAR', 'ANNUAL', 'YEARLY') then 'YEARLY'
+                                        when upper(coalesce(latest_billing.billing_interval, '')) in ('WEEK', 'WEEKLY') then 'WEEKLY'
+                                        else upper(nullif(latest_billing.billing_interval, ''))
+                                    end,
+                                    nullif(plan.billing_recurrence, ''),
+                                    'MONTHLY'
+                                )
+                            ) in ('ANNUAL', 'YEARLY', 'YEAR')
+                                then coalesce(plan.annual_price_cents, plan.price_cents, plan.monthly_price_cents, 0)
+                            else coalesce(plan.monthly_price_cents, plan.price_cents, plan.annual_price_cents, 0)
                         end
+                    ) as subscription_amount_cents,
+                    upper(coalesce(
+                        case
+                            when upper(coalesce(latest_billing.billing_interval, '')) in ('YEAR', 'ANNUAL', 'YEARLY') then 'YEARLY'
+                            when upper(coalesce(latest_billing.billing_interval, '')) in ('WEEK', 'WEEKLY') then 'WEEKLY'
+                            when upper(coalesce(latest_billing.billing_interval, '')) in ('MONTH', 'MONTHLY') then 'MONTHLY'
+                            else nullif(latest_billing.billing_interval, '')
+                        end,
+                        nullif(c.billing_recurrence, ''),
+                        nullif(plan.billing_recurrence, ''),
+                        'MONTHLY'
                     )) as recurrence,
                     coalesce(stock.stock_count, 0) as stock_count,
                     coalesce(ads.active_ads, 0) as active_ads
@@ -287,14 +310,14 @@ public class SuperAdminTenantManagementService {
         UUID resolvedPlanId = resolvedPlan.map(SuperAdminPlanManagementService.PlanSnapshot::planId).orElse(null);
         String resolvedPlanName = resolvedPlan.map(SuperAdminPlanManagementService.PlanSnapshot::planName).orElse(normalizeNullable(command.planName()));
         String resolvedPlanKey = resolvedPlan.map(SuperAdminPlanManagementService.PlanSnapshot::planKey).orElse(normalizeNullable(command.planKey()));
-        Long resolvedAmountCents = command.subscriptionAmountCents() != null
-                ? Math.max(command.subscriptionAmountCents(), 0L)
-                : resolvedPlan.map(SuperAdminPlanManagementService.PlanSnapshot::priceCents).orElse(null);
         String resolvedRecurrence = normalizeRecurrence(
                 command.billingRecurrence() != null
                         ? command.billingRecurrence()
                         : resolvedPlan.map(SuperAdminPlanManagementService.PlanSnapshot::billingRecurrence).orElse(null)
         );
+        Long resolvedAmountCents = command.subscriptionAmountCents() != null
+                ? Math.max(command.subscriptionAmountCents(), 0L)
+                : resolvedPlan.map(plan -> plan.priceForRecurrence(resolvedRecurrence)).orElse(null);
 
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("tenantId", tenantId)
@@ -496,10 +519,14 @@ public class SuperAdminTenantManagementService {
 
     private long toMrrCents(long amountCents, String recurrence) {
         String normalized = recurrence == null ? "MONTHLY" : recurrence.trim().toUpperCase(Locale.ROOT);
-        if ("ANNUAL".equals(normalized)) {
-            return Math.round(amountCents / 12.0D);
-        }
-        return amountCents;
+        return switch (normalized) {
+            case "ANNUAL", "YEARLY", "YEAR" -> Math.round(amountCents / 12.0D);
+            case "QUARTERLY" -> Math.round(amountCents / 3.0D);
+            case "SEMIANNUALLY" -> Math.round(amountCents / 6.0D);
+            case "WEEKLY" -> Math.round(amountCents * (52.0D / 12.0D));
+            case "BIWEEKLY" -> Math.round(amountCents * (26.0D / 12.0D));
+            default -> amountCents;
+        };
     }
 
     private Set<String> parseModulePermissions(String raw) {
@@ -514,15 +541,23 @@ public class SuperAdminTenantManagementService {
         String normalized = normalizeNullable(raw);
         if (normalized == null) return null;
         String value = normalized.toUpperCase(Locale.ROOT);
-        if (!"MONTHLY".equals(value) && !"ANNUAL".equals(value)) {
-            throw new BusinessException("TENANT_PLAN_RECURRENCE_INVALID", "Recorrencia invalida. Use MONTHLY ou ANNUAL.");
-        }
-        return value;
+        return switch (value) {
+            case "MONTH", "MONTHLY", "MENSAL" -> "MONTHLY";
+            case "YEAR", "YEARLY", "ANNUAL", "ANUAL" -> "YEARLY";
+            case "WEEK", "WEEKLY", "SEMANAL" -> "WEEKLY";
+            case "BIWEEKLY", "QUINZENAL" -> "BIWEEKLY";
+            case "QUARTERLY", "TRIMESTRAL" -> "QUARTERLY";
+            case "SEMIANNUALLY", "SEMIANNUAL", "SEMESTRAL" -> "SEMIANNUALLY";
+            default -> throw new BusinessException(
+                    "TENANT_PLAN_RECURRENCE_INVALID",
+                    "Recorrencia invalida. Use MONTHLY, YEARLY, WEEKLY, BIWEEKLY, QUARTERLY ou SEMIANNUALLY."
+            );
+        };
     }
 
     private String mapBillingInterval(String recurrence) {
         if (recurrence == null) return null;
-        return "ANNUAL".equals(recurrence) ? "year" : "month";
+        return recurrence;
     }
 
     private String normalizeNullable(String value) {

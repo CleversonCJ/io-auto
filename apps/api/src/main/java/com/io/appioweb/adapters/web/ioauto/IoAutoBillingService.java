@@ -1021,9 +1021,12 @@ public class IoAutoBillingService {
     private String toBillingInterval(String cycle) {
         String normalized = normalizeText(cycle).toUpperCase(Locale.ROOT);
         return switch (normalized) {
-            case "WEEKLY", "BIWEEKLY" -> "week";
-            case "YEARLY" -> "year";
-            default -> "month";
+            case "WEEK", "WEEKLY" -> "WEEKLY";
+            case "BIWEEKLY" -> "BIWEEKLY";
+            case "QUARTERLY" -> "QUARTERLY";
+            case "SEMIANNUALLY", "SEMIANNUAL" -> "SEMIANNUALLY";
+            case "YEAR", "YEARLY", "ANNUAL" -> "YEARLY";
+            default -> "MONTHLY";
         };
     }
 

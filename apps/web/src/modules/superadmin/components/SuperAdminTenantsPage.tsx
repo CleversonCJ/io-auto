@@ -49,6 +49,8 @@ type PlanOption = {
     planName: string;
     billingRecurrence?: string | null;
     priceCents?: number | null;
+    monthlyPriceCents?: number | null;
+    annualPriceCents?: number | null;
     customPlan: boolean;
     usersLimit?: number | null;
     vehiclesLimit?: number | null;
@@ -104,6 +106,11 @@ function toCurrency(cents?: number | null) {
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }
 
+function toOptionalCurrency(cents?: number | null) {
+    if (cents == null || cents <= 0) return "sob consulta";
+    return toCurrency(cents);
+}
+
 function toNumber(value?: number | null) {
     return new Intl.NumberFormat("pt-BR").format(value ?? 0);
 }
@@ -116,6 +123,27 @@ function titleCase(value?: string | null) {
         .filter(Boolean)
         .map((token) => token[0]?.toUpperCase() + token.slice(1))
         .join(" ");
+}
+
+function billingCycleLabel(value?: string | null) {
+    const normalized = String(value ?? "").trim().toUpperCase();
+    if (!normalized) return "-";
+    if (normalized === "MONTHLY" || normalized === "MONTH") return "Mensal";
+    if (normalized === "YEARLY" || normalized === "ANNUAL" || normalized === "YEAR") return "Anual";
+    if (normalized === "WEEKLY" || normalized === "WEEK") return "Semanal";
+    if (normalized === "BIWEEKLY") return "Quinzenal";
+    if (normalized === "QUARTERLY") return "Trimestral";
+    if (normalized === "SEMIANNUALLY") return "Semestral";
+    return titleCase(normalized);
+}
+
+function resolvePlanAmountCents(plan: PlanOption | undefined, billingRecurrence: string) {
+    if (!plan) return null;
+    const normalized = String(billingRecurrence).trim().toUpperCase();
+    if (normalized === "YEARLY" || normalized === "ANNUAL" || normalized === "YEAR") {
+        return plan.annualPriceCents ?? plan.priceCents ?? plan.monthlyPriceCents ?? null;
+    }
+    return plan.monthlyPriceCents ?? plan.priceCents ?? plan.annualPriceCents ?? null;
 }
 
 function buildQuery(filters: FilterState) {
@@ -350,6 +378,30 @@ export function SuperAdminTenantsPage() {
         }
     }
 
+    function handlePlanSelection(planId: string) {
+        setPlanForm((current) => {
+            const selectedPlan = planOptions.find((plan) => plan.planId === planId);
+            const resolvedAmountCents = resolvePlanAmountCents(selectedPlan, current.billingRecurrence);
+            return {
+                ...current,
+                planId,
+                amount: resolvedAmountCents != null ? (resolvedAmountCents / 100).toFixed(2) : current.amount,
+            };
+        });
+    }
+
+    function handleRecurrenceSelection(nextRecurrence: string) {
+        setPlanForm((current) => {
+            const selectedPlan = planOptions.find((plan) => plan.planId === current.planId);
+            const resolvedAmountCents = resolvePlanAmountCents(selectedPlan, nextRecurrence);
+            return {
+                ...current,
+                billingRecurrence: nextRecurrence,
+                amount: resolvedAmountCents != null ? (resolvedAmountCents / 100).toFixed(2) : current.amount,
+            };
+        });
+    }
+
     return (
         <div className="grid gap-6">
             <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -430,14 +482,14 @@ export function SuperAdminTenantsPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                             <p className="text-sm font-semibold text-io-dark">Editar plano de {planTenant.companyName}</p>
-                            <p className="text-xs text-black/55">Atualiza plano, recorrencia, valor contratado e status da assinatura.</p>
+                            <p className="text-xs text-black/55">Atualiza plano, ciclo, valor contratado e status da assinatura.</p>
                         </div>
                         <button type="button" onClick={() => setPlanTenant(null)} className="text-sm font-semibold text-black/55">Fechar</button>
                     </div>
                     <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                         <label className="grid gap-1 text-xs text-black/55">
                             Plano
-                            <select value={planForm.planId} onChange={(event) => setPlanForm((current) => ({ ...current, planId: event.target.value }))} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
+                            <select value={planForm.planId} onChange={(event) => handlePlanSelection(event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
                                 <option value="">Selecione</option>
                                 {planOptions.map((plan) => (
                                     <option key={plan.planId} value={plan.planId}>
@@ -451,10 +503,10 @@ export function SuperAdminTenantsPage() {
                             <input value={planForm.amount} onChange={(event) => setPlanForm((current) => ({ ...current, amount: event.target.value }))} type="number" min="0" step="0.01" className="h-10 rounded-lg border border-black/12 px-3 text-sm" />
                         </label>
                         <label className="grid gap-1 text-xs text-black/55">
-                            Recorrencia
-                            <select value={planForm.billingRecurrence} onChange={(event) => setPlanForm((current) => ({ ...current, billingRecurrence: event.target.value }))} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
+                            Ciclo
+                            <select value={planForm.billingRecurrence} onChange={(event) => handleRecurrenceSelection(event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
                                 <option value="MONTHLY">Mensal</option>
-                                <option value="ANNUAL">Anual</option>
+                                <option value="YEARLY">Anual</option>
                             </select>
                         </label>
                         <label className="grid gap-1 text-xs text-black/55">
@@ -471,7 +523,7 @@ export function SuperAdminTenantsPage() {
                                 ? (() => {
                                       const plan = planOptions.find((item) => item.planId === planForm.planId);
                                       if (!plan) return "Plano selecionado sem detalhes disponiveis.";
-                                      return `${plan.planName} | ${plan.usersLimit ?? "ilimitado"} usuarios | ${plan.vehiclesLimit ?? "ilimitado"} veiculos`;
+                                      return `${plan.planName} | mensal ${toOptionalCurrency(plan.monthlyPriceCents)} | anual ${toOptionalCurrency(plan.annualPriceCents)} | ${plan.usersLimit ?? "ilimitado"} usuarios | ${plan.vehiclesLimit ?? "ilimitado"} veiculos`;
                                   })()
                                 : "Selecione um plano do catalogo para aplicar a conta."}
                         </div>
@@ -570,7 +622,7 @@ export function SuperAdminTenantsPage() {
                                             </td>
                                             <td className="px-3 py-4 align-top">
                                                 <p className="text-sm font-medium text-io-dark">{row.planName || "-"}</p>
-                                                <p className="mt-1 text-xs text-black/55">{titleCase(row.billingRecurrence)}</p>
+                                                <p className="mt-1 text-xs text-black/55">Ciclo: {billingCycleLabel(row.billingRecurrence)}</p>
                                                 <p className="mt-1 text-xs text-black/55">Contrato: {toCurrency(row.subscriptionAmountCents)}</p>
                                             </td>
                                             <td className="px-3 py-4 align-top">

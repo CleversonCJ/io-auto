@@ -53,6 +53,14 @@ export function statusLabel(status?: string | null) {
         CONFIGURATION_REQUIRED: "Configurar",
         CONNECTED: "Conectado",
         ACTIVE: "Ativo",
+        BLOCKED: "Bloqueado",
+        OVERDUE: "Em atraso",
+        PENDING: "Pendente",
+        RECEIVED: "Recebido",
+        CONFIRMED: "Confirmado",
+        FAILED: "Falhou",
+        PAYMENT_FAILED: "Falha no pagamento",
+        UNPAID: "Nao pago",
         READY_TO_SYNC: "Pronto para publicar",
         WAITING_CONFIGURATION: "Aguardando integração",
         ERROR: "Com erro",
@@ -79,5 +87,17 @@ export function statusLabel(status?: string | null) {
         NOT_YET_ACTIVE: "Ainda nao ativo",
         INACTIVE: "Inativo",
     };
+    return labels[normalized] ?? (normalized ? normalized.replaceAll("_", " ") : "-");
+}
+
+export function billingTypeLabel(value?: string | null) {
+    const normalized = String(value ?? "").trim().toUpperCase();
+    const labels: Record<string, string> = {
+        PIX: "Pix",
+        CREDIT_CARD: "Cartao de credito",
+        BOLETO: "Boleto",
+        UNDEFINED: "Nao informado",
+    };
+
     return labels[normalized] ?? (normalized ? normalized.replaceAll("_", " ") : "-");
 }

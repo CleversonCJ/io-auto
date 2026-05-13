@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { billingTypeLabel, formatDateTime, statusLabel } from "@/modules/ioauto/formatters";
 import type { BillingAccessStatusSnapshot, BillingRegularizationOptions } from "@/modules/ioauto/types";
 
 function normalizePixImageSource(raw: string | null | undefined) {
@@ -103,9 +104,14 @@ export function BillingAccessBlockerPopup() {
                     {status?.blockReason || "Sua assinatura esta pendente. Regularize o pagamento para liberar o sistema novamente."}
                 </p>
 
-                <div className="mt-4 grid gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700 md:grid-cols-2">
-                    <p>Status da assinatura: <strong>{status?.subscriptionStatus || "PENDENTE"}</strong></p>
-                    <p>Status do pagamento: <strong>{status?.paymentStatus || "PENDENTE"}</strong></p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <PopupInfoCard label="Assinatura" value={statusLabel(status?.subscriptionStatus)} />
+                    <PopupInfoCard label="Pagamento" value={statusLabel(status?.paymentStatus)} />
+                    <PopupInfoCard label="Forma" value={billingTypeLabel(status?.billingType)} />
+                    <PopupInfoCard
+                        label={status?.blockedAt ? "Bloqueado em" : "Vencimento"}
+                        value={formatDateTime(status?.blockedAt || status?.currentPeriodEnd)}
+                    />
                 </div>
 
                 {regularization?.available && regularization.pix ? (
@@ -201,6 +207,15 @@ export function BillingAccessBlockerPopup() {
                     </button>
                 </div>
             </div>
+        </div>
+    );
+}
+
+function PopupInfoCard({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">{label}</p>
+            <p className="mt-2 text-sm font-semibold text-zinc-900">{value}</p>
         </div>
     );
 }

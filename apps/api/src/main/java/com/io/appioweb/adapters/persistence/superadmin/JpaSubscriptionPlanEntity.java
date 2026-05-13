@@ -30,6 +30,12 @@ public class JpaSubscriptionPlanEntity {
     @Column(name = "price_cents")
     private Long priceCents;
 
+    @Column(name = "monthly_price_cents")
+    private Long monthlyPriceCents;
+
+    @Column(name = "annual_price_cents")
+    private Long annualPriceCents;
+
     @Column(name = "is_custom", nullable = false)
     private boolean customPlan;
 
@@ -128,6 +134,12 @@ public class JpaSubscriptionPlanEntity {
 
     public Long getPriceCents() { return priceCents; }
     public void setPriceCents(Long priceCents) { this.priceCents = priceCents; }
+
+    public Long getMonthlyPriceCents() { return monthlyPriceCents; }
+    public void setMonthlyPriceCents(Long monthlyPriceCents) { this.monthlyPriceCents = monthlyPriceCents; }
+
+    public Long getAnnualPriceCents() { return annualPriceCents; }
+    public void setAnnualPriceCents(Long annualPriceCents) { this.annualPriceCents = annualPriceCents; }
 
     public boolean isCustomPlan() { return customPlan; }
     public void setCustomPlan(boolean customPlan) { this.customPlan = customPlan; }
