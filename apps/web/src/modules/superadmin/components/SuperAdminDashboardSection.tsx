@@ -115,6 +115,11 @@ function healthBadgeDotClasses(value?: string | null) {
     return "bg-slate-400";
 }
 
+function formatChartCategoryLabel(value?: string | null) {
+    if (!value) return "-";
+    return isHealthBadge(value) ? formatHealthBadgeLabel(value) : value;
+}
+
 function parseLocaleNumber(raw: string) {
     const normalized = raw.replace(/\./g, "").replace(",", ".");
     const value = Number(normalized);
@@ -639,6 +644,8 @@ function getResolvedAlert(section: SuperAdminSection, alert: SuperAdminAlert, in
 }
 
 function buildChartOptions(chart: SuperAdminChart): Highcharts.Options {
+    const formattedCategories = chart.categories?.map((category) => formatChartCategoryLabel(category));
+
     return {
         chart: {
             backgroundColor: "transparent",
@@ -669,7 +676,7 @@ function buildChartOptions(chart: SuperAdminChart): Highcharts.Options {
         xAxis: chart.type === "pie"
             ? undefined
             : {
-                categories: chart.categories,
+                categories: formattedCategories,
                 lineColor: "#d9d9d9",
                 tickColor: "#d9d9d9",
                 labels: {
@@ -725,7 +732,7 @@ function buildChartOptions(chart: SuperAdminChart): Highcharts.Options {
                     type: "pie",
                     name: chart.series[0]?.name ?? chart.title,
                     data: (chart.series[0]?.data ?? []).map((value, index) => ({
-                        name: chart.categories?.[index] ?? `Item ${index + 1}`,
+                        name: formattedCategories?.[index] ?? `Item ${index + 1}`,
                         y: value,
                     })),
                 },
