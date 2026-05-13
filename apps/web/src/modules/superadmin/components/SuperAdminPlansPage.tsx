@@ -149,14 +149,26 @@ function toLimit(value: number | null | undefined, suffix: string) {
     return `Ate ${toNumber(value)} ${suffix}`;
 }
 
+function formatCurrencyInput(raw: string) {
+    if (!raw) return "";
+    return new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+    }).format(Number(raw) / 100);
+}
+
+function normalizeCurrencyDigits(value: string) {
+    return value.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+}
+
 function buildFormFromPlan(plan: PlanRow): PlanFormState {
     return {
         planId: plan.planId,
         planName: plan.planName ?? "",
         planKey: plan.planKey ?? "",
         description: plan.description ?? "",
-        monthlyPrice: plan.monthlyPriceCents ? String(plan.monthlyPriceCents / 100) : "",
-        annualPrice: plan.annualPriceCents ? String(plan.annualPriceCents / 100) : "",
+        monthlyPrice: plan.monthlyPriceCents ? String(plan.monthlyPriceCents) : "",
+        annualPrice: plan.annualPriceCents ? String(plan.annualPriceCents) : "",
         customPlan: Boolean(plan.customPlan),
         systemPlan: Boolean(plan.systemPlan),
         active: Boolean(plan.active),
@@ -169,8 +181,6 @@ function buildFormFromPlan(plan: PlanRow): PlanFormState {
 }
 
 function buildPayload(form: PlanFormState) {
-    const monthlyPriceNumber = Number(form.monthlyPrice);
-    const annualPriceNumber = Number(form.annualPrice);
     const toLimitValue = (raw: string) => {
         const numeric = Number(raw);
         return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : null;
@@ -182,8 +192,8 @@ function buildPayload(form: PlanFormState) {
         description: form.description.trim() || null,
         billingRecurrence: null,
         priceCents: null,
-        monthlyPriceCents: Number.isFinite(monthlyPriceNumber) && monthlyPriceNumber > 0 ? Math.round(monthlyPriceNumber * 100) : null,
-        annualPriceCents: Number.isFinite(annualPriceNumber) && annualPriceNumber > 0 ? Math.round(annualPriceNumber * 100) : null,
+        monthlyPriceCents: form.monthlyPrice ? Number(form.monthlyPrice) : null,
+        annualPriceCents: form.annualPrice ? Number(form.annualPrice) : null,
         customPlan: form.customPlan,
         systemPlan: form.systemPlan,
         active: form.active,
@@ -487,26 +497,16 @@ export function SuperAdminPlansPage() {
                             </label>
                             <label className="grid gap-1 text-xs text-black/55">
                                 Valor mensal (BRL)
-                                <input
+                                <MoneyField
                                     value={form.monthlyPrice}
-                                    onChange={(event) => setForm((current) => ({ ...current, monthlyPrice: event.target.value }))}
-                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="197.00"
+                                    onChange={(value) => setForm((current) => ({ ...current, monthlyPrice: value }))}
                                 />
                             </label>
                             <label className="grid gap-1 text-xs text-black/55">
                                 Valor anual (BRL)
-                                <input
+                                <MoneyField
                                     value={form.annualPrice}
-                                    onChange={(event) => setForm((current) => ({ ...current, annualPrice: event.target.value }))}
-                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="1970.00"
+                                    onChange={(value) => setForm((current) => ({ ...current, annualPrice: value }))}
                                 />
                             </label>
                             <label className="grid gap-1 text-xs text-black/55">
@@ -619,5 +619,23 @@ export function SuperAdminPlansPage() {
                 </div>
             ) : null}
         </div>
+    );
+}
+
+function MoneyField({
+    value,
+    onChange,
+}: {
+    value: string;
+    onChange: (value: string) => void;
+}) {
+    return (
+        <input
+            value={formatCurrencyInput(value)}
+            onChange={(event) => onChange(normalizeCurrencyDigits(event.target.value))}
+            inputMode="numeric"
+            placeholder="R$ 0,00"
+            className="h-11 rounded-xl border border-black/10 px-3 text-sm font-semibold text-io-dark outline-none transition focus:border-black/30"
+        />
     );
 }
