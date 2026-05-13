@@ -12,7 +12,6 @@ import {
     Trash2,
     Users2,
 } from "lucide-react";
-import { superAdminSections } from "@/modules/superadmin/data";
 
 type PlanFeatures = {
     catalogBioLink: boolean;
@@ -224,7 +223,6 @@ function buildPayload(form: PlanFormState) {
 }
 
 export function SuperAdminPlansPage() {
-    const meta = superAdminSections.planos;
     const [rows, setRows] = useState<PlanRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -336,24 +334,16 @@ export function SuperAdminPlansPage() {
 
     return (
         <div className="grid gap-6">
-            <section className="overflow-hidden rounded-[32px] border border-black/10 bg-[radial-gradient(circle_at_top_left,_rgba(107,0,227,0.18),_transparent_38%),linear-gradient(135deg,#ffffff,#f6f2ff_55%,#eef8ff)] p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="max-w-4xl">
-                        <p className="text-xs uppercase tracking-[0.24em] text-black/40">{meta.label}</p>
-                        <h1 className="mt-2 font-display text-3xl font-bold text-io-dark">{meta.title}</h1>
-                        <p className="mt-2 text-sm leading-6 text-black/65">{meta.description}</p>
-                        <p className="mt-4 rounded-2xl bg-white/70 px-4 py-3 text-sm text-black/65 shadow-sm">{meta.spotlight}</p>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={resetForm}
-                        className="inline-flex h-11 items-center gap-2 rounded-full bg-io-dark px-5 text-sm font-semibold text-white"
-                    >
-                        <Plus className="h-4 w-4" />
-                        Novo plano
-                    </button>
-                </div>
-            </section>
+            <div className="flex justify-end">
+                <button
+                    type="button"
+                    onClick={resetForm}
+                    className="inline-flex h-11 items-center gap-2 rounded-full bg-io-dark px-5 text-sm font-semibold text-white"
+                >
+                    <Plus className="h-4 w-4" />
+                    Novo plano
+                </button>
+            </div>
 
             <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <article className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">

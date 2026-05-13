@@ -234,18 +234,108 @@ public class IoAutoBillingService {
                 ));
     }
 
+    @Transactional(readOnly = true)
+    public BillingAccessStatusSnapshot getBillingAccessStatus(UUID companyId) {
+        JpaCompanyEntity company = companyRepo.findById(companyId)
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+
+        Optional<JpaIoAutoBillingSubscriptionEntity> subscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId);
+        Optional<AsaasPayment> latestPayment = findLatestPaymentForCompany(subscription.orElse(null));
+        Optional<AsaasPayment> regularizationPayment = findRegularizationPayment(subscription.orElse(null), latestPayment.orElse(null));
+
+        return toAccessStatus(company, subscription.orElse(null), latestPayment.orElse(null), regularizationPayment.orElse(null));
+    }
+
+    @Transactional
+    public BillingAccessStatusSnapshot verifyAndSyncBillingAccessStatus(UUID companyId) {
+        JpaCompanyEntity company = companyRepo.findById(companyId)
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+
+        Optional<JpaIoAutoBillingSubscriptionEntity> subscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId);
+        Optional<AsaasPayment> latestPayment = findLatestPaymentForCompany(subscription.orElse(null));
+
+        latestPayment.ifPresent(payment -> syncSubscription(companyId, payment, payment.checkoutSession()));
+
+        JpaCompanyEntity refreshedCompany = companyRepo.findById(companyId).orElse(company);
+        Optional<JpaIoAutoBillingSubscriptionEntity> refreshedSubscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId);
+        Optional<AsaasPayment> regularizationPayment = findRegularizationPayment(refreshedSubscription.orElse(null), latestPayment.orElse(null));
+
+        return toAccessStatus(
+                refreshedCompany,
+                refreshedSubscription.orElse(null),
+                latestPayment.orElse(null),
+                regularizationPayment.orElse(null)
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public BillingRegularizationOptions getRegularizationOptions(UUID companyId) {
+        JpaCompanyEntity company = companyRepo.findById(companyId)
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+
+        Optional<JpaIoAutoBillingSubscriptionEntity> subscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId);
+        Optional<AsaasPayment> latestPayment = findLatestPaymentForCompany(subscription.orElse(null));
+        Optional<AsaasPayment> regularizationPayment = findRegularizationPayment(subscription.orElse(null), latestPayment.orElse(null));
+
+        if (regularizationPayment.isEmpty()) {
+            return new BillingRegularizationOptions(
+                    false,
+                    false,
+                    false,
+                    "Nao existem cobrancas pendentes para regularizacao no momento.",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    false,
+                    false,
+                    false
+            );
+        }
+
+        AsaasPayment payment = regularizationPayment.get();
+        PixQrCodeSnapshot pixSnapshot = fetchPixQrCodeSnapshot(payment);
+        String billingType = normalizeText(payment.billingType()).toUpperCase(Locale.ROOT);
+
+        boolean pix = "PIX".equals(billingType);
+        boolean creditCard = "CREDIT_CARD".equals(billingType);
+
+        String message = pix
+                ? "Pagamento via Pix pendente. Exiba o QR Code e o copia e cola para o cliente."
+                : creditCard
+                ? "Pagamento via cartao pendente. O cliente pode pagar com o cartao salvo no link ou atualizar os dados."
+                : "Pagamento pendente. Exiba o link da cobranca para regularizacao.";
+
+        String cardLastDigits = extractCreditCardLastDigits(payment);
+        String cardSummary = cardLastDigits == null ? null : "Cartao final " + cardLastDigits;
+
+        return new BillingRegularizationOptions(
+                true,
+                pix,
+                creditCard,
+                message,
+                normalizeText(payment.invoiceUrl()),
+                pixSnapshot.copyPasteCode(),
+                pixSnapshot.encodedImage(),
+                pixSnapshot.expirationDate(),
+                cardSummary,
+                creditCard,
+                creditCard,
+                true
+        );
+    }
+
     public PortalLaunch createPortalSession(UUID companyId) {
         requireAsaasCheckoutConfiguration();
 
         JpaIoAutoBillingSubscriptionEntity subscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId)
                 .orElseThrow(() -> new BusinessException("BILLING_NOT_FOUND", "Nao existe uma assinatura vinculada a esta conta."));
 
-        Optional<AsaasPayment> payment = Optional.empty();
-        if (!normalizeText(subscription.getProviderSubscriptionId()).isBlank()) {
-            payment = findPaymentForPortal(Map.of("subscription", subscription.getProviderSubscriptionId(), "limit", "20"));
-        }
-        if (payment.isEmpty() && !normalizeText(subscription.getProviderCustomerId()).isBlank()) {
-            payment = findPaymentForPortal(Map.of("customer", subscription.getProviderCustomerId(), "limit", "20"));
+        Optional<AsaasPayment> latestPayment = findLatestPaymentForCompany(subscription);
+        Optional<AsaasPayment> payment = findRegularizationPayment(subscription, latestPayment.orElse(null));
+        if (payment.isEmpty()) {
+            payment = latestPayment;
         }
 
         String invoiceUrl = payment.map(AsaasPayment::invoiceUrl).orElse("");
@@ -384,6 +474,76 @@ public class IoAutoBillingService {
                 .findFirst();
     }
 
+    private Optional<AsaasPayment> findLatestPaymentForCompany(JpaIoAutoBillingSubscriptionEntity subscription) {
+        if (subscription == null) {
+            return Optional.empty();
+        }
+        if (asaasApiKey.isBlank()) {
+            return Optional.empty();
+        }
+
+        if (!normalizeText(subscription.getProviderSubscriptionId()).isBlank()) {
+            Optional<AsaasPayment> bySubscription = selectMostRelevantPayment(
+                    listPayments(Map.of("subscription", subscription.getProviderSubscriptionId(), "limit", "20"))
+            );
+            if (bySubscription.isPresent()) {
+                return bySubscription;
+            }
+        }
+
+        if (!normalizeText(subscription.getProviderCustomerId()).isBlank()) {
+            return selectMostRelevantPayment(
+                    listPayments(Map.of("customer", subscription.getProviderCustomerId(), "limit", "20"))
+            );
+        }
+
+        return Optional.empty();
+    }
+
+    private Optional<AsaasPayment> findRegularizationPayment(
+            JpaIoAutoBillingSubscriptionEntity subscription,
+            AsaasPayment latestPayment
+    ) {
+        if (subscription == null) {
+            return Optional.empty();
+        }
+        if (asaasApiKey.isBlank()) {
+            return Optional.empty();
+        }
+
+        List<AsaasPayment> candidates = new ArrayList<>();
+        if (!normalizeText(subscription.getProviderSubscriptionId()).isBlank()) {
+            candidates.addAll(listPayments(Map.of("subscription", subscription.getProviderSubscriptionId(), "limit", "30")));
+        } else if (!normalizeText(subscription.getProviderCustomerId()).isBlank()) {
+            candidates.addAll(listPayments(Map.of("customer", subscription.getProviderCustomerId(), "limit", "30")));
+        }
+
+        if (latestPayment != null) {
+            candidates.add(latestPayment);
+        }
+
+        return candidates.stream()
+                .filter(item -> !normalizeText(item.invoiceUrl()).isBlank())
+                .sorted(Comparator
+                        .comparing((AsaasPayment item) -> regularizationPriority(item.status()))
+                        .thenComparing(item -> item.dueDate() == null ? LocalDate.MIN : item.dueDate())
+                        .thenComparing(item -> item.createdAt() == null ? Instant.EPOCH : item.createdAt())
+                        .reversed())
+                .findFirst()
+                .filter(item -> regularizationPriority(item.status()) > 0 || isPastDue(item));
+    }
+
+    private int regularizationPriority(String status) {
+        String normalized = normalizeText(status).toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "OVERDUE" -> 5;
+            case "PENDING", "AWAITING_RISK_ANALYSIS", "AWAITING_CHECKOUT_RISK_ANALYSIS_REQUEST", "BANK_PROCESSING" -> 4;
+            case "CHARGEBACK_REQUESTED", "CHARGEBACK_DISPUTE", "AWAITING_CHARGEBACK_REVERSAL" -> 3;
+            case "REFUNDED", "FAILED", "CANCELED", "CANCELLED", "DELETED" -> 2;
+            default -> 0;
+        };
+    }
+
     private List<AsaasPayment> listPayments(Map<String, String> params) {
         JsonNode response = callAsaas("GET", "/payments?" + buildQueryString(params), null);
         JsonNode dataNode = response.path("data");
@@ -427,6 +587,9 @@ public class IoAutoBillingService {
         if (intentByCheckout.isPresent()) {
             JpaIoAutoSignupIntentEntity intent = intentByCheckout.get();
             syncIntentReferences(intent, payment, normalizedCheckoutId);
+            if (intent.getCompanyId() != null) {
+                syncSubscription(intent.getCompanyId(), payment, normalizedCheckoutId);
+            }
             if (isPaidPaymentStatus(payment.status())) {
                 activateConfirmedIntent(intent, payment, normalizedCheckoutId);
             }
@@ -439,6 +602,9 @@ public class IoAutoBillingService {
                 UUID intentId = UUID.fromString(externalReference);
                 signupIntents.findById(intentId).ifPresent(intent -> {
                     syncIntentReferences(intent, payment, normalizedCheckoutId);
+                    if (intent.getCompanyId() != null) {
+                        syncSubscription(intent.getCompanyId(), payment, normalizedCheckoutId);
+                    }
                     if (isPaidPaymentStatus(payment.status())) {
                         activateConfirmedIntent(intent, payment, normalizedCheckoutId);
                     }
@@ -690,11 +856,122 @@ public class IoAutoBillingService {
         entity.setUpdatedAt(Instant.now());
         subscriptions.save(entity);
 
+        applyCompanyAccessPolicy(companyId, payment, entity);
+    }
+
+    private void applyCompanyAccessPolicy(
+            UUID companyId,
+            AsaasPayment payment,
+            JpaIoAutoBillingSubscriptionEntity subscription
+    ) {
         companyRepo.findById(companyId).ifPresent(company -> {
-            company.setContractEndDate(toContractEndDate(payment, Instant.now()));
-            company.setUpdatedAt(Instant.now());
+            Instant now = Instant.now();
+            boolean blocked = shouldBlockAccess(payment);
+
+            company.setContractEndDate(toContractEndDate(payment, now));
+            company.setSubscriptionStatus(toCompanySubscriptionStatus(payment.status(), blocked));
+            company.setSubscriptionAmountCents(subscription.getAmountCents());
+            company.setBillingRecurrence(toCompanyBillingRecurrence(planCycle));
+
+            if (company.getSubscriptionStartedAt() == null && isPaidPaymentStatus(payment.status())) {
+                company.setSubscriptionStartedAt(now);
+            }
+
+            if (isCanceledLikePaymentStatus(payment.status())) {
+                company.setSubscriptionCanceledAt(now);
+            } else if (isPaidPaymentStatus(payment.status())) {
+                company.setSubscriptionCanceledAt(null);
+            }
+
+            if (blocked) {
+                company.setStatus("INACTIVE");
+                if (company.getBlockedAt() == null) {
+                    company.setBlockedAt(now);
+                }
+            } else {
+                company.setStatus("ACTIVE");
+                company.setBlockedAt(null);
+            }
+
+            company.setUpdatedAt(now);
             companyRepo.save(company);
         });
+    }
+
+    private boolean shouldBlockAccess(AsaasPayment payment) {
+        if (payment == null) {
+            return false;
+        }
+
+        String status = normalizeText(payment.status()).toUpperCase(Locale.ROOT);
+        if (isPaidPaymentStatus(status)) {
+            return false;
+        }
+
+        if (isHardBlockPaymentStatus(status)) {
+            return true;
+        }
+
+        return isPastDue(payment);
+    }
+
+    private boolean isHardBlockPaymentStatus(String status) {
+        return switch (normalizeText(status).toUpperCase(Locale.ROOT)) {
+            case "OVERDUE",
+                    "REFUNDED",
+                    "RECEIVED_IN_CASH_UNDONE",
+                    "CHARGEBACK_REQUESTED",
+                    "CHARGEBACK_DISPUTE",
+                    "AWAITING_CHARGEBACK_REVERSAL",
+                    "DELETED",
+                    "CANCELED",
+                    "CANCELLED",
+                    "FAILED" -> true;
+            default -> false;
+        };
+    }
+
+    private boolean isCanceledLikePaymentStatus(String status) {
+        String normalized = normalizeText(status).toUpperCase(Locale.ROOT);
+        return "REFUNDED".equals(normalized)
+                || "DELETED".equals(normalized)
+                || "CANCELED".equals(normalized)
+                || "CANCELLED".equals(normalized);
+    }
+
+    private boolean isPastDue(AsaasPayment payment) {
+        if (payment == null || payment.dueDate() == null) {
+            return false;
+        }
+        return payment.dueDate().isBefore(LocalDate.now(BILLING_ZONE));
+    }
+
+    private String toCompanySubscriptionStatus(String paymentStatus, boolean blocked) {
+        if (blocked) {
+            return "BLOCKED";
+        }
+
+        String normalized = normalizeText(paymentStatus).toUpperCase(Locale.ROOT);
+        if (isPaidPaymentStatus(normalized)) {
+            return "ACTIVE";
+        }
+
+        return switch (normalized) {
+            case "PENDING", "AWAITING_RISK_ANALYSIS", "AWAITING_CHECKOUT_RISK_ANALYSIS_REQUEST", "BANK_PROCESSING" -> "PENDING";
+            default -> normalized.isBlank() ? "PENDING" : normalized;
+        };
+    }
+
+    private String toCompanyBillingRecurrence(String cycle) {
+        String normalized = normalizeText(cycle).toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "WEEKLY" -> "WEEKLY";
+            case "BIWEEKLY" -> "BIWEEKLY";
+            case "QUARTERLY" -> "QUARTERLY";
+            case "SEMIANNUALLY" -> "SEMIANNUALLY";
+            case "YEARLY" -> "YEARLY";
+            default -> "MONTHLY";
+        };
     }
 
     private Long toCents(BigDecimal value) {
@@ -824,6 +1101,10 @@ public class IoAutoBillingService {
     }
 
     private AsaasPayment toAsaasPayment(JsonNode node) {
+        JsonNode creditCardNode = node.path("creditCard");
+        String creditCardNumber = text(creditCardNode, "creditCardNumber");
+        String creditCardBrand = text(creditCardNode, "creditCardBrand");
+
         return new AsaasPayment(
                 text(node, "id"),
                 text(node, "customer"),
@@ -836,7 +1117,9 @@ public class IoAutoBillingService {
                 decimal(node, "value"),
                 parseLocalDate(firstNonBlank(text(node, "dueDate"), text(node, "dateCreated"))),
                 parseInstant(firstNonBlank(text(node, "confirmedDate"), text(node, "clientPaymentDate"), text(node, "paymentDate"))),
-                parseInstant(text(node, "dateCreated"))
+                parseInstant(text(node, "dateCreated")),
+                creditCardNumber,
+                creditCardBrand
         );
     }
 
@@ -925,6 +1208,108 @@ public class IoAutoBillingService {
             }
         }
         return values.isEmpty() ? List.of("CREDIT_CARD", "BOLETO") : List.copyOf(values);
+    }
+
+    private BillingAccessStatusSnapshot toAccessStatus(
+            JpaCompanyEntity company,
+            JpaIoAutoBillingSubscriptionEntity subscription,
+            AsaasPayment latestPayment,
+            AsaasPayment regularizationPayment
+    ) {
+        boolean blockedByCompanyState = !"ACTIVE".equalsIgnoreCase(normalizeText(company.getStatus(), "ACTIVE"));
+        boolean blockedByPayment = shouldBlockAccess(latestPayment);
+        boolean accessBlocked = blockedByCompanyState || blockedByPayment;
+
+        String paymentStatus = latestPayment == null ? "" : normalizeText(latestPayment.status()).toUpperCase(Locale.ROOT);
+        String subscriptionStatus = normalizeText(company.getSubscriptionStatus());
+        if (subscriptionStatus.isBlank() && subscription != null) {
+            subscriptionStatus = normalizeText(subscription.getStatus()).toUpperCase(Locale.ROOT);
+        }
+        if (subscriptionStatus.isBlank()) {
+            subscriptionStatus = accessBlocked ? "BLOCKED" : "ACTIVE";
+        }
+
+        String blockReason = accessBlocked
+                ? resolveBlockReason(latestPayment, company.getBlockedAt() != null ? company.getBlockedAt() : Instant.now())
+                : "";
+
+        String invoiceUrl = regularizationPayment != null ? normalizeText(regularizationPayment.invoiceUrl()) : "";
+        String billingType = regularizationPayment != null
+                ? normalizeText(regularizationPayment.billingType()).toUpperCase(Locale.ROOT)
+                : "";
+
+        return new BillingAccessStatusSnapshot(
+                accessBlocked,
+                normalizeText(company.getStatus(), "ACTIVE"),
+                subscriptionStatus,
+                blockReason,
+                paymentStatus,
+                billingType,
+                invoiceUrl,
+                company.getBlockedAt(),
+                subscription != null ? subscription.getCurrentPeriodEnd() : null,
+                subscription != null ? normalizeText(subscription.getProvider(), BILLING_PROVIDER) : BILLING_PROVIDER,
+                subscription != null ? normalizeText(subscription.getProviderCustomerId()) : "",
+                subscription != null ? normalizeText(subscription.getProviderSubscriptionId()) : ""
+        );
+    }
+
+    private String resolveBlockReason(AsaasPayment payment, Instant blockedAt) {
+        if (payment == null) {
+            return "Assinatura pendente de regularizacao.";
+        }
+
+        String status = normalizeText(payment.status()).toUpperCase(Locale.ROOT);
+        return switch (status) {
+            case "OVERDUE" -> "Pagamento vencido. Regularize para liberar o acesso.";
+            case "PENDING", "AWAITING_RISK_ANALYSIS", "AWAITING_CHECKOUT_RISK_ANALYSIS_REQUEST", "BANK_PROCESSING" -> isPastDue(payment)
+                    ? "Pagamento em aberto apos o vencimento. Regularize para liberar o acesso."
+                    : "Pagamento pendente de confirmacao.";
+            case "REFUNDED" -> "Pagamento estornado. E necessario regularizar a assinatura.";
+            case "CHARGEBACK_REQUESTED", "CHARGEBACK_DISPUTE", "AWAITING_CHARGEBACK_REVERSAL" -> "Pagamento em contestacao (chargeback). Regularize para liberar o acesso.";
+            case "FAILED", "CANCELED", "CANCELLED", "DELETED" -> "Pagamento nao concluido. Regularize para liberar o acesso.";
+            default -> "Assinatura bloqueada desde " + blockedAt.atZone(BILLING_ZONE).toLocalDate() + ".";
+        };
+    }
+
+    private PixQrCodeSnapshot fetchPixQrCodeSnapshot(AsaasPayment payment) {
+        if (payment == null || normalizeText(payment.id()).isBlank()) {
+            return new PixQrCodeSnapshot(null, null, null);
+        }
+        if (asaasApiKey.isBlank()) {
+            return new PixQrCodeSnapshot(null, null, null);
+        }
+
+        if (!"PIX".equalsIgnoreCase(normalizeText(payment.billingType()))) {
+            return new PixQrCodeSnapshot(null, null, null);
+        }
+
+        try {
+            JsonNode response = callAsaas("GET", "/payments/" + urlEncode(payment.id()) + "/pixQrCode", null);
+            String encodedImage = normalizeText(text(response, "encodedImage"));
+            String payload = normalizeText(text(response, "payload"));
+            Instant expirationDate = parseInstant(text(response, "expirationDate"));
+            return new PixQrCodeSnapshot(
+                    encodedImage.isBlank() ? null : encodedImage,
+                    payload.isBlank() ? null : payload,
+                    expirationDate
+            );
+        } catch (Exception ignored) {
+            return new PixQrCodeSnapshot(null, null, null);
+        }
+    }
+
+    private String extractCreditCardLastDigits(AsaasPayment payment) {
+        String raw = normalizeText(payment == null ? null : payment.creditCardNumber());
+        if (raw.isBlank()) {
+            return null;
+        }
+
+        String digits = raw.replaceAll("\\D", "");
+        if (digits.length() < 4) {
+            return null;
+        }
+        return digits.substring(digits.length() - 4);
     }
 
     private String toJson(Object value) {
@@ -1034,7 +1419,46 @@ record BillingSnapshot(
 ) {
 }
 
+record BillingAccessStatusSnapshot(
+        boolean accessBlocked,
+        String companyStatus,
+        String subscriptionStatus,
+        String blockReason,
+        String paymentStatus,
+        String billingType,
+        String regularizationUrl,
+        Instant blockedAt,
+        Instant currentPeriodEnd,
+        String provider,
+        String providerCustomerId,
+        String providerSubscriptionId
+) {
+}
+
+record BillingRegularizationOptions(
+        boolean available,
+        boolean pix,
+        boolean creditCard,
+        String message,
+        String regularizationUrl,
+        String pixCopyPasteCode,
+        String pixEncodedImage,
+        Instant pixExpirationDate,
+        String cardSummary,
+        boolean canConfirmSavedCard,
+        boolean canUpdateCard,
+        boolean canGenerateNewCharge
+) {
+}
+
 record PortalLaunch(String portalUrl) {
+}
+
+record PixQrCodeSnapshot(
+        String encodedImage,
+        String copyPasteCode,
+        Instant expirationDate
+) {
 }
 
 record AsaasCheckout(String id, String url) {
@@ -1052,6 +1476,8 @@ record AsaasPayment(
         BigDecimal value,
         LocalDate dueDate,
         Instant confirmedAt,
-        Instant createdAt
+        Instant createdAt,
+        String creditCardNumber,
+        String creditCardBrand
 ) {
 }

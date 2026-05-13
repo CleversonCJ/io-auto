@@ -301,7 +301,7 @@ public class SuperAdminTenantManagementService {
                 .addValue("planId", resolvedPlanId)
                 .addValue("amountCents", resolvedAmountCents)
                 .addValue("recurrence", resolvedRecurrence)
-                .addValue("status", normalizeNullable(command.subscriptionStatus()))
+                .addValue("status", normalizeSubscriptionStatus(command.subscriptionStatus()))
                 .addValue("updatedAt", SuperAdminSqlValues.timestamp(Instant.now()));
 
         jdbc.update("""
@@ -529,6 +529,16 @@ public class SuperAdminTenantManagementService {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isBlank() ? null : trimmed;
+    }
+
+    private String normalizeSubscriptionStatus(String raw) {
+        String normalized = normalizeNullable(raw);
+        if (normalized == null) return null;
+        String upper = normalized.toUpperCase(Locale.ROOT);
+        if ("TRIAL".equals(upper) || "TRIALING".equals(upper)) {
+            throw new BusinessException("TENANT_PLAN_STATUS_INVALID", "Status TRIAL nao e permitido.");
+        }
+        return upper;
     }
 
     private String generateResetToken() {

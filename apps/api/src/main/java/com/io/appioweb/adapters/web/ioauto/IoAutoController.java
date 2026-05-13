@@ -838,6 +838,21 @@ public class IoAutoController {
         return ResponseEntity.ok(billingService.getBillingSnapshot(currentUser.companyId()));
     }
 
+    @GetMapping("/ioauto/billing/access-status")
+    public ResponseEntity<BillingAccessStatusSnapshot> getBillingAccessStatus() {
+        return ResponseEntity.ok(billingService.getBillingAccessStatus(currentUser.companyId()));
+    }
+
+    @PostMapping("/ioauto/billing/access-status/verify")
+    public ResponseEntity<BillingAccessStatusSnapshot> verifyBillingAccessStatus() {
+        return ResponseEntity.ok(billingService.verifyAndSyncBillingAccessStatus(currentUser.companyId()));
+    }
+
+    @GetMapping("/ioauto/billing/regularization-options")
+    public ResponseEntity<BillingRegularizationOptions> getBillingRegularizationOptions() {
+        return ResponseEntity.ok(billingService.getRegularizationOptions(currentUser.companyId()));
+    }
+
     @PostMapping("/ioauto/billing/portal")
     public ResponseEntity<PortalLaunch> createBillingPortal() {
         return ResponseEntity.ok(billingService.createPortalSession(currentUser.companyId()));

@@ -239,11 +239,11 @@ function stockBucket(count?: number | null) {
 }
 
 function activeCustomerStatus(status?: string | null) {
-    return ["ACTIVE", "TRIAL", "OVERDUE"].includes((status || "").toUpperCase());
+    return ["ACTIVE", "OVERDUE"].includes((status || "").toUpperCase());
 }
 
 function revenueCustomerStatus(status?: string | null) {
-    return ["ACTIVE", "TRIAL", "OVERDUE", "BLOCKED"].includes((status || "").toUpperCase());
+    return ["ACTIVE", "OVERDUE", "BLOCKED"].includes((status || "").toUpperCase());
 }
 
 function daysSince(value?: string | null) {

@@ -2,11 +2,12 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { LoginForm } from "@/modules/auth/components/LoginForm";
 import { ACCESS_COOKIE } from "@/core/auth/cookies";
+import { resolveProtectedHomePath } from "@/core/auth/redirects";
 import { BrandMark } from "@/modules/ioauto/components/BrandMark";
 
 export default async function LoginPage() {
     const token = (await cookies()).get(ACCESS_COOKIE)?.value;
-    if (token) redirect("/protected/dashboard");
+    if (token) redirect(resolveProtectedHomePath(token));
 
     return (
         <main className="min-h-screen bg-io-light">

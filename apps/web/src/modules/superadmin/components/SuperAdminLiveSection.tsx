@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { SuperAdminDashboardSection } from "@/modules/superadmin/components/SuperAdminDashboardSection";
 import { buildSuperAdminVisualSection, type CatalogLeadRow, type CustomerHealthRow, type SupportTicketSummary, type TenantSnapshot } from "@/modules/superadmin/components/SuperAdminLiveSectionVisual";
-import { superAdminSections } from "@/modules/superadmin/data";
 
 export type SuperAdminLiveSectionKey =
     | "financeiro"
@@ -185,7 +184,6 @@ function BarRows({ rows }: { rows: Array<{ label: string; value: number; detail?
 }
 
 export function SuperAdminLiveSection({ section }: Props) {
-    const meta = superAdminSections[section];
     const [filters, setFilters] = useState<FilterState>(defaultFilters());
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -930,13 +928,6 @@ export function SuperAdminLiveSection({ section }: Props) {
 
     return (
         <div className="grid gap-5">
-            <section className="rounded-[30px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
-                <p className="text-xs uppercase tracking-[0.24em] text-black/40">{meta.label}</p>
-                <h1 className="mt-2 font-display text-3xl font-bold text-io-dark">{meta.title}</h1>
-                <p className="mt-2 max-w-4xl text-sm leading-6 text-black/60">{meta.description}</p>
-                <p className="mt-4 rounded-2xl bg-black/[0.03] px-4 py-3 text-sm text-black/60">{meta.spotlight}</p>
-            </section>
-
             <section className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                     <label className="grid gap-1 text-xs text-black/55">
@@ -975,7 +966,6 @@ export function SuperAdminLiveSection({ section }: Props) {
                         <select value={filters.status} onChange={(event) => updateFilter("status", event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
                             <option value="">Todos</option>
                             <option value="ACTIVE">Ativo</option>
-                            <option value="TRIAL">Trial</option>
                             <option value="OVERDUE">Em atraso</option>
                             <option value="CANCELED">Cancelado</option>
                             <option value="BLOCKED">Bloqueado</option>

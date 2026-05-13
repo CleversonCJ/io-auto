@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { superAdminSections } from "@/modules/superadmin/data";
 
 type TenantRow = {
     tenantId: string;
@@ -148,7 +147,6 @@ function isRecentAccess(value?: string | null) {
 function statusClasses(status: string) {
     const normalized = status.toUpperCase();
     if (normalized === "ACTIVE") return "bg-emerald-100 text-emerald-700";
-    if (normalized === "TRIAL") return "bg-sky-100 text-sky-700";
     if (normalized === "OVERDUE") return "bg-amber-100 text-amber-700";
     if (normalized === "BLOCKED") return "bg-red-100 text-red-700";
     if (normalized === "CANCELED" || normalized === "CANCELLED") return "bg-slate-200 text-slate-700";
@@ -157,7 +155,6 @@ function statusClasses(status: string) {
 
 export function SuperAdminTenantsPage() {
     const router = useRouter();
-    const meta = superAdminSections.tenants;
     const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
     const [rows, setRows] = useState<TenantRow[]>([]);
     const [loading, setLoading] = useState(true);
@@ -206,14 +203,12 @@ export function SuperAdminTenantsPage() {
         const mappedMrrCents = rows.reduce((total, row) => total + (row.mrrCents ?? 0), 0);
         const recentAccessCount = rows.filter((row) => isRecentAccess(row.lastAccessAt)).length;
         const blockedCount = rows.filter((row) => row.status?.toUpperCase() === "BLOCKED").length;
-        const trialCount = rows.filter((row) => row.status?.toUpperCase() === "TRIAL").length;
         const canceledCount = rows.filter((row) => ["CANCELED", "CANCELLED"].includes(row.status?.toUpperCase())).length;
         return {
             total: rows.length,
             mappedMrrCents,
             recentAccessRate: rows.length ? (recentAccessCount * 100) / rows.length : 0,
             blockedCount,
-            trialCount,
             canceledCount,
         };
     }, [rows]);
@@ -357,14 +352,7 @@ export function SuperAdminTenantsPage() {
 
     return (
         <div className="grid gap-6">
-            <section className="rounded-[30px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
-                <p className="text-xs uppercase tracking-[0.24em] text-black/40">{meta.label}</p>
-                <h1 className="mt-2 font-display text-3xl font-bold text-io-dark">{meta.title}</h1>
-                <p className="mt-2 max-w-4xl text-sm leading-6 text-black/60">{meta.description}</p>
-                <p className="mt-4 rounded-2xl bg-black/[0.03] px-4 py-3 text-sm text-black/60">{meta.spotlight}</p>
-            </section>
-
-            <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <article className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
                     <p className="text-xs uppercase tracking-[0.16em] text-black/45">Empresas</p>
                     <p className="mt-2 text-2xl font-bold text-io-dark">{toNumber(summary.total)}</p>
@@ -381,11 +369,6 @@ export function SuperAdminTenantsPage() {
                     <p className="mt-1 text-xs text-black/55">Logins em ate 72 horas</p>
                 </article>
                 <article className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
-                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Trials</p>
-                    <p className="mt-2 text-2xl font-bold text-io-dark">{toNumber(summary.trialCount)}</p>
-                    <p className="mt-1 text-xs text-black/55">Contas em periodo de teste</p>
-                </article>
-                <article className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
                     <p className="text-xs uppercase tracking-[0.16em] text-black/45">Bloqueadas / canceladas</p>
                     <p className="mt-2 text-2xl font-bold text-io-dark">{toNumber(summary.blockedCount + summary.canceledCount)}</p>
                     <p className="mt-1 text-xs text-black/55">Contas que pedem acao operacional</p>
@@ -399,7 +382,6 @@ export function SuperAdminTenantsPage() {
                         <select value={filters.status} onChange={(event) => setFilter("status", event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
                             <option value="">Todos</option>
                             <option value="ACTIVE">Ativo</option>
-                            <option value="TRIAL">Trial</option>
                             <option value="OVERDUE">Em atraso</option>
                             <option value="BLOCKED">Bloqueado</option>
                             <option value="CANCELED">Cancelado</option>
@@ -479,7 +461,6 @@ export function SuperAdminTenantsPage() {
                             Status da assinatura
                             <select value={planForm.subscriptionStatus} onChange={(event) => setPlanForm((current) => ({ ...current, subscriptionStatus: event.target.value }))} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
                                 <option value="ACTIVE">Ativo</option>
-                                <option value="TRIAL">Trial</option>
                                 <option value="OVERDUE">Em atraso</option>
                                 <option value="BLOCKED">Bloqueado</option>
                                 <option value="CANCELED">Cancelado</option>

@@ -41,7 +41,7 @@ public class SuperAdminCustomerDashboardService {
                     group by v.company_id
                 )
                 select
-                    sum(case when upper(coalesce(c.subscription_status, 'ACTIVE')) in ('ACTIVE', 'OVERDUE', 'TRIAL')
+                    sum(case when upper(coalesce(c.subscription_status, 'ACTIVE')) in ('ACTIVE', 'OVERDUE')
                                 and upper(coalesce(c.subscription_status, 'ACTIVE')) <> 'CANCELED'
                              then 1 else 0 end) as total_active_customers,
                     sum(case when c.subscription_started_at >= :windowStart and c.subscription_started_at < :windowEnd then 1 else 0 end) as new_customers,

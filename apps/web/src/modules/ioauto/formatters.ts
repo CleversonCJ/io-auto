@@ -72,7 +72,6 @@ export function statusLabel(status?: string | null) {
         SYNC_IN_PROGRESS: "Sincronizando",
         REMOVED: "Removido",
         SOLD: "Vendido",
-        TRIALING: "Em teste",
         PAUSED: "Pausado",
         CLOSED: "Finalizado",
         UNDER_REVIEW: "Em revisao",

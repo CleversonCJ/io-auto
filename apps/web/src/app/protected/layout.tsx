@@ -7,6 +7,7 @@ import { AuthSessionWatcher } from "@/modules/auth/components/AuthSessionWatcher
 import { ImpersonationBanner } from "@/modules/protected/components/ImpersonationBanner";
 import { ProtectedSidebar } from "@/modules/protected/components/ProtectedSidebar";
 import { ProtectedNotificationsRail } from "@/modules/protected/components/ProtectedNotificationsRail";
+import { BillingAccessBlockerPopup } from "@/modules/ioauto/components/BillingAccessBlockerPopup";
 
 type MeResponse = {
     userId: string;
@@ -56,6 +57,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     return (
         <div className="min-h-screen bg-io-light md:h-screen md:overflow-hidden">
             <AuthSessionWatcher />
+            <BillingAccessBlockerPopup />
 
 
             <div className="relative flex min-h-screen flex-col md:h-screen md:min-h-0 md:flex-row md:overflow-hidden">

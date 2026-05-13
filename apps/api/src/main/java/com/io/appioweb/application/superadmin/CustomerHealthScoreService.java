@@ -191,7 +191,6 @@ public class CustomerHealthScoreService {
         int financialScore;
         if (overdue || "OVERDUE".equals(subscriptionStatus)) financialScore = 0;
         else if ("BLOCKED".equals(subscriptionStatus) || "CANCELED".equals(subscriptionStatus)) financialScore = 0;
-        else if ("TRIAL".equals(subscriptionStatus)) financialScore = 8;
         else financialScore = 15;
 
         int supportScore;

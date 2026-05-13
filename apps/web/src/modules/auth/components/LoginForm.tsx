@@ -34,7 +34,7 @@ export function LoginForm({ embedded = false }: LoginFormProps) {
 
             // Use a full navigation so the browser persists the new httpOnly
             // auth cookies before the protected app bootstraps.
-            window.location.assign("/protected/dashboard");
+            window.location.assign("/protected");
         } catch {
             setError("Não foi possível conectar com o servidor de autenticação.");
         }

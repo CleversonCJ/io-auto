@@ -12,6 +12,36 @@ export type BillingSnapshot = {
     providerSubscriptionId: string;
 };
 
+export type BillingAccessStatusSnapshot = {
+    accessBlocked: boolean;
+    companyStatus: string;
+    subscriptionStatus: string;
+    blockReason: string;
+    paymentStatus: string;
+    billingType: string;
+    regularizationUrl: string;
+    blockedAt: string | null;
+    currentPeriodEnd: string | null;
+    provider: string;
+    providerCustomerId: string;
+    providerSubscriptionId: string;
+};
+
+export type BillingRegularizationOptions = {
+    available: boolean;
+    pix: boolean;
+    creditCard: boolean;
+    message: string;
+    regularizationUrl: string | null;
+    pixCopyPasteCode: string | null;
+    pixEncodedImage: string | null;
+    pixExpirationDate: string | null;
+    cardSummary: string | null;
+    canConfirmSavedCard: boolean;
+    canUpdateCard: boolean;
+    canGenerateNewCharge: boolean;
+};
+
 export type DashboardResponse = {
     companyName: string;
     vehicleCount: number;
