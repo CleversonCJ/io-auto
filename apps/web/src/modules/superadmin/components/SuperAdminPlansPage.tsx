@@ -1,17 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import {
-    BadgeCent,
-    CarFront,
-    Layers3,
-    PencilLine,
-    Plus,
-    ShieldCheck,
-    Sparkles,
-    Trash2,
-    Users2,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { BadgeCent, PencilLine, Plus, Trash2 } from "lucide-react";
 
 type PlanFeatures = {
     catalogBioLink: boolean;
@@ -230,6 +220,7 @@ export function SuperAdminPlansPage() {
     const [error, setError] = useState<string | null>(null);
     const [feedback, setFeedback] = useState<string | null>(null);
     const [form, setForm] = useState<PlanFormState>(EMPTY_FORM);
+    const [modalOpen, setModalOpen] = useState(false);
 
     async function loadPlans() {
         setLoading(true);
@@ -249,25 +240,27 @@ export function SuperAdminPlansPage() {
         void loadPlans();
     }, []);
 
-    const summary = useMemo(() => {
-        const totalAssigned = rows.reduce((acc, row) => acc + (row.assignedCompaniesCount ?? 0), 0);
-        return {
-            totalPlans: rows.length,
-            activePlans: rows.filter((row) => row.active).length,
-            customPlans: rows.filter((row) => row.customPlan).length,
-            totalAssigned,
-        };
-    }, [rows]);
-
-    const featuredPlans = useMemo(() => rows.slice().sort((a, b) => a.sortOrder - b.sortOrder).slice(0, 3), [rows]);
-
     function resetForm() {
         setForm(EMPTY_FORM);
     }
 
+    function openCreateModal() {
+        resetForm();
+        setError(null);
+        setFeedback(null);
+        setModalOpen(true);
+    }
+
+    function closeModal() {
+        setModalOpen(false);
+        resetForm();
+    }
+
     function editPlan(plan: PlanRow) {
+        setError(null);
         setFeedback(null);
         setForm(buildFormFromPlan(plan));
+        setModalOpen(true);
     }
 
     function toggleFeature(key: keyof PlanFeatures) {
@@ -299,7 +292,7 @@ export function SuperAdminPlansPage() {
                 "Falha ao salvar o plano.",
             );
             setFeedback(form.planId ? "Plano atualizado com sucesso." : "Plano criado com sucesso.");
-            resetForm();
+            closeModal();
             await loadPlans();
         } catch (requestError) {
             setError(requestError instanceof Error ? requestError.message : "Falha ao salvar o plano.");
@@ -322,7 +315,7 @@ export function SuperAdminPlansPage() {
             );
             setFeedback(`Plano ${plan.planName} removido com sucesso.`);
             if (form.planId === plan.planId) {
-                resetForm();
+                closeModal();
             }
             await loadPlans();
         } catch (requestError) {
@@ -334,10 +327,14 @@ export function SuperAdminPlansPage() {
 
     return (
         <div className="grid gap-6">
-            <div className="flex justify-end">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 className="text-2xl font-bold text-io-dark">Planos</h2>
+                    <p className="mt-1 text-sm text-black/55">Listagem enxuta com nome, precos, limites, recursos e empresas vinculadas.</p>
+                </div>
                 <button
                     type="button"
-                    onClick={resetForm}
+                    onClick={openCreateModal}
                     className="inline-flex h-11 items-center gap-2 rounded-full bg-io-dark px-5 text-sm font-semibold text-white"
                 >
                     <Plus className="h-4 w-4" />
@@ -345,286 +342,8 @@ export function SuperAdminPlansPage() {
                 </button>
             </div>
 
-            <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <article className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[#efe4ff] text-[#6b00e3]">
-                            <Layers3 className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <p className="text-xs uppercase tracking-[0.16em] text-black/45">Planos</p>
-                            <p className="mt-1 text-2xl font-bold text-io-dark">{toNumber(summary.totalPlans)}</p>
-                        </div>
-                    </div>
-                    <p className="mt-3 text-xs text-black/55">Catalogo total configurado no sistema.</p>
-                </article>
-                <article className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-100 text-emerald-700">
-                            <ShieldCheck className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <p className="text-xs uppercase tracking-[0.16em] text-black/45">Ativos</p>
-                            <p className="mt-1 text-2xl font-bold text-io-dark">{toNumber(summary.activePlans)}</p>
-                        </div>
-                    </div>
-                    <p className="mt-3 text-xs text-black/55">Planos habilitados para uso e atribuicao.</p>
-                </article>
-                <article className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="grid h-11 w-11 place-items-center rounded-2xl bg-amber-100 text-amber-700">
-                            <Sparkles className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <p className="text-xs uppercase tracking-[0.16em] text-black/45">Personalizados</p>
-                            <p className="mt-1 text-2xl font-bold text-io-dark">{toNumber(summary.customPlans)}</p>
-                        </div>
-                    </div>
-                    <p className="mt-3 text-xs text-black/55">Planos criados para operacoes especificas.</p>
-                </article>
-                <article className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="grid h-11 w-11 place-items-center rounded-2xl bg-sky-100 text-sky-700">
-                            <Users2 className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <p className="text-xs uppercase tracking-[0.16em] text-black/45">Empresas vinculadas</p>
-                            <p className="mt-1 text-2xl font-bold text-io-dark">{toNumber(summary.totalAssigned)}</p>
-                        </div>
-                    </div>
-                    <p className="mt-3 text-xs text-black/55">Contas protegidas pelos limites atuais.</p>
-                </article>
-            </section>
-
-            <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-                <div className="rounded-[30px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.05)]">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <p className="text-sm font-semibold text-io-dark">{form.planId ? "Editar plano" : "Criar novo plano"}</p>
-                            <p className="text-xs text-black/55">Defina limites e recursos que serao aplicados de forma obrigatoria no backend.</p>
-                        </div>
-                        {form.planId ? (
-                            <button type="button" onClick={resetForm} className="text-sm font-semibold text-black/55">
-                                Limpar edicao
-                            </button>
-                        ) : null}
-                    </div>
-
-                    <div className="mt-5 grid gap-3 md:grid-cols-2">
-                        <label className="grid gap-1 text-xs text-black/55">
-                            Nome do plano
-                            <input
-                                value={form.planName}
-                                onChange={(event) => setForm((current) => ({ ...current, planName: event.target.value }))}
-                                className="h-11 rounded-xl border border-black/10 px-3 text-sm"
-                                placeholder="Ex: Pro Plus"
-                            />
-                        </label>
-                        <label className="grid gap-1 text-xs text-black/55">
-                            Chave tecnica
-                            <input
-                                value={form.planKey}
-                                onChange={(event) => setForm((current) => ({ ...current, planKey: event.target.value }))}
-                                className="h-11 rounded-xl border border-black/10 px-3 text-sm"
-                                placeholder="ex: pro-plus"
-                            />
-                        </label>
-                        <label className="grid gap-1 text-xs text-black/55 md:col-span-2">
-                            Descricao
-                            <textarea
-                                value={form.description}
-                                onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                                className="min-h-[96px] rounded-xl border border-black/10 px-3 py-3 text-sm"
-                                placeholder="Resumo comercial e operacional do plano."
-                            />
-                        </label>
-                        <label className="grid gap-1 text-xs text-black/55">
-                            Valor mensal (BRL)
-                            <input
-                                value={form.monthlyPrice}
-                                onChange={(event) => setForm((current) => ({ ...current, monthlyPrice: event.target.value }))}
-                                className="h-11 rounded-xl border border-black/10 px-3 text-sm"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                placeholder="197.00"
-                            />
-                        </label>
-                        <label className="grid gap-1 text-xs text-black/55">
-                            Valor anual (BRL)
-                            <input
-                                value={form.annualPrice}
-                                onChange={(event) => setForm((current) => ({ ...current, annualPrice: event.target.value }))}
-                                className="h-11 rounded-xl border border-black/10 px-3 text-sm"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                placeholder="1970.00"
-                            />
-                        </label>
-                        <label className="grid gap-1 text-xs text-black/55">
-                            Limite de usuarios
-                            <input
-                                value={form.usersLimit}
-                                onChange={(event) => setForm((current) => ({ ...current, usersLimit: event.target.value }))}
-                                className="h-11 rounded-xl border border-black/10 px-3 text-sm"
-                                type="number"
-                                min="0"
-                                placeholder="3"
-                            />
-                        </label>
-                        <label className="grid gap-1 text-xs text-black/55">
-                            Limite de veiculos ativos
-                            <input
-                                value={form.vehiclesLimit}
-                                onChange={(event) => setForm((current) => ({ ...current, vehiclesLimit: event.target.value }))}
-                                className="h-11 rounded-xl border border-black/10 px-3 text-sm"
-                                type="number"
-                                min="0"
-                                placeholder="20"
-                            />
-                        </label>
-                        <label className="grid gap-1 text-xs text-black/55">
-                            Limite de anuncios ativos
-                            <input
-                                value={form.activeAdsLimit}
-                                onChange={(event) => setForm((current) => ({ ...current, activeAdsLimit: event.target.value }))}
-                                className="h-11 rounded-xl border border-black/10 px-3 text-sm"
-                                type="number"
-                                min="0"
-                                placeholder="20"
-                            />
-                        </label>
-                        <label className="grid gap-1 text-xs text-black/55">
-                            Ordem visual
-                            <input
-                                value={form.sortOrder}
-                                onChange={(event) => setForm((current) => ({ ...current, sortOrder: event.target.value }))}
-                                className="h-11 rounded-xl border border-black/10 px-3 text-sm"
-                                type="number"
-                                min="0"
-                            />
-                        </label>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-5">
-                        <label className="inline-flex items-center gap-2 text-sm text-black/65">
-                            <input type="checkbox" checked={form.active} onChange={() => setForm((current) => ({ ...current, active: !current.active }))} />
-                            Plano ativo
-                        </label>
-                        <label className="inline-flex items-center gap-2 text-sm text-black/65">
-                            <input type="checkbox" checked={form.customPlan} onChange={() => setForm((current) => ({ ...current, customPlan: !current.customPlan }))} />
-                            Plano personalizado
-                        </label>
-                        {form.systemPlan ? <span className="rounded-full bg-black/[0.06] px-3 py-1 text-xs font-semibold text-black/60">Plano principal protegido</span> : null}
-                    </div>
-
-                    <div className="mt-6 grid gap-3 md:grid-cols-2">
-                        {FEATURE_GROUPS.map((feature) => (
-                            <button
-                                key={feature.key}
-                                type="button"
-                                onClick={() => toggleFeature(feature.key)}
-                                className={`rounded-2xl border p-4 text-left transition ${
-                                    form.features[feature.key]
-                                        ? "border-[#6b00e3]/25 bg-[#f7f1ff] shadow-sm"
-                                        : "border-black/10 bg-white hover:border-black/20"
-                                }`}
-                            >
-                                <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                        <p className="text-sm font-semibold text-io-dark">{feature.label}</p>
-                                        <p className="mt-1 text-xs leading-5 text-black/55">{feature.description}</p>
-                                    </div>
-                                    <span
-                                        className={`mt-1 inline-flex h-6 min-w-[48px] items-center justify-center rounded-full text-[11px] font-semibold ${
-                                            form.features[feature.key] ? "bg-[#6b00e3] text-white" : "bg-black/5 text-black/45"
-                                        }`}
-                                    >
-                                        {form.features[feature.key] ? "Ativo" : "Off"}
-                                    </span>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-
-                    {feedback ? <p className="mt-4 text-sm text-emerald-700">{feedback}</p> : null}
-                    {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
-
-                    <div className="mt-5 flex justify-end">
-                        <button
-                            type="button"
-                            onClick={() => void handleSubmit()}
-                            disabled={saving}
-                            className="inline-flex h-11 items-center gap-2 rounded-full bg-io-dark px-5 text-sm font-semibold text-white disabled:opacity-60"
-                        >
-                            <BadgeCent className="h-4 w-4" />
-                            {saving ? "Salvando..." : form.planId ? "Atualizar plano" : "Salvar plano"}
-                        </button>
-                    </div>
-                </div>
-
-                <div className="grid gap-4">
-                    {featuredPlans.map((plan, index) => (
-                        <article
-                            key={plan.planId}
-                            className={`rounded-[28px] border p-5 shadow-sm ${
-                                index === 1 ? "border-[#6b00e3]/20 bg-[#f8f3ff]" : "border-black/10 bg-white"
-                            }`}
-                        >
-                            <div className="flex items-start justify-between gap-3">
-                                <div>
-                                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">
-                                        {plan.customPlan ? "Personalizado" : plan.systemPlan ? "Plano principal" : "Plano"}
-                                    </p>
-                                    <h2 className="mt-2 text-2xl font-bold text-io-dark">{plan.planName}</h2>
-                                    <p className="mt-2 text-sm text-black/60">{plan.description || "Sem descricao comercial cadastrada."}</p>
-                                </div>
-                                <button type="button" onClick={() => editPlan(plan)} className="rounded-full border border-black/10 p-2 text-black/60 transition hover:border-black/20 hover:text-io-dark">
-                                    <PencilLine className="h-4 w-4" />
-                                </button>
-                            </div>
-
-                            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                                <div className="rounded-2xl bg-white/75 p-4">
-                                    <p className="text-xs uppercase tracking-[0.14em] text-black/45">Preco</p>
-                                    <p className="mt-2 text-sm font-semibold text-io-dark">Mensal: {toCurrency(plan.monthlyPriceCents)}</p>
-                                    <p className="mt-1 text-sm font-semibold text-io-dark">Anual: {toCurrency(plan.annualPriceCents)}</p>
-                                </div>
-                                <div className="rounded-2xl bg-white/75 p-4">
-                                    <p className="text-xs uppercase tracking-[0.14em] text-black/45">Empresas</p>
-                                    <p className="mt-2 text-lg font-bold text-io-dark">{toNumber(plan.assignedCompaniesCount)}</p>
-                                    <p className="mt-1 text-xs text-black/55">{plan.active ? "Disponivel para atribuicao" : "Plano pausado"}</p>
-                                </div>
-                            </div>
-
-                            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                                <div className="rounded-2xl border border-black/8 bg-white/70 p-4">
-                                    <div className="flex items-center gap-2 text-black/55">
-                                        <Users2 className="h-4 w-4" />
-                                        <span className="text-xs uppercase tracking-[0.14em]">Usuarios</span>
-                                    </div>
-                                    <p className="mt-2 text-sm font-semibold text-io-dark">{toLimit(plan.usersLimit, "usuarios")}</p>
-                                </div>
-                                <div className="rounded-2xl border border-black/8 bg-white/70 p-4">
-                                    <div className="flex items-center gap-2 text-black/55">
-                                        <CarFront className="h-4 w-4" />
-                                        <span className="text-xs uppercase tracking-[0.14em]">Veiculos</span>
-                                    </div>
-                                    <p className="mt-2 text-sm font-semibold text-io-dark">{toLimit(plan.vehiclesLimit, "veiculos")}</p>
-                                </div>
-                                <div className="rounded-2xl border border-black/8 bg-white/70 p-4">
-                                    <div className="flex items-center gap-2 text-black/55">
-                                        <Layers3 className="h-4 w-4" />
-                                        <span className="text-xs uppercase tracking-[0.14em]">Anuncios</span>
-                                    </div>
-                                    <p className="mt-2 text-sm font-semibold text-io-dark">{toLimit(plan.activeAdsLimit, "anuncios")}</p>
-                                </div>
-                            </div>
-                        </article>
-                    ))}
-                </div>
-            </section>
+            {feedback ? <p className="text-sm text-emerald-700">{feedback}</p> : null}
+            {error ? <p className="text-sm text-red-700">{error}</p> : null}
 
             <section className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                 <div className="overflow-x-auto">
@@ -632,7 +351,7 @@ export function SuperAdminPlansPage() {
                         <thead>
                             <tr className="text-left text-xs uppercase tracking-[0.18em] text-black/40">
                                 <th className="px-3 py-2">Plano</th>
-                                <th className="px-3 py-2">Preco</th>
+                                <th className="px-3 py-2">Precos</th>
                                 <th className="px-3 py-2">Limites</th>
                                 <th className="px-3 py-2">Recursos</th>
                                 <th className="px-3 py-2">Empresas</th>
@@ -649,6 +368,8 @@ export function SuperAdminPlansPage() {
                             ) : rows.length ? (
                                 rows.map((plan) => {
                                     const activeFeatureCount = Object.values(plan.features).filter(Boolean).length;
+                                    const keyFeatures = FEATURE_GROUPS.filter((feature) => plan.features[feature.key]).slice(0, 3);
+
                                     return (
                                         <tr key={plan.planId} className="rounded-[24px] bg-black/[0.02]">
                                             <td className="rounded-l-[22px] px-3 py-4 align-top">
@@ -659,7 +380,7 @@ export function SuperAdminPlansPage() {
                                                     {!plan.active ? <span className="rounded-full bg-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700">Inativo</span> : null}
                                                 </div>
                                                 <p className="mt-1 text-xs text-black/45">Chave: {plan.planKey}</p>
-                                                <p className="mt-2 max-w-[280px] text-sm text-black/55">{plan.description || "Sem descricao."}</p>
+                                                <p className="mt-2 max-w-[320px] text-sm text-black/55">{plan.description || "Sem descricao comercial."}</p>
                                             </td>
                                             <td className="px-3 py-4 align-top">
                                                 <p className="text-sm font-semibold text-io-dark">Mensal: {toCurrency(plan.monthlyPriceCents)}</p>
@@ -673,19 +394,19 @@ export function SuperAdminPlansPage() {
                                             <td className="px-3 py-4 align-top">
                                                 <p className="text-sm font-semibold text-io-dark">{toNumber(activeFeatureCount)} recursos ativos</p>
                                                 <div className="mt-2 flex flex-wrap gap-2">
-                                                    {FEATURE_GROUPS.filter((feature) => plan.features[feature.key]).slice(0, 4).map((feature) => (
+                                                    {keyFeatures.map((feature) => (
                                                         <span key={feature.key} className="rounded-full bg-black/6 px-3 py-1 text-[11px] font-semibold text-black/55">
                                                             {feature.label}
                                                         </span>
                                                     ))}
-                                                    {activeFeatureCount > 4 ? (
-                                                        <span className="rounded-full bg-black/6 px-3 py-1 text-[11px] font-semibold text-black/55">+{activeFeatureCount - 4}</span>
+                                                    {activeFeatureCount > keyFeatures.length ? (
+                                                        <span className="rounded-full bg-black/6 px-3 py-1 text-[11px] font-semibold text-black/55">+{activeFeatureCount - keyFeatures.length}</span>
                                                     ) : null}
                                                 </div>
                                             </td>
                                             <td className="px-3 py-4 align-top">
                                                 <p className="text-sm font-semibold text-io-dark">{toNumber(plan.assignedCompaniesCount)}</p>
-                                                <p className="mt-1 text-xs text-black/55">empresas protegidas</p>
+                                                <p className="mt-1 text-xs text-black/55">empresas vinculadas</p>
                                             </td>
                                             <td className="rounded-r-[22px] px-3 py-4 align-top">
                                                 <div className="flex flex-wrap gap-2">
@@ -722,6 +443,181 @@ export function SuperAdminPlansPage() {
                     </table>
                 </div>
             </section>
+
+            {modalOpen ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-8">
+                    <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[30px] border border-black/10 bg-white p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <p className="text-sm font-semibold text-io-dark">{form.planId ? "Editar plano" : "Criar novo plano"}</p>
+                                <p className="text-xs text-black/55">Defina precos, limites e recursos que serao aplicados no backend.</p>
+                            </div>
+                            <button type="button" onClick={closeModal} className="text-sm font-semibold text-black/55">
+                                Fechar
+                            </button>
+                        </div>
+
+                        <div className="mt-5 grid gap-3 md:grid-cols-2">
+                            <label className="grid gap-1 text-xs text-black/55">
+                                Nome do plano
+                                <input
+                                    value={form.planName}
+                                    onChange={(event) => setForm((current) => ({ ...current, planName: event.target.value }))}
+                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+                                    placeholder="Ex: Pro Plus"
+                                />
+                            </label>
+                            <label className="grid gap-1 text-xs text-black/55">
+                                Chave tecnica
+                                <input
+                                    value={form.planKey}
+                                    onChange={(event) => setForm((current) => ({ ...current, planKey: event.target.value }))}
+                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+                                    placeholder="ex: pro-plus"
+                                />
+                            </label>
+                            <label className="grid gap-1 text-xs text-black/55 md:col-span-2">
+                                Descricao
+                                <textarea
+                                    value={form.description}
+                                    onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+                                    className="min-h-[96px] rounded-xl border border-black/10 px-3 py-3 text-sm"
+                                    placeholder="Resumo comercial e operacional do plano."
+                                />
+                            </label>
+                            <label className="grid gap-1 text-xs text-black/55">
+                                Valor mensal (BRL)
+                                <input
+                                    value={form.monthlyPrice}
+                                    onChange={(event) => setForm((current) => ({ ...current, monthlyPrice: event.target.value }))}
+                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="197.00"
+                                />
+                            </label>
+                            <label className="grid gap-1 text-xs text-black/55">
+                                Valor anual (BRL)
+                                <input
+                                    value={form.annualPrice}
+                                    onChange={(event) => setForm((current) => ({ ...current, annualPrice: event.target.value }))}
+                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="1970.00"
+                                />
+                            </label>
+                            <label className="grid gap-1 text-xs text-black/55">
+                                Limite de usuarios
+                                <input
+                                    value={form.usersLimit}
+                                    onChange={(event) => setForm((current) => ({ ...current, usersLimit: event.target.value }))}
+                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+                                    type="number"
+                                    min="0"
+                                    placeholder="3"
+                                />
+                            </label>
+                            <label className="grid gap-1 text-xs text-black/55">
+                                Limite de veiculos ativos
+                                <input
+                                    value={form.vehiclesLimit}
+                                    onChange={(event) => setForm((current) => ({ ...current, vehiclesLimit: event.target.value }))}
+                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+                                    type="number"
+                                    min="0"
+                                    placeholder="20"
+                                />
+                            </label>
+                            <label className="grid gap-1 text-xs text-black/55">
+                                Limite de anuncios ativos
+                                <input
+                                    value={form.activeAdsLimit}
+                                    onChange={(event) => setForm((current) => ({ ...current, activeAdsLimit: event.target.value }))}
+                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+                                    type="number"
+                                    min="0"
+                                    placeholder="20"
+                                />
+                            </label>
+                            <label className="grid gap-1 text-xs text-black/55">
+                                Ordem visual
+                                <input
+                                    value={form.sortOrder}
+                                    onChange={(event) => setForm((current) => ({ ...current, sortOrder: event.target.value }))}
+                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+                                    type="number"
+                                    min="0"
+                                />
+                            </label>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap gap-5">
+                            <label className="inline-flex items-center gap-2 text-sm text-black/65">
+                                <input type="checkbox" checked={form.active} onChange={() => setForm((current) => ({ ...current, active: !current.active }))} />
+                                Plano ativo
+                            </label>
+                            <label className="inline-flex items-center gap-2 text-sm text-black/65">
+                                <input type="checkbox" checked={form.customPlan} onChange={() => setForm((current) => ({ ...current, customPlan: !current.customPlan }))} />
+                                Plano personalizado
+                            </label>
+                            {form.systemPlan ? <span className="rounded-full bg-black/[0.06] px-3 py-1 text-xs font-semibold text-black/60">Plano principal protegido</span> : null}
+                        </div>
+
+                        <div className="mt-6 grid gap-3 md:grid-cols-2">
+                            {FEATURE_GROUPS.map((feature) => (
+                                <button
+                                    key={feature.key}
+                                    type="button"
+                                    onClick={() => toggleFeature(feature.key)}
+                                    className={`rounded-2xl border p-4 text-left transition ${
+                                        form.features[feature.key]
+                                            ? "border-[#6b00e3]/25 bg-[#f7f1ff] shadow-sm"
+                                            : "border-black/10 bg-white hover:border-black/20"
+                                    }`}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-semibold text-io-dark">{feature.label}</p>
+                                            <p className="mt-1 text-xs leading-5 text-black/55">{feature.description}</p>
+                                        </div>
+                                        <span
+                                            className={`mt-1 inline-flex h-6 min-w-[48px] items-center justify-center rounded-full text-[11px] font-semibold ${
+                                                form.features[feature.key] ? "bg-[#6b00e3] text-white" : "bg-black/5 text-black/45"
+                                            }`}
+                                        >
+                                            {form.features[feature.key] ? "Ativo" : "Off"}
+                                        </span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+
+                        {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
+
+                        <div className="mt-5 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={closeModal}
+                                className="inline-flex h-11 items-center rounded-full border border-black/10 px-5 text-sm font-semibold text-io-dark"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => void handleSubmit()}
+                                disabled={saving}
+                                className="inline-flex h-11 items-center gap-2 rounded-full bg-io-dark px-5 text-sm font-semibold text-white disabled:opacity-60"
+                            >
+                                <BadgeCent className="h-4 w-4" />
+                                {saving ? "Salvando..." : form.planId ? "Atualizar plano" : "Salvar plano"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 }
