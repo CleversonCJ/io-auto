@@ -9,8 +9,10 @@ import com.io.appioweb.adapters.persistence.superadmin.TenantAdminLogRepositoryJ
 import com.io.appioweb.application.auth.dto.AuthTokens;
 import com.io.appioweb.application.auth.port.out.CurrentUserPort;
 import com.io.appioweb.application.auth.port.out.TokenServicePort;
+import com.io.appioweb.application.onboarding.EmailOutboxService;
 import com.io.appioweb.domain.auth.entity.User;
 import com.io.appioweb.shared.errors.BusinessException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -46,6 +48,9 @@ public class SuperAdminTenantManagementService {
     private final CurrentUserPort currentUser;
     private final PasswordResetTokenRepositoryJpa passwordResetTokens;
     private final SuperAdminPlanManagementService planManagementService;
+    private final EmailOutboxService emailOutboxService;
+    private final String setPasswordBaseUrl;
+    private final String loginUrl;
 
     public SuperAdminTenantManagementService(
             NamedParameterJdbcTemplate jdbc,
@@ -55,7 +60,10 @@ public class SuperAdminTenantManagementService {
             TokenServicePort tokens,
             CurrentUserPort currentUser,
             PasswordResetTokenRepositoryJpa passwordResetTokens,
-            SuperAdminPlanManagementService planManagementService
+            SuperAdminPlanManagementService planManagementService,
+            EmailOutboxService emailOutboxService,
+            @Value("${SET_PASSWORD_URL:https://app.ioauto.com.br/definir-senha}") String setPasswordBaseUrl,
+            @Value("${LOGIN_URL:https://app.ioauto.com.br/login}") String loginUrl
     ) {
         this.jdbc = jdbc;
         this.healthScoreService = healthScoreService;
@@ -65,6 +73,9 @@ public class SuperAdminTenantManagementService {
         this.currentUser = currentUser;
         this.passwordResetTokens = passwordResetTokens;
         this.planManagementService = planManagementService;
+        this.emailOutboxService = emailOutboxService;
+        this.setPasswordBaseUrl = setPasswordBaseUrl == null ? "" : setPasswordBaseUrl.trim();
+        this.loginUrl = loginUrl == null ? "" : loginUrl.trim();
     }
 
     @Transactional(readOnly = true)
@@ -456,6 +467,9 @@ public class SuperAdminTenantManagementService {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(24, ChronoUnit.HOURS);
         String tokenValue = generateResetToken();
+        String userEmail = safe(user.getEmail());
+        String userName = safe(user.getFullName()).isBlank() ? safe(user.getNome()) : safe(user.getFullName());
+        String companyName = resolveTenantCompanyName(tenantId);
 
         JpaPasswordResetTokenEntity token = new JpaPasswordResetTokenEntity();
         token.setId(UUID.randomUUID());
@@ -466,20 +480,34 @@ public class SuperAdminTenantManagementService {
         token.setCreatedAt(now);
         passwordResetTokens.save(token);
 
+        if (userEmail.isBlank()) {
+            throw new BusinessException("TENANT_USER_EMAIL_MISSING", "Usuario do tenant nao possui email para receber o reset de senha.");
+        }
+
+        emailOutboxService.createPasswordResetEmail(
+                "superadmin-password-reset:" + userId + ":" + tokenValue,
+                userEmail,
+                userName,
+                companyName,
+                loginUrl,
+                generateSetPasswordUrl(tokenValue),
+                24
+        );
+
         logAction(
                 tenantId,
                 "TENANT_USER_PASSWORD_RESET",
-                "Superadmin solicitou reset de senha do usuario.",
+                "Superadmin solicitou reset de senha do usuario e o email foi enfileirado.",
                 Map.of(
                         "userId", userId.toString(),
-                        "userEmail", safe(user.getEmail())
+                        "userEmail", userEmail
                 )
         );
 
         return new ResetPasswordResult(
                 tenantId,
                 userId,
-                safe(user.getEmail()),
+                userEmail,
                 tokenValue,
                 expiresAt
         );
@@ -586,6 +614,13 @@ public class SuperAdminTenantManagementService {
         return UUID.randomUUID() + sb.toString();
     }
 
+    private String generateSetPasswordUrl(String tokenValue) {
+        if (setPasswordBaseUrl.isBlank()) {
+            return "";
+        }
+        return setPasswordBaseUrl + "?token=" + tokenValue;
+    }
+
     private void logAction(UUID tenantId, String action, String description, Map<String, String> metadata) {
         try {
             JpaTenantAdminLogEntity entity = new JpaTenantAdminLogEntity();
@@ -610,6 +645,15 @@ public class SuperAdminTenantManagementService {
 
     private String safeUuid(UUID value) {
         return value == null ? "" : value.toString();
+    }
+
+    private String resolveTenantCompanyName(UUID tenantId) {
+        String companyName = jdbc.queryForObject(
+                "select coalesce(name, '') from companies where id = :tenantId",
+                new MapSqlParameterSource("tenantId", tenantId),
+                String.class
+        );
+        return companyName == null || companyName.isBlank() ? "IO Auto" : companyName;
     }
 
     private JpaUserEntity resolvePreferredTenantUser(UUID tenantId) {

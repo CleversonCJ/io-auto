@@ -84,6 +84,55 @@ public class EmailOutboxService {
         return outbox;
     }
 
+    public JpaEmailOutboxEntity createPasswordResetEmail(
+            String idempotencyKey,
+            String toEmail,
+            String nome,
+            String companyName,
+            String loginUrl,
+            String setPasswordTokenUrl,
+            int expirationHours
+    ) {
+        Optional<JpaEmailOutboxEntity> existing = emailOutboxRepo.findByIdempotencyKey(idempotencyKey);
+        if (existing.isPresent()) {
+            log.info("[EmailOutbox] Password reset email already exists for idempotencyKey={} - returning existing", idempotencyKey);
+            return existing.get();
+        }
+
+        JpaEmailOutboxEntity outbox = new JpaEmailOutboxEntity();
+        outbox.setId(UUID.randomUUID());
+        outbox.setTemplate(EmailTemplateType.PASSWORD_RESET.name());
+        outbox.setToEmail(toEmail);
+        outbox.setStatus(EmailStatus.PENDING.name());
+        outbox.setRetryCount(0);
+        outbox.setIdempotencyKey(idempotencyKey);
+        outbox.setCreatedAt(Instant.now());
+
+        try {
+            outbox.setPayloadJson(writeTemplatePayload(
+                    nome,
+                    companyName,
+                    loginUrl,
+                    setPasswordTokenUrl,
+                    expirationHours
+            ));
+
+            String messageContent = buildPasswordResetEmailBody(nome, companyName, loginUrl, setPasswordTokenUrl, expirationHours);
+            String subject = "Redefina sua senha do IO Auto";
+
+            log.info("[EmailOutbox] Password reset email queued for {} - subject: '{}' - idempotencyKey={}", toEmail, subject, idempotencyKey);
+            log.debug("[EmailOutbox] Password reset body:\n{}", messageContent);
+        } catch (Exception e) {
+            log.error("[EmailOutbox] Failed to prepare password reset email for {}: {}", toEmail, e.getMessage(), e);
+            outbox.setStatus(EmailStatus.ERROR.name());
+            outbox.setErrorMessage(e.getMessage());
+            outbox.setPayloadJson("{}");
+        }
+
+        emailOutboxRepo.save(outbox);
+        return outbox;
+    }
+
     public String buildFirstUserAccessEmailBody(
             String nome,
             String companyName,
@@ -110,6 +159,36 @@ public class EmailOutboxService {
         }
 
         sb.append("Se você não solicitou esse acesso, ignore este e-mail.\n\n");
+        sb.append("Atenciosamente,\nEquipe IO Auto\n");
+        return sb.toString();
+    }
+
+    public String buildPasswordResetEmailBody(
+            String nome,
+            String companyName,
+            String loginUrl,
+            String setPasswordTokenUrl,
+            int expirationHours
+    ) {
+        String safeName = nome != null && !nome.isBlank() ? nome.trim() : "Cliente";
+        String safeCompanyName = companyName != null && !companyName.isBlank() ? companyName.trim() : "sua empresa";
+        String safeLoginUrl = loginUrl != null ? loginUrl.trim() : "";
+        String safeSetPasswordUrl = setPasswordTokenUrl != null ? setPasswordTokenUrl.trim() : "";
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Ola, ").append(safeName).append("!\n\n");
+        sb.append("Recebemos uma solicitacao para redefinir sua senha de acesso da empresa ").append(safeCompanyName).append(" no IO Auto.\n\n");
+
+        if (!safeSetPasswordUrl.isBlank()) {
+            sb.append("Use o link abaixo para criar uma nova senha:\n").append(safeSetPasswordUrl).append("\n\n");
+            sb.append("Esse link e valido por ").append(expirationHours).append(" horas.\n\n");
+        }
+
+        if (!safeLoginUrl.isBlank()) {
+            sb.append("Depois disso, voce podera entrar por aqui:\n").append(safeLoginUrl).append("\n\n");
+        }
+
+        sb.append("Se voce nao solicitou esta redefinicao, ignore este e-mail.\n\n");
         sb.append("Atenciosamente,\nEquipe IO Auto\n");
         return sb.toString();
     }

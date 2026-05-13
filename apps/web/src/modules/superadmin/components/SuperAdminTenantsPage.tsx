@@ -747,8 +747,9 @@ export function SuperAdminTenantsPage() {
                             </button>
                         </div>
                         <p className="mt-4">Usuario: {resetResult.userEmail || resetResult.userId}</p>
-                        <p className="mt-2">Token: {resetResult.token}</p>
+                        <p className="mt-2">O e-mail de redefinicao de senha foi enfileirado para envio automatico.</p>
                         <p className="mt-2">Expira em: {toBrDateTime(resetResult.expiresAt)}</p>
+                        <p className="mt-2 text-xs text-amber-900/80">Token tecnico gerado: {resetResult.token}</p>
                     </section>
                 </div>
             ) : null}

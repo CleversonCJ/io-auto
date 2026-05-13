@@ -93,7 +93,8 @@ public class EmailOutboxProcessor {
 
         return switch (normalized) {
             case "first-user-access" -> "Bem-vindo ao IO Auto! Dados de acesso";
-            default -> "Notificação IO Auto";
+            case "password-reset" -> "Redefina sua senha do IO Auto";
+            default -> "Notificacao IO Auto";
         };
     }
 }
