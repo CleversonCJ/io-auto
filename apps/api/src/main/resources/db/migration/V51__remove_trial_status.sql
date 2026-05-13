@@ -44,6 +44,11 @@ where user_id in (
 delete from users
 where company_id in (select id from tmp_trial_companies);
 
+-- onboarding_subscriptions nao possui ON DELETE CASCADE para companies.
+-- Remove primeiro para evitar violacao de FK ao excluir empresas trial.
+delete from onboarding_subscriptions
+where company_id in (select id from tmp_trial_companies);
+
 delete from companies
 where id in (select id from tmp_trial_companies);
 
