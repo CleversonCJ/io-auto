@@ -188,6 +188,13 @@ function monthLabel(value?: string | null) {
     return value;
 }
 
+function formatDate(value?: string | null) {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString("pt-BR");
+}
+
 function titleCase(value?: string | null) {
     if (!value) return "-";
     return value
@@ -617,7 +624,7 @@ function buildProductSection(args: BuildArgs): SuperAdminSection {
             }),
         ],
         statCards: [
-            statCard("Periodo analisado", `${args.dashboardData?.fromDate || "-"} ate ${args.dashboardData?.toDate || "-"}`, "Recorte usado para medir adocao e uso real."),
+            statCard("Periodo analisado", `${formatDate(args.dashboardData?.fromDate)} ate ${formatDate(args.dashboardData?.toDate)}`, "Recorte usado para medir adocao e uso real."),
             statCard("Feature lider", topFeature?.label || "Sem dados", `${integer(topFeature?.value || 0)} clientes unicos no periodo.`),
             statCard("Interacoes registradas", integer(totalUsage), "Soma bruta dos eventos de uso considerados pelo painel."),
         ],
@@ -750,8 +757,6 @@ function buildGrowthSection(args: BuildArgs): SuperAdminSection {
             metric("Leads gerados", integer(leadsGenerated), "Leads vindos da pagina de catalogo.", undefined, "emerald"),
             metric("Vendas fechadas", integer(closedSales), "Vendas atribuidas ao recorte atual.", undefined, "sky"),
             metric("Taxa de conversao", percent(conversionRate), "Relacao entre leads e vendas fechadas.", undefined, "violet"),
-            metric("CAC", args.dashboardData?.cac == null ? "Nao aplicado" : currency(toNumber(args.dashboardData?.cac) * 100), "Estrutura pronta para quando o modulo de custos entrar.", undefined, "amber"),
-            metric("Payback", args.dashboardData?.payback == null ? "Nao aplicado" : formatMonthsDuration(toNumber(args.dashboardData?.payback)), "Mantido em espera conforme a regra atual do produto.", undefined, "rose"),
         ],
         alerts: [
             alert(
@@ -820,7 +825,7 @@ function buildGrowthSection(args: BuildArgs): SuperAdminSection {
         insights: [
             insight("Aquisicao e retencao passam a conversar", "Leads, vendas e origem de cliente agora ficam no mesmo painel executivo.", "positive"),
             insight("Mix de origem influencia escala", `${topLeadOrigin?.label || "A principal origem"} lidera a captacao e pode orientar investimento e parcerias.`, topLeadOriginShare >= 60 ? "warning" : "positive"),
-            insight("CAC e payback estao prontos para entrar", "Os cards seguem respeitando a regra atual do produto sem inventar valores onde o backend ainda nao mede custo.", "positive"),
+            insight("Leitura de crescimento ficou mais objetiva", "A tela foca no que ja esta medido hoje: leads, vendas, conversao e origem da aquisicao.", "positive"),
         ],
     };
 }
