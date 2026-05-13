@@ -95,7 +95,7 @@ public class SuperAdminInsightsService {
                     from ioauto_public_catalog_leads l
                     where l.created_at >= :thirtyDaysAgo
                     group by l.company_id
-                ),
+                )
                 select
                     c.id,
                     c.name,

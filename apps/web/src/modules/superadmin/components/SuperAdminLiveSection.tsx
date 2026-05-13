@@ -241,7 +241,6 @@ export function SuperAdminLiveSection({ section }: Props) {
     const [ticketDetailLoading, setTicketDetailLoading] = useState(false);
     const [ticketDetailError, setTicketDetailError] = useState<string | null>(null);
     const [ticketReply, setTicketReply] = useState("");
-    const [ticketStatusDraft, setTicketStatusDraft] = useState("OPEN");
     const [ticketStatusFilter, setTicketStatusFilter] = useState("");
     const [ticketCategoryFilter, setTicketCategoryFilter] = useState("");
     const [ticketActionLoading, setTicketActionLoading] = useState(false);
@@ -278,7 +277,6 @@ export function SuperAdminLiveSection({ section }: Props) {
                 "Falha ao carregar o ticket selecionado.",
             );
             setTicketDetail(payload);
-            setTicketStatusDraft(payload.status ?? "OPEN");
         } catch (requestError) {
             setTicketDetail(null);
             setTicketDetailError(requestError instanceof Error ? requestError.message : "Falha ao carregar o ticket selecionado.");
@@ -337,7 +335,7 @@ export function SuperAdminLiveSection({ section }: Props) {
 
                 const resolvedTicketId = selectedTicketId && nextTickets.some((ticket) => ticket.ticketId === selectedTicketId)
                     ? selectedTicketId
-                    : nextTickets[0]?.ticketId ?? null;
+                    : null;
 
                 setSelectedTicketId(resolvedTicketId);
                 if (resolvedTicketId) {
@@ -366,7 +364,15 @@ export function SuperAdminLiveSection({ section }: Props) {
         }
     }
 
-    async function handleTicketStatusUpdate() {
+    function closeTicketModal() {
+        setSelectedTicketId(null);
+        setTicketDetail(null);
+        setTicketDetailError(null);
+        setTicketReply("");
+        setTicketActionFeedback(null);
+    }
+
+    async function handleTicketStatusUpdate(nextStatus: string, successMessage: string) {
         if (!ticketDetail) return;
 
         setTicketActionLoading(true);
@@ -377,11 +383,11 @@ export function SuperAdminLiveSection({ section }: Props) {
                 {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ status: ticketStatusDraft }),
+                    body: JSON.stringify({ status: nextStatus }),
                 },
                 "Falha ao atualizar o status do ticket.",
             );
-            setTicketActionFeedback("Status do ticket atualizado.");
+            setTicketActionFeedback(successMessage);
             await load();
         } catch (requestError) {
             setTicketActionFeedback(requestError instanceof Error ? requestError.message : "Falha ao atualizar o ticket.");
@@ -413,6 +419,13 @@ export function SuperAdminLiveSection({ section }: Props) {
         } finally {
             setTicketActionLoading(false);
         }
+    }
+
+    async function handleTicketOpen(ticketId: string) {
+        setSelectedTicketId(ticketId);
+        setTicketReply("");
+        setTicketActionFeedback(null);
+        await loadTicketDetail(ticketId);
     }
 
     useEffect(() => {
@@ -696,153 +709,181 @@ export function SuperAdminLiveSection({ section }: Props) {
             <div className="grid gap-5">
                 <SuperAdminDashboardSection section={visualSection} resolveAlerts={false} />
 
-                <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-                    <section className="rounded-2xl border border-black/10 bg-white p-4">
-                        <p className="text-sm font-semibold text-io-dark">Bugs por categoria</p>
-                        <div className="mt-3">
-                            <BarRows rows={bugsByArea.map((row: Record<string, any>) => ({
-                                label: row.bugArea,
-                                value: row.total ?? 0,
-                            }))} />
+                <section className="rounded-2xl border border-black/10 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p className="text-sm font-semibold text-io-dark">Mesa de suporte</p>
+                            <p className="text-xs text-black/55">Todos os tickets existentes. Clique em uma linha para abrir o atendimento completo.</p>
                         </div>
-                    </section>
-
-                    <section className="rounded-2xl border border-black/10 bg-white p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                                <p className="text-sm font-semibold text-io-dark">Mesa de suporte</p>
-                                <p className="text-xs text-black/55">Tickets reais, com resposta e troca de status pelo superadmin.</p>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                <select
-                                    value={ticketStatusFilter}
-                                    onChange={(event) => {
-                                        const nextValue = event.target.value;
-                                        setTicketStatusFilter(nextValue);
-                                        void load(filters, nextValue, ticketCategoryFilter);
-                                    }}
-                                    className="h-10 rounded-lg border border-black/12 px-3 text-sm"
-                                >
-                                    <option value="">Todos os status</option>
-                                    {SUPPORT_STATUS_OPTIONS.map((value) => <option key={value} value={value}>{titleCase(value)}</option>)}
-                                </select>
-                                <select
-                                    value={ticketCategoryFilter}
-                                    onChange={(event) => {
-                                        const nextValue = event.target.value;
-                                        setTicketCategoryFilter(nextValue);
-                                        void load(filters, ticketStatusFilter, nextValue);
-                                    }}
-                                    className="h-10 rounded-lg border border-black/12 px-3 text-sm"
-                                >
-                                    <option value="">Todas as categorias</option>
-                                    {SUPPORT_CATEGORY_OPTIONS.map((value) => <option key={value} value={value}>{titleCase(value)}</option>)}
-                                </select>
-                            </div>
+                        <div className="flex flex-wrap gap-2">
+                            <select
+                                value={ticketStatusFilter}
+                                onChange={(event) => {
+                                    const nextValue = event.target.value;
+                                    setTicketStatusFilter(nextValue);
+                                    void load(filters, nextValue, ticketCategoryFilter);
+                                }}
+                                className="h-10 rounded-lg border border-black/12 px-3 text-sm"
+                            >
+                                <option value="">Todos os status</option>
+                                {SUPPORT_STATUS_OPTIONS.map((value) => <option key={value} value={value}>{titleCase(value)}</option>)}
+                            </select>
+                            <select
+                                value={ticketCategoryFilter}
+                                onChange={(event) => {
+                                    const nextValue = event.target.value;
+                                    setTicketCategoryFilter(nextValue);
+                                    void load(filters, ticketStatusFilter, nextValue);
+                                }}
+                                className="h-10 rounded-lg border border-black/12 px-3 text-sm"
+                            >
+                                <option value="">Todas as categorias</option>
+                                {SUPPORT_CATEGORY_OPTIONS.map((value) => <option key={value} value={value}>{titleCase(value)}</option>)}
+                            </select>
                         </div>
+                    </div>
 
-                        <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-                            <div className="overflow-x-auto rounded-xl border border-black/8">
-                                <table className="min-w-full text-sm">
-                                    <thead className="bg-black/[0.03] text-left text-black/55">
-                                        <tr>
-                                            <th className="px-3 py-3">Empresa</th>
-                                            <th className="px-3 py-3">Ticket</th>
-                                            <th className="px-3 py-3">Status</th>
-                                            <th className="px-3 py-3">Urgencia</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {supportTickets.map((ticket) => (
-                                            <tr
-                                                key={ticket.ticketId}
-                                                className={`cursor-pointer border-t border-black/8 ${selectedTicketId === ticket.ticketId ? "bg-black/[0.04]" : "bg-white"}`}
-                                                onClick={() => {
-                                                    setSelectedTicketId(ticket.ticketId);
-                                                    void loadTicketDetail(ticket.ticketId);
-                                                }}
-                                            >
-                                                <td className="px-3 py-3">{ticket.companyName}</td>
-                                                <td className="px-3 py-3">{ticket.title}</td>
-                                                <td className="px-3 py-3">{titleCase(ticket.status)}</td>
-                                                <td className="px-3 py-3">{titleCase(ticket.urgency)}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                    <div className="mt-4 overflow-x-auto rounded-xl border border-black/8">
+                        <table className="min-w-full text-sm">
+                            <thead className="bg-black/[0.03] text-left text-black/55">
+                                <tr>
+                                    <th className="px-3 py-3">Empresa</th>
+                                    <th className="px-3 py-3">Ticket</th>
+                                    <th className="px-3 py-3">Categoria</th>
+                                    <th className="px-3 py-3">Status</th>
+                                    <th className="px-3 py-3">Urgencia</th>
+                                    <th className="px-3 py-3">Criado em</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {supportTickets.map((ticket) => (
+                                    <tr
+                                        key={ticket.ticketId}
+                                        className="cursor-pointer border-t border-black/8 bg-white transition hover:bg-black/[0.03]"
+                                        onClick={() => void handleTicketOpen(ticket.ticketId)}
+                                    >
+                                        <td className="px-3 py-3">{ticket.companyName}</td>
+                                        <td className="px-3 py-3">{ticket.title}</td>
+                                        <td className="px-3 py-3">{titleCase(ticket.category)}</td>
+                                        <td className="px-3 py-3">{titleCase(ticket.status)}</td>
+                                        <td className="px-3 py-3">{titleCase(ticket.urgency)}</td>
+                                        <td className="px-3 py-3">{toBrDateTime(ticket.createdAt)}</td>
+                                    </tr>
+                                ))}
+                                {!supportTickets.length ? (
+                                    <tr>
+                                        <td colSpan={6} className="px-3 py-6 text-center text-sm text-black/55">
+                                            Nenhum ticket encontrado para os filtros atuais.
+                                        </td>
+                                    </tr>
+                                ) : null}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section className="rounded-2xl border border-black/10 bg-white p-4">
+                    <p className="text-sm font-semibold text-io-dark">Bugs por categoria</p>
+                    <div className="mt-3">
+                        <BarRows rows={bugsByArea.map((row: Record<string, any>) => ({
+                            label: row.bugArea,
+                            value: row.total ?? 0,
+                        }))} />
+                    </div>
+                </section>
+
+                {selectedTicketId ? (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6" onClick={closeTicketModal}>
+                        <div
+                            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[28px] bg-white p-5 shadow-[0_24px_60px_rgba(0,0,0,0.22)]"
+                            onClick={(event) => event.stopPropagation()}
+                        >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <p className="text-xs uppercase tracking-[0.16em] text-black/40">{ticketDetail?.companyName || "Carregando ticket"}</p>
+                                    <h3 className="mt-2 text-2xl font-bold text-io-dark">{ticketDetail?.title || "Carregando..."}</h3>
+                                </div>
+                                <button type="button" onClick={closeTicketModal} className="h-10 rounded-full border border-black/12 px-4 text-sm font-semibold text-black/65">
+                                    Fechar
+                                </button>
                             </div>
 
-                            <div className="rounded-xl border border-black/8 bg-black/[0.02] p-4">
-                                {ticketDetailLoading ? <p className="text-sm text-black/55">Carregando ticket...</p> : null}
-                                {ticketDetailError ? <p className="text-sm text-red-700">{ticketDetailError}</p> : null}
-                                {!ticketDetailLoading && !ticketDetail && !ticketDetailError ? <p className="text-sm text-black/55">Selecione um ticket para ver os detalhes.</p> : null}
+                            {ticketDetailLoading ? <p className="mt-4 text-sm text-black/55">Carregando ticket...</p> : null}
+                            {ticketDetailError ? <p className="mt-4 text-sm text-red-700">{ticketDetailError}</p> : null}
 
-                                {ticketDetail ? (
-                                    <div className="grid gap-4">
-                                        <div>
-                                            <p className="text-xs uppercase tracking-[0.16em] text-black/40">{ticketDetail.companyName}</p>
-                                            <h3 className="mt-2 text-xl font-bold text-io-dark">{ticketDetail.title}</h3>
-                                            <p className="mt-2 text-sm leading-6 text-black/65">{ticketDetail.description}</p>
+                            {ticketDetail ? (
+                                <div className="mt-5 grid gap-4">
+                                    <div className="rounded-2xl bg-black/[0.03] p-4">
+                                        <p className="text-sm leading-6 text-black/70">{ticketDetail.description}</p>
+                                    </div>
+
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                        <div className="rounded-xl border border-black/8 bg-white p-4 text-sm text-black/65">
+                                            <p><span className="font-semibold text-io-dark">Categoria:</span> {titleCase(ticketDetail.category)}</p>
+                                            <p className="mt-1"><span className="font-semibold text-io-dark">Urgencia:</span> {titleCase(ticketDetail.urgency)}</p>
+                                            <p className="mt-1"><span className="font-semibold text-io-dark">Status:</span> {titleCase(ticketDetail.status)}</p>
+                                            <p className="mt-1"><span className="font-semibold text-io-dark">Aberto por:</span> {ticketDetail.openedByName || "-"}</p>
+                                            <p className="mt-1"><span className="font-semibold text-io-dark">Area do bug:</span> {ticketDetail.bugArea ? titleCase(ticketDetail.bugArea) : "-"}</p>
                                         </div>
-
-                                        <div className="grid gap-3 md:grid-cols-2">
-                                            <div className="rounded-xl bg-white p-3 text-sm text-black/65">
-                                                <p><span className="font-semibold text-io-dark">Categoria:</span> {titleCase(ticketDetail.category)}</p>
-                                                <p className="mt-1"><span className="font-semibold text-io-dark">Urgencia:</span> {titleCase(ticketDetail.urgency)}</p>
-                                                <p className="mt-1"><span className="font-semibold text-io-dark">Aberto por:</span> {ticketDetail.openedByName || "-"}</p>
-                                            </div>
-                                            <div className="rounded-xl bg-white p-3 text-sm text-black/65">
-                                                <p><span className="font-semibold text-io-dark">Criado em:</span> {toBrDateTime(ticketDetail.createdAt)}</p>
-                                                <p className="mt-1"><span className="font-semibold text-io-dark">Primeira resposta:</span> {toBrDateTime(ticketDetail.firstResponseAt)}</p>
-                                                <p className="mt-1"><span className="font-semibold text-io-dark">Resolvido em:</span> {toBrDateTime(ticketDetail.resolvedAt)}</p>
-                                            </div>
+                                        <div className="rounded-xl border border-black/8 bg-white p-4 text-sm text-black/65">
+                                            <p><span className="font-semibold text-io-dark">Criado em:</span> {toBrDateTime(ticketDetail.createdAt)}</p>
+                                            <p className="mt-1"><span className="font-semibold text-io-dark">Primeira resposta:</span> {toBrDateTime(ticketDetail.firstResponseAt)}</p>
+                                            <p className="mt-1"><span className="font-semibold text-io-dark">Resolvido em:</span> {toBrDateTime(ticketDetail.resolvedAt)}</p>
+                                            <p className="mt-1"><span className="font-semibold text-io-dark">Fechado em:</span> {toBrDateTime(ticketDetail.closedAt)}</p>
                                         </div>
+                                    </div>
 
-                                        <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-                                            <select value={ticketStatusDraft} onChange={(event) => setTicketStatusDraft(event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
-                                                {SUPPORT_STATUS_OPTIONS.map((value) => <option key={value} value={value}>{titleCase(value)}</option>)}
-                                            </select>
-                                            <button type="button" onClick={() => void handleTicketStatusUpdate()} disabled={ticketActionLoading} className="h-10 rounded-full bg-io-dark px-4 text-sm font-semibold text-white disabled:opacity-60">
-                                                {ticketActionLoading ? "Salvando..." : "Atualizar status"}
-                                            </button>
-                                        </div>
-
-                                        <div className="rounded-xl border border-black/8 bg-white p-3">
-                                            <p className="text-sm font-semibold text-io-dark">Historico de mensagens</p>
-                                            <div className="mt-3 grid gap-3">
-                                                {ticketDetail.messages.map((message) => (
-                                                    <div key={message.id} className="rounded-lg bg-black/[0.03] p-3">
-                                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-black/45">{titleCase(message.senderType)}</p>
-                                                            <p className="text-xs text-black/45">{toBrDateTime(message.createdAt)}</p>
-                                                        </div>
-                                                        <p className="mt-2 text-sm leading-6 text-black/70">{message.message}</p>
+                                    <div className="rounded-xl border border-black/8 bg-white p-4">
+                                        <p className="text-sm font-semibold text-io-dark">Historico de mensagens</p>
+                                        <div className="mt-3 grid gap-3">
+                                            {ticketDetail.messages.map((message) => (
+                                                <div key={message.id} className="rounded-lg bg-black/[0.03] p-3">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-black/45">{titleCase(message.senderType)}</p>
+                                                        <p className="text-xs text-black/45">{toBrDateTime(message.createdAt)}</p>
                                                     </div>
-                                                ))}
-                                            </div>
+                                                    <p className="mt-2 text-sm leading-6 text-black/70">{message.message}</p>
+                                                </div>
+                                            ))}
+                                            {!ticketDetail.messages.length ? <p className="text-sm text-black/55">Nenhuma mensagem registrada neste ticket.</p> : null}
                                         </div>
+                                    </div>
 
-                                        <div className="grid gap-2">
-                                            <textarea
-                                                value={ticketReply}
-                                                onChange={(event) => setTicketReply(event.target.value)}
-                                                rows={4}
-                                                placeholder="Responder ticket"
-                                                className="rounded-xl border border-black/12 px-3 py-3 text-sm outline-none transition focus:border-black/25"
-                                            />
-                                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                                {ticketActionFeedback ? <p className="text-sm text-black/60">{ticketActionFeedback}</p> : <span />}
-                                                <button type="button" onClick={() => void handleTicketReplySubmit()} disabled={ticketActionLoading || !ticketReply.trim()} className="h-10 rounded-full bg-io-dark px-4 text-sm font-semibold text-white disabled:opacity-60">
+                                    <div className="grid gap-2">
+                                        <textarea
+                                            value={ticketReply}
+                                            onChange={(event) => setTicketReply(event.target.value)}
+                                            rows={4}
+                                            placeholder="Responder ticket"
+                                            className="rounded-xl border border-black/12 px-3 py-3 text-sm outline-none transition focus:border-black/25"
+                                        />
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            {ticketActionFeedback ? <p className="text-sm text-black/60">{ticketActionFeedback}</p> : <span />}
+                                            <div className="flex flex-wrap gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleTicketStatusUpdate("CLOSED", "Ticket concluido com sucesso.")}
+                                                    disabled={ticketActionLoading || ticketDetail.status === "CLOSED"}
+                                                    className="h-10 rounded-full border border-black/12 px-4 text-sm font-semibold text-black/70 disabled:opacity-60"
+                                                >
+                                                    {ticketActionLoading ? "Salvando..." : "Concluir ticket"}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleTicketReplySubmit()}
+                                                    disabled={ticketActionLoading || !ticketReply.trim()}
+                                                    className="h-10 rounded-full bg-io-dark px-4 text-sm font-semibold text-white disabled:opacity-60"
+                                                >
                                                     {ticketActionLoading ? "Enviando..." : "Enviar resposta"}
                                                 </button>
                                             </div>
                                         </div>
                                     </div>
-                                ) : null}
-                            </div>
+                                </div>
+                            ) : null}
                         </div>
-                    </section>
-                </div>
+                    </div>
+                ) : null}
             </div>
         );
     }
