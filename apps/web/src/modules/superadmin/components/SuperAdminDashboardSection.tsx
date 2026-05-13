@@ -56,6 +56,65 @@ function getInsightClasses(tone: SuperAdminInsight["tone"]) {
     return "border-emerald-200 bg-emerald-50 text-emerald-950";
 }
 
+function titleCase(value?: string | null) {
+    if (!value) return "-";
+    return value
+        .toLowerCase()
+        .split("_")
+        .filter(Boolean)
+        .map((token) => token[0]?.toUpperCase() + token.slice(1))
+        .join(" ");
+}
+
+function formatHealthBadgeLabel(value?: string | null) {
+    const normalized = String(value ?? "").trim().toUpperCase();
+    if (!normalized) return "-";
+
+    const labels: Record<string, string> = {
+        RISCO_ALTISSIMO: "Risco Altíssimo",
+        RISCO_ALTO: "Risco Alto",
+        RISCO_MODERADO: "Risco Moderado",
+        RISCO_BAIXO: "Risco Baixo",
+        RISCO_MINIMO: "Risco Mínimo",
+        ALTISSIMO: "Altíssimo",
+        ALTO: "Alto",
+        INTERMEDIARIO: "Intermediário",
+        MODERADO: "Moderado",
+        BAIXO: "Baixo",
+        MINIMO: "Mínimo",
+        SAUDAVEL: "Saudável",
+        ESTAVEL: "Estável",
+        CRITICO: "Crítico",
+    };
+
+    return labels[normalized] ?? titleCase(normalized);
+}
+
+function isHealthBadge(value?: string | null) {
+    const normalized = String(value ?? "").trim().toUpperCase();
+    return [
+        "RISCO_",
+        "ALTISSIMO",
+        "ALTO",
+        "INTERMEDIARIO",
+        "MODERADO",
+        "BAIXO",
+        "MINIMO",
+        "SAUDAVEL",
+        "ESTAVEL",
+        "CRITICO",
+    ].some((token) => normalized.includes(token));
+}
+
+function healthBadgeDotClasses(value?: string | null) {
+    const normalized = String(value ?? "").trim().toUpperCase();
+    if (normalized.includes("ALTISSIMO") || normalized.includes("CRITICO")) return "bg-red-500";
+    if (normalized.includes("ALTO")) return "bg-orange-500";
+    if (normalized.includes("INTERMEDIARIO") || normalized.includes("MODERADO")) return "bg-amber-500";
+    if (normalized.includes("BAIXO") || normalized.includes("MINIMO") || normalized.includes("SAUDAVEL") || normalized.includes("ESTAVEL")) return "bg-emerald-500";
+    return "bg-slate-400";
+}
+
 function parseLocaleNumber(raw: string) {
     const normalized = raw.replace(/\./g, "").replace(",", ".");
     const value = Number(normalized);
@@ -779,9 +838,16 @@ export function SuperAdminDashboardSection({
                                     <div className="text-right">
                                         <p className="text-sm font-bold text-io-dark">{row.value}</p>
                                         {row.badge ? (
-                                            <span className="mt-2 inline-flex rounded-full bg-io-dark px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
-                                                {row.badge}
-                                            </span>
+                                            isHealthBadge(row.badge) ? (
+                                                <span className="mt-2 inline-flex items-center gap-2 rounded-full bg-io-dark px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-white">
+                                                    <span className={`h-2 w-2 rounded-full ${healthBadgeDotClasses(row.badge)}`} />
+                                                    {formatHealthBadgeLabel(row.badge)}
+                                                </span>
+                                            ) : (
+                                                <span className="mt-2 inline-flex rounded-full bg-io-dark px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
+                                                    {row.badge}
+                                                </span>
+                                            )
                                         ) : null}
                                     </div>
                                 </div>
