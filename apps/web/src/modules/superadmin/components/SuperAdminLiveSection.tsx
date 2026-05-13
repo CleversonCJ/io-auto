@@ -899,7 +899,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                 <SuperAdminDashboardSection section={visualSection} resolveAlerts={false} />
 
                 <div className="grid gap-5 xl:grid-cols-2">
-                    <section className="rounded-2xl border border-black/10 bg-white p-4">
+                    <section className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                         <p className="text-sm font-semibold text-io-dark">Maior risco de cancelamento</p>
                         <div className="mt-3 overflow-x-auto">
                             <table className="min-w-full text-sm">
@@ -925,7 +925,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                         </div>
                     </section>
 
-                    <section className="rounded-2xl border border-black/10 bg-white p-4">
+                    <section className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                         <p className="text-sm font-semibold text-io-dark">Clientes prontos para upgrade</p>
                         <div className="mt-3 overflow-x-auto">
                             <table className="min-w-full text-sm">
@@ -953,7 +953,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                 </div>
 
                 <div className="grid gap-5 xl:grid-cols-2">
-                    <section className="rounded-2xl border border-black/10 bg-white p-4">
+                    <section className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                         <p className="text-sm font-semibold text-io-dark">Maior potencial de faturamento</p>
                         <div className="mt-3 overflow-x-auto">
                             <table className="min-w-full text-sm">
@@ -979,7 +979,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                         </div>
                     </section>
 
-                    <section className="rounded-2xl border border-black/10 bg-white p-4">
+                    <section className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                         <p className="text-sm font-semibold text-io-dark">Funcionalidades subutilizadas</p>
                         <div className="mt-3">
                             <BarRows rows={underusedFeatures.map((row: Record<string, any>) => ({
