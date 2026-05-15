@@ -7,10 +7,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AsaasClientTest {
 
+    private static final String PRODUCTION_BASE_URL = "https://api.asaas.com";
+
     @Test
     @DisplayName("updateSubscriptionDescription returns false when token not configured")
     void updateSubscriptionDescription_noToken_returnsFalse() {
-        AsaasProperties props = new AsaasProperties("https://api-sandbox.asaas.com", "");
+        AsaasProperties props = new AsaasProperties(PRODUCTION_BASE_URL, "");
         AsaasClient client = new AsaasClient(props);
 
         boolean result = client.updateSubscriptionDescription("sub_123", "Test Plan", "ref-123");
@@ -21,7 +23,7 @@ class AsaasClientTest {
     @Test
     @DisplayName("updateSubscriptionDescription returns false when subscriptionId is blank")
     void updateSubscriptionDescription_blankSubscriptionId_returnsFalse() {
-        AsaasProperties props = new AsaasProperties("https://api-sandbox.asaas.com", "test-token");
+        AsaasProperties props = new AsaasProperties(PRODUCTION_BASE_URL, "test-token");
         AsaasClient client = new AsaasClient(props);
 
         boolean result = client.updateSubscriptionDescription("", "Test Plan", "ref-123");
@@ -34,7 +36,7 @@ class AsaasClientTest {
     void updateSubscriptionDescription_blankDescription_usesDefault() {
         // This would make a real HTTP call in a real scenario
         // Here we just verify the client doesn't throw
-        AsaasProperties props = new AsaasProperties("https://api-sandbox.asaas.com", "");
+        AsaasProperties props = new AsaasProperties(PRODUCTION_BASE_URL, "");
         AsaasClient client = new AsaasClient(props);
 
         // With blank token, it returns false early without making HTTP call
@@ -45,13 +47,13 @@ class AsaasClientTest {
     @Test
     @DisplayName("AsaasProperties correctly identifies configured state")
     void asaasProperties_isConfigured() {
-        AsaasProperties configured = new AsaasProperties("https://api.asaas.com", "my-token");
+        AsaasProperties configured = new AsaasProperties(PRODUCTION_BASE_URL, "my-token");
         assertTrue(configured.isConfigured());
 
-        AsaasProperties notConfigured = new AsaasProperties("https://api.asaas.com", "");
+        AsaasProperties notConfigured = new AsaasProperties(PRODUCTION_BASE_URL, "");
         assertFalse(notConfigured.isConfigured());
 
-        AsaasProperties nullToken = new AsaasProperties("https://api.asaas.com", null);
+        AsaasProperties nullToken = new AsaasProperties(PRODUCTION_BASE_URL, null);
         assertFalse(nullToken.isConfigured());
     }
 }
