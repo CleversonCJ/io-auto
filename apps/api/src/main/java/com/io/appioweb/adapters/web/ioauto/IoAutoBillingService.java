@@ -1906,9 +1906,17 @@ public class IoAutoBillingService {
             response = callAsaas("PUT", "/subscriptions/" + urlEncode(providerSubscriptionId), body);
         } catch (BusinessException exception) {
             if ("ASAAS_API_ERROR".equals(exception.code()) || "ASAAS_INVALID_RESPONSE".equals(exception.code())) {
+                log.warn(
+                        "Asaas subscription update failed companyId={} subscriptionId={} targetPlan={} targetInterval={} reason={}",
+                        context.company().getId(),
+                        providerSubscriptionId,
+                        context.targetPlan().planKey(),
+                        context.targetBillingInterval(),
+                        exception.getMessage()
+                );
                 throw new BusinessException(
                         "ASAAS_SUBSCRIPTION_UPDATE_FAILED",
-                        "Nao foi possivel alterar sua assinatura no momento. Nenhuma cobranca foi alterada."
+                        buildAsaasPlanChangeErrorMessage(exception.getMessage())
                 );
             }
             throw exception;
@@ -1955,6 +1963,14 @@ public class IoAutoBillingService {
         if (asaasApiKey.isBlank()) {
             throw new BusinessException("BILLING_NOT_CONFIGURED", "Configure ASAAS_API_KEY ou ASAAS_ACCESS_TOKEN antes de atualizar a assinatura.");
         }
+    }
+
+    private String buildAsaasPlanChangeErrorMessage(String detail) {
+        String normalizedDetail = normalizeText(detail);
+        if (normalizedDetail.isBlank() || "Nao foi possivel concluir a comunicacao com o Asaas.".equals(normalizedDetail)) {
+            return "Nao foi possivel alterar sua assinatura no momento. Nenhuma cobranca foi alterada.";
+        }
+        return "Nao foi possivel alterar sua assinatura no momento. Nenhuma cobranca foi alterada. Detalhe do Asaas: " + normalizedDetail;
     }
 
     private String normalizeAsaasApiBaseUrl(String rawBaseUrl) {

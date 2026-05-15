@@ -115,7 +115,11 @@ class IoAutoBillingServicePlanChangeTest {
 
             assertThatThrownBy(() -> ctx.service.confirmPlanChange(ctx.companyId, "pro", "MONTHLY", true))
                     .isInstanceOf(BusinessException.class)
-                    .satisfies(error -> assertThat(((BusinessException) error).code()).isEqualTo("ASAAS_SUBSCRIPTION_UPDATE_FAILED"));
+                    .satisfies(error -> {
+                        BusinessException businessException = (BusinessException) error;
+                        assertThat(businessException.code()).isEqualTo("ASAAS_SUBSCRIPTION_UPDATE_FAILED");
+                        assertThat(businessException.getMessage()).contains("gateway-failed");
+                    });
 
             assertThat(ctx.company.getPlanId()).isEqualTo(ctx.currentPlan.planId());
             assertThat(ctx.subscription.getPlanKey()).isEqualTo("basic");
