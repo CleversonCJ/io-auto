@@ -2,8 +2,9 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { BadgeCheck, Building2, Mail, ShieldCheck, UserCircle2 } from "lucide-react";
+import { BadgeCheck, Mail, ShieldCheck, UserCircle2 } from "lucide-react";
 import { SubscriptionCenter } from "@/modules/ioauto/components/SubscriptionCenter";
+import type { BillingSnapshot } from "@/modules/ioauto/types";
 
 type CurrentUser = {
     userId: string;
@@ -28,9 +29,9 @@ function getInitials(fullName?: string | null, email?: string | null) {
 function formatPermissionPreset(value?: string | null) {
     const normalized = String(value ?? "").trim().toLowerCase();
     if (normalized === "admin") return "Administrador";
-    if (normalized === "default") return "Padrão";
+    if (normalized === "default") return "Padrao";
     if (normalized === "custom") return "Personalizado";
-    return "Não informado";
+    return "Nao informado";
 }
 
 function formatEntryDate(value?: string | null) {
@@ -48,22 +49,33 @@ function formatEntryDate(value?: string | null) {
 
 export function ProfileCenter() {
     const [user, setUser] = useState<CurrentUser | null>(null);
+    const [billing, setBilling] = useState<BillingSnapshot | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         let active = true;
 
-        fetch("/api/auth/me", { cache: "no-store" })
-            .then(async (response) => {
-                if (!response.ok) {
-                    const payload = await response.json().catch(() => ({ message: "Falha ao carregar o perfil." }));
+        Promise.all([
+            fetch("/api/auth/me", { cache: "no-store" }),
+            fetch("/api/ioauto/billing", { cache: "no-store" }),
+        ])
+            .then(async ([meResponse, billingResponse]) => {
+                if (!meResponse.ok) {
+                    const payload = await meResponse.json().catch(() => ({ message: "Falha ao carregar o perfil." }));
                     throw new Error(payload.message ?? "Falha ao carregar o perfil.");
                 }
-                return response.json();
+
+                const mePayload = (await meResponse.json()) as CurrentUser;
+                const billingPayload = billingResponse.ok
+                    ? (await billingResponse.json()) as BillingSnapshot
+                    : null;
+
+                return { mePayload, billingPayload };
             })
-            .then((payload: CurrentUser) => {
+            .then(({ mePayload, billingPayload }) => {
                 if (!active) return;
-                setUser(payload);
+                setUser(mePayload);
+                setBilling(billingPayload);
                 setError(null);
             })
             .catch((cause: Error) => {
@@ -80,6 +92,10 @@ export function ProfileCenter() {
         return (user?.modulePermissions ?? []).filter((item) => item.trim().length > 0);
     }, [user?.modulePermissions]);
 
+    const enabledModules = useMemo(() => {
+        return (billing?.enabledModules ?? []).filter((item) => item.trim().length > 0);
+    }, [billing?.enabledModules]);
+
     if (error) {
         return <div className="rounded-[32px] border border-red-200 bg-red-50 px-6 py-5 text-sm text-red-700">{error}</div>;
     }
@@ -91,7 +107,7 @@ export function ProfileCenter() {
                     <div className="flex items-center gap-4">
                         {user?.profileImageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={user.profileImageUrl} alt={user.fullName ?? "Usuário"} className="h-20 w-20 rounded-[28px] object-cover" />
+                            <img src={user.profileImageUrl} alt={user.fullName ?? "Usuario"} className="h-20 w-20 rounded-[28px] object-cover" />
                         ) : (
                             <div className="grid h-20 w-20 place-items-center rounded-[28px] bg-io-dark text-xl font-bold text-white">
                                 {getInitials(user?.fullName, user?.email)}
@@ -102,7 +118,7 @@ export function ProfileCenter() {
                             <h1 className="mt-2 font-display text-4xl font-bold text-io-dark">
                                 {user?.fullName ?? "Carregando perfil"}
                             </h1>
-                            <p className="mt-2 text-sm text-black/55">{user?.email ?? "Sem e-mail disponível"}</p>
+                            <p className="mt-2 text-sm text-black/55">{user?.email ?? "Sem e-mail disponivel"}</p>
                         </div>
                     </div>
 
@@ -123,8 +139,8 @@ export function ProfileCenter() {
                             <UserCircle2 className="h-5 w-5" />
                         </div>
                         <div>
-                            <h2 className="font-display text-3xl font-bold text-io-dark">Informações da conta</h2>
-                            <p className="mt-1 text-sm text-black/55">Resumo do usuário autenticado e dos acessos disponíveis na operação.</p>
+                            <h2 className="font-display text-3xl font-bold text-io-dark">Informacoes da conta</h2>
+                            <p className="mt-1 text-sm text-black/55">Resumo do usuario autenticado e dos acessos disponiveis na operacao.</p>
                         </div>
                     </div>
 
@@ -137,16 +153,16 @@ export function ProfileCenter() {
                 </article>
 
                 <aside className="flex h-full min-h-[320px] flex-col rounded-[34px] border border-black/10 bg-io-dark p-6 text-white shadow-[0_18px_45px_rgba(0,0,0,0.12)]">
-                    <p className="text-xs uppercase tracking-[0.28em] text-white/45">Permissões</p>
+                    <p className="text-xs uppercase tracking-[0.28em] text-white/45">Permissoes</p>
                     <h2 className="mt-3 font-display text-3xl font-bold">Acesso atual</h2>
                     <p className="mt-4 text-sm leading-7 text-white/70">
-                        Estas informações refletem o perfil carregado na sessão atual e ajudam a conferir o escopo de operação da sua conta.
+                        Estas informacoes refletem o perfil carregado na sessao atual e ajudam a conferir o escopo de operacao da sua conta.
                     </p>
 
                     <div className="mt-6 grid flex-1 content-start gap-3 rounded-[28px] border border-white/10 bg-white/5 p-4">
                         <div className="flex items-center gap-2 text-sm text-white/80">
                             <Mail className="h-4 w-4" />
-                            <span>{user?.email ?? "Sem e-mail disponível"}</span>
+                            <span>{user?.email ?? "Sem e-mail disponivel"}</span>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {(user?.roles ?? []).length ? (
@@ -161,8 +177,22 @@ export function ProfileCenter() {
                             )}
                         </div>
                         <div className="grid gap-2 pt-2">
-                            <p className="text-xs uppercase tracking-[0.24em] text-white/45">Módulos habilitados</p>
-                            {permissionList.length ? (
+                            <p className="text-xs uppercase tracking-[0.24em] text-white/45">Modulos habilitados na conta</p>
+                            {enabledModules.length ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {enabledModules.map((moduleName) => (
+                                        <span key={moduleName} className="rounded-full border border-white/10 px-3 py-2 text-xs text-white/75">
+                                            {moduleName}
+                                        </span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <span className="text-sm text-white/60">Nao foi possivel carregar os modulos do plano.</span>
+                            )}
+                        </div>
+                        {permissionList.length ? (
+                            <div className="grid gap-2 pt-2">
+                                <p className="text-xs uppercase tracking-[0.24em] text-white/45">Permissoes customizadas do usuario</p>
                                 <div className="flex flex-wrap gap-2">
                                     {permissionList.map((permission) => (
                                         <span key={permission} className="rounded-full border border-white/10 px-3 py-2 text-xs text-white/75">
@@ -170,17 +200,15 @@ export function ProfileCenter() {
                                         </span>
                                     ))}
                                 </div>
-                            ) : (
-                                <span className="text-sm text-white/60">Os módulos seguem o preset atual da sua conta.</span>
-                            )}
-                        </div>
+                            </div>
+                        ) : null}
                     </div>
                 </aside>
             </section>
 
             <SubscriptionCenter
-                title="Assinatura e cobrança"
-                description="Todos os dados financeiros do tenant ficam concentrados no perfil para facilitar a gestão da conta."
+                title="Assinatura e cobranca"
+                description="Todos os dados financeiros e de plano do tenant ficam concentrados no perfil para facilitar a gestao da conta."
             />
         </div>
     );

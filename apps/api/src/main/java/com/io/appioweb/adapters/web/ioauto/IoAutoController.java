@@ -32,6 +32,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -838,6 +839,14 @@ public class IoAutoController {
         return ResponseEntity.ok(billingService.getBillingSnapshot(currentUser.companyId()));
     }
 
+    @PatchMapping("/ioauto/billing/plan")
+    public ResponseEntity<BillingSnapshot> changeBillingPlan(@RequestBody ChangeBillingPlanHttpRequest request) {
+        if (request == null || request.planId() == null) {
+            throw new BusinessException("PLAN_ID_REQUIRED", "Selecione um plano valido.");
+        }
+        return ResponseEntity.ok(billingService.changePlan(currentUser.companyId(), request.planId(), request.billingRecurrence()));
+    }
+
     @GetMapping("/ioauto/billing/access-status")
     public ResponseEntity<BillingAccessStatusSnapshot> getBillingAccessStatus() {
         return ResponseEntity.ok(billingService.getBillingAccessStatus(currentUser.companyId()));
@@ -856,6 +865,12 @@ public class IoAutoController {
     @PostMapping("/ioauto/billing/portal")
     public ResponseEntity<PortalLaunch> createBillingPortal() {
         return ResponseEntity.ok(billingService.createPortalSession(currentUser.companyId()));
+    }
+
+    public record ChangeBillingPlanHttpRequest(
+            UUID planId,
+            String billingRecurrence
+    ) {
     }
 
     private IoAutoVehicleHttpResponse saveVehicle(UUID vehicleId, SaveVehicleHttpRequest request) {

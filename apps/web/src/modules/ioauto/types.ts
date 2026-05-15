@@ -1,5 +1,65 @@
+export type BillingPlanFeatures = {
+    catalogBioLink: boolean;
+    whatsappSharing: boolean;
+    storefrontPage: boolean;
+    webmotors: boolean;
+    olx: boolean;
+    icarros: boolean;
+    crmKanban: boolean;
+    leadManagement: boolean;
+    finance: boolean;
+    reports: boolean;
+    trackableLinks: boolean;
+    multiunits: boolean;
+    advancedMultiuser: boolean;
+    executiveDashboard: boolean;
+    integrationsApi: boolean;
+    assistedOnboarding: boolean;
+    prioritySupport: boolean;
+    customizations: boolean;
+};
+
+export type BillingPlanUsage = {
+    activeUsers: number;
+    activeVehicles: number;
+    activeAds: number;
+    connectedIntegrations: number;
+    webmotorsIntegrations: number;
+    olxIntegrations: number;
+    icarrosIntegrations: number;
+    publicLinks: number;
+    trackedLinks: number;
+    catalogLeads: number;
+    publicLeadEvents: number;
+    trackedLeadEvents: number;
+    financialEntries: number;
+    dreSubcategories: number;
+    reportEvents: number;
+    crmCustomized: boolean;
+    storefrontCustomized: boolean;
+};
+
+export type BillingPlanOption = {
+    planId: string;
+    planKey: string;
+    planName: string;
+    billingRecurrence: string;
+    priceCents: number | null;
+    monthlyPriceCents: number | null;
+    annualPriceCents: number | null;
+    usersLimit: number | null;
+    vehiclesLimit: number | null;
+    activeAdsLimit: number | null;
+    features: BillingPlanFeatures;
+    current: boolean;
+    eligible: boolean;
+    blockingReasons: string[];
+};
+
 export type BillingSnapshot = {
     hasSubscription: boolean;
+    planId: string | null;
+    planKey: string;
     planName: string;
     status: string;
     amountCents: number | null;
@@ -10,6 +70,13 @@ export type BillingSnapshot = {
     provider: string;
     providerCustomerId: string;
     providerSubscriptionId: string;
+    usersLimit: number | null;
+    vehiclesLimit: number | null;
+    activeAdsLimit: number | null;
+    features: BillingPlanFeatures;
+    enabledModules: string[];
+    usage: BillingPlanUsage;
+    availablePlans: BillingPlanOption[];
 };
 
 export type BillingAccessStatusSnapshot = {

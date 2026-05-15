@@ -84,6 +84,14 @@ public class SuperAdminPlanManagementService {
     }
 
     @Transactional(readOnly = true)
+    public List<PlanSnapshot> listActivePlanSnapshots() {
+        return plans.findAllByActiveTrueOrderBySortOrderAscPlanNameAsc().stream()
+                .filter(plan -> !isDefaultCustomTemplate(plan))
+                .map(this::toSnapshot)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public PlanSnapshot getPlan(UUID planId) {
         return toSnapshot(plans.findById(planId)
                 .orElseThrow(() -> new BusinessException("PLAN_NOT_FOUND", "Plano nao encontrado.")));
@@ -222,28 +230,176 @@ public class SuperAdminPlanManagementService {
 
     @Transactional(readOnly = true)
     public void assertTenantFitsPlan(UUID companyId, PlanSnapshot plan) {
-        long activeUsers = users.countByCompanyIdAndActiveTrue(companyId);
-        long activeVehicles = vehicles.countActiveByCompanyId(companyId);
-        long activeAds = countActiveAds(companyId);
+        PlanCompatibility compatibility = evaluateTenantPlanCompatibility(companyId, plan);
+        if (compatibility.eligible()) {
+            return;
+        }
 
-        if (plan.usersLimit() != null && activeUsers > plan.usersLimit()) {
-            throw new BusinessException(
-                    "PLAN_ASSIGNMENT_INVALID",
-                    "A conta ja possui " + activeUsers + " usuarios ativos e nao cabe no limite do plano " + plan.planName() + "."
-            );
+        String message = compatibility.blockingReasons().isEmpty()
+                ? "A conta nao cabe no plano " + plan.planName() + "."
+                : compatibility.blockingReasons().get(0);
+        throw new BusinessException("PLAN_ASSIGNMENT_INVALID", message);
+    }
+
+    @Transactional(readOnly = true)
+    public TenantPlanUsage getTenantPlanUsage(UUID companyId) {
+        ensureTenantExists(companyId);
+
+        MapSqlParameterSource params = new MapSqlParameterSource("companyId", companyId);
+        return jdbc.queryForObject(
+                """
+                select
+                    (select count(*)
+                     from users u
+                     where u.company_id = :companyId
+                       and coalesce(u.is_active, true) = true) as active_users,
+                    (select count(*)
+                     from ioauto_vehicles v
+                     where v.company_id = :companyId
+                       and upper(coalesce(v.status, 'DRAFT')) not in ('DRAFT', 'ARCHIVED', 'SOLD', 'REMOVED')) as active_vehicles,
+                    (select count(*)
+                     from ioauto_vehicle_publications p
+                     where p.company_id = :companyId
+                       and upper(coalesce(p.status, '')) in ('ACTIVE', 'PUBLISHED', 'ONLINE', 'SYNCED')) as active_ads,
+                    (select count(*)
+                     from ioauto_integrations i
+                     where i.company_id = :companyId
+                       and upper(coalesce(i.status, '')) in ('CONNECTED', 'ACTIVE')) as connected_integrations,
+                    (select count(*)
+                     from ioauto_integrations i
+                     where i.company_id = :companyId
+                       and lower(coalesce(i.provider_key, '')) = 'webmotors'
+                       and upper(coalesce(i.status, '')) in ('CONNECTED', 'ACTIVE')) as webmotors_integrations,
+                    (select count(*)
+                     from ioauto_integrations i
+                     where i.company_id = :companyId
+                       and lower(coalesce(i.provider_key, '')) = 'olx'
+                       and upper(coalesce(i.status, '')) in ('CONNECTED', 'ACTIVE')) as olx_integrations,
+                    (select count(*)
+                     from ioauto_integrations i
+                     where i.company_id = :companyId
+                       and lower(coalesce(i.provider_key, '')) = 'icarros'
+                       and upper(coalesce(i.status, '')) in ('CONNECTED', 'ACTIVE')) as icarros_integrations,
+                    (select count(*)
+                     from ioauto_public_links l
+                     where l.company_id = :companyId) as public_links,
+                    (select count(*)
+                     from ioauto_public_links l
+                     where l.company_id = :companyId
+                       and upper(coalesce(l.link_kind, 'PUBLIC')) <> 'PUBLIC') as tracked_links,
+                    (select count(*)
+                     from ioauto_public_catalog_leads l
+                     where l.company_id = :companyId) as catalog_leads,
+                    (select count(*)
+                     from ioauto_public_lead_events e
+                     where e.company_id = :companyId) as public_lead_events,
+                    (select count(*)
+                     from ioauto_public_lead_events e
+                     where e.company_id = :companyId
+                       and coalesce(nullif(e.source_reference, ''), nullif(e.source_type, '')) is not null) as tracked_lead_events,
+                    (select count(*)
+                     from ioauto_financial_entries f
+                     where f.company_id = :companyId) as financial_entries,
+                    (select count(*)
+                     from ioauto_dre_subcategories d
+                     where d.company_id = :companyId) as dre_subcategories,
+                    (select count(*)
+                     from feature_usage_events e
+                     where e.company_id = :companyId
+                       and upper(coalesce(e.feature_key, '')) = 'REPORTS') as report_events,
+                    exists(
+                        select 1
+                        from crm_company_state c
+                        where c.company_id = :companyId
+                          and (
+                              coalesce(c.stages_json, '[]') <> '[]'
+                              or coalesce(c.custom_fields_json, '[]') <> '[]'
+                              or coalesce(c.lead_stage_map_json, '{}') <> '{}'
+                              or coalesce(c.lead_field_values_json, '{}') <> '{}'
+                          )
+                    ) as crm_customized,
+                    exists(
+                        select 1
+                        from companies c
+                        where c.id = :companyId
+                          and (
+                              coalesce(nullif(c.public_stock_banner_mode, ''), 'default') <> 'default'
+                              or coalesce(nullif(c.public_stock_banner_images_json, ''), '[]') <> '[]'
+                          )
+                    ) as storefront_customized
+                """,
+                params,
+                (rs, rowNum) -> new TenantPlanUsage(
+                        rs.getLong("active_users"),
+                        rs.getLong("active_vehicles"),
+                        rs.getLong("active_ads"),
+                        rs.getLong("connected_integrations"),
+                        rs.getLong("webmotors_integrations"),
+                        rs.getLong("olx_integrations"),
+                        rs.getLong("icarros_integrations"),
+                        rs.getLong("public_links"),
+                        rs.getLong("tracked_links"),
+                        rs.getLong("catalog_leads"),
+                        rs.getLong("public_lead_events"),
+                        rs.getLong("tracked_lead_events"),
+                        rs.getLong("financial_entries"),
+                        rs.getLong("dre_subcategories"),
+                        rs.getLong("report_events"),
+                        rs.getBoolean("crm_customized"),
+                        rs.getBoolean("storefront_customized")
+                )
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public PlanCompatibility evaluateTenantPlanCompatibility(UUID companyId, PlanSnapshot plan) {
+        return evaluateTenantPlanCompatibility(getTenantPlanUsage(companyId), plan);
+    }
+
+    @Transactional(readOnly = true)
+    public PlanCompatibility evaluateTenantPlanCompatibility(TenantPlanUsage usage, PlanSnapshot plan) {
+        List<String> blockingReasons = new java.util.ArrayList<>();
+
+        if (plan.usersLimit() != null && usage.activeUsers() > plan.usersLimit()) {
+            blockingReasons.add("A conta ja possui " + usage.activeUsers() + " usuarios ativos e o plano " + plan.planName() + " suporta ate " + plan.usersLimit() + ".");
         }
-        if (plan.vehiclesLimit() != null && activeVehicles > plan.vehiclesLimit()) {
-            throw new BusinessException(
-                    "PLAN_ASSIGNMENT_INVALID",
-                    "A conta ja possui " + activeVehicles + " veiculos ativos e nao cabe no limite do plano " + plan.planName() + "."
-            );
+        if (plan.vehiclesLimit() != null && usage.activeVehicles() > plan.vehiclesLimit()) {
+            blockingReasons.add("A conta ja possui " + usage.activeVehicles() + " veiculos ativos e o plano " + plan.planName() + " suporta ate " + plan.vehiclesLimit() + ".");
         }
-        if (plan.activeAdsLimit() != null && activeAds > plan.activeAdsLimit()) {
-            throw new BusinessException(
-                    "PLAN_ASSIGNMENT_INVALID",
-                    "A conta ja possui " + activeAds + " anuncios ativos e nao cabe no limite do plano " + plan.planName() + "."
-            );
+        if (plan.activeAdsLimit() != null && usage.activeAds() > plan.activeAdsLimit()) {
+            blockingReasons.add("A conta ja possui " + usage.activeAds() + " anuncios ativos e o plano " + plan.planName() + " suporta ate " + plan.activeAdsLimit() + ".");
         }
+
+        boolean ownSiteInUse = usage.publicLinks() > 0 || usage.catalogLeads() > 0 || usage.publicLeadEvents() > 0 || usage.storefrontCustomized();
+        if (ownSiteInUse && !(plan.features().catalogBioLink() || plan.features().storefrontPage())) {
+            blockingReasons.add("A conta ja utiliza o modulo de site proprio/catalogo publico e o plano " + plan.planName() + " nao inclui esse recurso.");
+        }
+        if ((usage.trackedLinks() > 0 || usage.trackedLeadEvents() > 0) && !plan.features().trackableLinks()) {
+            blockingReasons.add("A conta ja utiliza links rastreaveis e o plano " + plan.planName() + " nao inclui esse recurso.");
+        }
+        if (usage.catalogLeads() > 0 && !plan.features().leadManagement()) {
+            blockingReasons.add("A conta ja possui leads capturados pelo catalogo e o plano " + plan.planName() + " nao inclui gestao de leads.");
+        }
+        if ((usage.financialEntries() > 0 || usage.dreSubcategories() > 0) && !plan.features().finance()) {
+            blockingReasons.add("A conta ja utiliza o modulo financeiro e o plano " + plan.planName() + " nao inclui esse recurso.");
+        }
+        if (usage.reportEvents() > 0 && !plan.features().reports()) {
+            blockingReasons.add("A conta ja utiliza o modulo de relatorios e o plano " + plan.planName() + " nao inclui esse recurso.");
+        }
+        if (usage.crmCustomized() && !plan.features().crmKanban()) {
+            blockingReasons.add("A conta ja possui configuracao ativa de CRM Kanban e o plano " + plan.planName() + " nao inclui esse recurso.");
+        }
+        if (usage.webmotorsIntegrations() > 0 && !plan.features().webmotors()) {
+            blockingReasons.add("A conta ja possui integracao ativa com Webmotors e o plano " + plan.planName() + " nao inclui esse recurso.");
+        }
+        if (usage.olxIntegrations() > 0 && !plan.features().olx()) {
+            blockingReasons.add("A conta ja possui integracao ativa com OLX e o plano " + plan.planName() + " nao inclui esse recurso.");
+        }
+        if (usage.icarrosIntegrations() > 0 && !plan.features().icarros()) {
+            blockingReasons.add("A conta ja possui integracao ativa com iCarros e o plano " + plan.planName() + " nao inclui esse recurso.");
+        }
+
+        return new PlanCompatibility(blockingReasons.isEmpty(), blockingReasons, usage);
     }
 
     private boolean isFeatureEnabled(PlanSnapshot plan, String featureKey) {
@@ -260,6 +416,12 @@ public class SuperAdminPlanManagementService {
             case "ICARROS" -> plan.features().icarros();
             default -> true;
         };
+    }
+
+    private void ensureTenantExists(UUID companyId) {
+        if (!companies.existsById(companyId)) {
+            throw new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada.");
+        }
     }
 
     private long countAssignedCompanies(UUID planId) {
@@ -638,6 +800,34 @@ public class SuperAdminPlanManagementService {
             boolean assistedOnboarding,
             boolean prioritySupport,
             boolean customizations
+    ) {
+    }
+
+    public record TenantPlanUsage(
+            long activeUsers,
+            long activeVehicles,
+            long activeAds,
+            long connectedIntegrations,
+            long webmotorsIntegrations,
+            long olxIntegrations,
+            long icarrosIntegrations,
+            long publicLinks,
+            long trackedLinks,
+            long catalogLeads,
+            long publicLeadEvents,
+            long trackedLeadEvents,
+            long financialEntries,
+            long dreSubcategories,
+            long reportEvents,
+            boolean crmCustomized,
+            boolean storefrontCustomized
+    ) {
+    }
+
+    public record PlanCompatibility(
+            boolean eligible,
+            List<String> blockingReasons,
+            TenantPlanUsage usage
     ) {
     }
 

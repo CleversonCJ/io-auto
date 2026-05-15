@@ -16,6 +16,7 @@ import com.io.appioweb.adapters.web.onboarding.dto.FirstUserActivateResponse;
 import com.io.appioweb.adapters.web.onboarding.dto.FirstUserRegisterRequest;
 import com.io.appioweb.adapters.web.onboarding.dto.FirstUserRegisterResponse;
 import com.io.appioweb.adapters.web.onboarding.dto.SendAccessEmailRequest;
+import com.io.appioweb.application.superadmin.SuperAdminPlanManagementService;
 import com.io.appioweb.shared.errors.BusinessException;
 import com.io.appioweb.application.onboarding.FirstUserOnboardingService;
 import org.springframework.beans.factory.annotation.Value;
@@ -69,6 +70,7 @@ public class IoAutoBillingService {
     private final CompanyRepositoryJpa companyRepo;
     private final UserRepositoryJpa userRepo;
     private final FirstUserOnboardingService onboardingService;
+    private final SuperAdminPlanManagementService planManagementService;
     private final String asaasApiKey;
     private final String asaasWebhookToken;
     private final String asaasApiBaseUrl;
@@ -89,6 +91,7 @@ public class IoAutoBillingService {
             CompanyRepositoryJpa companyRepo,
             UserRepositoryJpa userRepo,
             FirstUserOnboardingService onboardingService,
+            SuperAdminPlanManagementService planManagementService,
             @Value("${ASAAS_API_KEY:}") String asaasApiKey,
             @Value("${ASAAS_WEBHOOK_TOKEN:}") String asaasWebhookToken,
             @Value("${ASAAS_API_BASE_URL:https://api.asaas.com/v3}") String asaasApiBaseUrl,
@@ -108,6 +111,7 @@ public class IoAutoBillingService {
         this.companyRepo = companyRepo;
         this.userRepo = userRepo;
         this.onboardingService = onboardingService;
+        this.planManagementService = planManagementService;
         this.asaasApiKey = normalizeText(asaasApiKey);
         this.asaasWebhookToken = normalizeText(asaasWebhookToken);
         this.asaasApiBaseUrl = trimTrailingSlash(normalizeText(asaasApiBaseUrl, "https://api.asaas.com/v3"));
@@ -205,33 +209,127 @@ public class IoAutoBillingService {
     @Transactional(readOnly = true)
     public BillingSnapshot getBillingSnapshot(UUID companyId) {
         Optional<JpaIoAutoBillingSubscriptionEntity> subscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId);
+        SuperAdminPlanManagementService.PlanSnapshot currentPlan = planManagementService.resolvePlanForCompany(companyId);
+        SuperAdminPlanManagementService.TenantPlanUsage usage = planManagementService.getTenantPlanUsage(companyId);
+        String resolvedBillingInterval = normalizeBillingRecurrence(
+                subscription.map(JpaIoAutoBillingSubscriptionEntity::getBillingInterval).orElse(currentPlan.billingRecurrence())
+        );
+        Long resolvedAmountCents = subscription.map(JpaIoAutoBillingSubscriptionEntity::getAmountCents)
+                .orElseGet(() -> currentPlan.priceForRecurrence(resolvedBillingInterval));
+        List<BillingPlanOption> availablePlans = planManagementService.listActivePlanSnapshots().stream()
+                .map(plan -> {
+                    SuperAdminPlanManagementService.PlanCompatibility compatibility =
+                            planManagementService.evaluateTenantPlanCompatibility(usage, plan);
+                    return new BillingPlanOption(
+                            plan.planId(),
+                            plan.planKey(),
+                            plan.planName(),
+                            plan.billingRecurrence(),
+                            plan.priceCents(),
+                            plan.monthlyPriceCents(),
+                            plan.annualPriceCents(),
+                            plan.usersLimit(),
+                            plan.vehiclesLimit(),
+                            plan.activeAdsLimit(),
+                            plan.features(),
+                            plan.planId().equals(currentPlan.planId()),
+                            compatibility.eligible(),
+                            compatibility.blockingReasons()
+                    );
+                })
+                .toList();
+
         return subscription
                 .map(item -> new BillingSnapshot(
                         true,
-                        normalizeText(item.getPlanName(), planName),
+                        currentPlan.planId(),
+                        normalizeText(item.getPlanKey(), currentPlan.planKey()),
+                        normalizeText(item.getPlanName(), currentPlan.planName()),
                         normalizeText(item.getStatus(), "inactive"),
-                        item.getAmountCents(),
+                        item.getAmountCents() == null ? resolvedAmountCents : item.getAmountCents(),
                         normalizeText(item.getCurrency(), "brl"),
-                        normalizeText(item.getBillingInterval(), toBillingInterval(planCycle)),
+                        normalizeBillingRecurrence(item.getBillingInterval()),
                         item.getCurrentPeriodEnd(),
                         item.isCancelAtPeriodEnd(),
                         normalizeText(item.getProvider(), BILLING_PROVIDER),
                         normalizeText(item.getProviderCustomerId()),
-                        normalizeText(item.getProviderSubscriptionId())
+                        normalizeText(item.getProviderSubscriptionId()),
+                        currentPlan.usersLimit(),
+                        currentPlan.vehiclesLimit(),
+                        currentPlan.activeAdsLimit(),
+                        currentPlan.features(),
+                        buildEnabledModules(currentPlan.features()),
+                        usage,
+                        availablePlans
                 ))
                 .orElseGet(() -> new BillingSnapshot(
                         false,
-                        planName,
+                        currentPlan.planId(),
+                        currentPlan.planKey(),
+                        currentPlan.planName(),
                         "pending_configuration",
-                        null,
+                        resolvedAmountCents,
                         "brl",
-                        toBillingInterval(planCycle),
+                        resolvedBillingInterval,
                         null,
                         false,
                         BILLING_PROVIDER,
                         "",
-                        ""
+                        "",
+                        currentPlan.usersLimit(),
+                        currentPlan.vehiclesLimit(),
+                        currentPlan.activeAdsLimit(),
+                        currentPlan.features(),
+                        buildEnabledModules(currentPlan.features()),
+                        usage,
+                        availablePlans
                 ));
+    }
+
+    @Transactional
+    public BillingSnapshot changePlan(UUID companyId, UUID planId, String requestedBillingRecurrence) {
+        JpaCompanyEntity company = companyRepo.findById(companyId)
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+
+        SuperAdminPlanManagementService.PlanSnapshot targetPlan = planManagementService.listActivePlanSnapshots().stream()
+                .filter(plan -> plan.planId().equals(planId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("PLAN_NOT_FOUND", "Plano nao encontrado ou indisponivel."));
+
+        planManagementService.assertTenantFitsPlan(companyId, targetPlan);
+
+        String billingRecurrence = normalizeBillingRecurrence(requestedBillingRecurrence);
+        if (billingRecurrence.isBlank()) {
+            billingRecurrence = normalizeBillingRecurrence(company.getBillingRecurrence());
+        }
+        if (billingRecurrence.isBlank()) {
+            billingRecurrence = normalizeBillingRecurrence(targetPlan.billingRecurrence());
+        }
+        if (billingRecurrence.isBlank()) {
+            billingRecurrence = "MONTHLY";
+        }
+
+        final String resolvedBillingRecurrence = billingRecurrence;
+        Long amountCents = targetPlan.priceForRecurrence(resolvedBillingRecurrence);
+        Instant now = Instant.now();
+
+        company.setPlanId(targetPlan.planId());
+        company.setSubscriptionAmountCents(amountCents);
+        company.setBillingRecurrence(resolvedBillingRecurrence);
+        company.setUpdatedAt(now);
+        companyRepo.save(company);
+
+        subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId).ifPresent(subscription -> {
+            subscription.setPlanKey(targetPlan.planKey());
+            subscription.setPlanName(targetPlan.planName());
+            subscription.setAmountCents(amountCents);
+            subscription.setBillingInterval(resolvedBillingRecurrence);
+            subscription.setProviderPriceId(targetPlan.planKey());
+            subscription.setUpdatedAt(now);
+            subscriptions.save(subscription);
+        });
+
+        return getBillingSnapshot(companyId);
     }
 
     @Transactional(readOnly = true)
@@ -1384,6 +1482,36 @@ public class IoAutoBillingService {
         String normalized = normalizeText(value);
         return normalized.isBlank() ? fallback : normalized;
     }
+
+    private String normalizeBillingRecurrence(String value) {
+        String normalized = normalizeText(value).toUpperCase(Locale.ROOT);
+        if (normalized.isBlank()) return "";
+        if ("MONTH".equals(normalized) || "MENSAL".equals(normalized)) return "MONTHLY";
+        if ("YEAR".equals(normalized) || "YEARLY".equals(normalized) || "ANNUAL".equals(normalized) || "ANUAL".equals(normalized)) return "ANNUAL";
+        return normalized;
+    }
+
+    private List<String> buildEnabledModules(SuperAdminPlanManagementService.PlanFeatures features) {
+        List<String> modules = new ArrayList<>();
+        if (features.catalogBioLink() || features.storefrontPage()) modules.add("Site proprio e catalogo publico");
+        if (features.whatsappSharing()) modules.add("Compartilhamento no WhatsApp");
+        if (features.webmotors()) modules.add("Integracao Webmotors");
+        if (features.olx()) modules.add("Integracao OLX");
+        if (features.icarros()) modules.add("Integracao iCarros");
+        if (features.crmKanban()) modules.add("CRM Kanban");
+        if (features.leadManagement()) modules.add("Gestao de leads");
+        if (features.finance()) modules.add("Financeiro");
+        if (features.reports()) modules.add("Relatorios");
+        if (features.trackableLinks()) modules.add("Links rastreaveis");
+        if (features.multiunits()) modules.add("Multiunidades");
+        if (features.advancedMultiuser()) modules.add("Multiusuario avancado");
+        if (features.executiveDashboard()) modules.add("Dashboard executivo");
+        if (features.integrationsApi()) modules.add("API de integracoes");
+        if (features.assistedOnboarding()) modules.add("Implantacao assistida");
+        if (features.prioritySupport()) modules.add("Suporte prioritario");
+        if (features.customizations()) modules.add("Personalizacoes");
+        return modules;
+    }
 }
 
 record PublicSignupPayload(
@@ -1409,6 +1537,8 @@ record SignupStatusSnapshot(
 
 record BillingSnapshot(
         boolean hasSubscription,
+        UUID planId,
+        String planKey,
         String planName,
         String status,
         Long amountCents,
@@ -1418,7 +1548,32 @@ record BillingSnapshot(
         boolean cancelAtPeriodEnd,
         String provider,
         String providerCustomerId,
-        String providerSubscriptionId
+        String providerSubscriptionId,
+        Integer usersLimit,
+        Integer vehiclesLimit,
+        Integer activeAdsLimit,
+        SuperAdminPlanManagementService.PlanFeatures features,
+        List<String> enabledModules,
+        SuperAdminPlanManagementService.TenantPlanUsage usage,
+        List<BillingPlanOption> availablePlans
+) {
+}
+
+record BillingPlanOption(
+        UUID planId,
+        String planKey,
+        String planName,
+        String billingRecurrence,
+        Long priceCents,
+        Long monthlyPriceCents,
+        Long annualPriceCents,
+        Integer usersLimit,
+        Integer vehiclesLimit,
+        Integer activeAdsLimit,
+        SuperAdminPlanManagementService.PlanFeatures features,
+        boolean current,
+        boolean eligible,
+        List<String> blockingReasons
 ) {
 }
 
