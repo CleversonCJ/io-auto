@@ -125,7 +125,10 @@ export async function jsonFromAuthedUpstream(
         const message = typeof payload === "object" && payload && "message" in (payload as JsonRecord)
             ? String((payload as JsonRecord).message ?? fallbackMessage)
             : fallbackMessage;
-        return NextResponse.json({ message }, { status: result.upstream!.status });
+        const code = typeof payload === "object" && payload && "code" in (payload as JsonRecord)
+            ? String((payload as JsonRecord).code ?? "")
+            : "";
+        return NextResponse.json(code ? { code, message } : { message }, { status: result.upstream!.status });
     }
 
     return NextResponse.json(payload);
@@ -143,7 +146,10 @@ export async function jsonFromPublicUpstream(path: string, init: RequestInit = {
         const message = typeof payload === "object" && payload && "message" in (payload as JsonRecord)
             ? String((payload as JsonRecord).message ?? fallbackMessage)
             : fallbackMessage;
-        return NextResponse.json({ message }, { status: upstream.status });
+        const code = typeof payload === "object" && payload && "code" in (payload as JsonRecord)
+            ? String((payload as JsonRecord).code ?? "")
+            : "";
+        return NextResponse.json(code ? { code, message } : { message }, { status: upstream.status });
     }
 
     return NextResponse.json(payload);

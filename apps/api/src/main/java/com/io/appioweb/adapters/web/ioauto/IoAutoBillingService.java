@@ -19,6 +19,8 @@ import com.io.appioweb.adapters.web.onboarding.dto.SendAccessEmailRequest;
 import com.io.appioweb.application.superadmin.SuperAdminPlanManagementService;
 import com.io.appioweb.shared.errors.BusinessException;
 import com.io.appioweb.application.onboarding.FirstUserOnboardingService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,15 +43,18 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class IoAutoBillingService {
 
+    private static final Logger log = LoggerFactory.getLogger(IoAutoBillingService.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().build();
     private static final ZoneId BILLING_ZONE = ZoneId.of("America/Sao_Paulo");
@@ -228,6 +233,8 @@ public class IoAutoBillingService {
                             plan.priceCents(),
                             plan.monthlyPriceCents(),
                             plan.annualPriceCents(),
+                            plan.priceByInterval(),
+                            plan.supportedBillingIntervals(),
                             plan.usersLimit(),
                             plan.vehiclesLimit(),
                             plan.activeAdsLimit(),
@@ -286,77 +293,326 @@ public class IoAutoBillingService {
                 ));
     }
 
+    public void assertPlanChangeAllowed(Set<String> roles) {
+        Set<String> normalizedRoles = roles == null
+                ? Set.of()
+                : roles.stream().map(role -> normalizeText(role).toUpperCase(Locale.ROOT)).collect(java.util.stream.Collectors.toSet());
+        if (normalizedRoles.contains("ADMIN") || normalizedRoles.contains("SUPERADMIN")) {
+            return;
+        }
+        throw new BusinessException("BILLING_PLAN_CHANGE_FORBIDDEN", "Apenas administradores da conta podem alterar o plano da assinatura.");
+    }
+
+    @Transactional(readOnly = true)
+    public PlanChangePreviewResponse previewPlanChange(UUID companyId, String targetPlanKey, String targetBillingInterval) {
+        PlanChangeContext context = resolvePlanChangeContext(companyId, targetPlanKey, targetBillingInterval);
+        boolean updatePendingPayments = shouldUpdatePendingPayments(context, null);
+        String message = buildPlanChangeMessage(context, updatePendingPayments);
+
+        log.info(
+                "Billing plan change preview companyId={} currentPlan={} currentInterval={} targetPlan={} targetInterval={} changeType={} updatePendingPayments={}",
+                companyId,
+                context.currentPlan().planKey(),
+                context.currentBillingInterval(),
+                context.targetPlan().planKey(),
+                context.targetBillingInterval(),
+                context.changeType(),
+                updatePendingPayments
+        );
+
+        return new PlanChangePreviewResponse(
+                new PlanChangePlanSummary(
+                        context.currentPlan().planKey(),
+                        context.currentPlan().planName(),
+                        context.currentAmountCents(),
+                        context.currentBillingInterval()
+                ),
+                new PlanChangePlanSummary(
+                        context.targetPlan().planKey(),
+                        context.targetPlan().planName(),
+                        context.targetAmountCents(),
+                        context.targetBillingInterval()
+                ),
+                context.changeType().name(),
+                toAsaasSubscriptionCycle(context.targetBillingInterval()),
+                updatePendingPayments,
+                true,
+                message
+        );
+    }
+
     @Transactional
     public BillingSnapshot changePlan(UUID companyId, UUID planId, String requestedBillingRecurrence) {
-        JpaCompanyEntity company = companyRepo.findById(companyId)
-                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
-        JpaIoAutoBillingSubscriptionEntity subscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId).orElse(null);
-
         SuperAdminPlanManagementService.PlanSnapshot targetPlan = planManagementService.listActivePlanSnapshots().stream()
                 .filter(plan -> plan.planId().equals(planId))
                 .findFirst()
-                .orElseThrow(() -> new BusinessException("PLAN_NOT_FOUND", "Plano nao encontrado ou indisponivel."));
+                .orElseThrow(() -> new BusinessException("INVALID_PLAN", "O plano selecionado nao esta disponivel."));
+        confirmPlanChange(companyId, targetPlan.planKey(), requestedBillingRecurrence, null);
+        return getBillingSnapshot(companyId);
+    }
 
-        planManagementService.assertTenantFitsPlan(companyId, targetPlan);
+    @Transactional
+    public PlanChangeConfirmResponse confirmPlanChange(
+            UUID companyId,
+            String targetPlanKey,
+            String targetBillingInterval,
+            Boolean requestedUpdatePendingPayments
+    ) {
+        PlanChangeContext context = resolvePlanChangeContext(companyId, targetPlanKey, targetBillingInterval);
+        boolean updatePendingPayments = shouldUpdatePendingPayments(context, requestedUpdatePendingPayments);
 
-        String billingRecurrence = normalizeBillingRecurrence(requestedBillingRecurrence);
-        if (billingRecurrence.isBlank()) {
-            billingRecurrence = normalizeBillingRecurrence(company.getBillingRecurrence());
-        }
-        if (billingRecurrence.isBlank()) {
-            billingRecurrence = normalizeBillingRecurrence(targetPlan.billingRecurrence());
-        }
-        if (billingRecurrence.isBlank()) {
-            billingRecurrence = "MONTHLY";
-        }
-
-        final String resolvedBillingRecurrence = billingRecurrence;
-        Long amountCents = targetPlan.priceForRecurrence(resolvedBillingRecurrence);
-        AsaasSubscriptionMutation asaasMutation = syncPlanChangeWithAsaas(
-                subscription,
+        log.info(
+                "Billing plan change confirm companyId={} currentPlan={} currentInterval={} targetPlan={} targetInterval={} changeType={} updatePendingPayments={}",
                 companyId,
-                targetPlan,
-                resolvedBillingRecurrence,
-                amountCents
+                context.currentPlan().planKey(),
+                context.currentBillingInterval(),
+                context.targetPlan().planKey(),
+                context.targetBillingInterval(),
+                context.changeType(),
+                updatePendingPayments
         );
-        Instant now = Instant.now();
-        String persistedBillingRecurrence = asaasMutation == null
-                ? resolvedBillingRecurrence
-                : normalizeBillingRecurrence(asaasMutation.billingInterval());
-        if (persistedBillingRecurrence.isBlank()) {
-            persistedBillingRecurrence = resolvedBillingRecurrence;
-        }
-        Long persistedAmountCents = asaasMutation != null && asaasMutation.amountCents() != null
-                ? asaasMutation.amountCents()
-                : amountCents;
 
-        company.setPlanId(targetPlan.planId());
+        AsaasSubscriptionMutation asaasMutation = syncPlanChangeWithAsaas(context, updatePendingPayments);
+        BillingSnapshot snapshot = persistPlanChange(context, asaasMutation);
+
+        return new PlanChangeConfirmResponse(
+                true,
+                "Plano alterado com sucesso.",
+                new PlanChangeSubscriptionSnapshot(
+                        snapshot.planKey(),
+                        snapshot.planName(),
+                        snapshot.amountCents(),
+                        snapshot.billingInterval(),
+                        snapshot.status()
+                )
+        );
+    }
+
+    private BillingSnapshot persistPlanChange(PlanChangeContext context, AsaasSubscriptionMutation asaasMutation) {
+        Instant now = Instant.now();
+        JpaCompanyEntity company = context.company();
+        JpaIoAutoBillingSubscriptionEntity subscription = context.subscription();
+
+        String persistedBillingRecurrence = normalizeBillingRecurrence(asaasMutation.billingInterval());
+        if (persistedBillingRecurrence.isBlank()) {
+            persistedBillingRecurrence = context.targetBillingInterval();
+        }
+        Long persistedAmountCents = asaasMutation.amountCents() != null
+                ? asaasMutation.amountCents()
+                : context.targetAmountCents();
+
+        company.setPlanId(context.targetPlan().planId());
         company.setSubscriptionAmountCents(persistedAmountCents);
         company.setBillingRecurrence(persistedBillingRecurrence);
+        if (company.getSubscriptionStatus() == null || company.getSubscriptionStatus().isBlank()) {
+            company.setSubscriptionStatus("ACTIVE");
+        }
         company.setUpdatedAt(now);
         companyRepo.save(company);
 
-        if (subscription != null) {
-            subscription.setPlanKey(targetPlan.planKey());
-            subscription.setPlanName(targetPlan.planName());
-            subscription.setAmountCents(persistedAmountCents);
-            subscription.setBillingInterval(persistedBillingRecurrence);
-            subscription.setProviderPriceId(targetPlan.planKey());
-            if (asaasMutation != null) {
-                subscription.setProviderCustomerId(normalizeText(asaasMutation.providerCustomerId(), subscription.getProviderCustomerId()));
-                subscription.setProviderSubscriptionId(normalizeText(asaasMutation.providerSubscriptionId(), subscription.getProviderSubscriptionId()));
-                subscription.setStatus(normalizePaymentStatus(asaasMutation.status()));
-                if (asaasMutation.currentPeriodEnd() != null) {
-                    subscription.setCurrentPeriodEnd(asaasMutation.currentPeriodEnd());
-                }
-            }
-            subscription.setUpdatedAt(now);
-            subscriptions.save(subscription);
+        subscription.setPlanKey(context.targetPlan().planKey());
+        subscription.setPlanName(context.targetPlan().planName());
+        subscription.setAmountCents(persistedAmountCents);
+        subscription.setBillingInterval(persistedBillingRecurrence);
+        subscription.setProviderPriceId(context.targetPlan().planKey());
+        subscription.setProviderCustomerId(normalizeText(asaasMutation.providerCustomerId(), subscription.getProviderCustomerId()));
+        subscription.setProviderSubscriptionId(normalizeText(asaasMutation.providerSubscriptionId(), subscription.getProviderSubscriptionId()));
+        subscription.setStatus(normalizePaymentStatus(asaasMutation.status()));
+        if (asaasMutation.currentPeriodEnd() != null) {
+            subscription.setCurrentPeriodEnd(asaasMutation.currentPeriodEnd());
+        }
+        subscription.setUpdatedAt(now);
+        subscriptions.save(subscription);
+
+        syncOnboardingSubscriptionPlan(
+                context.company().getId(),
+                context.targetPlan().planName(),
+                persistedAmountCents,
+                persistedBillingRecurrence,
+                now
+        );
+        return getBillingSnapshot(context.company().getId());
+    }
+
+    private PlanChangeContext resolvePlanChangeContext(UUID companyId, String targetPlanKey, String targetBillingInterval) {
+        JpaCompanyEntity company = companyRepo.findById(companyId)
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+        JpaIoAutoBillingSubscriptionEntity subscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId)
+                .orElseThrow(() -> new BusinessException("BILLING_NOT_FOUND", "Nao existe uma assinatura vinculada a esta conta."));
+
+        assertSubscriptionIsManageable(company, subscription);
+
+        SuperAdminPlanManagementService.PlanSnapshot currentPlan = planManagementService.resolvePlanForCompany(companyId);
+        SuperAdminPlanManagementService.PlanSnapshot targetPlan = resolveActivePlanByKey(targetPlanKey);
+        String currentBillingInterval = resolveBillingIntervalForPlanChange(subscription, company.getBillingRecurrence(), currentPlan);
+        String resolvedTargetBillingInterval = resolveTargetBillingInterval(targetBillingInterval, targetPlan, currentBillingInterval);
+
+        Long currentAmountCents = resolveAmountForPlanChange(subscription, company.getSubscriptionAmountCents(), currentPlan, currentBillingInterval);
+        Long targetAmountCents = targetPlan.priceForRecurrence(resolvedTargetBillingInterval);
+        if (targetAmountCents == null) {
+            throw new BusinessException("INVALID_BILLING_INTERVAL", "O ciclo selecionado nao esta disponivel para este plano.");
         }
 
-        syncOnboardingSubscriptionPlan(companyId, targetPlan.planName(), persistedAmountCents, persistedBillingRecurrence, now);
+        SuperAdminPlanManagementService.PlanCompatibility compatibility =
+                planManagementService.evaluateTenantPlanCompatibility(companyId, targetPlan);
+        if (!compatibility.eligible()) {
+            throw new BusinessException(
+                    "PLAN_LIMIT_EXCEEDED",
+                    compatibility.blockingReasons().isEmpty()
+                            ? "Sua empresa utiliza recursos acima do limite do plano selecionado."
+                            : compatibility.blockingReasons().get(0)
+            );
+        }
 
-        return getBillingSnapshot(companyId);
+        if (currentPlan.planKey().equalsIgnoreCase(targetPlan.planKey()) && currentBillingInterval.equalsIgnoreCase(resolvedTargetBillingInterval)) {
+            throw new BusinessException("PLAN_CHANGE_REDUNDANT", "O plano e o ciclo selecionados ja estao ativos na sua assinatura.");
+        }
+
+        String providerSubscriptionId = normalizeText(subscription.getProviderSubscriptionId());
+        if (providerSubscriptionId.isBlank()) {
+            throw new BusinessException(
+                    "MISSING_PROVIDER_SUBSCRIPTION",
+                    "Nao encontramos uma assinatura vinculada para alteracao automatica. Entre em contato com o suporte."
+            );
+        }
+
+        BillingChangeType changeType = determineBillingChangeType(
+                currentPlan,
+                targetPlan,
+                currentBillingInterval,
+                resolvedTargetBillingInterval,
+                currentAmountCents,
+                targetAmountCents
+        );
+
+        return new PlanChangeContext(
+                company,
+                subscription,
+                currentPlan,
+                targetPlan,
+                currentBillingInterval,
+                resolvedTargetBillingInterval,
+                currentAmountCents,
+                targetAmountCents,
+                providerSubscriptionId,
+                changeType
+        );
+    }
+
+    private SuperAdminPlanManagementService.PlanSnapshot resolveActivePlanByKey(String targetPlanKey) {
+        String normalizedPlanKey = normalizeText(targetPlanKey);
+        if (normalizedPlanKey.isBlank()) {
+            throw new BusinessException("INVALID_PLAN", "O plano selecionado nao esta disponivel.");
+        }
+
+        return planManagementService.listActivePlanSnapshots().stream()
+                .filter(plan -> normalizedPlanKey.equalsIgnoreCase(plan.planKey()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("INVALID_PLAN", "O plano selecionado nao esta disponivel."));
+    }
+
+    private void assertSubscriptionIsManageable(JpaCompanyEntity company, JpaIoAutoBillingSubscriptionEntity subscription) {
+        String subscriptionStatus = normalizeText(subscription.getStatus()).toUpperCase(Locale.ROOT);
+        String companySubscriptionStatus = normalizeText(company.getSubscriptionStatus()).toUpperCase(Locale.ROOT);
+        if ("CANCELED".equals(subscriptionStatus)
+                || "CANCELLED".equals(subscriptionStatus)
+                || "CANCELED".equals(companySubscriptionStatus)
+                || "CANCELLED".equals(companySubscriptionStatus)
+                || "PENDING_CONFIGURATION".equals(subscriptionStatus)) {
+            throw new BusinessException("BILLING_SUBSCRIPTION_INACTIVE", "A conta nao possui uma assinatura ativa para alteracao.");
+        }
+    }
+
+    private String resolveBillingIntervalForPlanChange(
+            JpaIoAutoBillingSubscriptionEntity subscription,
+            String companyBillingRecurrence,
+            SuperAdminPlanManagementService.PlanSnapshot currentPlan
+    ) {
+        String resolved = normalizeBillingRecurrence(subscription.getBillingInterval());
+        if (resolved.isBlank()) {
+            resolved = normalizeBillingRecurrence(companyBillingRecurrence);
+        }
+        if (resolved.isBlank()) {
+            resolved = normalizeBillingRecurrence(currentPlan.billingRecurrence());
+        }
+        if (resolved.isBlank() && !currentPlan.supportedBillingIntervals().isEmpty()) {
+            resolved = normalizeBillingRecurrence(currentPlan.supportedBillingIntervals().getFirst());
+        }
+        return resolved.isBlank() ? "MONTHLY" : resolved;
+    }
+
+    private String resolveTargetBillingInterval(
+            String requestedBillingInterval,
+            SuperAdminPlanManagementService.PlanSnapshot targetPlan,
+            String currentBillingInterval
+    ) {
+        String resolved = normalizeBillingRecurrence(requestedBillingInterval);
+        if (resolved.isBlank() && targetPlan.supportedBillingIntervals().contains(currentBillingInterval)) {
+            resolved = currentBillingInterval;
+        }
+        if (resolved.isBlank() && !targetPlan.supportedBillingIntervals().isEmpty()) {
+            resolved = normalizeBillingRecurrence(targetPlan.supportedBillingIntervals().getFirst());
+        }
+        if (resolved.isBlank()) {
+            resolved = normalizeBillingRecurrence(targetPlan.billingRecurrence());
+        }
+        if (resolved.isBlank()) {
+            throw new BusinessException("INVALID_BILLING_INTERVAL", "O ciclo selecionado nao esta disponivel para este plano.");
+        }
+        if (!targetPlan.supportedBillingIntervals().contains(resolved)) {
+            throw new BusinessException("INVALID_BILLING_INTERVAL", "O ciclo selecionado nao esta disponivel para este plano.");
+        }
+        return resolved;
+    }
+
+    private Long resolveAmountForPlanChange(
+            JpaIoAutoBillingSubscriptionEntity subscription,
+            Long companyAmountCents,
+            SuperAdminPlanManagementService.PlanSnapshot plan,
+            String billingInterval
+    ) {
+        if (subscription.getAmountCents() != null) {
+            return subscription.getAmountCents();
+        }
+        if (companyAmountCents != null) {
+            return companyAmountCents;
+        }
+        return plan.priceForRecurrence(billingInterval);
+    }
+
+    private BillingChangeType determineBillingChangeType(
+            SuperAdminPlanManagementService.PlanSnapshot currentPlan,
+            SuperAdminPlanManagementService.PlanSnapshot targetPlan,
+            String currentBillingInterval,
+            String targetBillingInterval,
+            Long currentAmountCents,
+            Long targetAmountCents
+    ) {
+        if (currentPlan.planKey().equalsIgnoreCase(targetPlan.planKey()) && !currentBillingInterval.equalsIgnoreCase(targetBillingInterval)) {
+            return BillingChangeType.CYCLE_CHANGE;
+        }
+        long safeCurrentAmount = currentAmountCents == null ? 0L : currentAmountCents;
+        long safeTargetAmount = targetAmountCents == null ? 0L : targetAmountCents;
+        if (safeTargetAmount > safeCurrentAmount) return BillingChangeType.UPGRADE;
+        if (safeTargetAmount < safeCurrentAmount) return BillingChangeType.DOWNGRADE;
+        return BillingChangeType.PLAN_CHANGE;
+    }
+
+    private boolean shouldUpdatePendingPayments(PlanChangeContext context, Boolean requestedUpdatePendingPayments) {
+        boolean recommended = context.changeType() == BillingChangeType.UPGRADE;
+        return recommended && Boolean.TRUE.equals(requestedUpdatePendingPayments == null ? Boolean.TRUE : requestedUpdatePendingPayments);
+    }
+
+    private String buildPlanChangeMessage(PlanChangeContext context, boolean updatePendingPayments) {
+        String targetPlanLabel = context.targetPlan().planName() + " " + billingIntervalLabel(context.targetBillingInterval()).toLowerCase(Locale.ROOT);
+        return switch (context.changeType()) {
+            case UPGRADE -> updatePendingPayments
+                    ? "Sua assinatura sera alterada para o plano " + targetPlanLabel + " e o Asaas atualizara as cobrancas pendentes quando aplicavel."
+                    : "Sua assinatura sera alterada para o plano " + targetPlanLabel + ".";
+            case DOWNGRADE -> "Sua assinatura sera alterada para o plano " + targetPlanLabel + ". Cobrancas pendentes ja emitidas no Asaas serao mantidas.";
+            case CYCLE_CHANGE -> "Seu ciclo de pagamento sera alterado para " + billingIntervalLabel(context.targetBillingInterval()).toLowerCase(Locale.ROOT) + ".";
+            case PLAN_CHANGE -> "Sua assinatura sera alterada para o plano " + targetPlanLabel + ".";
+        };
     }
 
     @Transactional(readOnly = true)
@@ -1531,60 +1787,72 @@ public class IoAutoBillingService {
         String normalized = normalizeText(value).toUpperCase(Locale.ROOT);
         if (normalized.isBlank()) return "";
         if ("MONTH".equals(normalized) || "MENSAL".equals(normalized)) return "MONTHLY";
+        if ("QUARTERLY".equals(normalized) || "TRIMESTRAL".equals(normalized)) return "QUARTERLY";
+        if ("SEMIANNUALLY".equals(normalized) || "SEMIANNUAL".equals(normalized) || "SEMESTRAL".equals(normalized)) return "SEMIANNUALLY";
         if ("YEAR".equals(normalized) || "YEARLY".equals(normalized) || "ANNUAL".equals(normalized) || "ANUAL".equals(normalized)) return "ANNUAL";
         return normalized;
     }
 
+    private String billingIntervalLabel(String value) {
+        String normalized = normalizeBillingRecurrence(value);
+        return switch (normalized) {
+            case "QUARTERLY" -> "Trimestral";
+            case "SEMIANNUALLY" -> "Semestral";
+            case "ANNUAL" -> "Anual";
+            default -> "Mensal";
+        };
+    }
+
     private AsaasSubscriptionMutation syncPlanChangeWithAsaas(
-            JpaIoAutoBillingSubscriptionEntity subscription,
-            UUID companyId,
-            SuperAdminPlanManagementService.PlanSnapshot targetPlan,
-            String billingRecurrence,
-            Long amountCents
+            PlanChangeContext context,
+            boolean updatePendingPayments
     ) {
-        if (subscription == null) {
-            return null;
-        }
+        JpaIoAutoBillingSubscriptionEntity subscription = context.subscription();
 
         String provider = normalizeText(subscription.getProvider(), BILLING_PROVIDER).toUpperCase(Locale.ROOT);
         if (!BILLING_PROVIDER.equals(provider)) {
-            return null;
+            throw new BusinessException("BILLING_PROVIDER_UNSUPPORTED", "A assinatura atual nao utiliza um provedor suportado para troca automatica.");
         }
 
         requireAsaasApiConfiguration();
 
-        String providerSubscriptionId = resolveAsaasSubscriptionId(subscription);
-        if (providerSubscriptionId.isBlank()) {
-            throw new BusinessException(
-                    "BILLING_PROVIDER_SUBSCRIPTION_NOT_FOUND",
-                    "Nao foi possivel localizar a assinatura no Asaas para atualizar o plano. Abra a cobranca atual ou contate o suporte."
-            );
-        }
+        String providerSubscriptionId = context.providerSubscriptionId();
 
         ObjectNode body = OBJECT_MAPPER.createObjectNode();
-        body.put("value", centsToCurrency(amountCents));
-        body.put("cycle", toAsaasSubscriptionCycle(billingRecurrence));
-        body.put("description", targetPlan.planName());
-        body.put("externalReference", companyId.toString());
-        body.put("updatePendingPayments", true);
+        body.put("value", centsToCurrency(context.targetAmountCents()));
+        body.put("cycle", toAsaasSubscriptionCycle(context.targetBillingInterval()));
+        body.put("description", context.targetPlan().planName());
+        body.put("externalReference", context.company().getId().toString());
+        body.put("updatePendingPayments", updatePendingPayments);
 
-        JsonNode response = callAsaas("PUT", "/subscriptions/" + urlEncode(providerSubscriptionId), body);
+        JsonNode response;
+        try {
+            response = callAsaas("PUT", "/subscriptions/" + urlEncode(providerSubscriptionId), body);
+        } catch (BusinessException exception) {
+            if ("ASAAS_API_ERROR".equals(exception.code()) || "ASAAS_INVALID_RESPONSE".equals(exception.code())) {
+                throw new BusinessException(
+                        "ASAAS_SUBSCRIPTION_UPDATE_FAILED",
+                        "Nao foi possivel alterar sua assinatura no momento. Nenhuma cobranca foi alterada."
+                );
+            }
+            throw exception;
+        }
         String resolvedBillingRecurrence = normalizeBillingRecurrence(toBillingInterval(text(response, "cycle")));
         if (resolvedBillingRecurrence.isBlank()) {
-            resolvedBillingRecurrence = normalizeBillingRecurrence(billingRecurrence);
+            resolvedBillingRecurrence = normalizeBillingRecurrence(context.targetBillingInterval());
         }
 
         Long resolvedAmountCents = readAmountCents(response.path("value"));
         if (resolvedAmountCents == null) {
-            resolvedAmountCents = amountCents;
+            resolvedAmountCents = context.targetAmountCents();
         }
 
-        Instant currentPeriodEnd = toPeriodBoundary(readLocalDate(text(response, "nextDueDate")));
+        Instant currentPeriodEnd = resolveUpdatedCurrentPeriodEnd(response, context.subscription().getCurrentPeriodEnd());
 
         return new AsaasSubscriptionMutation(
                 normalizeText(text(response, "id"), providerSubscriptionId),
                 normalizeText(text(response, "customer"), subscription.getProviderCustomerId()),
-                normalizeText(text(response, "status"), subscription.getStatus()),
+                normalizeText(text(response, "status"), normalizeText(subscription.getStatus()).toUpperCase(Locale.ROOT)),
                 resolvedAmountCents,
                 resolvedBillingRecurrence,
                 currentPeriodEnd
@@ -1613,27 +1881,10 @@ public class IoAutoBillingService {
         }
     }
 
-    private String resolveAsaasSubscriptionId(JpaIoAutoBillingSubscriptionEntity subscription) {
-        String providerSubscriptionId = normalizeText(subscription.getProviderSubscriptionId());
-        if (!providerSubscriptionId.isBlank()) {
-            return providerSubscriptionId;
-        }
-
-        Optional<AsaasPayment> latestPayment = findLatestPaymentForCompany(subscription);
-        if (latestPayment.isPresent()) {
-            providerSubscriptionId = normalizeText(latestPayment.get().subscription());
-            if (!providerSubscriptionId.isBlank()) {
-                subscription.setProviderSubscriptionId(providerSubscriptionId);
-                subscription.setUpdatedAt(Instant.now());
-                subscriptions.save(subscription);
-            }
-        }
-        return providerSubscriptionId;
-    }
-
     private String toAsaasSubscriptionCycle(String billingRecurrence) {
         String normalized = normalizeBillingRecurrence(billingRecurrence);
-        return "ANNUAL".equals(normalized) ? "YEARLY" : normalizeText(normalized, "MONTHLY");
+        if ("ANNUAL".equals(normalized)) return "YEARLY";
+        return normalizeText(normalized, "MONTHLY");
     }
 
     private BigDecimal centsToCurrency(Long amountCents) {
@@ -1666,6 +1917,14 @@ public class IoAutoBillingService {
         } catch (Exception exception) {
             return null;
         }
+    }
+
+    private Instant resolveUpdatedCurrentPeriodEnd(JsonNode response, Instant fallbackCurrentPeriodEnd) {
+        Instant fromNextDueDate = toPeriodBoundary(readLocalDate(text(response, "nextDueDate")));
+        if (fromNextDueDate != null) {
+            return fromNextDueDate;
+        }
+        return fallbackCurrentPeriodEnd;
     }
 
     private Instant toPeriodBoundary(LocalDate dueDate) {
@@ -1729,6 +1988,41 @@ record SignupStatusSnapshot(
 ) {
 }
 
+record PlanChangePreviewResponse(
+        PlanChangePlanSummary currentPlan,
+        PlanChangePlanSummary targetPlan,
+        String changeType,
+        String asaasCycle,
+        boolean willUpdatePendingPayments,
+        boolean requiresConfirmation,
+        String message
+) {
+}
+
+record PlanChangePlanSummary(
+        String key,
+        String name,
+        Long amountCents,
+        String billingInterval
+) {
+}
+
+record PlanChangeConfirmResponse(
+        boolean success,
+        String message,
+        PlanChangeSubscriptionSnapshot subscription
+) {
+}
+
+record PlanChangeSubscriptionSnapshot(
+        String planKey,
+        String planName,
+        Long amountCents,
+        String billingInterval,
+        String status
+) {
+}
+
 record BillingSnapshot(
         boolean hasSubscription,
         UUID planId,
@@ -1761,6 +2055,8 @@ record BillingPlanOption(
         Long priceCents,
         Long monthlyPriceCents,
         Long annualPriceCents,
+        Map<String, Long> priceByInterval,
+        List<String> supportedBillingIntervals,
         Integer usersLimit,
         Integer vehiclesLimit,
         Integer activeAdsLimit,
@@ -1810,6 +2106,27 @@ record PixQrCodeSnapshot(
         String encodedImage,
         String copyPasteCode,
         Instant expirationDate
+) {
+}
+
+enum BillingChangeType {
+    UPGRADE,
+    DOWNGRADE,
+    CYCLE_CHANGE,
+    PLAN_CHANGE
+}
+
+record PlanChangeContext(
+        JpaCompanyEntity company,
+        JpaIoAutoBillingSubscriptionEntity subscription,
+        SuperAdminPlanManagementService.PlanSnapshot currentPlan,
+        SuperAdminPlanManagementService.PlanSnapshot targetPlan,
+        String currentBillingInterval,
+        String targetBillingInterval,
+        Long currentAmountCents,
+        Long targetAmountCents,
+        String providerSubscriptionId,
+        BillingChangeType changeType
 ) {
 }
 

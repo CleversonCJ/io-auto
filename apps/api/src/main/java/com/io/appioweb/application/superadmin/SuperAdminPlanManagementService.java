@@ -13,7 +13,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -699,6 +701,8 @@ public class SuperAdminPlanManagementService {
         if (normalized == null) return null;
         String upper = normalized.toUpperCase(Locale.ROOT);
         if ("MONTH".equals(upper) || "MONTHLY".equals(upper) || "MENSAL".equals(upper)) return "MONTHLY";
+        if ("QUARTERLY".equals(upper) || "TRIMESTRAL".equals(upper)) return "QUARTERLY";
+        if ("SEMIANNUALLY".equals(upper) || "SEMIANNUAL".equals(upper) || "SEMESTRAL".equals(upper)) return "SEMIANNUALLY";
         if ("YEAR".equals(upper) || "YEARLY".equals(upper) || "ANNUAL".equals(upper) || "ANUAL".equals(upper)) return "ANNUAL";
         throw new BusinessException("PLAN_RECURRENCE_INVALID", "Recorrencia do plano invalida.");
     }
@@ -710,6 +714,9 @@ public class SuperAdminPlanManagementService {
     }
 
     private Long resolveDefaultPriceCents(Long monthlyPriceCents, Long annualPriceCents, String billingRecurrence) {
+        if ("QUARTERLY".equals(billingRecurrence) || "SEMIANNUALLY".equals(billingRecurrence)) {
+            return null;
+        }
         if ("ANNUAL".equals(billingRecurrence)) {
             return annualPriceCents != null ? annualPriceCents : monthlyPriceCents;
         }
@@ -884,10 +891,55 @@ public class SuperAdminPlanManagementService {
     ) {
         public Long priceForRecurrence(String recurrence) {
             String normalized = recurrence == null ? "" : recurrence.trim().toUpperCase(Locale.ROOT);
-            if ("ANNUAL".equals(normalized) || "YEARLY".equals(normalized) || "YEAR".equals(normalized)) {
-                return annualPriceCents != null ? annualPriceCents : priceCents != null ? priceCents : monthlyPriceCents;
+            if ("QUARTERLY".equals(normalized) || "SEMIANNUALLY".equals(normalized)) {
+                if (normalized.equals(billingRecurrence != null ? billingRecurrence.trim().toUpperCase(Locale.ROOT) : "")) {
+                    return priceCents;
+                }
+                return null;
             }
-            return monthlyPriceCents != null ? monthlyPriceCents : priceCents != null ? priceCents : annualPriceCents;
+            if ("ANNUAL".equals(normalized) || "YEARLY".equals(normalized) || "YEAR".equals(normalized)) {
+                if (annualPriceCents != null) return annualPriceCents;
+                if ("ANNUAL".equals(billingRecurrence != null ? billingRecurrence.trim().toUpperCase(Locale.ROOT) : "")
+                        || "YEARLY".equals(billingRecurrence != null ? billingRecurrence.trim().toUpperCase(Locale.ROOT) : "")
+                        || "YEAR".equals(billingRecurrence != null ? billingRecurrence.trim().toUpperCase(Locale.ROOT) : "")) {
+                    return priceCents != null ? priceCents : monthlyPriceCents;
+                }
+                return priceCents != null && annualPriceCents == null && monthlyPriceCents == null ? priceCents : monthlyPriceCents;
+            }
+            if ("MONTHLY".equals(normalized) || "MONTH".equals(normalized)) {
+                if (monthlyPriceCents != null) return monthlyPriceCents;
+                if ("MONTHLY".equals(billingRecurrence != null ? billingRecurrence.trim().toUpperCase(Locale.ROOT) : "")
+                        || "MONTH".equals(billingRecurrence != null ? billingRecurrence.trim().toUpperCase(Locale.ROOT) : "")) {
+                    return priceCents != null ? priceCents : annualPriceCents;
+                }
+                return priceCents != null && monthlyPriceCents == null && annualPriceCents == null ? priceCents : annualPriceCents;
+            }
+            return null;
+        }
+
+        public List<String> supportedBillingIntervals() {
+            List<String> intervals = new ArrayList<>();
+            if (monthlyPriceCents != null) intervals.add("MONTHLY");
+            if (annualPriceCents != null) intervals.add("ANNUAL");
+            String normalizedDefault = billingRecurrence == null ? "" : billingRecurrence.trim().toUpperCase(Locale.ROOT);
+            if (priceCents != null && !normalizedDefault.isBlank() && !intervals.contains(normalizedDefault)) {
+                intervals.add(normalizedDefault);
+            }
+            if (intervals.isEmpty() && !normalizedDefault.isBlank()) {
+                intervals.add(normalizedDefault);
+            }
+            return List.copyOf(intervals);
+        }
+
+        public Map<String, Long> priceByInterval() {
+            Map<String, Long> prices = new LinkedHashMap<>();
+            for (String interval : supportedBillingIntervals()) {
+                Long amount = priceForRecurrence(interval);
+                if (amount != null) {
+                    prices.put(interval, amount);
+                }
+            }
+            return Map.copyOf(prices);
         }
     }
 

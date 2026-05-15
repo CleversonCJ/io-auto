@@ -101,3 +101,16 @@ export function billingTypeLabel(value?: string | null) {
 
     return labels[normalized] ?? (normalized ? normalized.replaceAll("_", " ") : "-");
 }
+
+export function billingIntervalLabel(value?: string | null) {
+    const normalized = String(value ?? "").trim().toUpperCase();
+    const labels: Record<string, string> = {
+        MONTHLY: "Mensal",
+        QUARTERLY: "Trimestral",
+        SEMIANNUALLY: "Semestral",
+        ANNUAL: "Anual",
+        YEARLY: "Anual",
+    };
+
+    return labels[normalized] ?? (normalized ? normalized.replaceAll("_", " ") : "-");
+}

@@ -1,19 +1,35 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CreditCard, ExternalLink, LoaderCircle } from "lucide-react";
-import { billingTypeLabel, formatDateTime, formatMoney, statusLabel } from "@/modules/ioauto/formatters";
+import { CreditCard, ExternalLink, LoaderCircle, ShieldAlert } from "lucide-react";
+import { billingIntervalLabel, billingTypeLabel, formatDateTime, formatMoney, statusLabel } from "@/modules/ioauto/formatters";
 import { listEnabledFeatureLabels } from "@/modules/ioauto/planFeatures";
-import type { BillingAccessStatusSnapshot, BillingPlanOption, BillingRegularizationOptions, BillingSnapshot } from "@/modules/ioauto/types";
+import type {
+    BillingAccessStatusSnapshot,
+    BillingPlanChangeConfirmResponse,
+    BillingPlanChangePreview,
+    BillingPlanOption,
+    BillingRegularizationOptions,
+    BillingSnapshot,
+} from "@/modules/ioauto/types";
 
 type SubscriptionCenterProps = {
     title?: string;
     description?: string;
+    currentUserRoles?: string[];
+    onBillingChange?: (billing: BillingSnapshot | null) => void;
+};
+
+type ApiErrorPayload = {
+    code?: string;
+    message?: string;
 };
 
 export function SubscriptionCenter({
     title = "Assinatura do tenant",
     description = "Cobranca recorrente pronta para operacao automatica via Asaas.",
+    currentUserRoles,
+    onBillingChange,
 }: SubscriptionCenterProps) {
     const [billing, setBilling] = useState<BillingSnapshot | null>(null);
     const [accessStatus, setAccessStatus] = useState<BillingAccessStatusSnapshot | null>(null);
@@ -21,8 +37,16 @@ export function SubscriptionCenter({
     const [error, setError] = useState<string | null>(null);
     const [feedback, setFeedback] = useState<string | null>(null);
     const [openingPortal, setOpeningPortal] = useState(false);
-    const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
+    const [preview, setPreview] = useState<BillingPlanChangePreview | null>(null);
+    const [previewPlanKey, setPreviewPlanKey] = useState<string | null>(null);
+    const [previewingPlanKey, setPreviewingPlanKey] = useState<string | null>(null);
+    const [confirmingPlanKey, setConfirmingPlanKey] = useState<string | null>(null);
     const [selectedRecurrenceByPlan, setSelectedRecurrenceByPlan] = useState<Record<string, string>>({});
+
+    const canManagePlan = useMemo(
+        () => (currentUserRoles ?? []).some((role) => ["ADMIN", "SUPERADMIN"].includes(role.toUpperCase())),
+        [currentUserRoles],
+    );
 
     async function loadBilling() {
         const [billingResponse, accessStatusResponse] = await Promise.all([
@@ -37,6 +61,7 @@ export function SubscriptionCenter({
 
         const billingPayload = (await billingResponse.json()) as BillingSnapshot;
         setBilling(billingPayload);
+        onBillingChange?.(billingPayload);
 
         setSelectedRecurrenceByPlan((current) => {
             const next = { ...current };
@@ -78,6 +103,8 @@ export function SubscriptionCenter({
     async function handleOpenPortal() {
         setOpeningPortal(true);
         setFeedback(null);
+        setError(null);
+
         const response = await fetch("/api/ioauto/billing/portal", { method: "POST" });
         if (!response.ok) {
             const payload = await response.json().catch(() => ({ message: "Falha ao abrir a cobranca." }));
@@ -85,37 +112,75 @@ export function SubscriptionCenter({
             setOpeningPortal(false);
             return;
         }
+
         const payload = (await response.json()) as { portalUrl: string };
         window.location.assign(payload.portalUrl);
     }
 
-    async function handleChangePlan(plan: BillingPlanOption) {
-        const billingRecurrence = selectedRecurrenceByPlan[plan.planId] ?? defaultRecurrenceForPlan(plan, billing?.billingInterval);
-        setChangingPlanId(plan.planId);
-        setError(null);
+    async function handlePreviewPlan(plan: BillingPlanOption) {
+        const targetBillingInterval = selectedRecurrenceByPlan[plan.planId] ?? defaultRecurrenceForPlan(plan, billing?.billingInterval);
+        setPreviewingPlanKey(plan.planKey);
+        setPreview(null);
+        setPreviewPlanKey(null);
         setFeedback(null);
+        setError(null);
 
         try {
-            const response = await fetch("/api/ioauto/billing/plan", {
-                method: "PATCH",
+            const response = await fetch("/api/ioauto/billing/plan-change/preview", {
+                method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    planId: plan.planId,
-                    billingRecurrence,
+                    targetPlanKey: plan.planKey,
+                    targetBillingInterval,
                 }),
             });
 
             if (!response.ok) {
-                const payload = await response.json().catch(() => ({ message: "Falha ao trocar o plano." }));
-                throw new Error(payload.message ?? "Falha ao trocar o plano.");
+                const payload = (await response.json().catch(() => ({ message: "Falha ao gerar a previa da troca." }))) as ApiErrorPayload;
+                throw new Error(payload.message ?? "Falha ao gerar a previa da troca.");
             }
 
-            await loadBilling();
-            setFeedback(plan.current ? "Ciclo do plano atualizado com sucesso." : `Plano alterado para ${plan.planName}.`);
+            const payload = (await response.json()) as BillingPlanChangePreview;
+            setPreview(payload);
+            setPreviewPlanKey(plan.planKey);
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao trocar o plano.");
+            setError(cause instanceof Error ? cause.message : "Falha ao gerar a previa da troca.");
         } finally {
-            setChangingPlanId(null);
+            setPreviewingPlanKey(null);
+        }
+    }
+
+    async function handleConfirmPlan(plan: BillingPlanOption) {
+        const targetBillingInterval = selectedRecurrenceByPlan[plan.planId] ?? defaultRecurrenceForPlan(plan, billing?.billingInterval);
+        setConfirmingPlanKey(plan.planKey);
+        setFeedback(null);
+        setError(null);
+
+        try {
+            const response = await fetch("/api/ioauto/billing/plan-change/confirm", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    targetPlanKey: plan.planKey,
+                    targetBillingInterval,
+                    updatePendingPayments: preview?.willUpdatePendingPayments ?? false,
+                }),
+            });
+
+            if (!response.ok) {
+                const payload = (await response.json().catch(() => ({ message: "Falha ao alterar o plano." }))) as ApiErrorPayload;
+                throw new Error(payload.message ?? "Falha ao alterar o plano.");
+            }
+
+            const payload = (await response.json()) as BillingPlanChangeConfirmResponse;
+            await loadBilling();
+            setPreview(null);
+            setPreviewPlanKey(null);
+            setFeedback(payload.message || `Plano alterado para ${plan.planName}.`);
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : "Falha ao alterar o plano.");
+        } finally {
+            setConfirmingPlanKey(null);
         }
     }
 
@@ -129,7 +194,7 @@ export function SubscriptionCenter({
         || "A assinatura possui pendencia e precisa de regularizacao para liberar o acesso.";
     const currentPlanFeatureLabels = useMemo(() => listEnabledFeatureLabels(billing?.features).slice(0, 8), [billing?.features]);
 
-    if (error) {
+    if (error && !billing) {
         return <div className="rounded-[32px] border border-red-200 bg-red-50 px-6 py-5 text-sm text-red-700">{error}</div>;
     }
 
@@ -146,6 +211,7 @@ export function SubscriptionCenter({
             </div>
 
             {feedback ? <p className="mt-4 text-sm text-emerald-700">{feedback}</p> : null}
+            {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
 
             <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <InfoCard label="Plano" value={billing?.planName ?? "Plano principal"} />
@@ -165,149 +231,213 @@ export function SubscriptionCenter({
                 <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <InfoCard label="Valor" value={formatMoney(billing?.amountCents, (billing?.currency ?? "BRL").toUpperCase())} />
                     <InfoCard label="Forma de pagamento" value={billingTypeLabel(accessStatus?.billingType)} />
-                    <InfoCard label="Ciclo" value={billing?.billingInterval ? billingTypeBillingIntervalLabel(billing.billingInterval) : "-"} />
+                    <InfoCard label="Ciclo" value={billing?.billingInterval ? billingIntervalLabel(billing.billingInterval) : "-"} />
                     <InfoCard label="Provedor" value={billing?.provider?.toUpperCase() || "ASAAS"} />
                 </div>
             )}
 
             {billing ? (
-                <>
-                    <div className="mt-6 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-                        <article className="rounded-[28px] border border-black/10 bg-black/[0.02] p-5">
-                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Plano atual</p>
-                            <h3 className="mt-3 text-2xl font-bold text-io-dark">{billing.planName}</h3>
-                            <p className="mt-2 text-sm text-black/55">A leitura abaixo mostra o consumo real da conta frente aos limites do plano contratado.</p>
+                <div className="mt-6 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+                    <article className="rounded-[28px] border border-black/10 bg-black/[0.02] p-5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Plano atual</p>
+                        <h3 className="mt-3 text-2xl font-bold text-io-dark">{billing.planName}</h3>
+                        <p className="mt-2 text-sm text-black/55">A leitura abaixo mostra o consumo real da conta frente aos limites do plano contratado.</p>
 
-                            <div className="mt-5 grid gap-3 md:grid-cols-2">
-                                <UsageCard
-                                    label="Usuarios ativos"
-                                    value={billing.usage.activeUsers}
-                                    limit={billing.usersLimit}
-                                />
-                                <UsageCard
-                                    label="Veiculos ativos"
-                                    value={billing.usage.activeVehicles}
-                                    limit={billing.vehiclesLimit}
-                                />
-                                <UsageCard
-                                    label="Anuncios ativos"
-                                    value={billing.usage.activeAds}
-                                    limit={billing.activeAdsLimit}
-                                />
-                                <UsageCard
-                                    label="Integracoes conectadas"
-                                    value={billing.usage.connectedIntegrations}
-                                />
+                        <div className="mt-5 grid gap-3 md:grid-cols-2">
+                            <UsageCard label="Usuarios ativos" value={billing.usage.activeUsers} limit={billing.usersLimit} />
+                            <UsageCard label="Veiculos ativos" value={billing.usage.activeVehicles} limit={billing.vehiclesLimit} />
+                            <UsageCard label="Anuncios ativos" value={billing.usage.activeAds} limit={billing.activeAdsLimit} />
+                            <UsageCard label="Integracoes conectadas" value={billing.usage.connectedIntegrations} />
+                        </div>
+
+                        <div className="mt-5">
+                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Modulos habilitados</p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                {(billing.enabledModules.length ? billing.enabledModules : currentPlanFeatureLabels).map((label) => (
+                                    <span key={label} className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs text-black/65">
+                                        {label}
+                                    </span>
+                                ))}
                             </div>
+                        </div>
+                    </article>
 
-                            <div className="mt-5">
-                                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Modulos habilitados</p>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                    {(billing.enabledModules.length ? billing.enabledModules : currentPlanFeatureLabels).map((label) => (
-                                        <span key={label} className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs text-black/65">
-                                            {label}
-                                        </span>
-                                    ))}
+                    <article className="rounded-[28px] border border-black/10 bg-black/[0.02] p-5">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Alterar plano</p>
+                                <h3 className="mt-3 text-2xl font-bold text-io-dark">Escolha um plano compativel com o uso atual</h3>
+                                <p className="mt-2 text-sm text-black/55">
+                                    Faça a prévia antes de confirmar. O sistema valida limites, ciclo e atualiza o Asaas antes de gravar localmente.
+                                </p>
+                            </div>
+                            {!canManagePlan ? (
+                                <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-700">
+                                    <ShieldAlert className="h-4 w-4" />
+                                    Somente administradores podem alterar o plano
                                 </div>
-                            </div>
-                        </article>
+                            ) : null}
+                        </div>
 
-                        <article className="rounded-[28px] border border-black/10 bg-black/[0.02] p-5">
-                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Trocar plano</p>
-                            <h3 className="mt-3 text-2xl font-bold text-io-dark">Escolha um plano compativel com o uso atual</h3>
-                            <p className="mt-2 text-sm text-black/55">
-                                Downgrades ficam bloqueados quando a conta ja excede limites ou depende de modulos indisponiveis no plano alvo.
-                            </p>
+                        <div className="mt-5 grid gap-4">
+                            {(billing.availablePlans ?? []).map((plan) => {
+                                const selectedRecurrence = selectedRecurrenceByPlan[plan.planId] ?? defaultRecurrenceForPlan(plan, billing.billingInterval);
+                                const isCurrentRecurrence = plan.current && selectedRecurrence === billing.billingInterval;
+                                const featureLabels = listEnabledFeatureLabels(plan.features).slice(0, 6);
+                                const priceEntries = supportedIntervalEntries(plan);
+                                const isPreviewOpen = previewPlanKey === plan.planKey
+                                    && preview?.targetPlan.key === plan.planKey
+                                    && preview?.targetPlan.billingInterval === selectedRecurrence;
 
-                            <div className="mt-5 grid gap-4">
-                                {(billing.availablePlans ?? []).map((plan) => {
-                                    const selectedRecurrence = selectedRecurrenceByPlan[plan.planId] ?? defaultRecurrenceForPlan(plan, billing.billingInterval);
-                                    const isCurrentRecurrence = plan.current && selectedRecurrence === billing.billingInterval;
-                                    const featureLabels = listEnabledFeatureLabels(plan.features).slice(0, 6);
-
-                                    return (
-                                        <div key={plan.planId} className={`rounded-[24px] border p-4 ${plan.current ? "border-io-purple/35 bg-white" : "border-black/10 bg-white"}`}>
-                                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                                <div>
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        <p className="text-lg font-bold text-io-dark">{plan.planName}</p>
-                                                        {plan.current ? (
-                                                            <span className="rounded-full bg-io-purple/10 px-3 py-1 text-xs font-semibold text-io-purple">
-                                                                Plano atual
-                                                            </span>
-                                                        ) : null}
-                                                        {!plan.eligible ? (
-                                                            <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
-                                                                Downgrade bloqueado
-                                                            </span>
-                                                        ) : null}
-                                                    </div>
-                                                    <div className="mt-2 flex flex-wrap gap-3 text-sm text-black/60">
-                                                        <span>Mensal: {formatMoney(plan.monthlyPriceCents, "BRL")}</span>
-                                                        <span>Anual: {formatMoney(plan.annualPriceCents, "BRL")}</span>
-                                                    </div>
-                                                    <div className="mt-3 flex flex-wrap gap-2">
-                                                        <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
-                                                            {limitLabel(plan.usersLimit, "usuarios")}
+                                return (
+                                    <div key={plan.planId} className={`rounded-[24px] border p-4 ${plan.current ? "border-io-purple/35 bg-white" : "border-black/10 bg-white"}`}>
+                                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                            <div className="flex-1">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <p className="text-lg font-bold text-io-dark">{plan.planName}</p>
+                                                    {plan.current ? (
+                                                        <span className="rounded-full bg-io-purple/10 px-3 py-1 text-xs font-semibold text-io-purple">
+                                                            Plano atual
                                                         </span>
-                                                        <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
-                                                            {limitLabel(plan.vehiclesLimit, "veiculos")}
+                                                    ) : null}
+                                                    {!plan.eligible ? (
+                                                        <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
+                                                            Downgrade bloqueado
                                                         </span>
-                                                        <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
-                                                            {limitLabel(plan.activeAdsLimit, "anuncios")}
-                                                        </span>
-                                                    </div>
-                                                    <div className="mt-3 flex flex-wrap gap-2">
-                                                        {featureLabels.map((label) => (
-                                                            <span key={label} className="rounded-full border border-black/10 px-3 py-1 text-xs text-black/60">
-                                                                {label}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                    {!plan.eligible && plan.blockingReasons.length ? (
-                                                        <div className="mt-4 grid gap-2 rounded-[18px] border border-red-200 bg-red-50 p-3">
-                                                            {plan.blockingReasons.map((reason) => (
-                                                                <p key={reason} className="text-sm leading-6 text-red-700">
-                                                                    {reason}
-                                                                </p>
-                                                            ))}
-                                                        </div>
                                                     ) : null}
                                                 </div>
 
-                                                <div className="grid gap-3 lg:min-w-[220px]">
-                                                    <label className="grid gap-2 text-sm text-black/60">
-                                                        <span>Ciclo de cobranca</span>
-                                                        <select
-                                                            value={selectedRecurrence}
-                                                            onChange={(event) => setSelectedRecurrenceByPlan((current) => ({
+                                                <div className="mt-2 flex flex-wrap gap-3 text-sm text-black/60">
+                                                    {priceEntries.map(([interval, amount]) => (
+                                                        <span key={`${plan.planId}-${interval}`}>
+                                                            {billingIntervalLabel(interval)}: {formatMoney(amount, "BRL")}
+                                                        </span>
+                                                    ))}
+                                                </div>
+
+                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                    <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
+                                                        {limitLabel(plan.usersLimit, "usuarios")}
+                                                    </span>
+                                                    <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
+                                                        {limitLabel(plan.vehiclesLimit, "veiculos")}
+                                                    </span>
+                                                    <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
+                                                        {limitLabel(plan.activeAdsLimit, "anuncios")}
+                                                    </span>
+                                                </div>
+
+                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                    {featureLabels.map((label) => (
+                                                        <span key={label} className="rounded-full border border-black/10 px-3 py-1 text-xs text-black/60">
+                                                            {label}
+                                                        </span>
+                                                    ))}
+                                                </div>
+
+                                                {!plan.eligible && plan.blockingReasons.length ? (
+                                                    <div className="mt-4 grid gap-2 rounded-[18px] border border-red-200 bg-red-50 p-3">
+                                                        {plan.blockingReasons.map((reason) => (
+                                                            <p key={reason} className="text-sm leading-6 text-red-700">
+                                                                {reason}
+                                                            </p>
+                                                        ))}
+                                                    </div>
+                                                ) : null}
+                                            </div>
+
+                                            <div className="grid gap-3 lg:min-w-[250px]">
+                                                <label className="grid gap-2 text-sm text-black/60">
+                                                    <span>Ciclo de cobranca</span>
+                                                    <select
+                                                        value={selectedRecurrence}
+                                                        onChange={(event) => {
+                                                            const nextValue = event.target.value;
+                                                            setSelectedRecurrenceByPlan((current) => ({
                                                                 ...current,
-                                                                [plan.planId]: event.target.value,
-                                                            }))}
-                                                            className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none"
-                                                        >
-                                                            {plan.monthlyPriceCents ? <option value="MONTHLY">Mensal</option> : null}
-                                                            {plan.annualPriceCents ? <option value="ANNUAL">Anual</option> : null}
-                                                        </select>
-                                                    </label>
+                                                                [plan.planId]: nextValue,
+                                                            }));
+                                                            if (previewPlanKey === plan.planKey) {
+                                                                setPreview(null);
+                                                                setPreviewPlanKey(null);
+                                                            }
+                                                        }}
+                                                        className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none"
+                                                    >
+                                                        {plan.supportedBillingIntervals.map((interval) => (
+                                                            <option key={`${plan.planId}-${interval}`} value={interval}>
+                                                                {billingIntervalLabel(interval)}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </label>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handlePreviewPlan(plan)}
+                                                    disabled={previewingPlanKey === plan.planKey || isCurrentRecurrence || !plan.eligible || !canManagePlan}
+                                                    className="inline-flex items-center justify-center gap-2 rounded-full border border-[#6b00e3]/20 bg-white px-5 py-3 text-sm font-semibold text-[#6b00e3] transition hover:bg-[#6b00e3]/5 disabled:cursor-not-allowed disabled:opacity-45"
+                                                >
+                                                    {previewingPlanKey === plan.planKey ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                                                    {plan.current ? (isCurrentRecurrence ? "Plano atual" : "Ver previa do novo ciclo") : "Ver previa da troca"}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {isPreviewOpen && preview ? (
+                                            <div className="mt-4 grid gap-4 rounded-[22px] border border-io-purple/15 bg-[#f8f3ff] p-4">
+                                                <div className="grid gap-3 md:grid-cols-2">
+                                                    <PreviewMetric
+                                                        label="Plano atual"
+                                                        value={`${preview.currentPlan.name} • ${billingIntervalLabel(preview.currentPlan.billingInterval)}`}
+                                                        detail={formatMoney(preview.currentPlan.amountCents, "BRL")}
+                                                    />
+                                                    <PreviewMetric
+                                                        label="Novo plano"
+                                                        value={`${preview.targetPlan.name} • ${billingIntervalLabel(preview.targetPlan.billingInterval)}`}
+                                                        detail={formatMoney(preview.targetPlan.amountCents, "BRL")}
+                                                    />
+                                                </div>
+
+                                                <div className="grid gap-3 md:grid-cols-3">
+                                                    <PreviewMetric label="Tipo de alteracao" value={changeTypeLabel(preview.changeType)} />
+                                                    <PreviewMetric label="Ciclo no Asaas" value={billingIntervalLabel(preview.asaasCycle)} />
+                                                    <PreviewMetric label="Cobrancas pendentes" value={preview.willUpdatePendingPayments ? "Atualiza quando aplicavel" : "Mantem as ja emitidas"} />
+                                                </div>
+
+                                                <div className="rounded-[18px] border border-black/8 bg-white px-4 py-3 text-sm leading-6 text-black/65">
+                                                    {preview.message}
+                                                </div>
+
+                                                <div className="flex flex-wrap gap-3">
                                                     <button
                                                         type="button"
-                                                        onClick={() => void handleChangePlan(plan)}
-                                                        disabled={changingPlanId === plan.planId || isCurrentRecurrence || !plan.eligible}
+                                                        onClick={() => void handleConfirmPlan(plan)}
+                                                        disabled={confirmingPlanKey === plan.planKey || !canManagePlan}
                                                         className="inline-flex items-center justify-center gap-2 rounded-full bg-[#6b00e3] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#5800bb] disabled:cursor-not-allowed disabled:bg-[#6b00e3]/35"
                                                     >
-                                                        {changingPlanId === plan.planId ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-                                                        {plan.current ? (isCurrentRecurrence ? "Plano atual" : "Atualizar ciclo") : "Trocar para este plano"}
+                                                        {confirmingPlanKey === plan.planKey ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                                                        Confirmar alteracao
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setPreview(null);
+                                                            setPreviewPlanKey(null);
+                                                        }}
+                                                        className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-black/70 transition hover:bg-black/[0.03]"
+                                                    >
+                                                        Cancelar
                                                     </button>
                                                 </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </article>
-                    </div>
-                </>
+                                        ) : null}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </article>
+                </div>
             ) : null}
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -336,19 +466,30 @@ export function SubscriptionCenter({
     );
 }
 
+function supportedIntervalEntries(plan: BillingPlanOption) {
+    const orderedIntervals = plan.supportedBillingIntervals.length
+        ? plan.supportedBillingIntervals
+        : Object.keys(plan.priceByInterval ?? {});
+
+    return orderedIntervals
+        .map((interval) => [interval, plan.priceByInterval?.[interval] ?? null] as const)
+        .filter((entry): entry is readonly [string, number] => entry[1] != null);
+}
+
 function defaultRecurrenceForPlan(plan: BillingPlanOption, currentBillingInterval?: string | null) {
     if (plan.current && currentBillingInterval) return currentBillingInterval;
+    if (plan.supportedBillingIntervals.length) return plan.supportedBillingIntervals[0]!;
     if (plan.billingRecurrence) return plan.billingRecurrence;
     if (plan.monthlyPriceCents) return "MONTHLY";
     if (plan.annualPriceCents) return "ANNUAL";
     return "MONTHLY";
 }
 
-function billingTypeBillingIntervalLabel(value: string) {
-    const normalized = String(value).trim().toUpperCase();
-    if (normalized === "MONTHLY") return "Mensal";
-    if (normalized === "ANNUAL" || normalized === "YEARLY") return "Anual";
-    return normalized ? normalized.replaceAll("_", " ") : "-";
+function changeTypeLabel(value: BillingPlanChangePreview["changeType"]) {
+    if (value === "UPGRADE") return "Upgrade";
+    if (value === "DOWNGRADE") return "Downgrade";
+    if (value === "CYCLE_CHANGE") return "Troca de ciclo";
+    return "Troca de plano";
 }
 
 function limitLabel(value: number | null | undefined, suffix: string) {
@@ -378,6 +519,24 @@ function UsageCard({
             <p className="text-xs uppercase tracking-[0.24em] text-black/40">{label}</p>
             <p className="mt-3 text-2xl font-bold text-io-dark">{value.toLocaleString("pt-BR")}</p>
             <p className="mt-2 text-sm text-black/55">{limit == null ? "Sem limite contratado" : `Limite do plano: ${limit.toLocaleString("pt-BR")}`}</p>
+        </div>
+    );
+}
+
+function PreviewMetric({
+    label,
+    value,
+    detail,
+}: {
+    label: string;
+    value: string;
+    detail?: string;
+}) {
+    return (
+        <div className="rounded-[18px] border border-black/10 bg-white px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.24em] text-black/40">{label}</p>
+            <p className="mt-2 text-sm font-semibold text-io-dark">{value}</p>
+            {detail ? <p className="mt-1 text-sm text-black/55">{detail}</p> : null}
         </div>
     );
 }

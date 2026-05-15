@@ -839,8 +839,34 @@ public class IoAutoController {
         return ResponseEntity.ok(billingService.getBillingSnapshot(currentUser.companyId()));
     }
 
+    @PostMapping("/ioauto/billing/plan-change/preview")
+    public ResponseEntity<PlanChangePreviewResponse> previewBillingPlanChange(@Valid @RequestBody PlanChangePreviewHttpRequest request) {
+        billingService.assertPlanChangeAllowed(currentUser.roles());
+        return ResponseEntity.ok(
+                billingService.previewPlanChange(
+                        currentUser.companyId(),
+                        request.targetPlanKey(),
+                        request.targetBillingInterval()
+                )
+        );
+    }
+
+    @PostMapping("/ioauto/billing/plan-change/confirm")
+    public ResponseEntity<PlanChangeConfirmResponse> confirmBillingPlanChange(@Valid @RequestBody PlanChangeConfirmHttpRequest request) {
+        billingService.assertPlanChangeAllowed(currentUser.roles());
+        return ResponseEntity.ok(
+                billingService.confirmPlanChange(
+                        currentUser.companyId(),
+                        request.targetPlanKey(),
+                        request.targetBillingInterval(),
+                        request.updatePendingPayments()
+                )
+        );
+    }
+
     @PatchMapping("/ioauto/billing/plan")
     public ResponseEntity<BillingSnapshot> changeBillingPlan(@RequestBody ChangeBillingPlanHttpRequest request) {
+        billingService.assertPlanChangeAllowed(currentUser.roles());
         if (request == null || request.planId() == null) {
             throw new BusinessException("PLAN_ID_REQUIRED", "Selecione um plano valido.");
         }
@@ -870,6 +896,19 @@ public class IoAutoController {
     public record ChangeBillingPlanHttpRequest(
             UUID planId,
             String billingRecurrence
+    ) {
+    }
+
+    public record PlanChangePreviewHttpRequest(
+            @NotBlank String targetPlanKey,
+            String targetBillingInterval
+    ) {
+    }
+
+    public record PlanChangeConfirmHttpRequest(
+            @NotBlank String targetPlanKey,
+            String targetBillingInterval,
+            Boolean updatePendingPayments
     ) {
     }
 

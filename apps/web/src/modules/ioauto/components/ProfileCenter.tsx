@@ -209,6 +209,8 @@ export function ProfileCenter() {
             <SubscriptionCenter
                 title="Assinatura e cobranca"
                 description="Todos os dados financeiros e de plano do tenant ficam concentrados no perfil para facilitar a gestao da conta."
+                currentUserRoles={user?.roles}
+                onBillingChange={setBilling}
             />
         </div>
     );

@@ -47,6 +47,8 @@ export type BillingPlanOption = {
     priceCents: number | null;
     monthlyPriceCents: number | null;
     annualPriceCents: number | null;
+    priceByInterval: Record<string, number>;
+    supportedBillingIntervals: string[];
     usersLimit: number | null;
     vehiclesLimit: number | null;
     activeAdsLimit: number | null;
@@ -77,6 +79,38 @@ export type BillingSnapshot = {
     enabledModules: string[];
     usage: BillingPlanUsage;
     availablePlans: BillingPlanOption[];
+};
+
+export type BillingPlanChangePreview = {
+    currentPlan: {
+        key: string;
+        name: string;
+        amountCents: number | null;
+        billingInterval: string;
+    };
+    targetPlan: {
+        key: string;
+        name: string;
+        amountCents: number | null;
+        billingInterval: string;
+    };
+    changeType: "UPGRADE" | "DOWNGRADE" | "CYCLE_CHANGE" | "PLAN_CHANGE";
+    asaasCycle: string;
+    willUpdatePendingPayments: boolean;
+    requiresConfirmation: boolean;
+    message: string;
+};
+
+export type BillingPlanChangeConfirmResponse = {
+    success: boolean;
+    message: string;
+    subscription: {
+        planKey: string;
+        planName: string;
+        amountCents: number | null;
+        billingInterval: string;
+        status: string;
+    };
 };
 
 export type BillingAccessStatusSnapshot = {
