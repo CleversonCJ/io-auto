@@ -213,8 +213,10 @@ public class IoAutoBillingService {
 
     @Transactional(readOnly = true)
     public BillingSnapshot getBillingSnapshot(UUID companyId) {
-        Optional<JpaIoAutoBillingSubscriptionEntity> subscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId);
+        JpaCompanyEntity company = companyRepo.findById(companyId)
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
         SuperAdminPlanManagementService.PlanSnapshot currentPlan = planManagementService.resolvePlanForCompany(companyId);
+        Optional<JpaIoAutoBillingSubscriptionEntity> subscription = resolveBillingSubscriptionMirror(companyId, company, currentPlan);
         SuperAdminPlanManagementService.TenantPlanUsage usage = planManagementService.getTenantPlanUsage(companyId);
         String resolvedBillingInterval = normalizeBillingRecurrence(
                 subscription.map(JpaIoAutoBillingSubscriptionEntity::getBillingInterval).orElse(currentPlan.billingRecurrence())
@@ -437,12 +439,12 @@ public class IoAutoBillingService {
     private PlanChangeContext resolvePlanChangeContext(UUID companyId, String targetPlanKey, String targetBillingInterval) {
         JpaCompanyEntity company = companyRepo.findById(companyId)
                 .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
-        JpaIoAutoBillingSubscriptionEntity subscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId)
+        SuperAdminPlanManagementService.PlanSnapshot currentPlan = planManagementService.resolvePlanForCompany(companyId);
+        JpaIoAutoBillingSubscriptionEntity subscription = resolveBillingSubscriptionMirror(companyId, company, currentPlan)
                 .orElseThrow(() -> new BusinessException("BILLING_NOT_FOUND", "Nao existe uma assinatura vinculada a esta conta."));
 
         assertSubscriptionIsManageable(company, subscription);
 
-        SuperAdminPlanManagementService.PlanSnapshot currentPlan = planManagementService.resolvePlanForCompany(companyId);
         SuperAdminPlanManagementService.PlanSnapshot targetPlan = resolveActivePlanByKey(targetPlanKey);
         String currentBillingInterval = resolveBillingIntervalForPlanChange(subscription, company.getBillingRecurrence(), currentPlan);
         String resolvedTargetBillingInterval = resolveTargetBillingInterval(targetBillingInterval, targetPlan, currentBillingInterval);
@@ -509,6 +511,73 @@ public class IoAutoBillingService {
                 .filter(plan -> normalizedPlanKey.equalsIgnoreCase(plan.planKey()))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException("INVALID_PLAN", "O plano selecionado nao esta disponivel."));
+    }
+
+    private Optional<JpaIoAutoBillingSubscriptionEntity> resolveBillingSubscriptionMirror(
+            UUID companyId,
+            JpaCompanyEntity company,
+            SuperAdminPlanManagementService.PlanSnapshot currentPlan
+    ) {
+        Optional<JpaIoAutoBillingSubscriptionEntity> localSubscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId);
+        if (localSubscription.isPresent()) {
+            return localSubscription;
+        }
+
+        return onboardingSubscriptions.findByCompanyId(companyId)
+                .map(onboardingSubscription -> buildBillingSubscriptionMirror(company, currentPlan, onboardingSubscription));
+    }
+
+    private JpaIoAutoBillingSubscriptionEntity buildBillingSubscriptionMirror(
+            JpaCompanyEntity company,
+            SuperAdminPlanManagementService.PlanSnapshot currentPlan,
+            JpaOnboardingSubscriptionEntity onboardingSubscription
+    ) {
+        Instant now = Instant.now();
+        String billingInterval = normalizeBillingRecurrence(onboardingSubscription.getRecorrencia());
+        if (billingInterval.isBlank()) {
+            billingInterval = normalizeBillingRecurrence(company.getBillingRecurrence());
+        }
+        if (billingInterval.isBlank()) {
+            billingInterval = normalizeBillingRecurrence(currentPlan.billingRecurrence());
+        }
+        if (billingInterval.isBlank() && !currentPlan.supportedBillingIntervals().isEmpty()) {
+            billingInterval = normalizeBillingRecurrence(currentPlan.supportedBillingIntervals().getFirst());
+        }
+        if (billingInterval.isBlank()) {
+            billingInterval = "MONTHLY";
+        }
+
+        Long amountCents = onboardingSubscription.getValor() != null
+                ? toCents(onboardingSubscription.getValor())
+                : company.getSubscriptionAmountCents() != null
+                ? company.getSubscriptionAmountCents()
+                : currentPlan.priceForRecurrence(billingInterval);
+
+        JpaIoAutoBillingSubscriptionEntity mirror = new JpaIoAutoBillingSubscriptionEntity();
+        mirror.setId(UUID.randomUUID());
+        mirror.setCompanyId(company.getId());
+        mirror.setProvider(BILLING_PROVIDER);
+        mirror.setProviderCustomerId("");
+        mirror.setProviderSubscriptionId(normalizeText(onboardingSubscription.getAsaasSubscriptionId()));
+        mirror.setProviderPriceId(currentPlan.planKey());
+        mirror.setPlanKey(currentPlan.planKey());
+        mirror.setPlanName(currentPlan.planName());
+        mirror.setStatus(normalizePaymentStatus(normalizeText(onboardingSubscription.getStatus(), company.getSubscriptionStatus())));
+        mirror.setAmountCents(amountCents);
+        mirror.setCurrency("brl");
+        mirror.setBillingInterval(billingInterval);
+        mirror.setCurrentPeriodEnd(company.getContractEndDate() == null ? null : toPeriodBoundary(company.getContractEndDate()));
+        mirror.setCancelAtPeriodEnd(false);
+        mirror.setCheckoutSessionId("");
+        mirror.setCreatedAt(onboardingSubscription.getCreatedAt() == null ? now : onboardingSubscription.getCreatedAt());
+        mirror.setUpdatedAt(onboardingSubscription.getUpdatedAt() == null ? now : onboardingSubscription.getUpdatedAt());
+
+        log.info(
+                "Billing subscription mirror reconstructed from onboarding companyId={} asaasSubscriptionId={}",
+                company.getId(),
+                normalizeText(onboardingSubscription.getAsaasSubscriptionId())
+        );
+        return mirror;
     }
 
     private void assertSubscriptionIsManageable(JpaCompanyEntity company, JpaIoAutoBillingSubscriptionEntity subscription) {
@@ -620,7 +689,8 @@ public class IoAutoBillingService {
         JpaCompanyEntity company = companyRepo.findById(companyId)
                 .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
 
-        Optional<JpaIoAutoBillingSubscriptionEntity> subscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId);
+        SuperAdminPlanManagementService.PlanSnapshot currentPlan = planManagementService.resolvePlanForCompany(companyId);
+        Optional<JpaIoAutoBillingSubscriptionEntity> subscription = resolveBillingSubscriptionMirror(companyId, company, currentPlan);
         Optional<AsaasPayment> latestPayment = findLatestPaymentForCompany(subscription.orElse(null));
         Optional<AsaasPayment> regularizationPayment = findRegularizationPayment(subscription.orElse(null), latestPayment.orElse(null));
 
@@ -632,13 +702,15 @@ public class IoAutoBillingService {
         JpaCompanyEntity company = companyRepo.findById(companyId)
                 .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
 
-        Optional<JpaIoAutoBillingSubscriptionEntity> subscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId);
+        SuperAdminPlanManagementService.PlanSnapshot currentPlan = planManagementService.resolvePlanForCompany(companyId);
+        Optional<JpaIoAutoBillingSubscriptionEntity> subscription = resolveBillingSubscriptionMirror(companyId, company, currentPlan);
         Optional<AsaasPayment> latestPayment = findLatestPaymentForCompany(subscription.orElse(null));
 
         latestPayment.ifPresent(payment -> syncSubscription(companyId, payment, payment.checkoutSession()));
 
         JpaCompanyEntity refreshedCompany = companyRepo.findById(companyId).orElse(company);
-        Optional<JpaIoAutoBillingSubscriptionEntity> refreshedSubscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId);
+        SuperAdminPlanManagementService.PlanSnapshot refreshedPlan = planManagementService.resolvePlanForCompany(companyId);
+        Optional<JpaIoAutoBillingSubscriptionEntity> refreshedSubscription = resolveBillingSubscriptionMirror(companyId, refreshedCompany, refreshedPlan);
         Optional<AsaasPayment> regularizationPayment = findRegularizationPayment(refreshedSubscription.orElse(null), latestPayment.orElse(null));
 
         return toAccessStatus(
@@ -654,7 +726,8 @@ public class IoAutoBillingService {
         JpaCompanyEntity company = companyRepo.findById(companyId)
                 .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
 
-        Optional<JpaIoAutoBillingSubscriptionEntity> subscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId);
+        SuperAdminPlanManagementService.PlanSnapshot currentPlan = planManagementService.resolvePlanForCompany(companyId);
+        Optional<JpaIoAutoBillingSubscriptionEntity> subscription = resolveBillingSubscriptionMirror(companyId, company, currentPlan);
         Optional<AsaasPayment> latestPayment = findLatestPaymentForCompany(subscription.orElse(null));
         Optional<AsaasPayment> regularizationPayment = findRegularizationPayment(subscription.orElse(null), latestPayment.orElse(null));
 
@@ -710,7 +783,10 @@ public class IoAutoBillingService {
     public PortalLaunch createPortalSession(UUID companyId) {
         requireAsaasCheckoutConfiguration();
 
-        JpaIoAutoBillingSubscriptionEntity subscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId)
+        JpaCompanyEntity company = companyRepo.findById(companyId)
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+        SuperAdminPlanManagementService.PlanSnapshot currentPlan = planManagementService.resolvePlanForCompany(companyId);
+        JpaIoAutoBillingSubscriptionEntity subscription = resolveBillingSubscriptionMirror(companyId, company, currentPlan)
                 .orElseThrow(() -> new BusinessException("BILLING_NOT_FOUND", "Nao existe uma assinatura vinculada a esta conta."));
 
         Optional<AsaasPayment> latestPayment = findLatestPaymentForCompany(subscription);

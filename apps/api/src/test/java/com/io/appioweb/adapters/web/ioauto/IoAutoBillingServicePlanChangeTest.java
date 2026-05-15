@@ -7,6 +7,7 @@ import com.io.appioweb.adapters.persistence.ioauto.IoAutoBillingSubscriptionRepo
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoIntegrationRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoSignupIntentRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoBillingSubscriptionEntity;
+import com.io.appioweb.adapters.persistence.onboarding.JpaOnboardingSubscriptionEntity;
 import com.io.appioweb.adapters.persistence.onboarding.OnboardingSubscriptionRepositoryJpa;
 import com.io.appioweb.application.onboarding.FirstUserOnboardingService;
 import com.io.appioweb.application.superadmin.SuperAdminPlanManagementService;
@@ -182,6 +183,73 @@ class IoAutoBillingServicePlanChangeTest {
                 .satisfies(error -> assertThat(((BusinessException) error).code()).isEqualTo("PLAN_LIMIT_EXCEEDED"));
     }
 
+    @Test
+    void previewUsesOnboardingMirrorWhenLocalBillingSubscriptionIsMissing() {
+        TestContext ctx = newTestContext();
+        JpaOnboardingSubscriptionEntity onboardingSubscription = new JpaOnboardingSubscriptionEntity();
+        onboardingSubscription.setId(UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd"));
+        onboardingSubscription.setCompanyId(ctx.companyId);
+        onboardingSubscription.setAsaasSubscriptionId("sub_123");
+        onboardingSubscription.setValor(new java.math.BigDecimal("99.90"));
+        onboardingSubscription.setRecorrencia("mensal");
+        onboardingSubscription.setStatus("ACTIVE");
+        onboardingSubscription.setCreatedAt(Instant.parse("2026-05-01T03:00:00Z"));
+        onboardingSubscription.setUpdatedAt(Instant.parse("2026-05-15T10:00:00Z"));
+
+        when(ctx.subscriptionRepo.findTopByCompanyIdOrderByUpdatedAtDesc(ctx.companyId)).thenReturn(Optional.empty());
+        when(ctx.onboardingRepo.findByCompanyId(ctx.companyId)).thenReturn(Optional.of(onboardingSubscription));
+
+        PlanChangePreviewResponse response = ctx.service.previewPlanChange(ctx.companyId, "pro", "MONTHLY");
+
+        assertThat(response.currentPlan().key()).isEqualTo("basic");
+        assertThat(response.targetPlan().key()).isEqualTo("pro");
+        assertThat(response.targetPlan().amountCents()).isEqualTo(14990L);
+    }
+
+    @Test
+    void confirmUsesOnboardingMirrorWhenLocalBillingSubscriptionIsMissing() throws Exception {
+        AtomicReference<String> requestBody = new AtomicReference<>("");
+        HttpServer server = startServer(exchange -> {
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            writeJson(exchange, 200, """
+                    {
+                      "id": "sub_123",
+                      "customer": "cus_123",
+                      "status": "ACTIVE",
+                      "value": 149.90,
+                      "cycle": "MONTHLY",
+                      "nextDueDate": "2026-06-15"
+                    }
+                    """);
+        });
+
+        try {
+            TestContext ctx = newTestContext(server);
+            JpaOnboardingSubscriptionEntity onboardingSubscription = new JpaOnboardingSubscriptionEntity();
+            onboardingSubscription.setId(UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd"));
+            onboardingSubscription.setCompanyId(ctx.companyId);
+            onboardingSubscription.setAsaasSubscriptionId("sub_123");
+            onboardingSubscription.setValor(new java.math.BigDecimal("99.90"));
+            onboardingSubscription.setRecorrencia("mensal");
+            onboardingSubscription.setStatus("ACTIVE");
+            onboardingSubscription.setCreatedAt(Instant.parse("2026-05-01T03:00:00Z"));
+            onboardingSubscription.setUpdatedAt(Instant.parse("2026-05-15T10:00:00Z"));
+
+            when(ctx.subscriptionRepo.findTopByCompanyIdOrderByUpdatedAtDesc(ctx.companyId)).thenReturn(Optional.empty());
+            when(ctx.onboardingRepo.findByCompanyId(ctx.companyId)).thenReturn(Optional.of(onboardingSubscription));
+
+            PlanChangeConfirmResponse response = ctx.service.confirmPlanChange(ctx.companyId, "pro", "MONTHLY", true);
+
+            assertThat(response.success()).isTrue();
+            assertThat(ctx.company.getPlanId()).isEqualTo(ctx.targetPlan.planId());
+            assertThat(ctx.company.getSubscriptionAmountCents()).isEqualTo(14990L);
+            verify(ctx.subscriptionRepo).save(any(JpaIoAutoBillingSubscriptionEntity.class));
+            assertThat(requestBody.get()).contains("\"value\":149.90");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static TestContext newTestContext() {
         return newTestContext(null);
     }
@@ -302,7 +370,7 @@ class IoAutoBillingServicePlanChangeTest {
                 "CREDIT_CARD"
         );
 
-        return new TestContext(service, companyRepo, subscriptionRepo, planManagementService, companyId, company, subscription, currentPlan, targetPlan, usage);
+        return new TestContext(service, companyRepo, subscriptionRepo, onboardingRepo, planManagementService, companyId, company, subscription, currentPlan, targetPlan, usage);
     }
 
     private static HttpServer startServer(ExchangeHandler handler) throws IOException {
@@ -336,6 +404,7 @@ class IoAutoBillingServicePlanChangeTest {
             IoAutoBillingService service,
             CompanyRepositoryJpa companyRepo,
             IoAutoBillingSubscriptionRepositoryJpa subscriptionRepo,
+            OnboardingSubscriptionRepositoryJpa onboardingRepo,
             SuperAdminPlanManagementService planManagementService,
             UUID companyId,
             JpaCompanyEntity company,
