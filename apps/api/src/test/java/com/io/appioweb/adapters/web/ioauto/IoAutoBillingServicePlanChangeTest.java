@@ -131,6 +131,19 @@ class IoAutoBillingServicePlanChangeTest {
     }
 
     @Test
+    void confirmPlanChangeWhenAsaasIsUnavailableReturnsCommunicationDetail() {
+        TestContext ctx = newTestContext();
+
+        assertThatThrownBy(() -> ctx.service.confirmPlanChange(ctx.companyId, "pro", "MONTHLY", true))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> {
+                    BusinessException businessException = (BusinessException) error;
+                    assertThat(businessException.code()).isEqualTo("ASAAS_SUBSCRIPTION_UPDATE_FAILED");
+                    assertThat(businessException.getMessage()).contains("Falha de comunicacao com o Asaas");
+                });
+    }
+
+    @Test
     void previewRejectsInvalidPlan() {
         TestContext ctx = newTestContext();
 

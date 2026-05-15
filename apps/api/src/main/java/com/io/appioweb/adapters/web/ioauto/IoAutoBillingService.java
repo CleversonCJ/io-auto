@@ -1527,8 +1527,9 @@ public class IoAutoBillingService {
 
     private JsonNode callAsaas(String method, String pathWithQuery, JsonNode body) {
         try {
+            String requestUrl = asaasApiBaseUrl + pathWithQuery;
             HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(asaasApiBaseUrl + pathWithQuery))
+                    .uri(URI.create(requestUrl))
                     .header("accept", "application/json")
                     .header("access_token", asaasApiKey);
 
@@ -1544,15 +1545,47 @@ public class IoAutoBillingService {
             };
 
             HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-            JsonNode payload = readJson(response.body());
+            String rawBody = normalizeText(response.body());
+            JsonNode payload;
+            try {
+                payload = readJson(rawBody);
+            } catch (BusinessException exception) {
+                log.warn(
+                        "Asaas returned non-json response method={} url={} status={} bodySnippet={}",
+                        method,
+                        requestUrl,
+                        response.statusCode(),
+                        abbreviateForLogs(rawBody)
+                );
+                throw new BusinessException(
+                        "ASAAS_INVALID_RESPONSE",
+                        "O retorno do Asaas nao pode ser interpretado. HTTP " + response.statusCode() + ". Resposta: " + abbreviateForLogs(rawBody)
+                );
+            }
             if (response.statusCode() >= 400) {
-                throw new BusinessException("ASAAS_API_ERROR", extractAsaasError(payload, "Nao foi possivel concluir a comunicacao com o Asaas."));
+                String errorMessage = extractAsaasError(payload, "Nao foi possivel concluir a comunicacao com o Asaas.");
+                log.warn(
+                        "Asaas API returned error method={} url={} status={} message={} bodySnippet={}",
+                        method,
+                        requestUrl,
+                        response.statusCode(),
+                        errorMessage,
+                        abbreviateForLogs(rawBody)
+                );
+                throw new BusinessException("ASAAS_API_ERROR", errorMessage);
             }
             return payload;
         } catch (BusinessException exception) {
             throw exception;
         } catch (Exception exception) {
-            throw new BusinessException("ASAAS_API_ERROR", "Nao foi possivel concluir a comunicacao com o Asaas.");
+            log.warn(
+                    "Asaas communication failed method={} path={} reasonClass={} reasonMessage={}",
+                    method,
+                    pathWithQuery,
+                    exception.getClass().getSimpleName(),
+                    normalizeText(exception.getMessage(), "(sem mensagem)")
+            );
+            throw new BusinessException("ASAAS_API_ERROR", describeAsaasCommunicationFailure(exception));
         }
     }
 
@@ -1575,6 +1608,22 @@ public class IoAutoBillingService {
         } catch (Exception exception) {
             throw new BusinessException("ASAAS_INVALID_RESPONSE", "O retorno do Asaas nao pode ser interpretado.");
         }
+    }
+
+    private String describeAsaasCommunicationFailure(Exception exception) {
+        String detail = normalizeText(exception.getMessage());
+        if (detail.isBlank()) {
+            detail = exception.getClass().getSimpleName();
+        }
+        return "Falha de comunicacao com o Asaas: " + detail;
+    }
+
+    private String abbreviateForLogs(String value) {
+        String normalized = normalizeText(value);
+        if (normalized.isBlank()) {
+            return "(vazio)";
+        }
+        return normalized.length() <= 220 ? normalized : normalized.substring(0, 220) + "...";
     }
 
     private AsaasPayment toAsaasPayment(JsonNode node) {
