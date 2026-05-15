@@ -97,9 +97,9 @@ public class IoAutoBillingService {
             UserRepositoryJpa userRepo,
             FirstUserOnboardingService onboardingService,
             SuperAdminPlanManagementService planManagementService,
-            @Value("${ASAAS_API_KEY:}") String asaasApiKey,
+            @Value("${ASAAS_API_KEY:${ASAAS_ACCESS_TOKEN:}}") String asaasApiKey,
             @Value("${ASAAS_WEBHOOK_TOKEN:}") String asaasWebhookToken,
-            @Value("${ASAAS_API_BASE_URL:https://api.asaas.com/v3}") String asaasApiBaseUrl,
+            @Value("${ASAAS_API_BASE_URL:${ASAAS_BASE_URL:https://api.asaas.com/v3}}") String asaasApiBaseUrl,
             @Value("${ASAAS_CHECKOUT_BASE_URL:https://asaas.com}") String asaasCheckoutBaseUrl,
             @Value("${APP_PUBLIC_URL:http://localhost:3000}") String publicAppUrl,
             @Value("${IOAUTO_PLAN_KEY:" + DEFAULT_PLAN_KEY + "}") String planKey,
@@ -119,7 +119,7 @@ public class IoAutoBillingService {
         this.planManagementService = planManagementService;
         this.asaasApiKey = normalizeText(asaasApiKey);
         this.asaasWebhookToken = normalizeText(asaasWebhookToken);
-        this.asaasApiBaseUrl = trimTrailingSlash(normalizeText(asaasApiBaseUrl, "https://api.asaas.com/v3"));
+        this.asaasApiBaseUrl = normalizeAsaasApiBaseUrl(asaasApiBaseUrl);
         this.asaasCheckoutBaseUrl = trimTrailingSlash(normalizeText(asaasCheckoutBaseUrl, "https://asaas.com"));
         this.publicAppUrl = trimTrailingSlash(normalizeText(publicAppUrl, "http://localhost:3000"));
         this.planKey = normalizeText(planKey, DEFAULT_PLAN_KEY);
@@ -845,7 +845,7 @@ public class IoAutoBillingService {
 
     private void requireAsaasCheckoutConfiguration() {
         if (asaasApiKey.isBlank()) {
-            throw new BusinessException("BILLING_NOT_CONFIGURED", "Configure ASAAS_API_KEY antes de usar o checkout.");
+            throw new BusinessException("BILLING_NOT_CONFIGURED", "Configure ASAAS_API_KEY ou ASAAS_ACCESS_TOKEN antes de usar o checkout.");
         }
         if (planValue.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException("BILLING_NOT_CONFIGURED", "Defina IOAUTO_PLAN_VALUE com um valor valido.");
@@ -1953,8 +1953,16 @@ public class IoAutoBillingService {
 
     private void requireAsaasApiConfiguration() {
         if (asaasApiKey.isBlank()) {
-            throw new BusinessException("BILLING_NOT_CONFIGURED", "Configure ASAAS_API_KEY antes de atualizar a assinatura.");
+            throw new BusinessException("BILLING_NOT_CONFIGURED", "Configure ASAAS_API_KEY ou ASAAS_ACCESS_TOKEN antes de atualizar a assinatura.");
         }
+    }
+
+    private String normalizeAsaasApiBaseUrl(String rawBaseUrl) {
+        String normalized = trimTrailingSlash(normalizeText(rawBaseUrl, "https://api.asaas.com/v3"));
+        if (normalized.endsWith("/v3")) {
+            return normalized;
+        }
+        return normalized + "/v3";
     }
 
     private String toAsaasSubscriptionCycle(String billingRecurrence) {

@@ -382,6 +382,13 @@ class IoAutoBillingServicePlanChangeTest {
                 exchange.close();
             }
         });
+        server.createContext("/v3/subscriptions/sub_123", exchange -> {
+            try {
+                handler.handle(exchange);
+            } finally {
+                exchange.close();
+            }
+        });
         server.start();
         return server;
     }
