@@ -290,6 +290,7 @@ public class IoAutoBillingService {
     public BillingSnapshot changePlan(UUID companyId, UUID planId, String requestedBillingRecurrence) {
         JpaCompanyEntity company = companyRepo.findById(companyId)
                 .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+        JpaIoAutoBillingSubscriptionEntity subscription = subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId).orElse(null);
 
         SuperAdminPlanManagementService.PlanSnapshot targetPlan = planManagementService.listActivePlanSnapshots().stream()
                 .filter(plan -> plan.planId().equals(planId))
@@ -311,23 +312,49 @@ public class IoAutoBillingService {
 
         final String resolvedBillingRecurrence = billingRecurrence;
         Long amountCents = targetPlan.priceForRecurrence(resolvedBillingRecurrence);
+        AsaasSubscriptionMutation asaasMutation = syncPlanChangeWithAsaas(
+                subscription,
+                companyId,
+                targetPlan,
+                resolvedBillingRecurrence,
+                amountCents
+        );
         Instant now = Instant.now();
+        String persistedBillingRecurrence = asaasMutation == null
+                ? resolvedBillingRecurrence
+                : normalizeBillingRecurrence(asaasMutation.billingInterval());
+        if (persistedBillingRecurrence.isBlank()) {
+            persistedBillingRecurrence = resolvedBillingRecurrence;
+        }
+        Long persistedAmountCents = asaasMutation != null && asaasMutation.amountCents() != null
+                ? asaasMutation.amountCents()
+                : amountCents;
 
         company.setPlanId(targetPlan.planId());
-        company.setSubscriptionAmountCents(amountCents);
-        company.setBillingRecurrence(resolvedBillingRecurrence);
+        company.setSubscriptionAmountCents(persistedAmountCents);
+        company.setBillingRecurrence(persistedBillingRecurrence);
         company.setUpdatedAt(now);
         companyRepo.save(company);
 
-        subscriptions.findTopByCompanyIdOrderByUpdatedAtDesc(companyId).ifPresent(subscription -> {
+        if (subscription != null) {
             subscription.setPlanKey(targetPlan.planKey());
             subscription.setPlanName(targetPlan.planName());
-            subscription.setAmountCents(amountCents);
-            subscription.setBillingInterval(resolvedBillingRecurrence);
+            subscription.setAmountCents(persistedAmountCents);
+            subscription.setBillingInterval(persistedBillingRecurrence);
             subscription.setProviderPriceId(targetPlan.planKey());
+            if (asaasMutation != null) {
+                subscription.setProviderCustomerId(normalizeText(asaasMutation.providerCustomerId(), subscription.getProviderCustomerId()));
+                subscription.setProviderSubscriptionId(normalizeText(asaasMutation.providerSubscriptionId(), subscription.getProviderSubscriptionId()));
+                subscription.setStatus(normalizePaymentStatus(asaasMutation.status()));
+                if (asaasMutation.currentPeriodEnd() != null) {
+                    subscription.setCurrentPeriodEnd(asaasMutation.currentPeriodEnd());
+                }
+            }
             subscription.setUpdatedAt(now);
             subscriptions.save(subscription);
-        });
+        }
+
+        syncOnboardingSubscriptionPlan(companyId, targetPlan.planName(), persistedAmountCents, persistedBillingRecurrence, now);
 
         return getBillingSnapshot(companyId);
     }
@@ -937,18 +964,37 @@ public class IoAutoBillingService {
             entity.setCreatedAt(Instant.now());
         }
 
+        JpaCompanyEntity company = companyRepo.findById(companyId).orElse(null);
+        SuperAdminPlanManagementService.PlanSnapshot currentPlan = planManagementService.resolvePlanForCompany(companyId);
+        String resolvedBillingInterval = normalizeBillingRecurrence(
+                company != null ? company.getBillingRecurrence() : entity.getBillingInterval()
+        );
+        if (resolvedBillingInterval.isBlank()) {
+            resolvedBillingInterval = normalizeBillingRecurrence(currentPlan.billingRecurrence());
+        }
+        if (resolvedBillingInterval.isBlank()) {
+            resolvedBillingInterval = normalizeBillingRecurrence(toBillingInterval(planCycle));
+        }
+        if (resolvedBillingInterval.isBlank()) {
+            resolvedBillingInterval = "MONTHLY";
+        }
+        Long resolvedAmountCents = toCents(payment.value());
+        if (resolvedAmountCents == null) {
+            resolvedAmountCents = currentPlan.priceForRecurrence(resolvedBillingInterval);
+        }
+
         entity.setCompanyId(companyId);
         entity.setProvider(BILLING_PROVIDER);
         entity.setProviderCustomerId(normalizeText(payment.customer()));
         entity.setProviderSubscriptionId(providerSubscriptionId);
-        entity.setProviderPriceId(planKey);
-        entity.setPlanKey(planKey);
-        entity.setPlanName(planName);
+        entity.setProviderPriceId(currentPlan.planKey());
+        entity.setPlanKey(currentPlan.planKey());
+        entity.setPlanName(currentPlan.planName());
         entity.setStatus(normalizePaymentStatus(payment.status()));
-        entity.setAmountCents(toCents(payment.value()));
+        entity.setAmountCents(resolvedAmountCents);
         entity.setCurrency("brl");
-        entity.setBillingInterval(toBillingInterval(planCycle));
-        entity.setCurrentPeriodEnd(resolveCurrentPeriodEnd(payment));
+        entity.setBillingInterval(resolvedBillingInterval);
+        entity.setCurrentPeriodEnd(resolveCurrentPeriodEnd(payment, resolvedBillingInterval));
         entity.setCancelAtPeriodEnd(false);
         entity.setCheckoutSessionId(normalizeText(checkoutId, payment.checkoutSession()));
         entity.setUpdatedAt(Instant.now());
@@ -965,11 +1011,20 @@ public class IoAutoBillingService {
         companyRepo.findById(companyId).ifPresent(company -> {
             Instant now = Instant.now();
             boolean blocked = shouldBlockAccess(payment);
+            String resolvedBillingRecurrence = normalizeBillingRecurrence(subscription.getBillingInterval());
+            if (resolvedBillingRecurrence.isBlank()) {
+                resolvedBillingRecurrence = normalizeBillingRecurrence(company.getBillingRecurrence());
+            }
+            if (resolvedBillingRecurrence.isBlank()) {
+                resolvedBillingRecurrence = "MONTHLY";
+            }
 
-            company.setContractEndDate(toContractEndDate(payment, now));
+            company.setContractEndDate(toContractEndDate(payment, now, resolvedBillingRecurrence));
             company.setSubscriptionStatus(toCompanySubscriptionStatus(payment.status(), blocked));
-            company.setSubscriptionAmountCents(subscription.getAmountCents());
-            company.setBillingRecurrence(toCompanyBillingRecurrence(planCycle));
+            if (subscription.getAmountCents() != null) {
+                company.setSubscriptionAmountCents(subscription.getAmountCents());
+            }
+            company.setBillingRecurrence(resolvedBillingRecurrence);
 
             if (company.getSubscriptionStartedAt() == null && isPaidPaymentStatus(payment.status())) {
                 company.setSubscriptionStartedAt(now);
@@ -1060,18 +1115,6 @@ public class IoAutoBillingService {
         };
     }
 
-    private String toCompanyBillingRecurrence(String cycle) {
-        String normalized = normalizeText(cycle).toUpperCase(Locale.ROOT);
-        return switch (normalized) {
-            case "WEEKLY" -> "WEEKLY";
-            case "BIWEEKLY" -> "BIWEEKLY";
-            case "QUARTERLY" -> "QUARTERLY";
-            case "SEMIANNUALLY" -> "SEMIANNUALLY";
-            case "YEARLY" -> "YEARLY";
-            default -> "MONTHLY";
-        };
-    }
-
     private Long toCents(BigDecimal value) {
         if (value == null) {
             return null;
@@ -1084,22 +1127,22 @@ public class IoAutoBillingService {
         return normalized.isBlank() ? "inactive" : normalized;
     }
 
-    private LocalDate toContractEndDate(AsaasPayment payment, Instant fallbackNow) {
-        Instant contractEnd = resolveCurrentPeriodEnd(payment);
+    private LocalDate toContractEndDate(AsaasPayment payment, Instant fallbackNow, String billingRecurrence) {
+        Instant contractEnd = resolveCurrentPeriodEnd(payment, billingRecurrence);
         if (contractEnd == null) {
             contractEnd = fallbackNow.plusSeconds(30L * 24 * 60 * 60);
         }
         return contractEnd.atZone(BILLING_ZONE).toLocalDate();
     }
 
-    private Instant resolveCurrentPeriodEnd(AsaasPayment payment) {
+    private Instant resolveCurrentPeriodEnd(AsaasPayment payment, String billingRecurrence) {
         if (payment == null || payment.dueDate() == null) {
             return null;
         }
 
         LocalDate baseDate = payment.dueDate();
         if (isPaidPaymentStatus(payment.status())) {
-            baseDate = advanceCycle(baseDate, planCycle);
+            baseDate = advanceCycle(baseDate, toAsaasSubscriptionCycle(billingRecurrence));
         }
         return baseDate.plusDays(1).atStartOfDay(BILLING_ZONE).toInstant();
     }
@@ -1111,7 +1154,7 @@ public class IoAutoBillingService {
             case "BIWEEKLY" -> source.plusWeeks(2);
             case "QUARTERLY" -> source.plusMonths(3);
             case "SEMIANNUALLY" -> source.plusMonths(6);
-            case "YEARLY" -> source.plusYears(1);
+            case "ANNUAL", "YEARLY" -> source.plusYears(1);
             default -> source.plusMonths(1);
         };
     }
@@ -1164,6 +1207,7 @@ public class IoAutoBillingService {
             HttpRequest request = switch (method) {
                 case "POST" -> builder.POST(HttpRequest.BodyPublishers.ofString(body == null ? "" : OBJECT_MAPPER.writeValueAsString(body))).build();
                 case "GET" -> builder.GET().build();
+                case "PUT" -> builder.PUT(HttpRequest.BodyPublishers.ofString(body == null ? "" : OBJECT_MAPPER.writeValueAsString(body))).build();
                 default -> throw new IllegalArgumentException("Metodo HTTP nao suportado: " + method);
             };
 
@@ -1428,7 +1472,7 @@ public class IoAutoBillingService {
             case "BIWEEKLY" -> "quinzenal";
             case "QUARTERLY" -> "trimestral";
             case "SEMIANNUALLY" -> "semestral";
-            case "YEARLY" -> "anual";
+            case "ANNUAL", "YEARLY" -> "anual";
             default -> "mensal";
         };
     }
@@ -1491,6 +1535,146 @@ public class IoAutoBillingService {
         return normalized;
     }
 
+    private AsaasSubscriptionMutation syncPlanChangeWithAsaas(
+            JpaIoAutoBillingSubscriptionEntity subscription,
+            UUID companyId,
+            SuperAdminPlanManagementService.PlanSnapshot targetPlan,
+            String billingRecurrence,
+            Long amountCents
+    ) {
+        if (subscription == null) {
+            return null;
+        }
+
+        String provider = normalizeText(subscription.getProvider(), BILLING_PROVIDER).toUpperCase(Locale.ROOT);
+        if (!BILLING_PROVIDER.equals(provider)) {
+            return null;
+        }
+
+        requireAsaasApiConfiguration();
+
+        String providerSubscriptionId = resolveAsaasSubscriptionId(subscription);
+        if (providerSubscriptionId.isBlank()) {
+            throw new BusinessException(
+                    "BILLING_PROVIDER_SUBSCRIPTION_NOT_FOUND",
+                    "Nao foi possivel localizar a assinatura no Asaas para atualizar o plano. Abra a cobranca atual ou contate o suporte."
+            );
+        }
+
+        ObjectNode body = OBJECT_MAPPER.createObjectNode();
+        body.put("value", centsToCurrency(amountCents));
+        body.put("cycle", toAsaasSubscriptionCycle(billingRecurrence));
+        body.put("description", targetPlan.planName());
+        body.put("externalReference", companyId.toString());
+        body.put("updatePendingPayments", true);
+
+        JsonNode response = callAsaas("PUT", "/subscriptions/" + urlEncode(providerSubscriptionId), body);
+        String resolvedBillingRecurrence = normalizeBillingRecurrence(toBillingInterval(text(response, "cycle")));
+        if (resolvedBillingRecurrence.isBlank()) {
+            resolvedBillingRecurrence = normalizeBillingRecurrence(billingRecurrence);
+        }
+
+        Long resolvedAmountCents = readAmountCents(response.path("value"));
+        if (resolvedAmountCents == null) {
+            resolvedAmountCents = amountCents;
+        }
+
+        Instant currentPeriodEnd = toPeriodBoundary(readLocalDate(text(response, "nextDueDate")));
+
+        return new AsaasSubscriptionMutation(
+                normalizeText(text(response, "id"), providerSubscriptionId),
+                normalizeText(text(response, "customer"), subscription.getProviderCustomerId()),
+                normalizeText(text(response, "status"), subscription.getStatus()),
+                resolvedAmountCents,
+                resolvedBillingRecurrence,
+                currentPeriodEnd
+        );
+    }
+
+    private void syncOnboardingSubscriptionPlan(
+            UUID companyId,
+            String planName,
+            Long amountCents,
+            String billingRecurrence,
+            Instant now
+    ) {
+        onboardingSubscriptions.findByCompanyId(companyId).ifPresent(subscription -> {
+            subscription.setDescription(normalizeText(planName, subscription.getDescription()));
+            subscription.setValor(centsToCurrency(amountCents));
+            subscription.setRecorrencia(toPortugueseRecurrence(billingRecurrence));
+            subscription.setUpdatedAt(now);
+            onboardingSubscriptions.save(subscription);
+        });
+    }
+
+    private void requireAsaasApiConfiguration() {
+        if (asaasApiKey.isBlank()) {
+            throw new BusinessException("BILLING_NOT_CONFIGURED", "Configure ASAAS_API_KEY antes de atualizar a assinatura.");
+        }
+    }
+
+    private String resolveAsaasSubscriptionId(JpaIoAutoBillingSubscriptionEntity subscription) {
+        String providerSubscriptionId = normalizeText(subscription.getProviderSubscriptionId());
+        if (!providerSubscriptionId.isBlank()) {
+            return providerSubscriptionId;
+        }
+
+        Optional<AsaasPayment> latestPayment = findLatestPaymentForCompany(subscription);
+        if (latestPayment.isPresent()) {
+            providerSubscriptionId = normalizeText(latestPayment.get().subscription());
+            if (!providerSubscriptionId.isBlank()) {
+                subscription.setProviderSubscriptionId(providerSubscriptionId);
+                subscription.setUpdatedAt(Instant.now());
+                subscriptions.save(subscription);
+            }
+        }
+        return providerSubscriptionId;
+    }
+
+    private String toAsaasSubscriptionCycle(String billingRecurrence) {
+        String normalized = normalizeBillingRecurrence(billingRecurrence);
+        return "ANNUAL".equals(normalized) ? "YEARLY" : normalizeText(normalized, "MONTHLY");
+    }
+
+    private BigDecimal centsToCurrency(Long amountCents) {
+        long safeAmount = amountCents == null ? 0L : Math.max(amountCents, 0L);
+        return BigDecimal.valueOf(safeAmount, 2).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private Long readAmountCents(JsonNode valueNode) {
+        if (valueNode == null || valueNode.isMissingNode() || valueNode.isNull()) {
+            return null;
+        }
+        try {
+            if (valueNode.isNumber()) {
+                return toCents(valueNode.decimalValue());
+            }
+            String normalized = normalizeText(valueNode.asText());
+            return normalized.isBlank() ? null : toCents(new BigDecimal(normalized));
+        } catch (Exception exception) {
+            return null;
+        }
+    }
+
+    private LocalDate readLocalDate(String value) {
+        String normalized = normalizeText(value);
+        if (normalized.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(normalized);
+        } catch (Exception exception) {
+            return null;
+        }
+    }
+
+    private Instant toPeriodBoundary(LocalDate dueDate) {
+        if (dueDate == null) {
+            return null;
+        }
+        return dueDate.plusDays(1).atStartOfDay(BILLING_ZONE).toInstant();
+    }
+
     private List<String> buildEnabledModules(SuperAdminPlanManagementService.PlanFeatures features) {
         List<String> modules = new ArrayList<>();
         if (features.catalogBioLink() || features.storefrontPage()) modules.add("Site proprio e catalogo publico");
@@ -1512,6 +1696,16 @@ public class IoAutoBillingService {
         if (features.customizations()) modules.add("Personalizacoes");
         return modules;
     }
+}
+
+record AsaasSubscriptionMutation(
+        String providerSubscriptionId,
+        String providerCustomerId,
+        String status,
+        Long amountCents,
+        String billingInterval,
+        Instant currentPeriodEnd
+) {
 }
 
 record PublicSignupPayload(
