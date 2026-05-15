@@ -494,6 +494,8 @@ function buildCustomersSection(args: BuildArgs): SuperAdminSection {
     const topHealthyRegion = Array.from(healthiestRegion.entries())
         .map(([label, values]) => ({ label, value: average(values) }))
         .sort((left, right) => right.value - left.value)[0];
+    const weakestPlanLabel = weakestPlan?.label || "Sem plano";
+    const weakestPlanScore = weakestPlan?.value ?? 0;
 
     return {
         ...meta,
@@ -516,9 +518,9 @@ function buildCustomersSection(args: BuildArgs): SuperAdminSection {
                 inactiveRows.length >= 15 ? "critical" : inactiveRows.length >= 6 ? "attention" : "stable",
             ),
             alert(
-                "Plano com menor saude media",
-                `${weakestPlan?.label || "Sem plano"} hoje carrega a menor media de health score entre os planos filtrados.`,
-                weakestPlan && weakestPlan.value < 50 ? "attention" : "stable",
+                weakestPlanScore < 40 ? "Plano com saude critica" : weakestPlanScore < 55 ? "Plano com saude em atencao" : "Plano com saude sustentavel",
+                `${weakestPlanLabel} hoje carrega health score medio de ${preciseDecimal(weakestPlanScore, 2)} entre os planos filtrados.`,
+                weakestPlanScore < 40 ? "critical" : weakestPlanScore < 55 ? "attention" : "stable",
             ),
         ],
         charts: [
@@ -577,6 +579,8 @@ function buildProductSection(args: BuildArgs): SuperAdminSection {
     const totalUsage = total(totalUsagePairs.map((row) => row.value));
     const underused = adoptionPairs.filter((row) => row.value < 25);
     const topFeature = uniquePairs[0];
+    const topFeatureAdoption = adoptionPairs.find((row) => row.label === topFeature?.label)?.value ?? 0;
+    const averageAdoption = average(adoptionPairs.map((row) => row.value));
 
     return {
         ...meta,
@@ -588,19 +592,19 @@ function buildProductSection(args: BuildArgs): SuperAdminSection {
         ],
         alerts: [
             alert(
-                "Features subutilizadas",
+                underused.length >= 4 ? "Features com adocao critica" : underused.length >= 2 ? "Features subutilizadas em atencao" : "Features com adocao saudavel",
                 `${integer(underused.length)} funcionalidades ainda operam com adocao abaixo de 25% da base acompanhada.`,
-                underused.length >= 2 ? "attention" : "stable",
+                underused.length >= 4 ? "critical" : underused.length >= 2 ? "attention" : "stable",
             ),
             alert(
-                "Feature lider de valor",
-                `${topFeature?.label || "Nenhuma feature"} hoje e a funcionalidade com maior numero de clientes unicos ativos.`,
-                topFeature?.value ? "stable" : "attention",
+                topFeatureAdoption < 25 ? "Feature lider ainda com pouca penetracao" : topFeatureAdoption < 45 ? "Feature lider ganhando tracao" : "Feature lider consolidada",
+                `${topFeature?.label || "Nenhuma feature"} hoje lidera com ${integer(topFeature?.value || 0)} clientes unicos e ${percent(topFeatureAdoption, 2)} de adocao.`,
+                topFeatureAdoption < 25 ? "critical" : topFeatureAdoption < 45 ? "attention" : "stable",
             ),
             alert(
-                "Leitura de uso sem dados ficticios",
-                "Todos os graficos desta area passam a depender dos eventos reais de uso registrados por cliente e periodo.",
-                "stable",
+                averageAdoption < 20 ? "Adocao media do produto abaixo do ideal" : averageAdoption < 35 ? "Adocao media do produto em evolucao" : "Adocao media do produto saudavel",
+                `A adocao media das features monitoradas esta em ${percent(averageAdoption, 2)} no periodo analisado.`,
+                averageAdoption < 20 ? "critical" : averageAdoption < 35 ? "attention" : "stable",
             ),
         ],
         charts: [
@@ -674,21 +678,21 @@ function buildMarketplaceSection(args: BuildArgs): SuperAdminSection {
         ],
         alerts: [
             alert(
-                topAdsShare >= 60 ? "Dependencia alta de um unico canal" : "Mix de canais equilibrado",
+                topAdsShare >= 75 ? "Dependencia critica de um unico canal" : topAdsShare >= 60 ? "Dependencia alta de um unico canal" : "Mix de canais equilibrado",
                 `${topAds?.label || "A principal plataforma"} concentra ${percent(topAdsShare, 2)} dos anuncios ativos monitorados.`,
-                topAdsShare >= 60 ? "attention" : "stable",
+                topAdsShare >= 75 ? "critical" : topAdsShare >= 60 ? "attention" : "stable",
             ),
             alert(
-                weakPlatforms.length ? "Plataformas com baixa conversao" : "Conversao sem gargalos graves",
+                weakPlatforms.length >= 2 ? "Plataformas com conversao critica" : weakPlatforms.length ? "Plataformas com baixa conversao" : "Conversao sem gargalos graves",
                 weakPlatforms.length
                     ? `${weakPlatforms.map((row) => row.label).join(", ")} hoje operam abaixo de 5% de conversao.`
                     : "Nao ha plataformas com conversao critica entre as que possuem leads registrados.",
-                weakPlatforms.length ? "attention" : "stable",
+                weakPlatforms.length >= 2 ? "critical" : weakPlatforms.length ? "attention" : "stable",
             ),
             alert(
-                "Acompanhamento por plataforma consolidado",
-                "A visao agora conecta anuncios ativos, leads, vendas e valor vendido na mesma leitura.",
-                "stable",
+                weightedConversion < 5 ? "Conversao media dos canais pressionada" : weightedConversion < 10 ? "Conversao media dos canais em atencao" : "Conversao media dos canais saudavel",
+                `Os canais somam ${integer(totalSales)} vendas sobre ${integer(totalLeads)} leads, com conversao consolidada de ${percent(weightedConversion, 2)}.`,
+                weightedConversion < 5 ? "critical" : weightedConversion < 10 ? "attention" : "stable",
             ),
         ],
         charts: [
@@ -748,6 +752,7 @@ function buildGrowthSection(args: BuildArgs): SuperAdminSection {
     const topLeadOrigin = leadPairs[0];
     const topLeadOriginShare = leadsGenerated > 0 ? ((topLeadOrigin?.value || 0) / leadsGenerated) * 100 : 0;
     const openLeadBacklog = Math.max(leadsGenerated - closedSales, 0);
+    const openLeadBacklogRate = leadsGenerated > 0 ? (openLeadBacklog / leadsGenerated) * 100 : 0;
     const sellerLinkedLeads = args.catalogLeads.filter((lead) => Boolean(lead.sellerName)).length;
     const groupedOriginLabels = Array.from(new Set([...leadPairs, ...customerPairs].map((row) => row.label)));
 
@@ -760,19 +765,19 @@ function buildGrowthSection(args: BuildArgs): SuperAdminSection {
         ],
         alerts: [
             alert(
-                conversionRate < 8 ? "Conversao abaixo do ideal" : "Conversao em faixa saudavel",
+                conversionRate < 5 ? "Conversao abaixo do ideal" : conversionRate < 8 ? "Conversao em atencao" : "Conversao em faixa saudavel",
                 `A taxa atual esta em ${percent(conversionRate, 2)} para ${integer(leadsGenerated)} leads gerados no recorte.`,
-                conversionRate < 8 ? "attention" : "stable",
+                conversionRate < 5 ? "critical" : conversionRate < 8 ? "attention" : "stable",
             ),
             alert(
-                topLeadOriginShare >= 60 ? "Origem dominante na aquisicao" : "Mix de origem bem distribuido",
+                topLeadOriginShare >= 75 ? "Origem excessivamente dominante" : topLeadOriginShare >= 60 ? "Origem dominante na aquisicao" : "Mix de origem bem distribuido",
                 `${topLeadOrigin?.label || "A principal origem"} responde por ${percent(topLeadOriginShare, 2)} dos leads gerados.`,
-                topLeadOriginShare >= 60 ? "attention" : "stable",
+                topLeadOriginShare >= 75 ? "critical" : topLeadOriginShare >= 60 ? "attention" : "stable",
             ),
             alert(
-                "Metadados de origem ativos",
-                "As origens de assinatura e catalogo agora alimentam os cards e graficos sem precisar de consolidacao manual.",
-                "stable",
+                openLeadBacklogRate >= 70 ? "Backlog comercial alto" : openLeadBacklogRate >= 45 ? "Backlog comercial em atencao" : "Backlog comercial controlado",
+                `${integer(openLeadBacklog)} leads ainda nao viraram venda, o equivalente a ${percent(openLeadBacklogRate, 2)} da captacao do periodo.`,
+                openLeadBacklogRate >= 70 ? "critical" : openLeadBacklogRate >= 45 ? "attention" : "stable",
             ),
         ],
         charts: [
@@ -854,6 +859,7 @@ function buildBillingSection(args: BuildArgs): SuperAdminSection {
     const recoverableRevenue = total(overdueCustomers.filter((row: Record<string, any>) => toNumber(row.delayDays) <= 7).map((row: Record<string, any>) => toNumber(row.overdueAmountCents)));
     const paymentFailureRate = toNumber(cards.paymentFailureRate);
     const averageDelay = toNumber(cards.averageDelayDays);
+    const criticalDelayShare = overdueCustomers.length > 0 ? (criticalDelay.length / overdueCustomers.length) * 100 : 0;
 
     return {
         ...meta,
@@ -875,9 +881,9 @@ function buildBillingSection(args: BuildArgs): SuperAdminSection {
                 averageDelay >= 10 ? "critical" : averageDelay >= 6 ? "attention" : "stable",
             ),
             alert(
-                "Visao de cobranca conectada",
-                "A lista de inadimplentes agora alimenta graficos por plano, atraso e status sem depender de planilhas paralelas.",
-                "stable",
+                criticalDelayShare >= 40 ? "Carteira critica concentrada em atrasos longos" : criticalDelayShare >= 20 ? "Carteira critica em observacao" : "Carteira critica sob controle",
+                `${integer(criticalDelay.length)} clientes ja passaram de 10 dias de atraso, representando ${percent(criticalDelayShare, 2)} da carteira inadimplente.`,
+                criticalDelayShare >= 40 ? "critical" : criticalDelayShare >= 20 ? "attention" : "stable",
             ),
         ],
         charts: [
@@ -965,9 +971,9 @@ function buildOperationsSection(args: BuildArgs): SuperAdminSection {
                 responseMinutes > 30 ? "critical" : responseMinutes > 20 ? "attention" : "stable",
             ),
             alert(
-                "Mesa de suporte conectada",
-                "A visao executiva e a mesa operacional agora leem os mesmos tickets, sem divergencia entre resumo e detalhe.",
-                "stable",
+                resolutionHours > 8 || highUrgency >= 4 ? "Resolucao do suporte pressionada" : resolutionHours > 6 || highUrgency >= 2 ? "Resolucao do suporte em atencao" : "Resolucao do suporte saudavel",
+                `A resolucao media esta em ${formatHoursDuration(resolutionHours)} e ha ${integer(highUrgency)} tickets de alta urgencia na fila.`,
+                resolutionHours > 8 || highUrgency >= 4 ? "critical" : resolutionHours > 6 || highUrgency >= 2 ? "attention" : "stable",
             ),
         ],
         charts: [
@@ -1030,6 +1036,7 @@ function buildInsightsSection(args: BuildArgs): SuperAdminSection {
     const averagePressure = average(upgradeCustomers.map((row: Record<string, any>) => toNumber(row.usagePressurePercent)));
     const topPotentialSoldValue = total(potentialCustomers.slice(0, 5).map((row: Record<string, any>) => toNumber(row.soldValueCents90d)));
     const overdueRisk = riskCustomers.filter((row: Record<string, any>) => Boolean(row.overdueStatus)).length;
+    const weakestFeatureAdoption = underusedPairs[0]?.value ?? 100;
 
     return {
         ...meta,
@@ -1051,9 +1058,17 @@ function buildInsightsSection(args: BuildArgs): SuperAdminSection {
                 upgradeCustomers.length >= 5 ? "stable" : "attention",
             ),
             alert(
-                "Insights deixam de ser teoricos",
-                "Risco, upgrade, potencial de faturamento e subutilizacao agora nascem direto dos dados operacionais da plataforma.",
-                "stable",
+                underusedFeatures.length >= 4 || weakestFeatureAdoption < 10
+                    ? "Subutilizacao de features ja afeta expansao"
+                    : underusedFeatures.length >= 2 || weakestFeatureAdoption < 20
+                        ? "Subutilizacao de features em atencao"
+                        : "Subutilizacao de features controlada",
+                `${integer(underusedFeatures.length)} funcionalidades aparecem com baixa adocao, e a menor taxa atual esta em ${percent(weakestFeatureAdoption, 2)}.`,
+                underusedFeatures.length >= 4 || weakestFeatureAdoption < 10
+                    ? "critical"
+                    : underusedFeatures.length >= 2 || weakestFeatureAdoption < 20
+                        ? "attention"
+                        : "stable",
             ),
         ],
         charts: [
