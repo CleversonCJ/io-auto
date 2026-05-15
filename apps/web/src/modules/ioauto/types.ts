@@ -72,6 +72,9 @@ export type BillingSnapshot = {
     provider: string;
     providerCustomerId: string;
     providerSubscriptionId: string;
+    pendingProrationCreditCents: number | null;
+    pendingProrationCreditNote: string;
+    pendingProrationCreditUpdatedAt: string | null;
     usersLimit: number | null;
     vehiclesLimit: number | null;
     activeAdsLimit: number | null;
@@ -99,6 +102,21 @@ export type BillingPlanChangePreview = {
     willUpdatePendingPayments: boolean;
     requiresConfirmation: boolean;
     message: string;
+    proration: {
+        periodStartDate: string | null;
+        periodEndDate: string | null;
+        totalCycleDays: number;
+        remainingDays: number;
+        elapsedDays: number;
+        currentPlanRemainingCents: number | null;
+        targetPlanRemainingCents: number | null;
+        deltaCents: number | null;
+        adjustmentMode: "IMMEDIATE_CHARGE" | "NEXT_CYCLE_CREDIT" | "UPCOMING_PAYMENT_UPDATE" | "NONE";
+        immediateChargeCents: number | null;
+        creditNextCycleCents: number | null;
+        prorationActive: boolean;
+        message: string;
+    };
 };
 
 export type BillingPlanChangeConfirmResponse = {
@@ -111,6 +129,15 @@ export type BillingPlanChangeConfirmResponse = {
         billingInterval: string;
         status: string;
     };
+    adjustment: {
+        mode: "IMMEDIATE_CHARGE" | "NEXT_CYCLE_CREDIT" | "UPCOMING_PAYMENT_UPDATE" | "NONE";
+        immediateChargeCents: number | null;
+        appliedCreditCents: number | null;
+        remainingCreditCents: number | null;
+        paymentId: string | null;
+        invoiceUrl: string | null;
+        message: string;
+    } | null;
 };
 
 export type BillingAccessStatusSnapshot = {

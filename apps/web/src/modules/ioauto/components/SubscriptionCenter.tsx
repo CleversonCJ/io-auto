@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CreditCard, ExternalLink, LoaderCircle, ShieldAlert } from "lucide-react";
-import { billingIntervalLabel, billingTypeLabel, formatDateTime, formatMoney, statusLabel } from "@/modules/ioauto/formatters";
+import { billingIntervalLabel, billingTypeLabel, formatDateTime, formatMoney, formatShortDate, statusLabel } from "@/modules/ioauto/formatters";
 import { listEnabledFeatureLabels } from "@/modules/ioauto/planFeatures";
 import type {
     BillingAccessStatusSnapshot,
@@ -36,6 +36,7 @@ export function SubscriptionCenter({
     const [regularization, setRegularization] = useState<BillingRegularizationOptions | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [feedback, setFeedback] = useState<string | null>(null);
+    const [adjustmentResult, setAdjustmentResult] = useState<BillingPlanChangeConfirmResponse["adjustment"] | null>(null);
     const [openingPortal, setOpeningPortal] = useState(false);
     const [preview, setPreview] = useState<BillingPlanChangePreview | null>(null);
     const [previewPlanKey, setPreviewPlanKey] = useState<string | null>(null);
@@ -123,6 +124,7 @@ export function SubscriptionCenter({
         setPreview(null);
         setPreviewPlanKey(null);
         setFeedback(null);
+        setAdjustmentResult(null);
         setError(null);
 
         try {
@@ -154,6 +156,7 @@ export function SubscriptionCenter({
         const targetBillingInterval = selectedRecurrenceByPlan[plan.planId] ?? defaultRecurrenceForPlan(plan, billing?.billingInterval);
         setConfirmingPlanKey(plan.planKey);
         setFeedback(null);
+        setAdjustmentResult(null);
         setError(null);
 
         try {
@@ -176,6 +179,7 @@ export function SubscriptionCenter({
             await loadBilling();
             setPreview(null);
             setPreviewPlanKey(null);
+            setAdjustmentResult(payload.adjustment ?? null);
             setFeedback(payload.message || `Plano alterado para ${plan.planName}.`);
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : "Falha ao alterar o plano.");
@@ -212,6 +216,14 @@ export function SubscriptionCenter({
 
             {feedback ? <p className="mt-4 text-sm text-emerald-700">{feedback}</p> : null}
             {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
+            {adjustmentResult?.invoiceUrl ? (
+                <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700">
+                    <ExternalLink className="h-4 w-4" />
+                    <a href={adjustmentResult.invoiceUrl} target="_blank" rel="noreferrer" className="underline decoration-emerald-300 underline-offset-4">
+                        Abrir cobranca proporcional
+                    </a>
+                </div>
+            ) : null}
 
             <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <InfoCard label="Plano" value={billing?.planName ?? "Plano principal"} />
@@ -219,6 +231,19 @@ export function SubscriptionCenter({
                 <InfoCard label="Pagamento" value={statusLabel(currentPaymentStatus)} />
                 <InfoCard label={accessStatus?.accessBlocked ? "Vencimento" : "Renovacao"} value={formatDateTime(currentPeriodEnd)} />
             </div>
+
+            {billing?.pendingProrationCreditCents ? (
+                <div className="mt-4 rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-emerald-800">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700">Credito programado</p>
+                    <p className="mt-2 text-lg font-bold">{formatMoney(billing.pendingProrationCreditCents, "BRL")}</p>
+                    <p className="mt-2 text-sm leading-6 text-emerald-800/85">
+                        {billing.pendingProrationCreditNote || "Este valor sera abatido automaticamente das proximas cobrancas da assinatura."}
+                    </p>
+                    <p className="mt-2 text-xs text-emerald-800/70">
+                        Atualizado em {formatDateTime(billing.pendingProrationCreditUpdatedAt)}
+                    </p>
+                </div>
+            ) : null}
 
             {showDelinquencyCards ? (
                 <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -405,8 +430,36 @@ export function SubscriptionCenter({
                                                     <PreviewMetric label="Cobrancas pendentes" value={preview.willUpdatePendingPayments ? "Atualiza quando aplicavel" : "Mantem as ja emitidas"} />
                                                 </div>
 
+                                                <div className="grid gap-3 md:grid-cols-4">
+                                                    <PreviewMetric
+                                                        label="Janela atual"
+                                                        value={preview.proration.periodStartDate && preview.proration.periodEndDate
+                                                            ? `${formatShortDate(preview.proration.periodStartDate)} a ${formatShortDate(preview.proration.periodEndDate)}`
+                                                            : "-"}
+                                                    />
+                                                    <PreviewMetric
+                                                        label="Dias restantes"
+                                                        value={`${preview.proration.remainingDays.toLocaleString("pt-BR")} de ${preview.proration.totalCycleDays.toLocaleString("pt-BR")}`}
+                                                    />
+                                                    <PreviewMetric
+                                                        label="Saldo plano atual"
+                                                        value={formatMoney(preview.proration.currentPlanRemainingCents, "BRL")}
+                                                    />
+                                                    <PreviewMetric
+                                                        label="Uso proporcional novo plano"
+                                                        value={formatMoney(preview.proration.targetPlanRemainingCents, "BRL")}
+                                                    />
+                                                </div>
+
+                                                <div className="grid gap-3 md:grid-cols-3">
+                                                    <PreviewMetric label="Modo do ajuste" value={prorationModeLabel(preview.proration.adjustmentMode)} />
+                                                    <PreviewMetric label="Cobranca imediata" value={formatMoney(preview.proration.immediateChargeCents, "BRL")} />
+                                                    <PreviewMetric label="Credito futuro" value={formatMoney(preview.proration.creditNextCycleCents, "BRL")} />
+                                                </div>
+
                                                 <div className="rounded-[18px] border border-black/8 bg-white px-4 py-3 text-sm leading-6 text-black/65">
-                                                    {preview.message}
+                                                    <p>{preview.message}</p>
+                                                    <p className="mt-2">{preview.proration.message}</p>
                                                 </div>
 
                                                 <div className="flex flex-wrap gap-3">
@@ -490,6 +543,13 @@ function changeTypeLabel(value: BillingPlanChangePreview["changeType"]) {
     if (value === "DOWNGRADE") return "Downgrade";
     if (value === "CYCLE_CHANGE") return "Troca de ciclo";
     return "Troca de plano";
+}
+
+function prorationModeLabel(value: BillingPlanChangePreview["proration"]["adjustmentMode"]) {
+    if (value === "IMMEDIATE_CHARGE") return "Cobranca imediata";
+    if (value === "NEXT_CYCLE_CREDIT") return "Credito nas proximas cobrancas";
+    if (value === "UPCOMING_PAYMENT_UPDATE") return "Substitui cobranca pendente";
+    return "Sem ajuste adicional";
 }
 
 function limitLabel(value: number | null | undefined, suffix: string) {

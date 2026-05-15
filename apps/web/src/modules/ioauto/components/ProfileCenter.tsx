@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BadgeCheck, Mail, ShieldCheck, UserCircle2 } from "lucide-react";
 import { SubscriptionCenter } from "@/modules/ioauto/components/SubscriptionCenter";
 import type { BillingSnapshot } from "@/modules/ioauto/types";
+import { formatDateTime, formatMoney } from "@/modules/ioauto/formatters";
 
 type CurrentUser = {
     userId: string;
@@ -128,6 +129,13 @@ export function ProfileCenter() {
                             label="Perfil de acesso"
                             value={formatPermissionPreset(user?.permissionPreset)}
                         />
+                        {billing?.pendingProrationCreditCents ? (
+                            <ProfileStat
+                                icon={<BadgeCheck className="h-4 w-4" />}
+                                label="Credito nas proximas cobrancas"
+                                value={`${formatMoney(billing.pendingProrationCreditCents, "BRL")} - ${formatDateTime(billing.pendingProrationCreditUpdatedAt)}`}
+                            />
+                        ) : null}
                     </div>
                 </div>
             </section>
@@ -149,6 +157,18 @@ export function ProfileCenter() {
                         <InfoCard label="E-mail" value={user?.email ?? "-"} />
                         <InfoCard label="Data de entrada" value={formatEntryDate(user?.createdAt)} />
                         <InfoCard label="Empresa vinculada" value={user?.companyName ?? "-"} />
+                        {billing?.pendingProrationCreditCents ? (
+                            <InfoCard
+                                label="Credito da assinatura"
+                                value={`${formatMoney(billing.pendingProrationCreditCents, "BRL")} - saldo a abater`}
+                            />
+                        ) : null}
+                        {billing?.pendingProrationCreditCents ? (
+                            <InfoCard
+                                label="Observacao do credito"
+                                value={billing.pendingProrationCreditNote || "Abatimento automatico nas proximas cobrancas."}
+                            />
+                        ) : null}
                     </div>
                 </article>
 

@@ -18,9 +18,13 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,8 +40,10 @@ import static org.mockito.Mockito.when;
 
 class IoAutoBillingServicePlanChangeTest {
 
+    private static final ZoneId BILLING_ZONE = ZoneId.of("America/Sao_Paulo");
+
     @Test
-    void previewUpgradeMonthlyUsesCatalogAmountAndMarksPendingPayments() {
+    void previewUpgradeMonthlyShowsImmediateProrationCharge() {
         TestContext ctx = newTestContext();
 
         PlanChangePreviewResponse response = ctx.service.previewPlanChange(ctx.companyId, "pro", "MONTHLY");
@@ -47,11 +53,14 @@ class IoAutoBillingServicePlanChangeTest {
         assertThat(response.targetPlan().amountCents()).isEqualTo(14990L);
         assertThat(response.changeType()).isEqualTo("UPGRADE");
         assertThat(response.asaasCycle()).isEqualTo("MONTHLY");
-        assertThat(response.willUpdatePendingPayments()).isTrue();
+        assertThat(response.willUpdatePendingPayments()).isFalse();
+        assertThat(response.proration().prorationActive()).isTrue();
+        assertThat(response.proration().adjustmentMode()).isEqualTo("IMMEDIATE_CHARGE");
+        assertThat(response.proration().immediateChargeCents()).isNotNull().isPositive();
     }
 
     @Test
-    void previewMonthlyToAnnualUsesYearlyAsaasCycle() {
+    void previewMonthlyToAnnualUsesYearlyAsaasCycleAndShowsCreditProration() {
         TestContext ctx = newTestContext();
 
         PlanChangePreviewResponse response = ctx.service.previewPlanChange(ctx.companyId, "basic", "ANNUAL");
@@ -61,43 +70,84 @@ class IoAutoBillingServicePlanChangeTest {
         assertThat(response.targetPlan().amountCents()).isEqualTo(99900L);
         assertThat(response.changeType()).isEqualTo("CYCLE_CHANGE");
         assertThat(response.asaasCycle()).isEqualTo("YEARLY");
-        assertThat(response.willUpdatePendingPayments()).isFalse();
+        assertThat(response.proration().adjustmentMode()).isEqualTo("NEXT_CYCLE_CREDIT");
+        assertThat(response.proration().creditNextCycleCents()).isNotNull().isPositive();
     }
 
     @Test
-    void confirmPlanChangeSuccessUpdatesLocalSnapshotAfterAsaas() throws Exception {
-        AtomicReference<String> requestBody = new AtomicReference<>("");
+    void confirmPlanChangeSuccessCreatesImmediateProrationChargeAndUpdatesLocalSnapshot() throws Exception {
+        AtomicReference<String> subscriptionBody = new AtomicReference<>("");
+        AtomicReference<String> paymentBody = new AtomicReference<>("");
+        LocalDate today = LocalDate.now(BILLING_ZONE);
         HttpServer server = startServer(exchange -> {
-            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-            writeJson(exchange, 200, """
-                    {
-                      "id": "sub_123",
-                      "customer": "cus_123",
-                      "status": "ACTIVE",
-                      "value": 149.90,
-                      "cycle": "MONTHLY",
-                      "nextDueDate": "2026-06-15"
-                    }
+            String path = exchange.getRequestURI().getPath();
+            String method = exchange.getRequestMethod();
+            if ("/v3/subscriptions/sub_123".equals(path) && "PUT".equals(method)) {
+                subscriptionBody.set(readBody(exchange));
+                writeJson(exchange, 200, """
+                        {
+                          "id": "sub_123",
+                          "customer": "cus_123",
+                          "status": "ACTIVE",
+                          "value": 149.90,
+                          "cycle": "MONTHLY",
+                          "nextDueDate": "%s"
+                        }
+                        """.formatted(today.plusDays(18)));
+                return;
+            }
+            if ("/v3/payments".equals(path) && "POST".equals(method)) {
+                paymentBody.set(readBody(exchange));
+                writeJson(exchange, 200, """
+                        {
+                          "id": "pay_adjustment",
+                          "customer": "cus_123",
+                          "status": "PENDING",
+                          "billingType": "CREDIT_CARD",
+                          "invoiceUrl": "https://asaas.test/invoice/pay_adjustment",
+                          "value": 27.42,
+                          "dueDate": "%s"
+                        }
+                        """.formatted(today));
+                return;
+            }
+            if ("/v3/payments".equals(path) && "GET".equals(method)) {
+                writeJson(exchange, 200, """
+                        { "data": [] }
+                        """);
+                return;
+            }
+            writeJson(exchange, 404, """
+                    { "errors": [ { "description": "not-found" } ] }
                     """);
         });
 
         try {
             TestContext ctx = newTestContext(server);
+            PlanChangePreviewResponse preview = ctx.service.previewPlanChange(ctx.companyId, "pro", "MONTHLY");
 
             PlanChangeConfirmResponse response = ctx.service.confirmPlanChange(ctx.companyId, "pro", "MONTHLY", true);
             BillingSnapshot snapshot = ctx.service.getBillingSnapshot(ctx.companyId);
 
             assertThat(response.success()).isTrue();
             assertThat(response.subscription().planKey()).isEqualTo("pro");
+            assertThat(response.adjustment()).isNotNull();
+            assertThat(response.adjustment().mode()).isEqualTo("IMMEDIATE_CHARGE");
+            assertThat(response.adjustment().immediateChargeCents()).isEqualTo(preview.proration().immediateChargeCents());
+            assertThat(response.adjustment().invoiceUrl()).isEqualTo("https://asaas.test/invoice/pay_adjustment");
             assertThat(ctx.company.getPlanId()).isEqualTo(ctx.targetPlan.planId());
             assertThat(ctx.company.getSubscriptionAmountCents()).isEqualTo(14990L);
             assertThat(ctx.subscription.getPlanKey()).isEqualTo("pro");
             assertThat(ctx.subscription.getBillingInterval()).isEqualTo("MONTHLY");
+            assertThat(ctx.subscription.getPendingProrationCreditCents()).isNull();
             assertThat(snapshot.planKey()).isEqualTo("pro");
             assertThat(snapshot.amountCents()).isEqualTo(14990L);
-            assertThat(requestBody.get()).contains("\"updatePendingPayments\":true");
-            assertThat(requestBody.get()).contains("\"cycle\":\"MONTHLY\"");
-            assertThat(requestBody.get()).contains("\"value\":149.90");
+            assertThat(subscriptionBody.get()).contains("\"updatePendingPayments\":false");
+            assertThat(subscriptionBody.get()).contains("\"cycle\":\"MONTHLY\"");
+            assertThat(subscriptionBody.get()).contains("\"value\":149.90");
+            assertThat(paymentBody.get()).contains("\"customer\":\"cus_123\"");
+            assertThat(paymentBody.get()).contains("\"billingType\":\"CREDIT_CARD\"");
+            assertThat(paymentBody.get()).contains("\"value\":%s".formatted(toDecimal(preview.proration().immediateChargeCents())));
         } finally {
             server.stop(0);
         }
@@ -105,10 +155,17 @@ class IoAutoBillingServicePlanChangeTest {
 
     @Test
     void confirmPlanChangeFailureFromAsaasDoesNotPersistLocalChanges() throws Exception {
-        HttpServer server = startServer(exchange ->
+        HttpServer server = startServer(exchange -> {
+            if ("/v3/subscriptions/sub_123".equals(exchange.getRequestURI().getPath())) {
                 writeJson(exchange, 500, """
                         { "errors": [ { "description": "gateway-failed" } ] }
-                        """));
+                        """);
+                return;
+            }
+            writeJson(exchange, 404, """
+                    { "errors": [ { "description": "not-found" } ] }
+                    """);
+        });
 
         try {
             TestContext ctx = newTestContext(server);
@@ -131,16 +188,93 @@ class IoAutoBillingServicePlanChangeTest {
     }
 
     @Test
-    void confirmPlanChangeWhenAsaasIsUnavailableReturnsCommunicationDetail() {
-        TestContext ctx = newTestContext();
+    void confirmDowngradeCarriesRemainingCreditForwardWhenCreditExceedsNextPendingPayment() throws Exception {
+        LocalDate today = LocalDate.now(BILLING_ZONE);
+        AtomicReference<String> updatedPendingPaymentBody = new AtomicReference<>("");
+        HttpServer server = startServer(exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            String method = exchange.getRequestMethod();
+            if ("/v3/subscriptions/sub_123".equals(path) && "PUT".equals(method)) {
+                writeJson(exchange, 200, """
+                        {
+                          "id": "sub_123",
+                          "customer": "cus_123",
+                          "status": "ACTIVE",
+                          "value": 99.90,
+                          "cycle": "MONTHLY",
+                          "nextDueDate": "%s"
+                        }
+                        """.formatted(today.plusDays(18)));
+                return;
+            }
+            if ("/v3/payments".equals(path) && "GET".equals(method)) {
+                writeJson(exchange, 200, """
+                        {
+                          "data": [
+                            {
+                              "id": "pay_next",
+                              "customer": "cus_123",
+                              "subscription": "sub_123",
+                              "status": "PENDING",
+                              "billingType": "BOLETO",
+                              "value": 99.90,
+                              "dueDate": "%s",
+                              "invoiceUrl": "https://asaas.test/invoice/pay_next"
+                            }
+                          ]
+                        }
+                        """.formatted(today.plusMonths(9)));
+                return;
+            }
+            if ("/v3/payments/pay_next".equals(path) && "PUT".equals(method)) {
+                updatedPendingPaymentBody.set(readBody(exchange));
+                writeJson(exchange, 200, """
+                        {
+                          "id": "pay_next",
+                          "customer": "cus_123",
+                          "subscription": "sub_123",
+                          "status": "PENDING",
+                          "billingType": "BOLETO",
+                          "value": 0.01,
+                          "dueDate": "%s",
+                          "invoiceUrl": "https://asaas.test/invoice/pay_next"
+                        }
+                        """.formatted(today.plusMonths(9)));
+                return;
+            }
+            writeJson(exchange, 404, """
+                    { "errors": [ { "description": "not-found" } ] }
+                    """);
+        });
 
-        assertThatThrownBy(() -> ctx.service.confirmPlanChange(ctx.companyId, "pro", "MONTHLY", true))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(error -> {
-                    BusinessException businessException = (BusinessException) error;
-                    assertThat(businessException.code()).isEqualTo("ASAAS_SUBSCRIPTION_UPDATE_FAILED");
-                    assertThat(businessException.getMessage()).contains("Falha de comunicacao com o Asaas");
-                });
+        try {
+            TestContext ctx = newTestContext(server);
+            ctx.company.setPlanId(ctx.targetPlan.planId());
+            ctx.company.setBillingRecurrence("ANNUAL");
+            ctx.company.setSubscriptionAmountCents(149900L);
+            ctx.subscription.setPlanKey("pro");
+            ctx.subscription.setPlanName("Plano Pro");
+            ctx.subscription.setBillingInterval("ANNUAL");
+            ctx.subscription.setAmountCents(149900L);
+            ctx.subscription.setCurrentPeriodEnd(today.plusMonths(8).plusDays(1).atStartOfDay(BILLING_ZONE).toInstant());
+
+            PlanChangePreviewResponse preview = ctx.service.previewPlanChange(ctx.companyId, "basic", "MONTHLY");
+            PlanChangeConfirmResponse response = ctx.service.confirmPlanChange(ctx.companyId, "basic", "MONTHLY", false);
+
+            assertThat(preview.proration().adjustmentMode()).isEqualTo("NEXT_CYCLE_CREDIT");
+            assertThat(preview.proration().creditNextCycleCents()).isNotNull().isPositive();
+            assertThat(response.success()).isTrue();
+            assertThat(response.adjustment()).isNotNull();
+            assertThat(response.adjustment().mode()).isEqualTo("NEXT_CYCLE_CREDIT");
+            assertThat(response.adjustment().appliedCreditCents()).isEqualTo(9989L);
+            assertThat(response.adjustment().remainingCreditCents()).isNotNull().isPositive();
+            assertThat(ctx.company.getPlanId()).isEqualTo(ctx.currentPlan.planId());
+            assertThat(ctx.subscription.getPlanKey()).isEqualTo("basic");
+            assertThat(ctx.subscription.getPendingProrationCreditCents()).isEqualTo(response.adjustment().remainingCreditCents());
+            assertThat(updatedPendingPaymentBody.get()).contains("\"value\":0.01");
+        } finally {
+            server.stop(0);
+        }
     }
 
     @Test
@@ -207,7 +341,7 @@ class IoAutoBillingServicePlanChangeTest {
         onboardingSubscription.setId(UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd"));
         onboardingSubscription.setCompanyId(ctx.companyId);
         onboardingSubscription.setAsaasSubscriptionId("sub_123");
-        onboardingSubscription.setValor(new java.math.BigDecimal("99.90"));
+        onboardingSubscription.setValor(new BigDecimal("99.90"));
         onboardingSubscription.setRecorrencia("mensal");
         onboardingSubscription.setStatus("ACTIVE");
         onboardingSubscription.setCreatedAt(Instant.parse("2026-05-01T03:00:00Z"));
@@ -221,50 +355,6 @@ class IoAutoBillingServicePlanChangeTest {
         assertThat(response.currentPlan().key()).isEqualTo("basic");
         assertThat(response.targetPlan().key()).isEqualTo("pro");
         assertThat(response.targetPlan().amountCents()).isEqualTo(14990L);
-    }
-
-    @Test
-    void confirmUsesOnboardingMirrorWhenLocalBillingSubscriptionIsMissing() throws Exception {
-        AtomicReference<String> requestBody = new AtomicReference<>("");
-        HttpServer server = startServer(exchange -> {
-            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-            writeJson(exchange, 200, """
-                    {
-                      "id": "sub_123",
-                      "customer": "cus_123",
-                      "status": "ACTIVE",
-                      "value": 149.90,
-                      "cycle": "MONTHLY",
-                      "nextDueDate": "2026-06-15"
-                    }
-                    """);
-        });
-
-        try {
-            TestContext ctx = newTestContext(server);
-            JpaOnboardingSubscriptionEntity onboardingSubscription = new JpaOnboardingSubscriptionEntity();
-            onboardingSubscription.setId(UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd"));
-            onboardingSubscription.setCompanyId(ctx.companyId);
-            onboardingSubscription.setAsaasSubscriptionId("sub_123");
-            onboardingSubscription.setValor(new java.math.BigDecimal("99.90"));
-            onboardingSubscription.setRecorrencia("mensal");
-            onboardingSubscription.setStatus("ACTIVE");
-            onboardingSubscription.setCreatedAt(Instant.parse("2026-05-01T03:00:00Z"));
-            onboardingSubscription.setUpdatedAt(Instant.parse("2026-05-15T10:00:00Z"));
-
-            when(ctx.subscriptionRepo.findTopByCompanyIdOrderByUpdatedAtDesc(ctx.companyId)).thenReturn(Optional.empty());
-            when(ctx.onboardingRepo.findByCompanyId(ctx.companyId)).thenReturn(Optional.of(onboardingSubscription));
-
-            PlanChangeConfirmResponse response = ctx.service.confirmPlanChange(ctx.companyId, "pro", "MONTHLY", true);
-
-            assertThat(response.success()).isTrue();
-            assertThat(ctx.company.getPlanId()).isEqualTo(ctx.targetPlan.planId());
-            assertThat(ctx.company.getSubscriptionAmountCents()).isEqualTo(14990L);
-            verify(ctx.subscriptionRepo).save(any(JpaIoAutoBillingSubscriptionEntity.class));
-            assertThat(requestBody.get()).contains("\"value\":149.90");
-        } finally {
-            server.stop(0);
-        }
     }
 
     private static TestContext newTestContext() {
@@ -284,6 +374,7 @@ class IoAutoBillingServicePlanChangeTest {
         UUID companyId = UUID.fromString("11111111-1111-1111-1111-111111111111");
         UUID currentPlanId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
         UUID targetPlanId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        LocalDate today = LocalDate.now(BILLING_ZONE);
 
         JpaCompanyEntity company = new JpaCompanyEntity();
         company.setId(companyId);
@@ -293,7 +384,7 @@ class IoAutoBillingServicePlanChangeTest {
         company.setPlanId(currentPlanId);
         company.setBillingRecurrence("MONTHLY");
         company.setSubscriptionAmountCents(9990L);
-        company.setUpdatedAt(Instant.parse("2026-05-15T10:00:00Z"));
+        company.setUpdatedAt(Instant.now());
 
         JpaIoAutoBillingSubscriptionEntity subscription = new JpaIoAutoBillingSubscriptionEntity();
         subscription.setId(UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc"));
@@ -307,9 +398,9 @@ class IoAutoBillingServicePlanChangeTest {
         subscription.setAmountCents(9990L);
         subscription.setCurrency("brl");
         subscription.setBillingInterval("MONTHLY");
-        subscription.setCurrentPeriodEnd(Instant.parse("2026-06-01T03:00:00Z"));
-        subscription.setCreatedAt(Instant.parse("2026-05-01T03:00:00Z"));
-        subscription.setUpdatedAt(Instant.parse("2026-05-15T10:00:00Z"));
+        subscription.setCurrentPeriodEnd(today.plusDays(18).atStartOfDay(BILLING_ZONE).toInstant());
+        subscription.setCreatedAt(Instant.now().minusSeconds(86400));
+        subscription.setUpdatedAt(Instant.now());
 
         SuperAdminPlanManagementService.PlanFeatures features = new SuperAdminPlanManagementService.PlanFeatures(
                 false, false, false, false, false, false, false, false, false,
@@ -348,6 +439,7 @@ class IoAutoBillingServicePlanChangeTest {
         when(companyRepo.findById(companyId)).thenReturn(Optional.of(company));
         when(companyRepo.save(any(JpaCompanyEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(subscriptionRepo.findTopByCompanyIdOrderByUpdatedAtDesc(companyId)).thenReturn(Optional.of(subscription));
+        when(subscriptionRepo.findByProviderAndProviderSubscriptionId("ASAAS", "sub_123")).thenReturn(Optional.of(subscription));
         when(subscriptionRepo.save(any(JpaIoAutoBillingSubscriptionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(onboardingRepo.findByCompanyId(companyId)).thenReturn(Optional.empty());
         when(planManagementService.listActivePlanSnapshots()).thenReturn(List.of(currentPlan, targetPlan));
@@ -382,7 +474,7 @@ class IoAutoBillingServicePlanChangeTest {
                 "ioauto-growth",
                 "IOAuto Growth",
                 "Plano Growth",
-                new java.math.BigDecimal("349.00"),
+                new BigDecimal("349.00"),
                 "MONTHLY",
                 "CREDIT_CARD"
         );
@@ -392,14 +484,7 @@ class IoAutoBillingServicePlanChangeTest {
 
     private static HttpServer startServer(ExchangeHandler handler) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
-        server.createContext("/subscriptions/sub_123", exchange -> {
-            try {
-                handler.handle(exchange);
-            } finally {
-                exchange.close();
-            }
-        });
-        server.createContext("/v3/subscriptions/sub_123", exchange -> {
+        server.createContext("/", exchange -> {
             try {
                 handler.handle(exchange);
             } finally {
@@ -410,6 +495,10 @@ class IoAutoBillingServicePlanChangeTest {
         return server;
     }
 
+    private static String readBody(HttpExchange exchange) throws IOException {
+        return new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+    }
+
     private static void writeJson(HttpExchange exchange, int status, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
@@ -417,6 +506,12 @@ class IoAutoBillingServicePlanChangeTest {
         try (OutputStream output = exchange.getResponseBody()) {
             output.write(bytes);
         }
+    }
+
+    private static String toDecimal(Long amountCents) {
+        return BigDecimal.valueOf(amountCents == null ? 0L : amountCents, 2)
+                .setScale(2, RoundingMode.HALF_UP)
+                .toPlainString();
     }
 
     @FunctionalInterface

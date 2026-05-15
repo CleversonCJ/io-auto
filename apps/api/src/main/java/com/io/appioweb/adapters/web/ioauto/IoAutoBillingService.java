@@ -41,6 +41,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -67,6 +68,7 @@ public class IoAutoBillingService {
     private static final String DEFAULT_PLAN_DESCRIPTION = "Assinatura recorrente do IOAuto";
     private static final String DEFAULT_PLAN_CYCLE = "MONTHLY";
     private static final String DEFAULT_SIGNUP_ORIGIN = "lp-asaas";
+    private static final long MIN_ASAAS_PAYMENT_CENTS = 1L;
 
     private final IoAutoSignupIntentRepositoryJpa signupIntents;
     private final IoAutoBillingSubscriptionRepositoryJpa subscriptions;
@@ -263,6 +265,9 @@ public class IoAutoBillingService {
                         normalizeText(item.getProvider(), BILLING_PROVIDER),
                         normalizeText(item.getProviderCustomerId()),
                         normalizeText(item.getProviderSubscriptionId()),
+                        item.getPendingProrationCreditCents(),
+                        normalizeText(item.getPendingProrationCreditNote()),
+                        item.getPendingProrationCreditUpdatedAt(),
                         currentPlan.usersLimit(),
                         currentPlan.vehiclesLimit(),
                         currentPlan.activeAdsLimit(),
@@ -285,6 +290,9 @@ public class IoAutoBillingService {
                         BILLING_PROVIDER,
                         "",
                         "",
+                        null,
+                        "",
+                        null,
                         currentPlan.usersLimit(),
                         currentPlan.vehiclesLimit(),
                         currentPlan.activeAdsLimit(),
@@ -308,18 +316,21 @@ public class IoAutoBillingService {
     @Transactional(readOnly = true)
     public PlanChangePreviewResponse previewPlanChange(UUID companyId, String targetPlanKey, String targetBillingInterval) {
         PlanChangeContext context = resolvePlanChangeContext(companyId, targetPlanKey, targetBillingInterval);
-        boolean updatePendingPayments = shouldUpdatePendingPayments(context, null);
-        String message = buildPlanChangeMessage(context, updatePendingPayments);
+        PlanChangeProrationPreview proration = buildPlanChangeProrationPreview(context);
+        boolean updatePendingPayments = shouldUpdatePendingPayments(context, proration, null);
+        String message = buildPlanChangeMessage(context, proration);
 
         log.info(
-                "Billing plan change preview companyId={} currentPlan={} currentInterval={} targetPlan={} targetInterval={} changeType={} updatePendingPayments={}",
+                "Billing plan change preview companyId={} currentPlan={} currentInterval={} targetPlan={} targetInterval={} changeType={} updatePendingPayments={} adjustmentMode={} deltaCents={}",
                 companyId,
                 context.currentPlan().planKey(),
                 context.currentBillingInterval(),
                 context.targetPlan().planKey(),
                 context.targetBillingInterval(),
                 context.changeType(),
-                updatePendingPayments
+                updatePendingPayments,
+                proration.adjustmentMode(),
+                proration.deltaCents()
         );
 
         return new PlanChangePreviewResponse(
@@ -339,7 +350,8 @@ public class IoAutoBillingService {
                 toAsaasSubscriptionCycle(context.targetBillingInterval()),
                 updatePendingPayments,
                 true,
-                message
+                message,
+                proration
         );
     }
 
@@ -361,36 +373,51 @@ public class IoAutoBillingService {
             Boolean requestedUpdatePendingPayments
     ) {
         PlanChangeContext context = resolvePlanChangeContext(companyId, targetPlanKey, targetBillingInterval);
-        boolean updatePendingPayments = shouldUpdatePendingPayments(context, requestedUpdatePendingPayments);
+        PlanChangeProrationPreview proration = buildPlanChangeProrationPreview(context);
+        boolean updatePendingPayments = shouldUpdatePendingPayments(context, proration, requestedUpdatePendingPayments);
 
         log.info(
-                "Billing plan change confirm companyId={} currentPlan={} currentInterval={} targetPlan={} targetInterval={} changeType={} updatePendingPayments={}",
+                "Billing plan change confirm companyId={} currentPlan={} currentInterval={} targetPlan={} targetInterval={} changeType={} updatePendingPayments={} adjustmentMode={} deltaCents={}",
                 companyId,
                 context.currentPlan().planKey(),
                 context.currentBillingInterval(),
                 context.targetPlan().planKey(),
                 context.targetBillingInterval(),
                 context.changeType(),
-                updatePendingPayments
+                updatePendingPayments,
+                proration.adjustmentMode(),
+                proration.deltaCents()
         );
 
         AsaasSubscriptionMutation asaasMutation = syncPlanChangeWithAsaas(context, updatePendingPayments);
-        BillingSnapshot snapshot = persistPlanChange(context, asaasMutation);
+        PlanChangeAdjustmentResult adjustment;
+        try {
+            adjustment = applyPlanChangeProration(context, proration, asaasMutation);
+        } catch (BusinessException exception) {
+            rollbackSubscriptionPlanChange(context);
+            throw exception;
+        }
+        BillingSnapshot snapshot = persistPlanChange(context, asaasMutation, adjustment);
 
         return new PlanChangeConfirmResponse(
                 true,
-                "Plano alterado com sucesso.",
+                buildPlanChangeSuccessMessage(context, adjustment),
                 new PlanChangeSubscriptionSnapshot(
                         snapshot.planKey(),
                         snapshot.planName(),
                         snapshot.amountCents(),
                         snapshot.billingInterval(),
                         snapshot.status()
-                )
+                ),
+                adjustment
         );
     }
 
-    private BillingSnapshot persistPlanChange(PlanChangeContext context, AsaasSubscriptionMutation asaasMutation) {
+    private BillingSnapshot persistPlanChange(
+            PlanChangeContext context,
+            AsaasSubscriptionMutation asaasMutation,
+            PlanChangeAdjustmentResult adjustment
+    ) {
         Instant now = Instant.now();
         JpaCompanyEntity company = context.company();
         JpaIoAutoBillingSubscriptionEntity subscription = context.subscription();
@@ -423,6 +450,7 @@ public class IoAutoBillingService {
         if (asaasMutation.currentPeriodEnd() != null) {
             subscription.setCurrentPeriodEnd(asaasMutation.currentPeriodEnd());
         }
+        applyPendingProrationCreditState(subscription, adjustment, now);
         subscription.setUpdatedAt(now);
         subscriptions.save(subscription);
 
@@ -667,21 +695,191 @@ public class IoAutoBillingService {
         return BillingChangeType.PLAN_CHANGE;
     }
 
-    private boolean shouldUpdatePendingPayments(PlanChangeContext context, Boolean requestedUpdatePendingPayments) {
-        boolean recommended = context.changeType() == BillingChangeType.UPGRADE;
+    private boolean shouldUpdatePendingPayments(
+            PlanChangeContext context,
+            PlanChangeProrationPreview proration,
+            Boolean requestedUpdatePendingPayments
+    ) {
+        if (proration != null && !"NONE".equalsIgnoreCase(normalizeText(proration.adjustmentMode()))) {
+            return false;
+        }
+        boolean recommended = context.changeType() == BillingChangeType.UPGRADE
+                && (proration == null || "NONE".equals(proration.adjustmentMode()));
         return recommended && Boolean.TRUE.equals(requestedUpdatePendingPayments == null ? Boolean.TRUE : requestedUpdatePendingPayments);
     }
 
-    private String buildPlanChangeMessage(PlanChangeContext context, boolean updatePendingPayments) {
+    private String buildPlanChangeMessage(PlanChangeContext context, PlanChangeProrationPreview proration) {
         String targetPlanLabel = context.targetPlan().planName() + " " + billingIntervalLabel(context.targetBillingInterval()).toLowerCase(Locale.ROOT);
-        return switch (context.changeType()) {
-            case UPGRADE -> updatePendingPayments
-                    ? "Sua assinatura sera alterada para o plano " + targetPlanLabel + " e o Asaas atualizara as cobrancas pendentes quando aplicavel."
-                    : "Sua assinatura sera alterada para o plano " + targetPlanLabel + ".";
-            case DOWNGRADE -> "Sua assinatura sera alterada para o plano " + targetPlanLabel + ". Cobrancas pendentes ja emitidas no Asaas serao mantidas.";
+        String planMessage = switch (context.changeType()) {
+            case UPGRADE -> "Sua assinatura sera alterada para o plano " + targetPlanLabel + ".";
+            case DOWNGRADE -> "Sua assinatura sera alterada para o plano " + targetPlanLabel + ".";
             case CYCLE_CHANGE -> "Seu ciclo de pagamento sera alterado para " + billingIntervalLabel(context.targetBillingInterval()).toLowerCase(Locale.ROOT) + ".";
             case PLAN_CHANGE -> "Sua assinatura sera alterada para o plano " + targetPlanLabel + ".";
         };
+        if (proration == null || normalizeText(proration.message()).isBlank()) {
+            return planMessage;
+        }
+        return planMessage + " " + proration.message();
+    }
+
+    private String buildPlanChangeSuccessMessage(PlanChangeContext context, PlanChangeAdjustmentResult adjustment) {
+        String targetPlanLabel = context.targetPlan().planName() + " " + billingIntervalLabel(context.targetBillingInterval()).toLowerCase(Locale.ROOT);
+        String baseMessage = "Plano alterado com sucesso para " + targetPlanLabel + ".";
+        if (adjustment == null || normalizeText(adjustment.message()).isBlank()) {
+            return baseMessage;
+        }
+        return baseMessage + " " + adjustment.message();
+    }
+
+    private PlanChangeProrationPreview buildPlanChangeProrationPreview(PlanChangeContext context) {
+        LocalDate today = LocalDate.now(BILLING_ZONE);
+        LocalDate periodEndExclusive = resolveCurrentPeriodEndDate(context);
+        if (periodEndExclusive == null) {
+            return new PlanChangeProrationPreview(
+                    null,
+                    null,
+                    0,
+                    0,
+                    0,
+                    null,
+                    null,
+                    0L,
+                    "NONE",
+                    null,
+                    null,
+                    false,
+                    "Nao foi possivel identificar o ciclo atual para calcular o pro-rata automaticamente."
+            );
+        }
+
+        LocalDate periodStartInclusive = subtractBillingInterval(periodEndExclusive, context.currentBillingInterval());
+        long totalCycleDays = Math.max(1L, ChronoUnit.DAYS.between(periodStartInclusive, periodEndExclusive));
+
+        if (today.isBefore(periodStartInclusive)) {
+            return new PlanChangeProrationPreview(
+                    periodStartInclusive.toString(),
+                    periodEndExclusive.minusDays(1).toString(),
+                    totalCycleDays,
+                    totalCycleDays,
+                    0,
+                    context.currentAmountCents(),
+                    context.targetAmountCents(),
+                    safeDelta(context.currentAmountCents(), context.targetAmountCents()),
+                    "UPCOMING_PAYMENT_UPDATE",
+                    null,
+                    null,
+                    false,
+                    "A cobranca do ciclo atual ainda nao entrou em uso. O sistema vai substituir a cobranca pendente pelo valor integral do novo plano."
+            );
+        }
+
+        long remainingDays = Math.max(0L, ChronoUnit.DAYS.between(today, periodEndExclusive));
+        long elapsedDays = Math.max(0L, totalCycleDays - remainingDays);
+        if (remainingDays <= 0L) {
+            return new PlanChangeProrationPreview(
+                    periodStartInclusive.toString(),
+                    periodEndExclusive.minusDays(1).toString(),
+                    totalCycleDays,
+                    0,
+                    elapsedDays,
+                    0L,
+                    0L,
+                    0L,
+                    "NONE",
+                    null,
+                    null,
+                    false,
+                    "O ciclo atual ja encerrou. A troca sera aplicada normalmente sem ajuste proporcional pendente."
+            );
+        }
+
+        long currentCycleDays = totalCycleDays;
+        long targetCycleDays = resolveCycleLengthDays(periodStartInclusive, context.targetBillingInterval());
+        long currentRemainingCents = proratedAmountCents(context.currentAmountCents(), remainingDays, currentCycleDays);
+        long targetRemainingCents = proratedAmountCents(context.targetAmountCents(), remainingDays, targetCycleDays);
+        long deltaCents = targetRemainingCents - currentRemainingCents;
+
+        String adjustmentMode;
+        Long immediateChargeCents = null;
+        Long creditNextCycleCents = null;
+        String message;
+        if (deltaCents > 0L) {
+            adjustmentMode = "IMMEDIATE_CHARGE";
+            immediateChargeCents = deltaCents;
+            message = "Sera gerada uma cobranca proporcional de " + formatMoneyText(deltaCents) + " referente aos " + remainingDays + " dias restantes do ciclo atual.";
+        } else if (deltaCents < 0L) {
+            adjustmentMode = "NEXT_CYCLE_CREDIT";
+            creditNextCycleCents = Math.abs(deltaCents);
+            message = "O sistema vai gerar um credito proporcional de " + formatMoneyText(Math.abs(deltaCents)) + " para abater das proximas cobrancas da assinatura.";
+        } else {
+            adjustmentMode = "NONE";
+            message = "A troca nao gera diferenca proporcional no ciclo atual.";
+        }
+
+        return new PlanChangeProrationPreview(
+                periodStartInclusive.toString(),
+                periodEndExclusive.minusDays(1).toString(),
+                totalCycleDays,
+                remainingDays,
+                elapsedDays,
+                currentRemainingCents,
+                targetRemainingCents,
+                deltaCents,
+                adjustmentMode,
+                immediateChargeCents,
+                creditNextCycleCents,
+                true,
+                message
+        );
+    }
+
+    private long safeDelta(Long currentAmountCents, Long targetAmountCents) {
+        long current = currentAmountCents == null ? 0L : currentAmountCents;
+        long target = targetAmountCents == null ? 0L : targetAmountCents;
+        return target - current;
+    }
+
+    private LocalDate resolveCurrentPeriodEndDate(PlanChangeContext context) {
+        Instant currentPeriodEnd = context.subscription().getCurrentPeriodEnd();
+        if (currentPeriodEnd != null) {
+            return currentPeriodEnd.atZone(BILLING_ZONE).toLocalDate();
+        }
+        if (context.company().getContractEndDate() != null) {
+            return context.company().getContractEndDate();
+        }
+        return null;
+    }
+
+    private LocalDate subtractBillingInterval(LocalDate endExclusive, String billingInterval) {
+        String normalized = normalizeBillingRecurrence(billingInterval);
+        return switch (normalized) {
+            case "WEEKLY" -> endExclusive.minusWeeks(1);
+            case "BIWEEKLY" -> endExclusive.minusWeeks(2);
+            case "QUARTERLY" -> endExclusive.minusMonths(3);
+            case "SEMIANNUALLY" -> endExclusive.minusMonths(6);
+            case "ANNUAL", "YEARLY" -> endExclusive.minusYears(1);
+            default -> endExclusive.minusMonths(1);
+        };
+    }
+
+    private long resolveCycleLengthDays(LocalDate cycleAnchor, String billingInterval) {
+        LocalDate cycleEndExclusive = advanceCycle(cycleAnchor, toAsaasSubscriptionCycle(billingInterval));
+        return Math.max(1L, ChronoUnit.DAYS.between(cycleAnchor, cycleEndExclusive));
+    }
+
+    private long proratedAmountCents(Long fullAmountCents, long remainingDays, long totalCycleDays) {
+        long safeAmount = fullAmountCents == null ? 0L : Math.max(fullAmountCents, 0L);
+        if (safeAmount == 0L || remainingDays <= 0L || totalCycleDays <= 0L) {
+            return 0L;
+        }
+        BigDecimal prorated = BigDecimal.valueOf(safeAmount)
+                .multiply(BigDecimal.valueOf(remainingDays))
+                .divide(BigDecimal.valueOf(totalCycleDays), 0, RoundingMode.HALF_UP);
+        return prorated.longValue();
+    }
+
+    private String formatMoneyText(long amountCents) {
+        return "R$ " + BigDecimal.valueOf(amountCents, 2).setScale(2, RoundingMode.HALF_UP).toPlainString().replace('.', ',');
     }
 
     @Transactional(readOnly = true)
@@ -1036,34 +1234,35 @@ public class IoAutoBillingService {
     }
 
     private void processPaymentEvent(AsaasPayment payment, String checkoutId) {
-        String normalizedCheckoutId = normalizeText(checkoutId, payment.checkoutSession());
+        AsaasPayment effectivePayment = applyPendingProrationCreditIfNeeded(payment);
+        String normalizedCheckoutId = normalizeText(checkoutId, effectivePayment.checkoutSession());
         Optional<JpaIoAutoSignupIntentEntity> intentByCheckout = normalizedCheckoutId.isBlank()
                 ? Optional.empty()
                 : signupIntents.findByCheckoutSessionId(normalizedCheckoutId);
 
         if (intentByCheckout.isPresent()) {
             JpaIoAutoSignupIntentEntity intent = intentByCheckout.get();
-            syncIntentReferences(intent, payment, normalizedCheckoutId);
+            syncIntentReferences(intent, effectivePayment, normalizedCheckoutId);
             if (intent.getCompanyId() != null) {
-                syncSubscription(intent.getCompanyId(), payment, normalizedCheckoutId);
+                syncSubscription(intent.getCompanyId(), effectivePayment, normalizedCheckoutId);
             }
-            if (isPaidPaymentStatus(payment.status())) {
-                activateConfirmedIntent(intent, payment, normalizedCheckoutId);
+            if (isPaidPaymentStatus(effectivePayment.status())) {
+                activateConfirmedIntent(intent, effectivePayment, normalizedCheckoutId);
             }
             return;
         }
 
-        String externalReference = normalizeText(payment.externalReference());
+        String externalReference = normalizeText(effectivePayment.externalReference());
         if (!externalReference.isBlank()) {
             try {
                 UUID intentId = UUID.fromString(externalReference);
                 signupIntents.findById(intentId).ifPresent(intent -> {
-                    syncIntentReferences(intent, payment, normalizedCheckoutId);
+                    syncIntentReferences(intent, effectivePayment, normalizedCheckoutId);
                     if (intent.getCompanyId() != null) {
-                        syncSubscription(intent.getCompanyId(), payment, normalizedCheckoutId);
+                        syncSubscription(intent.getCompanyId(), effectivePayment, normalizedCheckoutId);
                     }
-                    if (isPaidPaymentStatus(payment.status())) {
-                        activateConfirmedIntent(intent, payment, normalizedCheckoutId);
+                    if (isPaidPaymentStatus(effectivePayment.status())) {
+                        activateConfirmedIntent(intent, effectivePayment, normalizedCheckoutId);
                     }
                 });
                 return;
@@ -1072,9 +1271,73 @@ public class IoAutoBillingService {
             }
         }
 
-        if (!normalizeText(payment.subscription()).isBlank()) {
-            subscriptions.findByProviderAndProviderSubscriptionId(BILLING_PROVIDER, payment.subscription())
-                    .ifPresent(existing -> syncSubscription(existing.getCompanyId(), payment, normalizedCheckoutId));
+        if (!normalizeText(effectivePayment.subscription()).isBlank()) {
+            subscriptions.findByProviderAndProviderSubscriptionId(BILLING_PROVIDER, effectivePayment.subscription())
+                    .ifPresent(existing -> syncSubscription(existing.getCompanyId(), effectivePayment, normalizedCheckoutId));
+        }
+    }
+
+    private AsaasPayment applyPendingProrationCreditIfNeeded(AsaasPayment payment) {
+        if (!isPendingPayment(payment) || normalizeText(payment.subscription()).isBlank()) {
+            return payment;
+        }
+
+        Optional<JpaIoAutoBillingSubscriptionEntity> subscription = subscriptions.findByProviderAndProviderSubscriptionId(
+                BILLING_PROVIDER,
+                payment.subscription()
+        );
+        if (subscription.isEmpty()) {
+            return payment;
+        }
+
+        JpaIoAutoBillingSubscriptionEntity entity = subscription.get();
+        long pendingCreditCents = entity.getPendingProrationCreditCents() == null
+                ? 0L
+                : Math.max(entity.getPendingProrationCreditCents(), 0L);
+        if (pendingCreditCents <= 0L) {
+            return payment;
+        }
+
+        Long paymentValueCents = toCents(payment.value());
+        long resolvedPaymentValueCents = paymentValueCents == null ? 0L : paymentValueCents;
+        long maxApplicableCredit = Math.max(0L, resolvedPaymentValueCents - MIN_ASAAS_PAYMENT_CENTS);
+        long creditToApply = Math.min(pendingCreditCents, maxApplicableCredit);
+        if (creditToApply <= 0L) {
+            return payment;
+        }
+
+        try {
+            AsaasPayment updatedPayment = updateAsaasPaymentValue(
+                    payment,
+                    resolvedPaymentValueCents - creditToApply,
+                    "Assinatura " + normalizeText(entity.getPlanName(), "IOAuto")
+            );
+            long remainingCreditCents = pendingCreditCents - creditToApply;
+            entity.setPendingProrationCreditCents(remainingCreditCents > 0L ? remainingCreditCents : null);
+            entity.setPendingProrationCreditNote(remainingCreditCents > 0L
+                    ? "Credito proporcional restante para cobrancas futuras."
+                    : null);
+            entity.setPendingProrationCreditUpdatedAt(remainingCreditCents > 0L ? Instant.now() : null);
+            entity.setUpdatedAt(Instant.now());
+            subscriptions.save(entity);
+
+            log.info(
+                    "Applied pending proration credit on webhook companyId={} subscriptionId={} paymentId={} appliedCents={} remainingCents={}",
+                    entity.getCompanyId(),
+                    entity.getProviderSubscriptionId(),
+                    updatedPayment.id(),
+                    creditToApply,
+                    remainingCreditCents
+            );
+            return updatedPayment;
+        } catch (BusinessException exception) {
+            log.warn(
+                    "Failed to apply pending proration credit on webhook subscriptionId={} paymentId={} reason={}",
+                    entity.getProviderSubscriptionId(),
+                    normalizeText(payment.id()),
+                    normalizeText(exception.getMessage(), exception.code())
+            );
+            return payment;
         }
     }
 
@@ -1310,9 +1573,15 @@ public class IoAutoBillingService {
         if (resolvedBillingInterval.isBlank()) {
             resolvedBillingInterval = "MONTHLY";
         }
-        Long resolvedAmountCents = toCents(payment.value());
+        Long resolvedAmountCents = company != null ? company.getSubscriptionAmountCents() : null;
+        if (resolvedAmountCents == null) {
+            resolvedAmountCents = entity.getAmountCents();
+        }
         if (resolvedAmountCents == null) {
             resolvedAmountCents = currentPlan.priceForRecurrence(resolvedBillingInterval);
+        }
+        if (resolvedAmountCents == null) {
+            resolvedAmountCents = toCents(payment.value());
         }
 
         entity.setCompanyId(companyId);
@@ -1638,6 +1907,7 @@ public class IoAutoBillingService {
                 firstNonBlank(text(node, "invoiceUrl"), text(node, "bankSlipUrl")),
                 text(node, "status"),
                 text(node, "billingType"),
+                text(node, "description"),
                 text(node, "externalReference"),
                 firstNonBlank(text(node, "checkoutSession"), text(node, "checkout")),
                 decimal(node, "value"),
@@ -1992,6 +2262,314 @@ public class IoAutoBillingService {
         );
     }
 
+    private PlanChangeAdjustmentResult applyPlanChangeProration(
+            PlanChangeContext context,
+            PlanChangeProrationPreview proration,
+            AsaasSubscriptionMutation asaasMutation
+    ) {
+        if (proration == null) {
+            return new PlanChangeAdjustmentResult("NONE", null, null, 0L, null, null, "");
+        }
+
+        return switch (normalizeText(proration.adjustmentMode()).toUpperCase(Locale.ROOT)) {
+            case "IMMEDIATE_CHARGE" -> createImmediateProrationCharge(context, proration, asaasMutation);
+            case "NEXT_CYCLE_CREDIT" -> applyScheduledProrationCredit(context, proration);
+            case "UPCOMING_PAYMENT_UPDATE" -> replaceUpcomingPendingPayment(context);
+            default -> new PlanChangeAdjustmentResult("NONE", null, null, 0L, null, null, "Nenhum ajuste proporcional adicional foi necessario.");
+        };
+    }
+
+    private PlanChangeAdjustmentResult createImmediateProrationCharge(
+            PlanChangeContext context,
+            PlanChangeProrationPreview proration,
+            AsaasSubscriptionMutation asaasMutation
+    ) {
+        long chargeCents = proration.immediateChargeCents() == null ? 0L : Math.max(proration.immediateChargeCents(), 0L);
+        if (chargeCents <= 0L) {
+            return new PlanChangeAdjustmentResult("NONE", null, null, 0L, null, null, "Nenhum ajuste proporcional adicional foi necessario.");
+        }
+
+        String providerCustomerId = normalizeText(asaasMutation.providerCustomerId(), context.subscription().getProviderCustomerId());
+        if (providerCustomerId.isBlank()) {
+            throw new BusinessException("MISSING_PROVIDER_CUSTOMER", "Nao encontramos o cliente vinculado no Asaas para gerar o ajuste proporcional.");
+        }
+
+        String billingType = resolveAdjustmentBillingType(context.subscription());
+        LocalDate dueDate = LocalDate.now(BILLING_ZONE);
+        ObjectNode body = OBJECT_MAPPER.createObjectNode();
+        body.put("customer", providerCustomerId);
+        body.put("billingType", billingType);
+        body.put("value", centsToCurrency(chargeCents));
+        body.put("dueDate", dueDate.toString());
+        body.put("description", buildProrationDescription(context));
+        body.put("externalReference", buildProrationExternalReference(context.company().getId(), "charge"));
+
+        try {
+            AsaasPayment payment = toAsaasPayment(callAsaas("POST", "/payments", body));
+            return new PlanChangeAdjustmentResult(
+                    "IMMEDIATE_CHARGE",
+                    chargeCents,
+                    null,
+                    0L,
+                    normalizeText(payment.id()),
+                    normalizeText(payment.invoiceUrl()),
+                    "Geramos uma cobranca proporcional de " + formatMoneyText(chargeCents) + " referente aos dias restantes do ciclo atual."
+            );
+        } catch (BusinessException exception) {
+            throw wrapProrationAdjustmentFailure(exception);
+        }
+    }
+
+    private PlanChangeAdjustmentResult applyScheduledProrationCredit(
+            PlanChangeContext context,
+            PlanChangeProrationPreview proration
+    ) {
+        long totalCreditCents = proration.creditNextCycleCents() == null ? 0L : Math.max(proration.creditNextCycleCents(), 0L);
+        if (totalCreditCents <= 0L) {
+            return new PlanChangeAdjustmentResult("NONE", null, null, 0L, null, null, "Nenhum ajuste proporcional adicional foi necessario.");
+        }
+
+        long appliedCreditCents = 0L;
+        long remainingCreditCents = totalCreditCents;
+        String paymentId = null;
+        String invoiceUrl = null;
+
+        LocalDate periodEndExclusive = resolveCurrentPeriodEndDate(context);
+        Optional<AsaasPayment> nextPendingPayment = findNextPendingSubscriptionPayment(context.subscription(), periodEndExclusive);
+        if (nextPendingPayment.isPresent()) {
+            AsaasPayment payment = nextPendingPayment.get();
+            long paymentValueCents = toCents(payment.value()) == null ? 0L : toCents(payment.value());
+            long maxApplicableCredit = Math.max(0L, paymentValueCents - MIN_ASAAS_PAYMENT_CENTS);
+            long creditToApplyNow = Math.min(remainingCreditCents, maxApplicableCredit);
+            if (creditToApplyNow > 0L) {
+                try {
+                    AsaasPayment updatedPayment = updateAsaasPaymentValue(
+                            payment,
+                            paymentValueCents - creditToApplyNow,
+                            buildRecurringPaymentDescription(context)
+                    );
+                    appliedCreditCents = creditToApplyNow;
+                    remainingCreditCents -= creditToApplyNow;
+                    paymentId = normalizeText(updatedPayment.id());
+                    invoiceUrl = normalizeText(updatedPayment.invoiceUrl());
+                } catch (BusinessException exception) {
+                    throw wrapProrationAdjustmentFailure(exception);
+                }
+            }
+        }
+
+        String message;
+        if (appliedCreditCents > 0L && remainingCreditCents > 0L) {
+            message = "Aplicamos " + formatMoneyText(appliedCreditCents) + " de credito na proxima cobranca e o saldo de "
+                    + formatMoneyText(remainingCreditCents) + " seguira para abatimento automatico nas cobrancas seguintes.";
+        } else if (appliedCreditCents > 0L) {
+            message = "Aplicamos " + formatMoneyText(appliedCreditCents) + " de credito automaticamente na proxima cobranca da assinatura.";
+        } else {
+            message = "Registramos um credito proporcional de " + formatMoneyText(remainingCreditCents)
+                    + " para abatimento automatico nas proximas cobrancas da assinatura.";
+        }
+
+        return new PlanChangeAdjustmentResult(
+                "NEXT_CYCLE_CREDIT",
+                null,
+                appliedCreditCents > 0L ? appliedCreditCents : null,
+                remainingCreditCents,
+                paymentId,
+                invoiceUrl,
+                message
+        );
+    }
+
+    private PlanChangeAdjustmentResult replaceUpcomingPendingPayment(PlanChangeContext context) {
+        Optional<AsaasPayment> pendingPayment = findCurrentPendingSubscriptionPayment(context.subscription());
+        if (pendingPayment.isEmpty()) {
+            return new PlanChangeAdjustmentResult(
+                    "UPCOMING_PAYMENT_UPDATE",
+                    null,
+                    null,
+                    0L,
+                    null,
+                    null,
+                    "A assinatura foi atualizada e nao havia uma cobranca pendente do ciclo atual para substituir."
+            );
+        }
+
+        try {
+            AsaasPayment updatedPayment = updateAsaasPaymentValue(
+                    pendingPayment.get(),
+                    context.targetAmountCents(),
+                    buildRecurringPaymentDescription(context)
+            );
+            return new PlanChangeAdjustmentResult(
+                    "UPCOMING_PAYMENT_UPDATE",
+                    null,
+                    null,
+                    0L,
+                    normalizeText(updatedPayment.id()),
+                    normalizeText(updatedPayment.invoiceUrl()),
+                    "A cobranca pendente do ciclo atual foi substituida pelo valor integral do novo plano."
+            );
+        } catch (BusinessException exception) {
+            throw wrapProrationAdjustmentFailure(exception);
+        }
+    }
+
+    private Optional<AsaasPayment> findCurrentPendingSubscriptionPayment(JpaIoAutoBillingSubscriptionEntity subscription) {
+        if (subscription == null || normalizeText(subscription.getProviderSubscriptionId()).isBlank() || asaasApiKey.isBlank()) {
+            return Optional.empty();
+        }
+
+        return listPayments(Map.of("subscription", subscription.getProviderSubscriptionId(), "limit", "50")).stream()
+                .filter(this::isPendingPayment)
+                .sorted(Comparator
+                        .comparing((AsaasPayment item) -> item.dueDate() == null ? LocalDate.MAX : item.dueDate())
+                        .thenComparing(item -> item.createdAt() == null ? Instant.EPOCH : item.createdAt()))
+                .findFirst();
+    }
+
+    private Optional<AsaasPayment> findNextPendingSubscriptionPayment(
+            JpaIoAutoBillingSubscriptionEntity subscription,
+            LocalDate minimumDueDate
+    ) {
+        if (subscription == null || normalizeText(subscription.getProviderSubscriptionId()).isBlank() || asaasApiKey.isBlank()) {
+            return Optional.empty();
+        }
+
+        LocalDate dueDateFloor = minimumDueDate == null ? LocalDate.now(BILLING_ZONE) : minimumDueDate;
+        return listPayments(Map.of("subscription", subscription.getProviderSubscriptionId(), "limit", "50")).stream()
+                .filter(this::isPendingPayment)
+                .filter(item -> item.dueDate() != null && !item.dueDate().isBefore(dueDateFloor))
+                .sorted(Comparator
+                        .comparing((AsaasPayment item) -> item.dueDate() == null ? LocalDate.MAX : item.dueDate())
+                        .thenComparing(item -> item.createdAt() == null ? Instant.EPOCH : item.createdAt()))
+                .findFirst();
+    }
+
+    private boolean isPendingPayment(AsaasPayment payment) {
+        if (payment == null) {
+            return false;
+        }
+        String status = normalizeText(payment.status()).toUpperCase(Locale.ROOT);
+        return "PENDING".equals(status)
+                || "AWAITING_RISK_ANALYSIS".equals(status)
+                || "AWAITING_CHECKOUT_RISK_ANALYSIS_REQUEST".equals(status)
+                || "BANK_PROCESSING".equals(status);
+    }
+
+    private AsaasPayment updateAsaasPaymentValue(AsaasPayment payment, Long targetAmountCents, String description) {
+        if (payment == null || normalizeText(payment.id()).isBlank()) {
+            throw new BusinessException("INVALID_PAYMENT", "Nao foi possivel localizar a cobranca do Asaas para ajustar o pro-rata.");
+        }
+        if (payment.dueDate() == null) {
+            throw new BusinessException("INVALID_PAYMENT", "A cobranca do Asaas nao possui vencimento valido para ajuste.");
+        }
+
+        long resolvedAmountCents = targetAmountCents == null ? 0L : Math.max(targetAmountCents, MIN_ASAAS_PAYMENT_CENTS);
+        ObjectNode body = OBJECT_MAPPER.createObjectNode();
+        body.put("billingType", normalizeText(payment.billingType(), "UNDEFINED"));
+        body.put("value", centsToCurrency(resolvedAmountCents));
+        body.put("dueDate", payment.dueDate().toString());
+        if (!normalizeText(description).isBlank()) {
+            body.put("description", description);
+        }
+        if (!normalizeText(payment.externalReference()).isBlank()) {
+            body.put("externalReference", payment.externalReference());
+        }
+
+        return toAsaasPayment(callAsaas("PUT", "/payments/" + urlEncode(payment.id()), body));
+    }
+
+    private String resolveAdjustmentBillingType(JpaIoAutoBillingSubscriptionEntity subscription) {
+        try {
+            Optional<AsaasPayment> latestPayment = findLatestPaymentForCompany(subscription);
+            if (latestPayment.isPresent()) {
+                String billingType = normalizeText(latestPayment.get().billingType()).toUpperCase(Locale.ROOT);
+                if (!billingType.isBlank()) {
+                    return billingType;
+                }
+            }
+        } catch (BusinessException exception) {
+            log.warn(
+                    "Falling back to configured billing type for proration adjustment subscriptionId={} reason={}",
+                    subscription == null ? "" : normalizeText(subscription.getProviderSubscriptionId()),
+                    normalizeText(exception.getMessage(), exception.code())
+            );
+        }
+
+        return billingTypes.stream()
+                .map(value -> normalizeText(value).toUpperCase(Locale.ROOT))
+                .filter(value -> !value.isBlank())
+                .findFirst()
+                .orElse("UNDEFINED");
+    }
+
+    private String buildProrationDescription(PlanChangeContext context) {
+        return "Ajuste proporcional da troca para " + context.targetPlan().planName();
+    }
+
+    private String buildRecurringPaymentDescription(PlanChangeContext context) {
+        return "Assinatura " + context.targetPlan().planName();
+    }
+
+    private String buildProrationExternalReference(UUID companyId, String suffix) {
+        return companyId + ":plan-change:" + suffix + ":" + Instant.now().toEpochMilli();
+    }
+
+    private BusinessException wrapProrationAdjustmentFailure(BusinessException exception) {
+        if ("ASAAS_API_ERROR".equals(exception.code()) || "ASAAS_INVALID_RESPONSE".equals(exception.code())) {
+            return new BusinessException(
+                    "ASAAS_PRORATION_ADJUSTMENT_FAILED",
+                    "Nao foi possivel aplicar o ajuste proporcional da troca de plano no Asaas. Nenhuma alteracao local foi gravada. Detalhe do Asaas: "
+                            + normalizeText(exception.getMessage(), "erro nao informado")
+            );
+        }
+        return exception;
+    }
+
+    private void rollbackSubscriptionPlanChange(PlanChangeContext context) {
+        try {
+            ObjectNode body = OBJECT_MAPPER.createObjectNode();
+            body.put("value", centsToCurrency(context.currentAmountCents()));
+            body.put("cycle", toAsaasSubscriptionCycle(context.currentBillingInterval()));
+            body.put("description", context.currentPlan().planName());
+            body.put("externalReference", context.company().getId().toString());
+            body.put("updatePendingPayments", false);
+            callAsaas("PUT", "/subscriptions/" + urlEncode(context.providerSubscriptionId()), body);
+            log.warn(
+                    "Rolled back Asaas subscription change after proration failure companyId={} subscriptionId={}",
+                    context.company().getId(),
+                    context.providerSubscriptionId()
+            );
+        } catch (Exception exception) {
+            log.error(
+                    "Failed to rollback Asaas subscription change companyId={} subscriptionId={} reason={}",
+                    context.company().getId(),
+                    context.providerSubscriptionId(),
+                    normalizeText(exception.getMessage(), exception.getClass().getSimpleName())
+            );
+        }
+    }
+
+    private void applyPendingProrationCreditState(
+            JpaIoAutoBillingSubscriptionEntity subscription,
+            PlanChangeAdjustmentResult adjustment,
+            Instant now
+    ) {
+        long remainingCredit = adjustment == null || adjustment.remainingCreditCents() == null
+                ? 0L
+                : Math.max(adjustment.remainingCreditCents(), 0L);
+        if (remainingCredit > 0L) {
+            subscription.setPendingProrationCreditCents(remainingCredit);
+            subscription.setPendingProrationCreditNote(normalizeText(adjustment.message()));
+            subscription.setPendingProrationCreditUpdatedAt(now);
+            return;
+        }
+
+        subscription.setPendingProrationCreditCents(null);
+        subscription.setPendingProrationCreditNote(null);
+        subscription.setPendingProrationCreditUpdatedAt(null);
+    }
+
     private void syncOnboardingSubscriptionPlan(
             UUID companyId,
             String planName,
@@ -2144,7 +2722,8 @@ record PlanChangePreviewResponse(
         String asaasCycle,
         boolean willUpdatePendingPayments,
         boolean requiresConfirmation,
-        String message
+        String message,
+        PlanChangeProrationPreview proration
 ) {
 }
 
@@ -2159,7 +2738,8 @@ record PlanChangePlanSummary(
 record PlanChangeConfirmResponse(
         boolean success,
         String message,
-        PlanChangeSubscriptionSnapshot subscription
+        PlanChangeSubscriptionSnapshot subscription,
+        PlanChangeAdjustmentResult adjustment
 ) {
 }
 
@@ -2169,6 +2749,34 @@ record PlanChangeSubscriptionSnapshot(
         Long amountCents,
         String billingInterval,
         String status
+) {
+}
+
+record PlanChangeProrationPreview(
+        String periodStartDate,
+        String periodEndDate,
+        long totalCycleDays,
+        long remainingDays,
+        long elapsedDays,
+        Long currentPlanRemainingCents,
+        Long targetPlanRemainingCents,
+        Long deltaCents,
+        String adjustmentMode,
+        Long immediateChargeCents,
+        Long creditNextCycleCents,
+        boolean prorationActive,
+        String message
+) {
+}
+
+record PlanChangeAdjustmentResult(
+        String mode,
+        Long immediateChargeCents,
+        Long appliedCreditCents,
+        Long remainingCreditCents,
+        String paymentId,
+        String invoiceUrl,
+        String message
 ) {
 }
 
@@ -2186,6 +2794,9 @@ record BillingSnapshot(
         String provider,
         String providerCustomerId,
         String providerSubscriptionId,
+        Long pendingProrationCreditCents,
+        String pendingProrationCreditNote,
+        Instant pendingProrationCreditUpdatedAt,
         Integer usersLimit,
         Integer vehiclesLimit,
         Integer activeAdsLimit,
@@ -2289,6 +2900,7 @@ record AsaasPayment(
         String invoiceUrl,
         String status,
         String billingType,
+        String description,
         String externalReference,
         String checkoutSession,
         BigDecimal value,

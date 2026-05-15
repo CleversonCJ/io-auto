@@ -57,6 +57,15 @@ public class JpaIoAutoBillingSubscriptionEntity {
     @Column(name = "checkout_session_id", length = 180)
     private String checkoutSessionId;
 
+    @Column(name = "pending_proration_credit_cents")
+    private Long pendingProrationCreditCents;
+
+    @Column(name = "pending_proration_credit_note", length = 255)
+    private String pendingProrationCreditNote;
+
+    @Column(name = "pending_proration_credit_updated_at")
+    private Instant pendingProrationCreditUpdatedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -181,6 +190,30 @@ public class JpaIoAutoBillingSubscriptionEntity {
 
     public void setCheckoutSessionId(String checkoutSessionId) {
         this.checkoutSessionId = checkoutSessionId;
+    }
+
+    public Long getPendingProrationCreditCents() {
+        return pendingProrationCreditCents;
+    }
+
+    public void setPendingProrationCreditCents(Long pendingProrationCreditCents) {
+        this.pendingProrationCreditCents = pendingProrationCreditCents;
+    }
+
+    public String getPendingProrationCreditNote() {
+        return pendingProrationCreditNote;
+    }
+
+    public void setPendingProrationCreditNote(String pendingProrationCreditNote) {
+        this.pendingProrationCreditNote = pendingProrationCreditNote;
+    }
+
+    public Instant getPendingProrationCreditUpdatedAt() {
+        return pendingProrationCreditUpdatedAt;
+    }
+
+    public void setPendingProrationCreditUpdatedAt(Instant pendingProrationCreditUpdatedAt) {
+        this.pendingProrationCreditUpdatedAt = pendingProrationCreditUpdatedAt;
     }
 
     public Instant getCreatedAt() {
