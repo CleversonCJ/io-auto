@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CreditCard, ExternalLink, LoaderCircle, ShieldAlert } from "lucide-react";
+import { CreditCard, ExternalLink, LoaderCircle, ShieldAlert, X } from "lucide-react";
 import { billingIntervalLabel, billingTypeLabel, formatDateTime, formatMoney, formatShortDate, statusLabel } from "@/modules/ioauto/formatters";
 import { listEnabledFeatureLabels } from "@/modules/ioauto/planFeatures";
 import type {
@@ -43,6 +43,7 @@ export function SubscriptionCenter({
     const [previewingPlanKey, setPreviewingPlanKey] = useState<string | null>(null);
     const [confirmingPlanKey, setConfirmingPlanKey] = useState<string | null>(null);
     const [selectedRecurrenceByPlan, setSelectedRecurrenceByPlan] = useState<Record<string, string>>({});
+    const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
 
     const canManagePlan = useMemo(
         () => (currentUserRoles ?? []).some((role) => ["ADMIN", "SUPERADMIN"].includes(role.toUpperCase())),
@@ -100,6 +101,12 @@ export function SubscriptionCenter({
     useEffect(() => {
         loadBilling().catch((cause: Error) => setError(cause.message));
     }, []);
+
+    function closePlanModal() {
+        setIsPlanModalOpen(false);
+        setPreview(null);
+        setPreviewPlanKey(null);
+    }
 
     async function handleOpenPortal() {
         setOpeningPortal(true);
@@ -177,8 +184,7 @@ export function SubscriptionCenter({
 
             const payload = (await response.json()) as BillingPlanChangeConfirmResponse;
             await loadBilling();
-            setPreview(null);
-            setPreviewPlanKey(null);
+            closePlanModal();
             setAdjustmentResult(payload.adjustment ?? null);
             setFeedback(payload.message || `Plano alterado para ${plan.planName}.`);
         } catch (cause) {
@@ -291,9 +297,9 @@ export function SubscriptionCenter({
                         <div className="flex flex-wrap items-start justify-between gap-4">
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Alterar plano</p>
-                                <h3 className="mt-3 text-2xl font-bold text-io-dark">Escolha um plano compativel com o uso atual</h3>
+                                <h3 className="mt-3 text-2xl font-bold text-io-dark">Revise o plano atual antes de trocar</h3>
                                 <p className="mt-2 text-sm text-black/55">
-                                    Faça a prévia antes de confirmar. O sistema valida limites, ciclo e atualiza o Asaas antes de gravar localmente.
+                                    As opções de troca e a prévia ficam em um popup dedicado para deixar esta tela mais limpa.
                                 </p>
                             </div>
                             {!canManagePlan ? (
@@ -304,190 +310,28 @@ export function SubscriptionCenter({
                             ) : null}
                         </div>
 
-                        <div className="mt-5 grid gap-4">
-                            {(billing.availablePlans ?? []).map((plan) => {
-                                const selectedRecurrence = selectedRecurrenceByPlan[plan.planId] ?? defaultRecurrenceForPlan(plan, billing.billingInterval);
-                                const isCurrentRecurrence = plan.current && selectedRecurrence === billing.billingInterval;
-                                const featureLabels = listEnabledFeatureLabels(plan.features).slice(0, 6);
-                                const priceEntries = supportedIntervalEntries(plan);
-                                const isPreviewOpen = previewPlanKey === plan.planKey
-                                    && preview?.targetPlan.key === plan.planKey
-                                    && preview?.targetPlan.billingInterval === selectedRecurrence;
+                        <div className="mt-5 grid gap-4 rounded-[24px] border border-black/10 bg-white p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-sm font-semibold text-io-dark">Plano contratado</p>
+                                    <p className="mt-1 text-sm text-black/55">
+                                        {billing.planName}
+                                        {billing.billingInterval ? ` • ${billingIntervalLabel(billing.billingInterval)}` : ""}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPlanModalOpen(true)}
+                                    disabled={!canManagePlan}
+                                    className="inline-flex items-center justify-center gap-2 rounded-full bg-[#6b00e3] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#5800bb] disabled:cursor-not-allowed disabled:bg-[#6b00e3]/35"
+                                >
+                                    Trocar plano
+                                </button>
+                            </div>
 
-                                return (
-                                    <div key={plan.planId} className={`rounded-[24px] border p-4 ${plan.current ? "border-io-purple/35 bg-white" : "border-black/10 bg-white"}`}>
-                                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                            <div className="flex-1">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <p className="text-lg font-bold text-io-dark">{plan.planName}</p>
-                                                    {plan.current ? (
-                                                        <span className="rounded-full bg-io-purple/10 px-3 py-1 text-xs font-semibold text-io-purple">
-                                                            Plano atual
-                                                        </span>
-                                                    ) : null}
-                                                    {!plan.eligible ? (
-                                                        <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
-                                                            Downgrade bloqueado
-                                                        </span>
-                                                    ) : null}
-                                                </div>
-
-                                                <div className="mt-2 flex flex-wrap gap-3 text-sm text-black/60">
-                                                    {priceEntries.map(([interval, amount]) => (
-                                                        <span key={`${plan.planId}-${interval}`}>
-                                                            {billingIntervalLabel(interval)}: {formatMoney(amount, "BRL")}
-                                                        </span>
-                                                    ))}
-                                                </div>
-
-                                                <div className="mt-3 flex flex-wrap gap-2">
-                                                    <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
-                                                        {limitLabel(plan.usersLimit, "usuarios")}
-                                                    </span>
-                                                    <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
-                                                        {limitLabel(plan.vehiclesLimit, "veiculos")}
-                                                    </span>
-                                                    <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
-                                                        {limitLabel(plan.activeAdsLimit, "anuncios")}
-                                                    </span>
-                                                </div>
-
-                                                <div className="mt-3 flex flex-wrap gap-2">
-                                                    {featureLabels.map((label) => (
-                                                        <span key={label} className="rounded-full border border-black/10 px-3 py-1 text-xs text-black/60">
-                                                            {label}
-                                                        </span>
-                                                    ))}
-                                                </div>
-
-                                                {!plan.eligible && plan.blockingReasons.length ? (
-                                                    <div className="mt-4 grid gap-2 rounded-[18px] border border-red-200 bg-red-50 p-3">
-                                                        {plan.blockingReasons.map((reason) => (
-                                                            <p key={reason} className="text-sm leading-6 text-red-700">
-                                                                {reason}
-                                                            </p>
-                                                        ))}
-                                                    </div>
-                                                ) : null}
-                                            </div>
-
-                                            <div className="grid gap-3 lg:min-w-[250px]">
-                                                <label className="grid gap-2 text-sm text-black/60">
-                                                    <span>Ciclo de cobranca</span>
-                                                    <select
-                                                        value={selectedRecurrence}
-                                                        onChange={(event) => {
-                                                            const nextValue = event.target.value;
-                                                            setSelectedRecurrenceByPlan((current) => ({
-                                                                ...current,
-                                                                [plan.planId]: nextValue,
-                                                            }));
-                                                            if (previewPlanKey === plan.planKey) {
-                                                                setPreview(null);
-                                                                setPreviewPlanKey(null);
-                                                            }
-                                                        }}
-                                                        className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none"
-                                                    >
-                                                        {plan.supportedBillingIntervals.map((interval) => (
-                                                            <option key={`${plan.planId}-${interval}`} value={interval}>
-                                                                {billingIntervalLabel(interval)}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </label>
-
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handlePreviewPlan(plan)}
-                                                    disabled={previewingPlanKey === plan.planKey || isCurrentRecurrence || !plan.eligible || !canManagePlan}
-                                                    className="inline-flex items-center justify-center gap-2 rounded-full border border-[#6b00e3]/20 bg-white px-5 py-3 text-sm font-semibold text-[#6b00e3] transition hover:bg-[#6b00e3]/5 disabled:cursor-not-allowed disabled:opacity-45"
-                                                >
-                                                    {previewingPlanKey === plan.planKey ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-                                                    {plan.current ? (isCurrentRecurrence ? "Plano atual" : "Ver previa do novo ciclo") : "Ver previa da troca"}
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {isPreviewOpen && preview ? (
-                                            <div className="mt-4 grid gap-4 rounded-[22px] border border-io-purple/15 bg-[#f8f3ff] p-4">
-                                                <div className="grid gap-3 md:grid-cols-2">
-                                                    <PreviewMetric
-                                                        label="Plano atual"
-                                                        value={`${preview.currentPlan.name} • ${billingIntervalLabel(preview.currentPlan.billingInterval)}`}
-                                                        detail={formatMoney(preview.currentPlan.amountCents, "BRL")}
-                                                    />
-                                                    <PreviewMetric
-                                                        label="Novo plano"
-                                                        value={`${preview.targetPlan.name} • ${billingIntervalLabel(preview.targetPlan.billingInterval)}`}
-                                                        detail={formatMoney(preview.targetPlan.amountCents, "BRL")}
-                                                    />
-                                                </div>
-
-                                                <div className="grid gap-3 md:grid-cols-3">
-                                                    <PreviewMetric label="Tipo de alteracao" value={changeTypeLabel(preview.changeType)} />
-                                                    <PreviewMetric label="Ciclo no Asaas" value={billingIntervalLabel(preview.asaasCycle)} />
-                                                    <PreviewMetric label="Cobrancas pendentes" value={preview.willUpdatePendingPayments ? "Atualiza quando aplicavel" : "Mantem as ja emitidas"} />
-                                                </div>
-
-                                                <div className="grid gap-3 md:grid-cols-4">
-                                                    <PreviewMetric
-                                                        label="Janela atual"
-                                                        value={preview.proration.periodStartDate && preview.proration.periodEndDate
-                                                            ? `${formatShortDate(preview.proration.periodStartDate)} a ${formatShortDate(preview.proration.periodEndDate)}`
-                                                            : "-"}
-                                                    />
-                                                    <PreviewMetric
-                                                        label="Dias restantes"
-                                                        value={`${preview.proration.remainingDays.toLocaleString("pt-BR")} de ${preview.proration.totalCycleDays.toLocaleString("pt-BR")}`}
-                                                    />
-                                                    <PreviewMetric
-                                                        label="Saldo plano atual"
-                                                        value={formatMoney(preview.proration.currentPlanRemainingCents, "BRL")}
-                                                    />
-                                                    <PreviewMetric
-                                                        label="Uso proporcional novo plano"
-                                                        value={formatMoney(preview.proration.targetPlanRemainingCents, "BRL")}
-                                                    />
-                                                </div>
-
-                                                <div className="grid gap-3 md:grid-cols-3">
-                                                    <PreviewMetric label="Modo do ajuste" value={prorationModeLabel(preview.proration.adjustmentMode)} />
-                                                    <PreviewMetric label="Cobranca imediata" value={formatMoney(preview.proration.immediateChargeCents, "BRL")} />
-                                                    <PreviewMetric label="Credito futuro" value={formatMoney(preview.proration.creditNextCycleCents, "BRL")} />
-                                                </div>
-
-                                                <div className="rounded-[18px] border border-black/8 bg-white px-4 py-3 text-sm leading-6 text-black/65">
-                                                    <p>{preview.message}</p>
-                                                    <p className="mt-2">{preview.proration.message}</p>
-                                                </div>
-
-                                                <div className="flex flex-wrap gap-3">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => void handleConfirmPlan(plan)}
-                                                        disabled={confirmingPlanKey === plan.planKey || !canManagePlan}
-                                                        className="inline-flex items-center justify-center gap-2 rounded-full bg-[#6b00e3] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#5800bb] disabled:cursor-not-allowed disabled:bg-[#6b00e3]/35"
-                                                    >
-                                                        {confirmingPlanKey === plan.planKey ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-                                                        Confirmar alteracao
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setPreview(null);
-                                                            setPreviewPlanKey(null);
-                                                        }}
-                                                        className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-black/70 transition hover:bg-black/[0.03]"
-                                                    >
-                                                        Cancelar
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ) : null}
-                                    </div>
-                                );
-                            })}
+                            <p className="text-sm leading-6 text-black/60">
+                                Abra o popup para comparar opções, validar limites do plano e gerar a prévia da troca antes de confirmar.
+                            </p>
                         </div>
                     </article>
                 </div>
@@ -515,6 +359,221 @@ export function SubscriptionCenter({
                     Abrir cobranca no Asaas
                 </button>
             </div>
+
+            {billing && isPlanModalOpen ? (
+                <div className="fixed inset-0 z-50 bg-black/55 px-4 py-6">
+                    <div className="mx-auto flex h-full max-w-6xl items-start justify-center">
+                        <div className="flex max-h-full w-full flex-col overflow-hidden rounded-[34px] border border-white/15 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+                            <div className="flex items-start justify-between gap-4 border-b border-black/8 px-6 py-5 md:px-8">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Troca de plano</p>
+                                    <h3 className="mt-2 font-display text-2xl font-bold text-io-dark">Escolha um plano compatível com o uso atual</h3>
+                                    <p className="mt-1 text-sm text-black/55">
+                                        Compare as opções, gere a prévia e confirme a troca só quando estiver tudo validado.
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={closePlanModal}
+                                    className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 text-black/65 transition hover:border-black/20 hover:text-io-dark"
+                                    aria-label="Fechar troca de plano"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+
+                            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 md:px-8">
+                                <div className="grid gap-4">
+                                    {(billing.availablePlans ?? []).map((plan) => {
+                                        const selectedRecurrence = selectedRecurrenceByPlan[plan.planId] ?? defaultRecurrenceForPlan(plan, billing.billingInterval);
+                                        const isCurrentRecurrence = plan.current && selectedRecurrence === billing.billingInterval;
+                                        const featureLabels = listEnabledFeatureLabels(plan.features).slice(0, 6);
+                                        const priceEntries = supportedIntervalEntries(plan);
+                                        const isPreviewOpen = previewPlanKey === plan.planKey
+                                            && preview?.targetPlan.key === plan.planKey
+                                            && preview?.targetPlan.billingInterval === selectedRecurrence;
+
+                                        return (
+                                            <div key={plan.planId} className={`rounded-[24px] border p-4 ${plan.current ? "border-io-purple/35 bg-[#fcfbff]" : "border-black/10 bg-white"}`}>
+                                                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                                    <div className="flex-1">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <p className="text-lg font-bold text-io-dark">{plan.planName}</p>
+                                                            {plan.current ? (
+                                                                <span className="rounded-full bg-io-purple/10 px-3 py-1 text-xs font-semibold text-io-purple">
+                                                                    Plano atual
+                                                                </span>
+                                                            ) : null}
+                                                            {!plan.eligible ? (
+                                                                <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
+                                                                    Downgrade bloqueado
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
+
+                                                        <div className="mt-2 flex flex-wrap gap-3 text-sm text-black/60">
+                                                            {priceEntries.map(([interval, amount]) => (
+                                                                <span key={`${plan.planId}-${interval}`}>
+                                                                    {billingIntervalLabel(interval)}: {formatMoney(amount, "BRL")}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+
+                                                        <div className="mt-3 flex flex-wrap gap-2">
+                                                            <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
+                                                                {limitLabel(plan.usersLimit, "usuarios")}
+                                                            </span>
+                                                            <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
+                                                                {limitLabel(plan.vehiclesLimit, "veiculos")}
+                                                            </span>
+                                                            <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
+                                                                {limitLabel(plan.activeAdsLimit, "anuncios")}
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="mt-3 flex flex-wrap gap-2">
+                                                            {featureLabels.map((label) => (
+                                                                <span key={label} className="rounded-full border border-black/10 px-3 py-1 text-xs text-black/60">
+                                                                    {label}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+
+                                                        {!plan.eligible && plan.blockingReasons.length ? (
+                                                            <div className="mt-4 grid gap-2 rounded-[18px] border border-red-200 bg-red-50 p-3">
+                                                                {plan.blockingReasons.map((reason) => (
+                                                                    <p key={reason} className="text-sm leading-6 text-red-700">
+                                                                        {reason}
+                                                                    </p>
+                                                                ))}
+                                                            </div>
+                                                        ) : null}
+                                                    </div>
+
+                                                    <div className="grid gap-3 lg:min-w-[250px]">
+                                                        <label className="grid gap-2 text-sm text-black/60">
+                                                            <span>Ciclo de cobrança</span>
+                                                            <select
+                                                                value={selectedRecurrence}
+                                                                onChange={(event) => {
+                                                                    const nextValue = event.target.value;
+                                                                    setSelectedRecurrenceByPlan((current) => ({
+                                                                        ...current,
+                                                                        [plan.planId]: nextValue,
+                                                                    }));
+                                                                    if (previewPlanKey === plan.planKey) {
+                                                                        setPreview(null);
+                                                                        setPreviewPlanKey(null);
+                                                                    }
+                                                                }}
+                                                                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none"
+                                                            >
+                                                                {plan.supportedBillingIntervals.map((interval) => (
+                                                                    <option key={`${plan.planId}-${interval}`} value={interval}>
+                                                                        {billingIntervalLabel(interval)}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </label>
+
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void handlePreviewPlan(plan)}
+                                                            disabled={previewingPlanKey === plan.planKey || isCurrentRecurrence || !plan.eligible || !canManagePlan}
+                                                            className="inline-flex items-center justify-center gap-2 rounded-full border border-[#6b00e3]/20 bg-white px-5 py-3 text-sm font-semibold text-[#6b00e3] transition hover:bg-[#6b00e3]/5 disabled:cursor-not-allowed disabled:opacity-45"
+                                                        >
+                                                            {previewingPlanKey === plan.planKey ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                                                            {plan.current ? (isCurrentRecurrence ? "Plano atual" : "Ver prévia do novo ciclo") : "Ver prévia da troca"}
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {isPreviewOpen && preview ? (
+                                                    <div className="mt-4 grid gap-4 rounded-[22px] border border-io-purple/15 bg-[#f8f3ff] p-4">
+                                                        <div className="grid gap-3 md:grid-cols-2">
+                                                            <PreviewMetric
+                                                                label="Plano atual"
+                                                                value={`${preview.currentPlan.name} • ${billingIntervalLabel(preview.currentPlan.billingInterval)}`}
+                                                                detail={formatMoney(preview.currentPlan.amountCents, "BRL")}
+                                                            />
+                                                            <PreviewMetric
+                                                                label="Novo plano"
+                                                                value={`${preview.targetPlan.name} • ${billingIntervalLabel(preview.targetPlan.billingInterval)}`}
+                                                                detail={formatMoney(preview.targetPlan.amountCents, "BRL")}
+                                                            />
+                                                        </div>
+
+                                                        <div className="grid gap-3 md:grid-cols-3">
+                                                            <PreviewMetric label="Tipo de alteração" value={changeTypeLabel(preview.changeType)} />
+                                                            <PreviewMetric label="Ciclo no Asaas" value={billingIntervalLabel(preview.asaasCycle)} />
+                                                            <PreviewMetric label="Cobranças pendentes" value={preview.willUpdatePendingPayments ? "Atualiza quando aplicável" : "Mantém as já emitidas"} />
+                                                        </div>
+
+                                                        <div className="grid gap-3 md:grid-cols-4">
+                                                            <PreviewMetric
+                                                                label="Janela atual"
+                                                                value={preview.proration.periodStartDate && preview.proration.periodEndDate
+                                                                    ? `${formatShortDate(preview.proration.periodStartDate)} a ${formatShortDate(preview.proration.periodEndDate)}`
+                                                                    : "-"}
+                                                            />
+                                                            <PreviewMetric
+                                                                label="Dias restantes"
+                                                                value={`${preview.proration.remainingDays.toLocaleString("pt-BR")} de ${preview.proration.totalCycleDays.toLocaleString("pt-BR")}`}
+                                                            />
+                                                            <PreviewMetric
+                                                                label="Saldo plano atual"
+                                                                value={formatMoney(preview.proration.currentPlanRemainingCents, "BRL")}
+                                                            />
+                                                            <PreviewMetric
+                                                                label="Uso proporcional novo plano"
+                                                                value={formatMoney(preview.proration.targetPlanRemainingCents, "BRL")}
+                                                            />
+                                                        </div>
+
+                                                        <div className="grid gap-3 md:grid-cols-3">
+                                                            <PreviewMetric label="Modo do ajuste" value={prorationModeLabel(preview.proration.adjustmentMode)} />
+                                                            <PreviewMetric label="Cobrança imediata" value={formatMoney(preview.proration.immediateChargeCents, "BRL")} />
+                                                            <PreviewMetric label="Crédito futuro" value={formatMoney(preview.proration.creditNextCycleCents, "BRL")} />
+                                                        </div>
+
+                                                        <div className="rounded-[18px] border border-black/8 bg-white px-4 py-3 text-sm leading-6 text-black/65">
+                                                            <p>{preview.message}</p>
+                                                            <p className="mt-2">{preview.proration.message}</p>
+                                                        </div>
+
+                                                        <div className="flex flex-wrap gap-3">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void handleConfirmPlan(plan)}
+                                                                disabled={confirmingPlanKey === plan.planKey || !canManagePlan}
+                                                                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#6b00e3] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#5800bb] disabled:cursor-not-allowed disabled:bg-[#6b00e3]/35"
+                                                            >
+                                                                {confirmingPlanKey === plan.planKey ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                                                                Confirmar alteração
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setPreview(null);
+                                                                    setPreviewPlanKey(null);
+                                                                }}
+                                                                className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-black/70 transition hover:bg-black/[0.03]"
+                                                            >
+                                                                Cancelar prévia
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
         </section>
     );
 }
