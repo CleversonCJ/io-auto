@@ -268,11 +268,32 @@ export function SubscriptionCenter({
             )}
 
             {billing ? (
-                <div className="mt-6 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+                <div className="mt-6">
                     <article className="rounded-[28px] border border-black/10 bg-black/[0.02] p-5">
-                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Plano atual</p>
-                        <h3 className="mt-3 text-2xl font-bold text-io-dark">{billing.planName}</h3>
-                        <p className="mt-2 text-sm text-black/55">A leitura abaixo mostra o consumo real da conta frente aos limites do plano contratado.</p>
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Plano atual</p>
+                                <h3 className="mt-3 text-2xl font-bold text-io-dark">{billing.planName}</h3>
+                                <p className="mt-2 text-sm text-black/55">A leitura abaixo mostra o consumo real da conta frente aos limites do plano contratado.</p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-end gap-3">
+                                {!canManagePlan ? (
+                                    <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-700">
+                                        <ShieldAlert className="h-4 w-4" />
+                                        Somente administradores podem alterar o plano
+                                    </div>
+                                ) : null}
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPlanModalOpen(true)}
+                                    disabled={!canManagePlan}
+                                    className="inline-flex items-center justify-center gap-2 rounded-full bg-[#6b00e3] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#5800bb] disabled:cursor-not-allowed disabled:bg-[#6b00e3]/35"
+                                >
+                                    Trocar plano
+                                </button>
+                            </div>
+                        </div>
 
                         <div className="mt-5 grid gap-3 md:grid-cols-2">
                             <UsageCard label="Usuarios ativos" value={billing.usage.activeUsers} limit={billing.usersLimit} />
@@ -290,48 +311,6 @@ export function SubscriptionCenter({
                                     </span>
                                 ))}
                             </div>
-                        </div>
-                    </article>
-
-                    <article className="rounded-[28px] border border-black/10 bg-black/[0.02] p-5">
-                        <div className="flex flex-wrap items-start justify-between gap-4">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Alterar plano</p>
-                                <h3 className="mt-3 text-2xl font-bold text-io-dark">Revise o plano atual antes de trocar</h3>
-                                <p className="mt-2 text-sm text-black/55">
-                                    As opções de troca e a prévia ficam em um popup dedicado para deixar esta tela mais limpa.
-                                </p>
-                            </div>
-                            {!canManagePlan ? (
-                                <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-700">
-                                    <ShieldAlert className="h-4 w-4" />
-                                    Somente administradores podem alterar o plano
-                                </div>
-                            ) : null}
-                        </div>
-
-                        <div className="mt-5 grid gap-4 rounded-[24px] border border-black/10 bg-white p-4">
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                    <p className="text-sm font-semibold text-io-dark">Plano contratado</p>
-                                    <p className="mt-1 text-sm text-black/55">
-                                        {billing.planName}
-                                        {billing.billingInterval ? ` • ${billingIntervalLabel(billing.billingInterval)}` : ""}
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsPlanModalOpen(true)}
-                                    disabled={!canManagePlan}
-                                    className="inline-flex items-center justify-center gap-2 rounded-full bg-[#6b00e3] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#5800bb] disabled:cursor-not-allowed disabled:bg-[#6b00e3]/35"
-                                >
-                                    Trocar plano
-                                </button>
-                            </div>
-
-                            <p className="text-sm leading-6 text-black/60">
-                                Abra o popup para comparar opções, validar limites do plano e gerar a prévia da troca antes de confirmar.
-                            </p>
                         </div>
                     </article>
                 </div>
