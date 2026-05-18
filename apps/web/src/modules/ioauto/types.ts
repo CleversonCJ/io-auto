@@ -718,6 +718,7 @@ export type PublicCatalogLeadList = {
         customerPhone: string;
         vehicleId: string | null;
         vehicleTitle: string | null;
+        vehiclePriceCents: number | null;
         publicVehiclePath: string | null;
         sourceType: string | null;
         sourceReference: string | null;

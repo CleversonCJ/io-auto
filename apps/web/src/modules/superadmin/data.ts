@@ -95,6 +95,7 @@ export const superAdminNavItems: SuperAdminNavItem[] = [
     { href: "/protected/superadmin/produto", label: "Produto", summary: "Uso real da plataforma" },
     { href: "/protected/superadmin/marketplaces", label: "Marketplaces", summary: "Canais e performance" },
     { href: "/protected/superadmin/crescimento", label: "Crescimento", summary: "Aquisição e payback" },
+    { href: "/protected/superadmin/parceiros", label: "Parceiros", summary: "Leads, comissões e ranking" },
     { href: "/protected/superadmin/cobranca", label: "Cobrança", summary: "Atrasos e falhas" },
     { href: "/protected/superadmin/operacional", label: "Operacional", summary: "Suporte e bugs" },
     { href: "/protected/superadmin/insights", label: "Insights", summary: "Risco, upgrade e upsell" },

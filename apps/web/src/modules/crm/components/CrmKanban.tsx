@@ -60,6 +60,7 @@ type LeadCard = {
     description: string;
     interestLabel?: string | null;
     sourceLabel?: string | null;
+    fallbackValueCents?: number | null;
     ownerId: string | null;
     owner: string;
     status: string;
@@ -167,6 +168,11 @@ function formatCurrencyInput(value: string) {
     return CURRENCY_FORMATTER.format(Number(digits) / 100);
 }
 
+function formatCurrencyFromCents(value?: number | null, fallback = "-") {
+    if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+    return CURRENCY_FORMATTER.format(value / 100);
+}
+
 function normalizeCurrencyStorageValue(value: string) {
     const digits = String(value ?? "").replace(/\D/g, "");
     if (!digits) return "";
@@ -228,6 +234,15 @@ type CompactMultiSelectProps = {
 
 function toggleFilterValue(values: string[], value: string) {
     return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+}
+
+function resolveLeadPipelineValue(lead: LeadCard, leadFieldValues: CrmLeadCustomFieldValueMap) {
+    const manualValue = parseCurrencyAmount(leadFieldValues[lead.id]?.[CRM_VALUE_FIELD_ID] ?? "");
+    if (manualValue > 0) return manualValue;
+    if (lead.kind === "public_catalog" && typeof lead.fallbackValueCents === "number" && lead.fallbackValueCents > 0) {
+        return lead.fallbackValueCents / 100;
+    }
+    return 0;
 }
 
 function CompactMultiSelect({
@@ -389,6 +404,7 @@ export function CrmKanban() {
                     description: (item.lastMessage ?? "").trim() || "Sem descrição.",
                     interestLabel: null,
                     sourceLabel: null,
+                    fallbackValueCents: null,
                     owner: (item.assignedUserName ?? "").trim() || "Não atribuído",
                     ownerId: item.assignedUserId?.trim() || null,
                     status: item.status,
@@ -414,6 +430,7 @@ export function CrmKanban() {
                     description,
                     interestLabel: vehicleLabel || "Catálogo geral",
                     sourceLabel,
+                    fallbackValueCents: item.vehiclePriceCents ?? null,
                     owner: "Catálogo público",
                     ownerId: null,
                     status: "NEW",
@@ -523,7 +540,7 @@ export function CrmKanban() {
     const totalPipelineValue = useMemo(
         () =>
             filteredLeads.reduce(
-                (sum, lead) => sum + parseCurrencyAmount(leadFieldValues[lead.id]?.[CRM_VALUE_FIELD_ID] ?? ""),
+                (sum, lead) => sum + resolveLeadPipelineValue(lead, leadFieldValues),
                 0
             ),
         [filteredLeads, leadFieldValues]
@@ -1084,7 +1101,7 @@ export function CrmKanban() {
                     {orderedStages.map((stage) => {
                         const stageLeads = filteredLeads.filter((lead) => leadStageMap[lead.id] === stage.id);
                         const stageTotal = stageLeads.reduce(
-                            (sum, lead) => sum + parseCurrencyAmount(leadFieldValues[lead.id]?.[CRM_VALUE_FIELD_ID] ?? ""),
+                            (sum, lead) => sum + resolveLeadPipelineValue(lead, leadFieldValues),
                             0
                         );
                         return (
@@ -1285,6 +1302,13 @@ export function CrmKanban() {
                                         const isValueField = field.customId === CRM_VALUE_FIELD_ID;
                                         const isEditing = activeEditor === key;
                                         const currentValue = leadFieldValues[selectedLead.id]?.[String(field.customId)] ?? "";
+                                        const displayValue = isValueField
+                                            ? (String(currentValue).trim()
+                                                ? formatCurrencyAmount(currentValue)
+                                                : selectedLead.kind === "public_catalog"
+                                                    ? formatCurrencyFromCents(selectedLead.fallbackValueCents)
+                                                    : "-")
+                                            : (String(currentValue).trim() || "-");
                                         return (
                                             <div key={key}>
                                                 <label className="mb-1 block text-base font-medium text-black/60">{field.label}</label>
@@ -1333,7 +1357,7 @@ export function CrmKanban() {
                                                         onClick={() => openEditor(key, currentValue)}
                                                         className="text-left text-base text-io-dark"
                                                     >
-                                                        {isValueField ? formatCurrencyAmount(currentValue) : String(currentValue).trim() || "-"}
+                                                        {displayValue}
                                                     </button>
                                                 )}
                                             </div>

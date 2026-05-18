@@ -12,6 +12,7 @@ import {
     ChevronRight,
     CreditCard,
     HandCoins,
+    Handshake,
     LayoutDashboard,
     Lightbulb,
     Link2,
@@ -60,7 +61,8 @@ type NavItem = {
         | "operacional"
         | "insights"
         | "planos"
-        | "tenants";
+        | "tenants"
+        | "parceiros";
 };
 
 type NavAccessKey =
@@ -115,6 +117,7 @@ function NavIcon({ icon }: { icon: NavItem["icon"] }) {
     if (icon === "insights") return <Lightbulb className="h-5 w-5" strokeWidth={2} />;
     if (icon === "planos") return <Settings2 className="h-5 w-5" strokeWidth={2} />;
     if (icon === "tenants") return <MapPinned className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "parceiros") return <Handshake className="h-5 w-5" strokeWidth={2} />;
     return <Users2 className="h-5 w-5" strokeWidth={2} />;
 }
 
@@ -142,6 +145,7 @@ function getSuperAdminSidebarItems(): NavItem[] {
         if (item.href.endsWith("/operacional")) return { label: item.label, href: item.href, icon: "operacional" };
         if (item.href.endsWith("/insights")) return { label: item.label, href: item.href, icon: "insights" };
         if (item.href.endsWith("/planos")) return { label: item.label, href: item.href, icon: "planos" };
+        if (item.href.endsWith("/parceiros")) return { label: item.label, href: item.href, icon: "parceiros" };
         return { label: item.label, href: item.href, icon: "tenants" };
     });
 }
