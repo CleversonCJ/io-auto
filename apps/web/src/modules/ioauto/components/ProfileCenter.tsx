@@ -30,9 +30,9 @@ function getInitials(fullName?: string | null, email?: string | null) {
 function formatPermissionPreset(value?: string | null) {
     const normalized = String(value ?? "").trim().toLowerCase();
     if (normalized === "admin") return "Administrador";
-    if (normalized === "default") return "Padrao";
+    if (normalized === "default") return "Padrão";
     if (normalized === "custom") return "Personalizado";
-    return "Nao informado";
+    return "Não informado";
 }
 
 function formatEntryDate(value?: string | null) {
@@ -108,7 +108,7 @@ export function ProfileCenter() {
                     <div className="flex items-center gap-4">
                         {user?.profileImageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={user.profileImageUrl} alt={user.fullName ?? "Usuario"} className="h-20 w-20 rounded-[28px] object-cover" />
+                            <img src={user.profileImageUrl} alt={user.fullName ?? "Usuário"} className="h-20 w-20 rounded-[28px] object-cover" />
                         ) : (
                             <div className="grid h-20 w-20 place-items-center rounded-[28px] bg-io-dark text-xl font-bold text-white">
                                 {getInitials(user?.fullName, user?.email)}
@@ -119,7 +119,7 @@ export function ProfileCenter() {
                             <h1 className="mt-2 font-display text-4xl font-bold text-io-dark">
                                 {user?.fullName ?? "Carregando perfil"}
                             </h1>
-                            <p className="mt-2 text-sm text-black/55">{user?.email ?? "Sem e-mail disponivel"}</p>
+                            <p className="mt-2 text-sm text-black/55">{user?.email ?? "Sem e-mail disponível"}</p>
                         </div>
                     </div>
 
@@ -132,7 +132,7 @@ export function ProfileCenter() {
                         {billing?.pendingProrationCreditCents ? (
                             <ProfileStat
                                 icon={<BadgeCheck className="h-4 w-4" />}
-                                label="Credito nas proximas cobrancas"
+                                label="Crédito nas próximas cobranças"
                                 value={`${formatMoney(billing.pendingProrationCreditCents, "BRL")} - ${formatDateTime(billing.pendingProrationCreditUpdatedAt)}`}
                             />
                         ) : null}
@@ -147,8 +147,8 @@ export function ProfileCenter() {
                             <UserCircle2 className="h-5 w-5" />
                         </div>
                         <div>
-                            <h2 className="font-display text-3xl font-bold text-io-dark">Informacoes da conta</h2>
-                            <p className="mt-1 text-sm text-black/55">Resumo do usuario autenticado e dos acessos disponiveis na operacao.</p>
+                            <h2 className="font-display text-3xl font-bold text-io-dark">Informações da conta</h2>
+                            <p className="mt-1 text-sm text-black/55">Resumo do usuário autenticado e dos acessos disponíveis na operação.</p>
                         </div>
                     </div>
 
@@ -159,30 +159,30 @@ export function ProfileCenter() {
                         <InfoCard label="Empresa vinculada" value={user?.companyName ?? "-"} />
                         {billing?.pendingProrationCreditCents ? (
                             <InfoCard
-                                label="Credito da assinatura"
+                                label="Crédito da assinatura"
                                 value={`${formatMoney(billing.pendingProrationCreditCents, "BRL")} - saldo a abater`}
                             />
                         ) : null}
                         {billing?.pendingProrationCreditCents ? (
                             <InfoCard
-                                label="Observacao do credito"
-                                value={billing.pendingProrationCreditNote || "Abatimento automatico nas proximas cobrancas."}
+                                label="Observação do crédito"
+                                value={billing.pendingProrationCreditNote || "Abatimento automático nas próximas cobranças."}
                             />
                         ) : null}
                     </div>
                 </article>
 
                 <aside className="flex h-full min-h-[320px] flex-col rounded-[34px] border border-black/10 bg-io-dark p-6 text-white shadow-[0_18px_45px_rgba(0,0,0,0.12)]">
-                    <p className="text-xs uppercase tracking-[0.28em] text-white/45">Permissoes</p>
+                    <p className="text-xs uppercase tracking-[0.28em] text-white/45">Permissões</p>
                     <h2 className="mt-3 font-display text-3xl font-bold">Acesso atual</h2>
                     <p className="mt-4 text-sm leading-7 text-white/70">
-                        Estas informacoes refletem o perfil carregado na sessao atual e ajudam a conferir o escopo de operacao da sua conta.
+                        Estas informações refletem o perfil carregado na sessão atual e ajudam a conferir o escopo de operação da sua conta.
                     </p>
 
                     <div className="mt-6 grid flex-1 content-start gap-3 rounded-[28px] border border-white/10 bg-white/5 p-4">
                         <div className="flex items-center gap-2 text-sm text-white/80">
                             <Mail className="h-4 w-4" />
-                            <span>{user?.email ?? "Sem e-mail disponivel"}</span>
+                            <span>{user?.email ?? "Sem e-mail disponível"}</span>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {(user?.roles ?? []).length ? (
@@ -197,7 +197,7 @@ export function ProfileCenter() {
                             )}
                         </div>
                         <div className="grid gap-2 pt-2">
-                            <p className="text-xs uppercase tracking-[0.24em] text-white/45">Modulos habilitados na conta</p>
+                            <p className="text-xs uppercase tracking-[0.24em] text-white/45">Módulos habilitados na conta</p>
                             {enabledModules.length ? (
                                 <div className="flex flex-wrap gap-2">
                                     {enabledModules.map((moduleName) => (
@@ -207,12 +207,12 @@ export function ProfileCenter() {
                                     ))}
                                 </div>
                             ) : (
-                                <span className="text-sm text-white/60">Nao foi possivel carregar os modulos do plano.</span>
+                                <span className="text-sm text-white/60">Não foi possível carregar os módulos do plano.</span>
                             )}
                         </div>
                         {permissionList.length ? (
                             <div className="grid gap-2 pt-2">
-                                <p className="text-xs uppercase tracking-[0.24em] text-white/45">Permissoes customizadas do usuario</p>
+                                <p className="text-xs uppercase tracking-[0.24em] text-white/45">Permissões customizadas do usuário</p>
                                 <div className="flex flex-wrap gap-2">
                                     {permissionList.map((permission) => (
                                         <span key={permission} className="rounded-full border border-white/10 px-3 py-2 text-xs text-white/75">
@@ -227,8 +227,8 @@ export function ProfileCenter() {
             </section>
 
             <SubscriptionCenter
-                title="Assinatura e cobranca"
-                description="Todos os dados financeiros e de plano do tenant ficam concentrados no perfil para facilitar a gestao da conta."
+                title="Assinatura e cobrança"
+                description="Todos os dados financeiros e de plano do tenant ficam concentrados no perfil para facilitar a gestão da conta."
                 currentUserRoles={user?.roles}
                 onBillingChange={setBilling}
             />

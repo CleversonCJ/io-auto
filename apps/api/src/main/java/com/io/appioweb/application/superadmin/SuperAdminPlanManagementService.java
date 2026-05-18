@@ -184,7 +184,7 @@ public class SuperAdminPlanManagementService {
         if (activeUsers >= plan.usersLimit()) {
             throw new BusinessException(
                     "PLAN_USER_LIMIT_REACHED",
-                    "O plano " + plan.planName() + " permite ate " + plan.usersLimit() + " usuarios ativos."
+                    "O plano " + plan.planName() + " permite até " + plan.usersLimit() + " usuários ativos."
             );
         }
     }
@@ -197,7 +197,7 @@ public class SuperAdminPlanManagementService {
         if (activeVehicles >= plan.vehiclesLimit()) {
             throw new BusinessException(
                     "PLAN_VEHICLE_LIMIT_REACHED",
-                    "O plano " + plan.planName() + " permite ate " + plan.vehiclesLimit() + " veiculos ativos."
+                    "O plano " + plan.planName() + " permite até " + plan.vehiclesLimit() + " veículos ativos."
             );
         }
     }
@@ -363,42 +363,42 @@ public class SuperAdminPlanManagementService {
         List<String> blockingReasons = new java.util.ArrayList<>();
 
         if (plan.usersLimit() != null && usage.activeUsers() > plan.usersLimit()) {
-            blockingReasons.add("A conta ja possui " + usage.activeUsers() + " usuarios ativos e o plano " + plan.planName() + " suporta ate " + plan.usersLimit() + ".");
+            blockingReasons.add("A conta já possui " + usage.activeUsers() + " usuários ativos e o plano " + plan.planName() + " suporta até " + plan.usersLimit() + ".");
         }
         if (plan.vehiclesLimit() != null && usage.activeVehicles() > plan.vehiclesLimit()) {
-            blockingReasons.add("A conta ja possui " + usage.activeVehicles() + " veiculos ativos e o plano " + plan.planName() + " suporta ate " + plan.vehiclesLimit() + ".");
+            blockingReasons.add("A conta já possui " + usage.activeVehicles() + " veículos ativos e o plano " + plan.planName() + " suporta até " + plan.vehiclesLimit() + ".");
         }
         if (plan.activeAdsLimit() != null && usage.activeAds() > plan.activeAdsLimit()) {
-            blockingReasons.add("A conta ja possui " + usage.activeAds() + " anuncios ativos e o plano " + plan.planName() + " suporta ate " + plan.activeAdsLimit() + ".");
+            blockingReasons.add("A conta já possui " + usage.activeAds() + " anúncios ativos e o plano " + plan.planName() + " suporta até " + plan.activeAdsLimit() + ".");
         }
 
         boolean ownSiteInUse = usage.publicLinks() > 0 || usage.catalogLeads() > 0 || usage.publicLeadEvents() > 0 || usage.storefrontCustomized();
         if (ownSiteInUse && !(plan.features().catalogBioLink() || plan.features().storefrontPage())) {
-            blockingReasons.add("A conta ja utiliza o modulo de site proprio/catalogo publico e o plano " + plan.planName() + " nao inclui esse recurso.");
+            blockingReasons.add("A conta já utiliza o módulo de site próprio/catálogo público e o plano " + plan.planName() + " não inclui esse recurso.");
         }
         if ((usage.trackedLinks() > 0 || usage.trackedLeadEvents() > 0) && !plan.features().trackableLinks()) {
-            blockingReasons.add("A conta ja utiliza links rastreaveis e o plano " + plan.planName() + " nao inclui esse recurso.");
+            blockingReasons.add("A conta já utiliza links rastreáveis e o plano " + plan.planName() + " não inclui esse recurso.");
         }
         if (usage.catalogLeads() > 0 && !plan.features().leadManagement()) {
-            blockingReasons.add("A conta ja possui leads capturados pelo catalogo e o plano " + plan.planName() + " nao inclui gestao de leads.");
+            blockingReasons.add("A conta já possui leads capturados pelo catálogo e o plano " + plan.planName() + " não inclui gestão de leads.");
         }
         if ((usage.financialEntries() > 0 || usage.dreSubcategories() > 0) && !plan.features().finance()) {
-            blockingReasons.add("A conta ja utiliza o modulo financeiro e o plano " + plan.planName() + " nao inclui esse recurso.");
+            blockingReasons.add("A conta já utiliza o módulo financeiro e o plano " + plan.planName() + " não inclui esse recurso.");
         }
         if (usage.reportEvents() > 0 && !plan.features().reports()) {
-            blockingReasons.add("A conta ja utiliza o modulo de relatorios e o plano " + plan.planName() + " nao inclui esse recurso.");
+            blockingReasons.add("A conta já utiliza o módulo de relatórios e o plano " + plan.planName() + " não inclui esse recurso.");
         }
         if (usage.crmCustomized() && !plan.features().crmKanban()) {
-            blockingReasons.add("A conta ja possui configuracao ativa de CRM Kanban e o plano " + plan.planName() + " nao inclui esse recurso.");
+            blockingReasons.add("A conta já possui configuração ativa de CRM Kanban e o plano " + plan.planName() + " não inclui esse recurso.");
         }
         if (usage.webmotorsIntegrations() > 0 && !plan.features().webmotors()) {
-            blockingReasons.add("A conta ja possui integracao ativa com Webmotors e o plano " + plan.planName() + " nao inclui esse recurso.");
+            blockingReasons.add("A conta já possui integração ativa com Webmotors e o plano " + plan.planName() + " não inclui esse recurso.");
         }
         if (usage.olxIntegrations() > 0 && !plan.features().olx()) {
-            blockingReasons.add("A conta ja possui integracao ativa com OLX e o plano " + plan.planName() + " nao inclui esse recurso.");
+            blockingReasons.add("A conta já possui integração ativa com OLX e o plano " + plan.planName() + " não inclui esse recurso.");
         }
         if (usage.icarrosIntegrations() > 0 && !plan.features().icarros()) {
-            blockingReasons.add("A conta ja possui integracao ativa com iCarros e o plano " + plan.planName() + " nao inclui esse recurso.");
+            blockingReasons.add("A conta já possui integração ativa com iCarros e o plano " + plan.planName() + " não inclui esse recurso.");
         }
 
         return new PlanCompatibility(blockingReasons.isEmpty(), blockingReasons, usage);
