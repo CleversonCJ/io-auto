@@ -24,6 +24,7 @@ import {
     Users2,
     Workflow,
 } from "lucide-react";
+import type { BillingPlanFeatures, BillingSnapshot } from "@/modules/ioauto/types";
 import { superAdminNavItems } from "@/modules/superadmin/data";
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "ioauto.sidebar.collapsed";
@@ -60,6 +61,16 @@ type NavItem = {
         | "insights"
         | "planos"
         | "tenants";
+};
+
+type NavAccessKey =
+    | "leadManagement"
+    | "crmKanban"
+    | "finance"
+    | "ownSite";
+
+type SidebarItem = NavItem & {
+    accessKey?: NavAccessKey;
 };
 
 function getInitials(fullName?: string | null, email?: string | null) {
@@ -107,14 +118,14 @@ function NavIcon({ icon }: { icon: NavItem["icon"] }) {
     return <Users2 className="h-5 w-5" strokeWidth={2} />;
 }
 
-function getDefaultSidebarItems(): NavItem[] {
+function getDefaultSidebarItems(): SidebarItem[] {
     return [
         { label: "Dashboard", href: "/protected/dashboard", icon: "dashboard" },
-        { label: "Leads", href: "/protected/leads", icon: "conversas" },
-        { label: "CRM", href: "/protected/crm", icon: "crm" },
+        { label: "Leads", href: "/protected/leads", icon: "conversas", accessKey: "leadManagement" },
+        { label: "CRM", href: "/protected/crm", icon: "crm", accessKey: "crmKanban" },
         { label: "Estoque", href: "/protected/estoque", icon: "estoque" },
-        { label: "Financeiro", href: "/protected/financeiro", icon: "financeiro" },
-        { label: "Links", href: "/protected/links-publicos", icon: "links" },
+        { label: "Financeiro", href: "/protected/financeiro", icon: "financeiro", accessKey: "finance" },
+        { label: "Links", href: "/protected/links-publicos", icon: "links", accessKey: "ownSite" },
         { label: "Publicações", href: "/protected/publicacoes", icon: "publicacoes" },
         { label: "Integrações", href: "/protected/integracoes", icon: "integracoes" },
     ];
@@ -135,7 +146,22 @@ function getSuperAdminSidebarItems(): NavItem[] {
     });
 }
 
-export function ProtectedSidebar({ user }: { user: CurrentUser | null }) {
+function hasOwnSiteFeature(features?: BillingPlanFeatures | null) {
+    return Boolean(features?.catalogBioLink || features?.storefrontPage);
+}
+
+function canAccessSidebarItem(item: SidebarItem, billing?: BillingSnapshot | null) {
+    if (!item.accessKey) return true;
+    if (!billing?.features) return true;
+
+    if (item.accessKey === "leadManagement") return Boolean(billing.features.leadManagement);
+    if (item.accessKey === "crmKanban") return Boolean(billing.features.crmKanban);
+    if (item.accessKey === "finance") return Boolean(billing.features.finance);
+    if (item.accessKey === "ownSite") return hasOwnSiteFeature(billing.features);
+    return true;
+}
+
+export function ProtectedSidebar({ user, billing }: { user: CurrentUser | null; billing?: BillingSnapshot | null }) {
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState(false);
     const isSuperAdmin = hasSuperAdminRole(user?.roles);
@@ -149,11 +175,13 @@ export function ProtectedSidebar({ user }: { user: CurrentUser | null }) {
         window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(collapsed));
     }, [collapsed]);
 
-    const items: NavItem[] = isSuperAdmin ? getSuperAdminSidebarItems() : getDefaultSidebarItems();
+    const items: SidebarItem[] = isSuperAdmin ? getSuperAdminSidebarItems() : getDefaultSidebarItems();
 
     if (!isSuperAdmin && hasAdminRole(user?.roles)) {
         items.push({ label: "Equipe", href: "/protected/configuracoes", icon: "equipe" });
     }
+
+    const visibleItems = items.filter((item) => canAccessSidebarItem(item, billing));
 
     return (
         <aside className={`bg-io-dark text-white md:h-screen md:border-r md:border-white/10 ${collapsed ? "md:w-[96px]" : "md:w-[304px]"}`}>
@@ -202,7 +230,7 @@ export function ProtectedSidebar({ user }: { user: CurrentUser | null }) {
             </div>
 
             <nav className={`mt-5 grid gap-2 px-3 pb-6 ${collapsed ? "justify-items-center" : ""}`}>
-                {items.map((item) => {
+                {visibleItems.map((item) => {
                     const active = isActive(pathname, item.href);
                     return (
                         <Link

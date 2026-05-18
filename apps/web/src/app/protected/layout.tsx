@@ -9,6 +9,7 @@ import { ProtectedSidebar } from "@/modules/protected/components/ProtectedSideba
 import { ProtectedNotificationsRail } from "@/modules/protected/components/ProtectedNotificationsRail";
 import { BillingAccessBlockerPopup } from "@/modules/ioauto/components/BillingAccessBlockerPopup";
 import { BillingPlanChangeNoticePopup } from "@/modules/ioauto/components/BillingPlanChangeNoticePopup";
+import type { BillingSnapshot } from "@/modules/ioauto/types";
 
 type MeResponse = {
     userId: string;
@@ -52,8 +53,28 @@ async function getCurrentUser() {
     }
 }
 
+async function getBillingSnapshot() {
+    try {
+        const token = (await cookies()).get(ACCESS_COOKIE)?.value;
+        if (!token) return null;
+
+        const apiBase = getServerApiBase();
+        const response = await fetchUpstream(`${apiBase}/ioauto/billing`, {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-store",
+        });
+
+        if (!response.ok) return null;
+        return (await response.json()) as BillingSnapshot;
+    } catch (error) {
+        unstable_rethrow(error);
+        console.error("[protected/layout] Unable to load billing snapshot for sidebar gating.", error);
+        return null;
+    }
+}
+
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
-    const me = await getCurrentUser();
+    const [me, billing] = await Promise.all([getCurrentUser(), getBillingSnapshot()]);
 
     return (
         <div className="min-h-screen bg-io-light md:h-screen md:overflow-hidden">
@@ -63,7 +84,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
 
 
             <div className="relative flex min-h-screen flex-col md:h-screen md:min-h-0 md:flex-row md:overflow-hidden">
-                <ProtectedSidebar user={me} />
+                <ProtectedSidebar user={me} billing={billing} />
                 <main className="min-h-0 min-w-0 flex-1 p-4 md:h-screen md:overflow-y-auto md:p-6">
                     <div className="grid gap-4">
                         {me?.impersonation ? <ImpersonationBanner companyName={me.companyName} /> : null}
