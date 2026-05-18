@@ -105,6 +105,12 @@ public class JpaCompanyEntity {
     @Column(name = "blocked_at")
     private Instant blockedAt;
 
+    @Column(name = "pending_plan_change_notice_json", columnDefinition = "text")
+    private String pendingPlanChangeNoticeJson;
+
+    @Column(name = "pending_plan_change_notice_created_at")
+    private Instant pendingPlanChangeNoticeCreatedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -209,6 +215,12 @@ public class JpaCompanyEntity {
 
     public Instant getBlockedAt() { return blockedAt; }
     public void setBlockedAt(Instant blockedAt) { this.blockedAt = blockedAt; }
+
+    public String getPendingPlanChangeNoticeJson() { return pendingPlanChangeNoticeJson; }
+    public void setPendingPlanChangeNoticeJson(String pendingPlanChangeNoticeJson) { this.pendingPlanChangeNoticeJson = pendingPlanChangeNoticeJson; }
+
+    public Instant getPendingPlanChangeNoticeCreatedAt() { return pendingPlanChangeNoticeCreatedAt; }
+    public void setPendingPlanChangeNoticeCreatedAt(Instant pendingPlanChangeNoticeCreatedAt) { this.pendingPlanChangeNoticeCreatedAt = pendingPlanChangeNoticeCreatedAt; }
 
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }

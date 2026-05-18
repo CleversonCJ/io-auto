@@ -268,6 +268,7 @@ public class IoAutoBillingService {
                         item.getPendingProrationCreditCents(),
                         normalizeText(item.getPendingProrationCreditNote()),
                         item.getPendingProrationCreditUpdatedAt(),
+                        readPlanChangeNotice(company),
                         currentPlan.usersLimit(),
                         currentPlan.vehiclesLimit(),
                         currentPlan.activeAdsLimit(),
@@ -293,6 +294,7 @@ public class IoAutoBillingService {
                         null,
                         "",
                         null,
+                        null,
                         currentPlan.usersLimit(),
                         currentPlan.vehiclesLimit(),
                         currentPlan.activeAdsLimit(),
@@ -301,6 +303,40 @@ public class IoAutoBillingService {
                         usage,
                         availablePlans
                 ));
+    }
+
+    @Transactional
+    public void dismissPlanChangeNotice(UUID companyId) {
+        JpaCompanyEntity company = companyRepo.findById(companyId)
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+        company.setPendingPlanChangeNoticeJson(null);
+        company.setPendingPlanChangeNoticeCreatedAt(null);
+        company.setUpdatedAt(Instant.now());
+        companyRepo.save(company);
+    }
+
+    @Transactional
+    public void registerSuperAdminPlanChangeNotice(
+            UUID companyId,
+            PlanChangePreviewResponse preview,
+            PlanChangeConfirmResponse confirm
+    ) {
+        JpaCompanyEntity company = companyRepo.findById(companyId)
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+        Instant now = Instant.now();
+        StoredPlanChangeNotice notice = buildStoredPlanChangeNotice(preview, confirm, now);
+        company.setPendingPlanChangeNoticeJson(toJson(notice));
+        company.setPendingPlanChangeNoticeCreatedAt(now);
+        company.setUpdatedAt(now);
+        companyRepo.save(company);
+    }
+
+    @Transactional
+    public BillingSnapshot applySuperAdminManagedPlanChange(UUID companyId, String targetPlanKey, String targetBillingInterval) {
+        PlanChangePreviewResponse preview = previewPlanChange(companyId, targetPlanKey, targetBillingInterval);
+        PlanChangeConfirmResponse confirm = confirmPlanChange(companyId, targetPlanKey, targetBillingInterval, null);
+        registerSuperAdminPlanChangeNotice(companyId, preview, confirm);
+        return getBillingSnapshot(companyId);
     }
 
     public void assertPlanChangeAllowed(Set<String> roles) {
@@ -880,6 +916,74 @@ public class IoAutoBillingService {
 
     private String formatMoneyText(long amountCents) {
         return "R$ " + BigDecimal.valueOf(amountCents, 2).setScale(2, RoundingMode.HALF_UP).toPlainString().replace('.', ',');
+    }
+
+    private BillingPlanChangeNotice readPlanChangeNotice(JpaCompanyEntity company) {
+        if (company == null) {
+            return null;
+        }
+        String raw = normalizeText(company.getPendingPlanChangeNoticeJson());
+        if (raw.isBlank()) {
+            return null;
+        }
+        try {
+            StoredPlanChangeNotice stored = OBJECT_MAPPER.readValue(raw, StoredPlanChangeNotice.class);
+            return new BillingPlanChangeNotice(
+                    true,
+                    normalizeText(stored.title()),
+                    normalizeText(stored.message()),
+                    normalizeText(stored.currentPlanName()),
+                    normalizeText(stored.targetPlanName()),
+                    normalizeText(stored.targetBillingInterval()),
+                    normalizeText(stored.changeType()),
+                    normalizeText(stored.prorationAdjustmentMode()),
+                    stored.immediateChargeCents(),
+                    stored.creditNextCycleCents(),
+                    stored.remainingCreditCents(),
+                    normalizeText(stored.invoiceUrl()),
+                    stored.requiresAction(),
+                    stored.createdAt()
+            );
+        } catch (Exception exception) {
+            log.warn(
+                    "Failed to parse pending plan change notice companyId={} reason={}",
+                    company.getId(),
+                    normalizeText(exception.getMessage(), exception.getClass().getSimpleName())
+            );
+            return null;
+        }
+    }
+
+    private StoredPlanChangeNotice buildStoredPlanChangeNotice(
+            PlanChangePreviewResponse preview,
+            PlanChangeConfirmResponse confirm,
+            Instant createdAt
+    ) {
+        PlanChangeAdjustmentResult adjustment = confirm == null ? null : confirm.adjustment();
+        String title = "Seu plano foi alterado pela administracao da conta";
+        String message = confirm != null && !normalizeText(confirm.message()).isBlank()
+                ? confirm.message()
+                : preview == null
+                ? "Sua assinatura foi atualizada."
+                : preview.message();
+        boolean requiresAction = adjustment != null
+                && adjustment.immediateChargeCents() != null
+                && adjustment.immediateChargeCents() > 0L;
+        return new StoredPlanChangeNotice(
+                title,
+                message,
+                preview == null || preview.currentPlan() == null ? "" : normalizeText(preview.currentPlan().name()),
+                preview == null || preview.targetPlan() == null ? "" : normalizeText(preview.targetPlan().name()),
+                preview == null || preview.targetPlan() == null ? "" : normalizeText(preview.targetPlan().billingInterval()),
+                preview == null ? "" : normalizeText(preview.changeType()),
+                preview == null || preview.proration() == null ? "" : normalizeText(preview.proration().adjustmentMode()),
+                adjustment == null ? null : adjustment.immediateChargeCents(),
+                adjustment == null ? null : adjustment.appliedCreditCents(),
+                adjustment == null ? null : adjustment.remainingCreditCents(),
+                adjustment == null ? "" : normalizeText(adjustment.invoiceUrl()),
+                requiresAction,
+                createdAt
+        );
     }
 
     @Transactional(readOnly = true)
@@ -2797,6 +2901,7 @@ record BillingSnapshot(
         Long pendingProrationCreditCents,
         String pendingProrationCreditNote,
         Instant pendingProrationCreditUpdatedAt,
+        BillingPlanChangeNotice planChangeNotice,
         Integer usersLimit,
         Integer vehiclesLimit,
         Integer activeAdsLimit,
@@ -2804,6 +2909,41 @@ record BillingSnapshot(
         List<String> enabledModules,
         SuperAdminPlanManagementService.TenantPlanUsage usage,
         List<BillingPlanOption> availablePlans
+) {
+}
+
+record BillingPlanChangeNotice(
+        boolean active,
+        String title,
+        String message,
+        String currentPlanName,
+        String targetPlanName,
+        String targetBillingInterval,
+        String changeType,
+        String prorationAdjustmentMode,
+        Long immediateChargeCents,
+        Long creditNextCycleCents,
+        Long remainingCreditCents,
+        String invoiceUrl,
+        boolean requiresAction,
+        Instant createdAt
+) {
+}
+
+record StoredPlanChangeNotice(
+        String title,
+        String message,
+        String currentPlanName,
+        String targetPlanName,
+        String targetBillingInterval,
+        String changeType,
+        String prorationAdjustmentMode,
+        Long immediateChargeCents,
+        Long creditNextCycleCents,
+        Long remainingCreditCents,
+        String invoiceUrl,
+        boolean requiresAction,
+        Instant createdAt
 ) {
 }
 

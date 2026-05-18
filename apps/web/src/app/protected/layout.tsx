@@ -8,6 +8,7 @@ import { ImpersonationBanner } from "@/modules/protected/components/Impersonatio
 import { ProtectedSidebar } from "@/modules/protected/components/ProtectedSidebar";
 import { ProtectedNotificationsRail } from "@/modules/protected/components/ProtectedNotificationsRail";
 import { BillingAccessBlockerPopup } from "@/modules/ioauto/components/BillingAccessBlockerPopup";
+import { BillingPlanChangeNoticePopup } from "@/modules/ioauto/components/BillingPlanChangeNoticePopup";
 
 type MeResponse = {
     userId: string;
@@ -58,6 +59,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
         <div className="min-h-screen bg-io-light md:h-screen md:overflow-hidden">
             <AuthSessionWatcher />
             <BillingAccessBlockerPopup />
+            <BillingPlanChangeNoticePopup />
 
 
             <div className="relative flex min-h-screen flex-col md:h-screen md:min-h-0 md:flex-row md:overflow-hidden">

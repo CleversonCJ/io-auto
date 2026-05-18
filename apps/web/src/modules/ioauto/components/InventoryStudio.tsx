@@ -123,6 +123,15 @@ const COLOR_OPTIONS = [
     { value: "Marrom", label: "Marrom" },
 ];
 
+const SUPPORTED_IMAGE_MIME_TYPES = new Set([
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/webp",
+    "image/gif",
+    "image/avif",
+]);
+
 function emptyForm(): VehicleFormState {
     return {
         stockNumber: "",
@@ -206,7 +215,7 @@ function vehicleToForm(vehicle: VehicleRecord): VehicleFormState {
 }
 
 function formatMileage(value?: number | null) {
-    if (value == null || Number.isNaN(Number(value))) return "Quilometragem nao informada";
+    if (value == null || Number.isNaN(Number(value))) return "Quilometragem não informada";
     return `${new Intl.NumberFormat("pt-BR").format(value)} km`;
 }
 
@@ -216,12 +225,12 @@ function formatVehicleYears(vehicle: VehicleRecord) {
     if (vehicle.modelYear && vehicle.manufactureYear) return `${vehicle.manufactureYear}/${vehicle.modelYear}`;
     if (vehicle.modelYear) return String(vehicle.modelYear);
     if (vehicle.manufactureYear) return String(vehicle.manufactureYear);
-    return "Ano nao informado";
+    return "Ano não informado";
 }
 
 function buildVehicleSubtitle(vehicle: VehicleRecord) {
     const parts = [vehicle.engine, vehicle.version].filter(Boolean);
-    return parts.length ? parts.join(" • ") : "Cadastro pronto para publicacao";
+    return parts.length ? parts.join(" • ") : "Cadastro pronto para publicação";
 }
 
 function getVehicleImage(vehicle: VehicleRecord) {
@@ -254,7 +263,28 @@ function normalizeProviderKey(value: string) {
 
 function canonicalPublicationProviderKey(value: string) {
     const normalized = normalizeProviderKey(value);
-    return normalized === "olx-autos" ? "olx" : normalized;
+    if (normalized === "olx-autos") return "olx";
+    if (normalized === "mercado_livre") return "mercadolivre";
+    return normalized;
+}
+
+function isSupportedVehicleImage(file: File) {
+    return SUPPORTED_IMAGE_MIME_TYPES.has(file.type.toLowerCase());
+}
+
+function readFileAsDataUrl(file: File) {
+    return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (typeof reader.result === "string" && reader.result.trim()) {
+                resolve(reader.result);
+                return;
+            }
+            reject(new Error(`Não foi possível ler a imagem "${file.name}".`));
+        };
+        reader.onerror = () => reject(new Error(`Não foi possível ler a imagem "${file.name}".`));
+        reader.readAsDataURL(file);
+    });
 }
 
 function isConnectedIntegrationStatus(status: string) {
@@ -281,7 +311,7 @@ function formatFinancingSummary(vehicle: VehicleRecord) {
     if (vehicle.financing.installmentCount != null && vehicle.financing.installmentValueCents != null) {
         parts.push(`${vehicle.financing.installmentCount}x de ${formatMoney(vehicle.financing.installmentValueCents)}`);
     }
-    return parts.length ? parts.join(" • ") : "Financiamento nao informado";
+    return parts.length ? parts.join(" • ") : "Financiamento não informado";
 }
 
 function getPublicationBadgeConfig(publication: VehiclePublication) {
@@ -339,6 +369,14 @@ export function InventoryStudio() {
             form.targetIntegrations.some((providerKey) => {
                 const normalized = canonicalPublicationProviderKey(providerKey);
                 return readyPublicationProviderKeys.has(normalized) && normalized === "olx";
+            }),
+        [form.targetIntegrations, readyPublicationProviderKeys]
+    );
+    const requiresMeliPublication = useMemo(
+        () =>
+            form.targetIntegrations.some((providerKey) => {
+                const normalized = canonicalPublicationProviderKey(providerKey);
+                return readyPublicationProviderKeys.has(normalized) && normalized === "mercadolivre";
             }),
         [form.targetIntegrations, readyPublicationProviderKeys]
     );
@@ -459,7 +497,7 @@ export function InventoryStudio() {
         });
         const payload = (await response.json().catch(() => null)) as OlxVehicleMapping | { message?: string } | null;
         if (!response.ok) {
-            throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuracao OLX do veiculo.");
+            throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuração OLX do veículo.");
         }
         hydrateOlxMapping(payload as OlxVehicleMapping);
     }
@@ -484,7 +522,7 @@ export function InventoryStudio() {
         });
         const payload = (await response.json().catch(() => null)) as MeliVehicleMapping | { message?: string } | null;
         if (!response.ok) {
-            throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuracao Mercado Livre do veiculo.");
+            throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuração Mercado Livre do veículo.");
         }
         hydrateMeliMapping(payload as MeliVehicleMapping);
     }
@@ -658,7 +696,7 @@ export function InventoryStudio() {
         const response = await request;
         const payload = (await response.json().catch(() => null)) as { message?: string } | null;
         if (!response.ok) {
-            throw new Error(`${providerLabel}: ${payload?.message ?? "Falha ao publicar o veiculo."}`);
+            throw new Error(`${providerLabel}: ${payload?.message ?? "Falha ao publicar o veículo."}`);
         }
     }
 
@@ -710,7 +748,7 @@ export function InventoryStudio() {
         if (!tasks.length) return [] as string[];
 
         const results = await Promise.allSettled(tasks);
-        return results.flatMap((result) => (result.status === "rejected" ? [result.reason instanceof Error ? result.reason.message : "Falha ao publicar o veiculo nas integracoes selecionadas."] : []));
+        return results.flatMap((result) => (result.status === "rejected" ? [result.reason instanceof Error ? result.reason.message : "Falha ao publicar o veículo nas integrações selecionadas."] : []));
     }
 
     useEffect(() => {
@@ -730,8 +768,8 @@ export function InventoryStudio() {
                 fetch("/api/ioauto/integrations", { cache: "no-store" }),
             ]);
 
-            if (!vehiclesResponse.ok) throw new Error("Falha ao listar os veiculos.");
-            if (!integrationsResponse.ok) throw new Error("Falha ao listar as integracoes.");
+            if (!vehiclesResponse.ok) throw new Error("Falha ao listar os veículos.");
+            if (!integrationsResponse.ok) throw new Error("Falha ao listar as integrações.");
 
             const [vehiclePayload, integrationPayload] = await Promise.all([
                 vehiclesResponse.json() as Promise<VehicleRecord[]>,
@@ -785,25 +823,19 @@ export function InventoryStudio() {
         setUploadingImages(true);
         setError(null);
         try {
-            const body = new FormData();
-            files.forEach((file) => body.append("files", file));
-
-            const response = await fetch("/api/ioauto/vehicle-images", {
-                method: "POST",
-                body,
-            });
-            const payload = (await response.json().catch(() => null)) as { files?: Array<{ url: string }>; message?: string } | null;
-
-            if (!response.ok) {
-                throw new Error(payload?.message ?? "Nao foi possivel enviar as imagens.");
+            const invalidFile = files.find((file) => !isSupportedVehicleImage(file));
+            if (invalidFile) {
+                throw new Error("Envie imagens PNG, JPG, WEBP, GIF ou AVIF.");
             }
+
+            const imageUrls = await Promise.all(files.map((file) => readFileAsDataUrl(file)));
 
             setForm((current) => ({
                 ...current,
-                imageUrls: uniqueImageList([...current.imageUrls, ...(payload?.files?.map((item) => item.url) ?? [])]),
+                imageUrls: uniqueImageList([...current.imageUrls, ...imageUrls]),
             }));
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Nao foi possivel enviar as imagens.");
+            setError(cause instanceof Error ? cause.message : "Não foi possível adicionar as imagens.");
         } finally {
             setUploadingImages(false);
             setIsImageDragActive(false);
@@ -909,7 +941,7 @@ export function InventoryStudio() {
             const responseBody = (await response.json().catch(() => null)) as VehicleRecord | { message?: string } | null;
 
             if (!response.ok) {
-                throw new Error((responseBody as { message?: string } | null)?.message ?? "Falha ao salvar o veiculo.");
+                throw new Error((responseBody as { message?: string } | null)?.message ?? "Falha ao salvar o veículo.");
             }
 
             const savedVehicle = responseBody as VehicleRecord;
@@ -920,13 +952,13 @@ export function InventoryStudio() {
             setSelectedId(savedVehicle.id);
 
             if (publicationErrors.length) {
-                setError(`Veiculo salvo no IO Auto, mas algumas integracoes nao concluiram a publicacao: ${publicationErrors.join(" | ")}`);
+                setError(`Veículo salvo no IO Auto, mas algumas integrações não concluíram a publicação: ${publicationErrors.join(" | ")}`);
                 return;
             }
 
             setIsEditorOpen(false);
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao salvar o veiculo.");
+            setError(cause instanceof Error ? cause.message : "Falha ao salvar o veículo.");
         } finally {
             setSaving(false);
         }
@@ -998,8 +1030,8 @@ export function InventoryStudio() {
                         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-black/[0.04]">
                             <Search className="h-6 w-6 text-black/45" />
                         </div>
-                        <h2 className="mt-4 font-display text-2xl font-bold text-io-dark">Nenhum veiculo encontrado</h2>
-                        <p className="mt-2 text-sm text-black/52">Ajuste a pesquisa ou cadastre um novo veiculo para preencher essa vitrine.</p>
+                        <h2 className="mt-4 font-display text-2xl font-bold text-io-dark">Nenhum veículo encontrado</h2>
+                        <p className="mt-2 text-sm text-black/52">Ajuste a pesquisa ou cadastre um novo veículo para preencher essa vitrine.</p>
                     </section>
                 )}
             </div>
@@ -1010,9 +1042,9 @@ export function InventoryStudio() {
                         <div className="flex max-h-full w-full flex-col overflow-hidden rounded-[34px] border border-white/15 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
                             <div className="flex items-center justify-between gap-4 border-b border-black/8 px-6 py-5 md:px-8">
                                 <div>
-                                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Cadastro do veiculo</p>
-                                    <h2 className="mt-1 font-display text-2xl font-bold text-io-dark">{form.id ? "Editar veiculo" : "Novo veiculo"}</h2>
-                                    <p className="mt-1 text-sm text-black/55">Cadastro unico com os dados que alimentam as integracoes selecionadas no mesmo fluxo.</p>
+                                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Cadastro do veículo</p>
+                                    <h2 className="mt-1 font-display text-2xl font-bold text-io-dark">{form.id ? "Editar veículo" : "Novo veículo"}</h2>
+                                    <p className="mt-1 text-sm text-black/55">Cadastro único com os dados que alimentam as integrações selecionadas no mesmo fluxo.</p>
                                 </div>
 
                                 <button
@@ -1033,43 +1065,26 @@ export function InventoryStudio() {
                                         <section className="rounded-[30px] border border-black/10 bg-white p-5">
                                             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                                                 <div>
-                                                    <p className="text-sm font-semibold text-io-dark">Cadastro unificado do veiculo</p>
-                                                    <p className="mt-1 text-sm text-black/52">Esses dados sao reutilizados automaticamente pelas integracoes conectadas para evitar retrabalho.</p>
+                                                    <p className="text-sm font-semibold text-io-dark">Cadastro unificado do veículo</p>
+                                                    <p className="mt-1 text-sm text-black/52">Esses dados são reutilizados automaticamente pelas integrações conectadas para evitar retrabalho.</p>
                                                 </div>
                                                 <span className="rounded-full bg-black/[0.04] px-4 py-2 text-xs font-semibold text-black/52">
-                                                    {readyPublicationIntegrations.length} integracoes prontas
+                                                    {readyPublicationIntegrations.length} integrações prontas
                                                 </span>
                                             </div>
 
                                             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                                                <Field label="Codigo interno" value={form.stockNumber} onChange={(value) => updateField("stockNumber", value)} placeholder="Opcional" />
-                                                <Field label="Nome do anuncio" value={form.title} onChange={(value) => updateField("title", value)} required />
+                                                <Field label="Código interno" value={form.stockNumber} onChange={(value) => updateField("stockNumber", value)} placeholder="Opcional" />
+                                                <Field label="Nome do anúncio" value={form.title} onChange={(value) => updateField("title", value)} required />
                                                 <Field label="Marca" value={form.brand} onChange={(value) => updateField("brand", value)} required />
                                                 <Field label="Modelo" value={form.model} onChange={(value) => updateField("model", value)} required />
-                                                <Field label="Versao" value={form.version} onChange={(value) => updateField("version", value)} placeholder="Ex.: LTZ 1.0 Turbo" />
+                                                <Field label="Versão" value={form.version} onChange={(value) => updateField("version", value)} placeholder="Ex.: LTZ 1.0 Turbo" />
                                                 <Field label="Motor" value={form.engine} onChange={(value) => updateField("engine", value)} placeholder="Ex.: 1.6 Flex" />
                                                 <Field label="Ano" value={form.year} onChange={(value) => updateField("year", value.replace(/\D/g, "").slice(0, 4))} required inputMode="numeric" />
                                                 <Field label="Quilometragem (KM)" value={form.mileage} onChange={(value) => updateField("mileage", value.replace(/\D/g, ""))} inputMode="numeric" />
-                                                <MoneyField label="Preco (R$)" value={form.priceCents} onChange={(value) => updateField("priceCents", value)} required />
-                                                
-                                                <div className="col-span-full md:col-span-2 xl:col-span-4 rounded-2xl bg-[#fffdf0] border border-[#d5c228] p-4 grid gap-4 md:grid-cols-2 my-2">
-                                                    <SelectField 
-                                                        label="Tipo de anuncio (ML)" 
-                                                        value={form.meli.listingTypeId} 
-                                                        options={meliListingTypes.map(item => ({value: item.id, label: item.remainingListings == null ? `${item.name} (${item.id})` : `${item.name} (${item.id}) - saldo ${item.remainingListings}`}))} 
-                                                        loading={loadingMeliListingTypes} 
-                                                        onChange={next => updateMeliField({ listingTypeId: next })} 
-                                                    />
-                                                    <SelectField 
-                                                        label="Condicao (ML)" 
-                                                        value={form.meli.condition || "used"} 
-                                                        options={[{value: "used", label: "Usado"}, {value: "new", label: "Novo"}]} 
-                                                        onChange={next => updateMeliField({ condition: next })} 
-                                                    />
-                                                </div>
-
-                                                <SelectField label="Cambio" value={form.transmission} options={TRANSMISSION_OPTIONS} onChange={(value) => updateField("transmission", value)} />
-                                                <SelectField label="Combustivel" value={form.fuelType} options={FUEL_TYPE_OPTIONS} onChange={(value) => updateField("fuelType", value)} />
+                                                <MoneyField label="Preço (R$)" value={form.priceCents} onChange={(value) => updateField("priceCents", value)} required />
+                                                <SelectField label="Câmbio" value={form.transmission} options={TRANSMISSION_OPTIONS} onChange={(value) => updateField("transmission", value)} />
+                                                <SelectField label="Combustível" value={form.fuelType} options={FUEL_TYPE_OPTIONS} onChange={(value) => updateField("fuelType", value)} />
                                                 <SelectField label="Carroceria" value={form.bodyType} options={BODY_TYPE_OPTIONS} onChange={(value) => updateField("bodyType", value)} />
                                                 <SelectField label="Portas" value={form.doors} options={DOORS_OPTIONS} onChange={(value) => updateField("doors", value)} />
                                                 <SelectField label="Cor" value={form.color} options={COLOR_OPTIONS} onChange={(value) => updateField("color", value)} />
@@ -1095,7 +1110,7 @@ export function InventoryStudio() {
                                                     required={requiresOlxPublication}
                                                 />
                                                 <Field
-                                                    label="CEP do anuncio"
+                                                    label="CEP do anúncio"
                                                     value={form.zipcode}
                                                     onChange={(value) => updateField("zipcode", normalizeDigits(value).slice(0, 8))}
                                                     inputMode="numeric"
@@ -1114,15 +1129,16 @@ export function InventoryStudio() {
 
                                         <section className="rounded-[30px] border border-black/10 bg-white p-5">
                                             <div>
-                                                <p className="text-sm font-semibold text-io-dark">Distribuicao</p>
-                                                <p className="mt-1 text-sm text-black/52">Apenas integracoes conectadas e prontas para publicacao aparecem aqui.</p>
+                                                <p className="text-sm font-semibold text-io-dark">Distribuição</p>
+                                                <p className="mt-1 text-sm text-black/52">Apenas integrações conectadas e prontas para publicação aparecem aqui.</p>
                                             </div>
 
                                             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                                                 {readyPublicationIntegrations.length ? (
                                                     readyPublicationIntegrations.map((integration) => {
                                                         const selected = form.targetIntegrations.some(
-                                                            (providerKey) => normalizeProviderKey(providerKey) === normalizeProviderKey(integration.providerKey)
+                                                            (providerKey) =>
+                                                                canonicalPublicationProviderKey(providerKey) === canonicalPublicationProviderKey(integration.providerKey)
                                                         );
                                                         return (
                                                             <label
@@ -1136,9 +1152,9 @@ export function InventoryStudio() {
                                                                         type="checkbox"
                                                                         checked={selected}
                                                                         onChange={(event) => {
-                                                                            const normalizedProvider = normalizeProviderKey(integration.providerKey);
+                                                                            const normalizedProvider = canonicalPublicationProviderKey(integration.providerKey);
                                                                             const remaining = form.targetIntegrations.filter(
-                                                                                (providerKey) => normalizeProviderKey(providerKey) !== normalizedProvider
+                                                                                (providerKey) => canonicalPublicationProviderKey(providerKey) !== normalizedProvider
                                                                             );
                                                                             const next = event.target.checked ? [...remaining, integration.providerKey] : remaining;
                                                                             updateField("targetIntegrations", Array.from(new Set(next)));
@@ -1155,17 +1171,40 @@ export function InventoryStudio() {
                                                     })
                                                 ) : (
                                                     <p className="rounded-2xl bg-[#f7f7f7] px-4 py-4 text-sm text-black/55">
-                                                        Nenhuma integracao de publicacao conectada no momento. Conecte um canal no modulo de integracoes para habilitar a distribuicao.
+                                                        Nenhuma integração de publicação conectada no momento. Conecte um canal no módulo de integrações para habilitar a distribuição.
                                                     </p>
                                                 )}
                                             </div>
+
+                                            {requiresMeliPublication ? (
+                                                <div className="mt-4 grid gap-4 rounded-2xl border border-[#d5c228] bg-[#fffdf0] p-4 md:grid-cols-2">
+                                                    <SelectField
+                                                        label="Tipo de anúncio (ML)"
+                                                        value={form.meli.listingTypeId}
+                                                        options={meliListingTypes.map((item) => ({
+                                                            value: item.id,
+                                                            label: item.remainingListings == null
+                                                                ? `${item.name} (${item.id})`
+                                                                : `${item.name} (${item.id}) - saldo ${item.remainingListings}`,
+                                                        }))}
+                                                        loading={loadingMeliListingTypes}
+                                                        onChange={(next) => updateMeliField({ listingTypeId: next })}
+                                                    />
+                                                    <SelectField
+                                                        label="Condição (ML)"
+                                                        value={form.meli.condition || "used"}
+                                                        options={[{ value: "used", label: "Usado" }, { value: "new", label: "Novo" }]}
+                                                        onChange={(next) => updateMeliField({ condition: next })}
+                                                    />
+                                                </div>
+                                            ) : null}
                                         </section>
 
                                         <section className="rounded-[30px] border border-[#c8d8ff] bg-white p-5 shadow-[0_10px_30px_rgba(49,89,184,0.08)]">
                                             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                                                 <div>
-                                                    <p className="text-sm font-extrabold uppercase tracking-[0.22em] text-[#2b57d9]">Condicoes de financiamento</p>
-                                                    <p className="mt-1 text-sm text-[#6d8de6]">Opcional — preencha se o veiculo tiver parcelas disponiveis.</p>
+                                                    <p className="text-sm font-extrabold uppercase tracking-[0.22em] text-[#2b57d9]">Condições de financiamento</p>
+                                                    <p className="mt-1 text-sm text-[#6d8de6]">Opcional: preencha se o veículo tiver parcelas disponíveis.</p>
                                                 </div>
                                                 <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[#2b57d9] text-sm font-bold text-white">R$</span>
                                             </div>
@@ -1200,19 +1239,19 @@ export function InventoryStudio() {
                                         <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
                                             <section className="rounded-[30px] border border-black/10 bg-white p-5">
                                                 <TextArea
-                                                    label="Descricao do anuncio"
+                                                    label="Descrição do anúncio"
                                                     value={form.description}
                                                     onChange={(value) => updateField("description", value)}
-                                                    placeholder="Descreva versao, estado de conservacao, historico e destaques do carro."
+                                                    placeholder="Descreva versão, estado de conservação, histórico e destaques do carro."
                                                 />
                                             </section>
 
                                             <section className="rounded-[30px] border border-black/10 bg-white p-5">
                                                 <TextArea
-                                                    label="Opcionais e itens do veiculo"
+                                                    label="Opcionais e itens do veículo"
                                                     value={form.optionalsText}
                                                     onChange={(value) => updateField("optionalsText", value)}
-                                                    placeholder="Ex.: multimidia, bancos em couro, camera de re, sensor de estacionamento"
+                                                    placeholder="Ex.: multimídia, bancos em couro, câmera de ré, sensor de estacionamento"
                                                 />
                                             </section>
                                         </div>
@@ -1220,7 +1259,7 @@ export function InventoryStudio() {
                                         <section className="rounded-[30px] border border-black/10 bg-white p-5">
                                             <div className="flex items-center justify-between gap-3">
                                                 <div>
-                                                    <p className="text-sm font-semibold text-io-dark">Imagens do veiculo</p>
+                                                    <p className="text-sm font-semibold text-io-dark">Imagens do veículo</p>
                                                     <p className="mt-1 text-sm text-black/50">Arraste e solte ou selecione imagens no computador.</p>
                                                 </div>
                                                 <button
@@ -1242,7 +1281,7 @@ export function InventoryStudio() {
                                                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
                                                     <CarFront className="h-6 w-6 text-black/55" />
                                                 </div>
-                                                <p className="mt-4 text-sm font-semibold text-io-dark">{uploadingImages ? "Enviando imagens..." : "Solte as imagens aqui"}</p>
+                                                <p className="mt-4 text-sm font-semibold text-io-dark">{uploadingImages ? "Processando imagens..." : "Solte as imagens aqui"}</p>
                                                 <p className="mt-2 text-sm text-black/52">PNG, JPG, WEBP ou GIF. A primeira imagem vira a capa.</p>
                                             </div>
 
@@ -1278,8 +1317,8 @@ export function InventoryStudio() {
                                         {selectedReadyPublicationIntegrations.length ? (
                                             <section className="grid gap-4">
                                                 <div>
-                                                    <p className="text-sm font-semibold text-io-dark">Ajustes avancados e publicacao</p>
-                                                    <p className="mt-1 text-sm text-black/52">Os dados principais ja abastecem os canais escolhidos. Use estes cards apenas para revisar mapeamentos ou publicar.</p>
+                                                    <p className="text-sm font-semibold text-io-dark">Ajustes avançados e publicação</p>
+                                                    <p className="mt-1 text-sm text-black/52">Os dados principais já abastecem os canais escolhidos. Use estes cards apenas para revisar mapeamentos ou publicar.</p>
                                                 </div>
 
                                                 {selectedReadyPublicationIntegrations.some((integration) => ["olx", "olx-autos"].includes(normalizeProviderKey(integration.providerKey))) ? (
@@ -1304,7 +1343,7 @@ export function InventoryStudio() {
                                 </div>
 
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/8 px-6 py-5 md:px-8">
-                                    <div className="text-xs text-black/45">{readyPublicationIntegrations.length} integracoes conectadas prontas para uso na distribuicao.</div>
+                                    <div className="text-xs text-black/45">{readyPublicationIntegrations.length} integrações conectadas prontas para uso na distribuição.</div>
                                     <div className="flex items-center gap-3">
                                         <button
                                             type="button"

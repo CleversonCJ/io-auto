@@ -839,6 +839,12 @@ public class IoAutoController {
         return ResponseEntity.ok(billingService.getBillingSnapshot(currentUser.companyId()));
     }
 
+    @PostMapping("/ioauto/billing/plan-change/notice/dismiss")
+    public ResponseEntity<Void> dismissBillingPlanChangeNotice() {
+        billingService.dismissPlanChangeNotice(currentUser.companyId());
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/ioauto/billing/plan-change/preview")
     public ResponseEntity<PlanChangePreviewResponse> previewBillingPlanChange(@Valid @RequestBody PlanChangePreviewHttpRequest request) {
         billingService.assertPlanChangeAllowed(currentUser.roles());

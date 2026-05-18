@@ -75,6 +75,22 @@ export type BillingSnapshot = {
     pendingProrationCreditCents: number | null;
     pendingProrationCreditNote: string;
     pendingProrationCreditUpdatedAt: string | null;
+    planChangeNotice: {
+        active: boolean;
+        title: string;
+        message: string;
+        currentPlanName: string;
+        targetPlanName: string;
+        targetBillingInterval: string;
+        changeType: string;
+        prorationAdjustmentMode: "IMMEDIATE_CHARGE" | "NEXT_CYCLE_CREDIT" | "UPCOMING_PAYMENT_UPDATE" | "NONE" | string;
+        immediateChargeCents: number | null;
+        creditNextCycleCents: number | null;
+        remainingCreditCents: number | null;
+        invoiceUrl: string;
+        requiresAction: boolean;
+        createdAt: string | null;
+    } | null;
     usersLimit: number | null;
     vehiclesLimit: number | null;
     activeAdsLimit: number | null;

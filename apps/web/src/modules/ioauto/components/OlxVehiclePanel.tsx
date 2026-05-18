@@ -123,11 +123,11 @@ export function OlxVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onCh
             const response = await fetch(`/api/integrations/olx/vehicles/${currentVehicleId}/mapping`, { cache: "no-store" });
             const payload = (await response.json().catch(() => null)) as OlxVehicleMapping | { message?: string } | null;
             if (!response.ok) {
-                throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao carregar os dados OLX do veiculo.");
+                throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao carregar os dados OLX do veículo.");
             }
             onHydrate(payload as OlxVehicleMapping);
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao carregar os dados OLX do veiculo.");
+            setError(cause instanceof Error ? cause.message : "Falha ao carregar os dados OLX do veículo.");
         } finally {
             setLoadingMapping(false);
         }
@@ -142,12 +142,12 @@ export function OlxVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onCh
             const response = await requestFactory();
             const payload = (await response.json().catch(() => null)) as OlxAdRecord | { message?: string } | null;
             if (!response.ok) {
-                throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao processar o anuncio OLX.");
+                throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao processar o anúncio OLX.");
             }
             onChange({ ad: payload as OlxAdRecord });
             setMessage(`Status OLX atualizado: ${statusLabel((payload as OlxAdRecord).status)}`);
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao processar o anuncio OLX.");
+            setError(cause instanceof Error ? cause.message : "Falha ao processar o anúncio OLX.");
         } finally {
             setAction(null);
         }
@@ -157,13 +157,13 @@ export function OlxVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onCh
         <section className="rounded-[30px] border border-black/10 bg-white p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
-                    <p className="text-sm font-semibold text-io-dark">Anuncio OLX</p>
+                    <p className="text-sm font-semibold text-io-dark">Anúncio OLX</p>
                     <p className="mt-1 text-sm text-black/52">
-                        Ano, quilometragem, preco, descricao e imagens saem do cadastro principal. Aqui voce ajusta o mapeamento OLX e controla a publicacao.
+                        Ano, quilometragem, preço, descrição e imagens saem do cadastro principal. Aqui você ajusta o mapeamento OLX e controla a publicação.
                     </p>
                 </div>
                 <div className="rounded-full bg-black/5 px-4 py-2 text-xs font-bold text-black/50">
-                    {value.ad?.status ? statusLabel(value.ad.status) : "Nao publicado"}
+                    {value.ad?.status ? statusLabel(value.ad.status) : "Não publicado"}
                 </div>
             </div>
 
@@ -173,7 +173,7 @@ export function OlxVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onCh
             <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <SummaryBox label="Ano" value={mainSummary.year || "-"} />
                 <SummaryBox label="Quilometragem" value={mainSummary.mileage || "-"} />
-                <SummaryBox label="Preco" value={mainSummary.priceCents ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(Number(mainSummary.priceCents) / 100) : "-"} />
+                <SummaryBox label="Preço" value={mainSummary.priceCents ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(Number(mainSummary.priceCents) / 100) : "-"} />
                 <SummaryBox label="Imagens" value={String(mainSummary.imageCount)} />
             </div>
 
@@ -192,16 +192,16 @@ export function OlxVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onCh
                     onChange={(next) => onChange({ modelId: next, versionId: "" })}
                 />
                 <SelectField
-                    label="Versao OLX"
+                    label="Versão OLX"
                     value={value.versionId}
                     options={versions}
                     onChange={(next) => onChange({ versionId: next })}
                 />
-                <Field label="Combustivel (codigo OLX)" value={value.fuelCode} onChange={(next) => onChange({ fuelCode: next })} />
-                <Field label="Cambio (codigo OLX)" value={value.gearboxCode} onChange={(next) => onChange({ gearboxCode: next })} />
-                <Field label="Portas (codigo OLX)" value={value.doorsCode} onChange={(next) => onChange({ doorsCode: next })} />
-                <Field label="Cor (codigo OLX)" value={value.colorCode} onChange={(next) => onChange({ colorCode: next })} />
-                <Field label="Opcionais (codigos separados por virgula)" value={featureCodesText} onChange={(next) => onChange({ featureCodes: next.split(",").map((item) => item.trim()).filter(Boolean) })} />
+                <Field label="Combustível (código OLX)" value={value.fuelCode} onChange={(next) => onChange({ fuelCode: next })} />
+                <Field label="Câmbio (código OLX)" value={value.gearboxCode} onChange={(next) => onChange({ gearboxCode: next })} />
+                <Field label="Portas (código OLX)" value={value.doorsCode} onChange={(next) => onChange({ doorsCode: next })} />
+                <Field label="Cor (código OLX)" value={value.colorCode} onChange={(next) => onChange({ colorCode: next })} />
+                <Field label="Opcionais (códigos separados por vírgula)" value={featureCodesText} onChange={(next) => onChange({ featureCodes: next.split(",").map((item) => item.trim()).filter(Boolean) })} />
                 <Field label="Placa" value={value.plate} onChange={(next) => onChange({ plate: next.toUpperCase() })} />
                 <Field label="Telefone OLX" value={value.phone} onChange={(next) => onChange({ phone: next })} />
                 <Field label="CEP OLX" value={value.zipcode} onChange={(next) => onChange({ zipcode: next })} />
@@ -216,7 +216,7 @@ export function OlxVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onCh
                     onClick={() => void runAction("publish", () => fetch(`/api/integrations/olx/vehicles/${vehicleId}/publish`, { method: "POST" }))}
                 />
                 <ActionButton
-                    label="Atualizar anuncio"
+                    label="Atualizar anúncio"
                     icon={<RefreshCw className="h-4 w-4" />}
                     loading={action === "update"}
                     disabled={!vehicleId}
@@ -245,18 +245,18 @@ export function OlxVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onCh
                     }`}
                 >
                     <ExternalLink className="h-4 w-4" />
-                    Abrir anuncio
+                    Abrir anúncio
                 </a>
             </div>
 
             {!vehicleId ? (
-                <p className="mt-4 text-xs text-black/42">Salve o cadastro do veiculo para persistir o mapeamento OLX e habilitar a publicacao.</p>
+                <p className="mt-4 text-xs text-black/42">Salve o cadastro do veículo para persistir o mapeamento OLX e habilitar a publicação.</p>
             ) : null}
 
             {loadingMapping ? (
                 <div className="mt-4 inline-flex items-center gap-2 text-sm text-black/48">
                     <LoaderCircle className="h-4 w-4 animate-spin" />
-                    Carregando configuracao OLX do veiculo...
+                    Carregando configuração OLX do veículo...
                 </div>
             ) : null}
         </section>

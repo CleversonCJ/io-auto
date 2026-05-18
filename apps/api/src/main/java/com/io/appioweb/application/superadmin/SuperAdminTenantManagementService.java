@@ -2,6 +2,7 @@ package com.io.appioweb.application.superadmin;
 
 import com.io.appioweb.adapters.persistence.auth.JpaUserEntity;
 import com.io.appioweb.adapters.persistence.auth.UserRepositoryJpa;
+import com.io.appioweb.adapters.web.ioauto.IoAutoBillingService;
 import com.io.appioweb.adapters.persistence.onboarding.JpaPasswordResetTokenEntity;
 import com.io.appioweb.adapters.persistence.onboarding.PasswordResetTokenRepositoryJpa;
 import com.io.appioweb.adapters.persistence.superadmin.JpaTenantAdminLogEntity;
@@ -48,6 +49,7 @@ public class SuperAdminTenantManagementService {
     private final CurrentUserPort currentUser;
     private final PasswordResetTokenRepositoryJpa passwordResetTokens;
     private final SuperAdminPlanManagementService planManagementService;
+    private final IoAutoBillingService billingService;
     private final EmailOutboxService emailOutboxService;
     private final String setPasswordBaseUrl;
     private final String loginUrl;
@@ -61,6 +63,7 @@ public class SuperAdminTenantManagementService {
             CurrentUserPort currentUser,
             PasswordResetTokenRepositoryJpa passwordResetTokens,
             SuperAdminPlanManagementService planManagementService,
+            IoAutoBillingService billingService,
             EmailOutboxService emailOutboxService,
             @Value("${SET_PASSWORD_URL:https://app.ioauto.com.br/definir-senha}") String setPasswordBaseUrl,
             @Value("${LOGIN_URL:https://app.ioauto.com.br/login}") String loginUrl
@@ -73,6 +76,7 @@ public class SuperAdminTenantManagementService {
         this.currentUser = currentUser;
         this.passwordResetTokens = passwordResetTokens;
         this.planManagementService = planManagementService;
+        this.billingService = billingService;
         this.emailOutboxService = emailOutboxService;
         this.setPasswordBaseUrl = setPasswordBaseUrl == null ? "" : setPasswordBaseUrl.trim();
         this.loginUrl = loginUrl == null ? "" : loginUrl.trim();
@@ -330,41 +334,83 @@ public class SuperAdminTenantManagementService {
                 ? Math.max(command.subscriptionAmountCents(), 0L)
                 : resolvedPlan.map(plan -> plan.priceForRecurrence(resolvedRecurrence)).orElse(null);
 
-        MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("tenantId", tenantId)
-                .addValue("planId", resolvedPlanId)
-                .addValue("amountCents", resolvedAmountCents)
-                .addValue("recurrence", resolvedRecurrence)
-                .addValue("status", normalizeSubscriptionStatus(command.subscriptionStatus()))
-                .addValue("updatedAt", SuperAdminSqlValues.timestamp(Instant.now()));
+        boolean billingManagedPlanChangeApplied = false;
+        if (resolvedPlan.isPresent() && resolvedRecurrence != null) {
+            try {
+                billingService.applySuperAdminManagedPlanChange(tenantId, resolvedPlan.get().planKey(), resolvedRecurrence);
+                billingManagedPlanChangeApplied = true;
+            } catch (BusinessException exception) {
+                if (!"PLAN_CHANGE_REDUNDANT".equals(exception.code())) {
+                    throw exception;
+                }
+            }
+        }
 
-        jdbc.update("""
-                update companies
-                set
-                    plan_id = coalesce(:planId, plan_id),
-                    subscription_amount_cents = coalesce(:amountCents, subscription_amount_cents),
-                    billing_recurrence = coalesce(:recurrence, billing_recurrence),
-                    subscription_status = coalesce(:status, subscription_status),
-                    updated_at = :updatedAt
-                where id = :tenantId
-                """, params);
-
-        if (resolvedPlanName != null || resolvedPlanKey != null || resolvedAmountCents != null) {
-            MapSqlParameterSource billingParams = new MapSqlParameterSource()
+        if (!billingManagedPlanChangeApplied) {
+            MapSqlParameterSource params = new MapSqlParameterSource()
                     .addValue("tenantId", tenantId)
-                    .addValue("planName", resolvedPlanName)
-                    .addValue("planKey", resolvedPlanKey)
+                    .addValue("planId", resolvedPlanId)
                     .addValue("amountCents", resolvedAmountCents)
-                    .addValue("billingInterval", mapBillingInterval(resolvedRecurrence))
+                    .addValue("recurrence", resolvedRecurrence)
+                    .addValue("status", normalizeSubscriptionStatus(command.subscriptionStatus()))
                     .addValue("updatedAt", SuperAdminSqlValues.timestamp(Instant.now()));
 
             jdbc.update("""
-                    update ioauto_billing_subscriptions b
+                    update companies
                     set
-                        plan_name = coalesce(:planName, b.plan_name),
-                        plan_key = coalesce(:planKey, b.plan_key),
-                        amount_cents = coalesce(:amountCents, b.amount_cents),
-                        billing_interval = coalesce(:billingInterval, b.billing_interval),
+                        plan_id = coalesce(:planId, plan_id),
+                        subscription_amount_cents = coalesce(:amountCents, subscription_amount_cents),
+                        billing_recurrence = coalesce(:recurrence, billing_recurrence),
+                        subscription_status = coalesce(:status, subscription_status),
+                        updated_at = :updatedAt
+                    where id = :tenantId
+                    """, params);
+
+            if (resolvedPlanName != null || resolvedPlanKey != null || resolvedAmountCents != null) {
+                MapSqlParameterSource billingParams = new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("planName", resolvedPlanName)
+                        .addValue("planKey", resolvedPlanKey)
+                        .addValue("amountCents", resolvedAmountCents)
+                        .addValue("billingInterval", mapBillingInterval(resolvedRecurrence))
+                        .addValue("updatedAt", SuperAdminSqlValues.timestamp(Instant.now()));
+
+                jdbc.update("""
+                        update ioauto_billing_subscriptions b
+                        set
+                            plan_name = coalesce(:planName, b.plan_name),
+                            plan_key = coalesce(:planKey, b.plan_key),
+                            amount_cents = coalesce(:amountCents, b.amount_cents),
+                            billing_interval = coalesce(:billingInterval, b.billing_interval),
+                            updated_at = :updatedAt
+                        where b.id = (
+                            select id
+                            from ioauto_billing_subscriptions
+                            where company_id = :tenantId
+                            order by updated_at desc
+                            limit 1
+                        )
+                        """, billingParams);
+            }
+        }
+
+        String normalizedStatus = normalizeSubscriptionStatus(command.subscriptionStatus());
+        if (normalizedStatus != null) {
+            MapSqlParameterSource statusParams = new MapSqlParameterSource()
+                    .addValue("tenantId", tenantId)
+                    .addValue("status", normalizedStatus)
+                    .addValue("updatedAt", SuperAdminSqlValues.timestamp(Instant.now()));
+
+            jdbc.update("""
+                    update companies
+                    set subscription_status = :status,
+                        updated_at = :updatedAt
+                    where id = :tenantId
+                    """, statusParams);
+
+            jdbc.update("""
+                    update ioauto_billing_subscriptions b
+                    set status = :status,
                         updated_at = :updatedAt
                     where b.id = (
                         select id
@@ -373,7 +419,7 @@ public class SuperAdminTenantManagementService {
                         order by updated_at desc
                         limit 1
                     )
-                    """, billingParams);
+                    """, statusParams);
         }
 
         logAction(
