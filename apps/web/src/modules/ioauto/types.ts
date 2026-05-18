@@ -58,6 +58,17 @@ export type BillingPlanOption = {
     blockingReasons: string[];
 };
 
+export type BillingInvoiceSummary = {
+    paymentId: string;
+    title: string;
+    amountCents: number | null;
+    currency: string;
+    dueDate: string | null;
+    paidAt: string | null;
+    invoiceUrl: string;
+    status: string;
+};
+
 export type BillingSnapshot = {
     hasSubscription: boolean;
     planId: string | null;
@@ -98,6 +109,8 @@ export type BillingSnapshot = {
     enabledModules: string[];
     usage: BillingPlanUsage;
     availablePlans: BillingPlanOption[];
+    nextInvoice: BillingInvoiceSummary | null;
+    paidInvoices: BillingInvoiceSummary[];
 };
 
 export type BillingPlanChangePreview = {

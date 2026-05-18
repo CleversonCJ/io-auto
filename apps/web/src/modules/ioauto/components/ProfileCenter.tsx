@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { BadgeCheck, Mail, ShieldCheck, UserCircle2 } from "lucide-react";
+import { BadgeCheck, CalendarClock, ExternalLink, Mail, ReceiptText, ShieldCheck, UserCircle2 } from "lucide-react";
 import { SubscriptionCenter } from "@/modules/ioauto/components/SubscriptionCenter";
 import type { BillingSnapshot } from "@/modules/ioauto/types";
 import { formatDateTime, formatMoney } from "@/modules/ioauto/formatters";
@@ -46,6 +46,23 @@ function formatEntryDate(value?: string | null) {
         month: "long",
         year: "numeric",
     }).format(parsed);
+}
+
+function formatBillingDate(value?: string | null) {
+    if (!value) return "-";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        const [year, month, day] = value.split("-").map(Number);
+        const date = new Date(year ?? 0, (month ?? 1) - 1, day ?? 1, 12, 0, 0);
+        if (!Number.isNaN(date.getTime())) {
+            return date.toLocaleDateString("pt-BR", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+            });
+        }
+    }
+
+    return formatDateTime(value);
 }
 
 export function ProfileCenter() {
@@ -224,6 +241,112 @@ export function ProfileCenter() {
                         ) : null}
                     </div>
                 </aside>
+            </section>
+
+            <section className="rounded-[34px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
+                <div className="flex items-center gap-3">
+                    <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#0f766e] text-white">
+                        <ReceiptText className="h-5 w-5" />
+                    </div>
+                    <div>
+                        <h2 className="font-display text-3xl font-bold text-io-dark">Faturas da assinatura</h2>
+                        <p className="mt-1 text-sm text-black/55">Acompanhe a próxima cobrança da empresa e as últimas faturas já pagas.</p>
+                    </div>
+                </div>
+
+                <div className="mt-6 grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+                    <article className="rounded-[28px] border border-black/10 bg-black/[0.02] p-5">
+                        <div className="flex items-center gap-3">
+                            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[#0f766e]/10 text-[#0f766e]">
+                                <CalendarClock className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Próxima fatura</p>
+                                <p className="mt-1 text-sm text-black/55">Valor, vencimento e plano da próxima cobrança prevista.</p>
+                            </div>
+                        </div>
+
+                        {billing?.nextInvoice ? (
+                            <div className="mt-5 grid gap-4">
+                                <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-4">
+                                    <p className="text-lg font-bold text-io-dark">{billing.nextInvoice.title || billing.planName || "Plano atual"}</p>
+                                    <p className="mt-2 text-3xl font-bold text-emerald-700">
+                                        {formatMoney(billing.nextInvoice.amountCents, billing.nextInvoice.currency || billing.currency || "BRL")}
+                                    </p>
+                                    <p className="mt-2 text-sm text-emerald-900/80">
+                                        Vencimento em {formatBillingDate(billing.nextInvoice.dueDate)}
+                                    </p>
+                                </div>
+
+                                <div className="grid gap-3 md:grid-cols-2">
+                                    <InfoCard label="Plano" value={billing.nextInvoice.title || billing.planName || "-"} />
+                                    <InfoCard label="Vencimento" value={formatBillingDate(billing.nextInvoice.dueDate)} />
+                                </div>
+
+                                {billing.nextInvoice.invoiceUrl ? (
+                                    <a
+                                        href={billing.nextInvoice.invoiceUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                                    >
+                                        <ExternalLink className="h-4 w-4" />
+                                        Abrir próxima fatura
+                                    </a>
+                                ) : null}
+                            </div>
+                        ) : (
+                            <div className="mt-5 rounded-[24px] border border-dashed border-black/12 bg-black/[0.02] px-4 py-5 text-sm leading-6 text-black/60">
+                                Não há uma próxima fatura disponível para esta empresa no momento.
+                            </div>
+                        )}
+                    </article>
+
+                    <article className="rounded-[28px] border border-black/10 bg-black/[0.02] p-5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Faturas pagas</p>
+                        <h3 className="mt-2 text-2xl font-bold text-io-dark">Histórico recente</h3>
+                        <p className="mt-1 text-sm text-black/55">Últimas cobranças confirmadas com valor, vencimento e plano vinculado.</p>
+
+                        {billing?.paidInvoices?.length ? (
+                            <div className="mt-5 grid gap-3">
+                                {billing.paidInvoices.map((invoice) => (
+                                    <div key={invoice.paymentId} className="rounded-[22px] border border-black/10 bg-white px-4 py-4">
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                            <div>
+                                                <p className="text-sm font-semibold text-io-dark">{invoice.title || billing.planName || "Plano"}</p>
+                                                <p className="mt-1 text-sm text-black/55">Vencimento: {formatBillingDate(invoice.dueDate)}</p>
+                                                {invoice.paidAt ? (
+                                                    <p className="mt-1 text-xs text-black/45">Pago em {formatDateTime(invoice.paidAt)}</p>
+                                                ) : null}
+                                            </div>
+
+                                            <div className="flex items-center gap-3">
+                                                <p className="text-right text-lg font-bold text-emerald-700">
+                                                    {formatMoney(invoice.amountCents, invoice.currency || billing.currency || "BRL")}
+                                                </p>
+                                                {invoice.invoiceUrl ? (
+                                                    <a
+                                                        href={invoice.invoiceUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="inline-flex items-center gap-2 rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-black/70 transition hover:bg-black/[0.03]"
+                                                    >
+                                                        <ExternalLink className="h-3.5 w-3.5" />
+                                                        Ver fatura
+                                                    </a>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="mt-5 rounded-[24px] border border-dashed border-black/12 bg-black/[0.02] px-4 py-5 text-sm leading-6 text-black/60">
+                                Ainda não há faturas pagas registradas para exibir aqui.
+                            </div>
+                        )}
+                    </article>
+                </div>
             </section>
 
             <SubscriptionCenter

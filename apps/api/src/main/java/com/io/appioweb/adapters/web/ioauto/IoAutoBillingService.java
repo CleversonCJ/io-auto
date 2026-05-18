@@ -249,6 +249,21 @@ public class IoAutoBillingService {
                     );
                 })
                 .toList();
+        BillingInvoiceSummary nextInvoice = subscription
+                .flatMap(item -> findNextPendingSubscriptionPayment(item, LocalDate.now(BILLING_ZONE)))
+                .map(payment -> toBillingInvoiceSummary(
+                        payment,
+                        currentPlan.planName(),
+                        normalizeText(subscription.map(JpaIoAutoBillingSubscriptionEntity::getCurrency).orElse("brl"), "brl")
+                ))
+                .orElse(null);
+        List<BillingInvoiceSummary> paidInvoices = subscription
+                .map(item -> listPaidInvoiceSummaries(
+                        item,
+                        currentPlan.planName(),
+                        normalizeText(item.getCurrency(), "brl")
+                ))
+                .orElse(List.of());
 
         return subscription
                 .map(item -> new BillingSnapshot(
@@ -275,7 +290,9 @@ public class IoAutoBillingService {
                         currentPlan.features(),
                         buildEnabledModules(currentPlan.features()),
                         usage,
-                        availablePlans
+                        availablePlans,
+                        nextInvoice,
+                        paidInvoices
                 ))
                 .orElseGet(() -> new BillingSnapshot(
                         false,
@@ -301,7 +318,9 @@ public class IoAutoBillingService {
                         currentPlan.features(),
                         buildEnabledModules(currentPlan.features()),
                         usage,
-                        availablePlans
+                        availablePlans,
+                        null,
+                        List.of()
                 ));
     }
 
@@ -1315,6 +1334,54 @@ public class IoAutoBillingService {
             payments.add(toAsaasPayment(item));
         }
         return List.copyOf(payments);
+    }
+
+    private List<AsaasPayment> listPaymentsForSubscription(JpaIoAutoBillingSubscriptionEntity subscription, String limit) {
+        if (subscription == null || asaasApiKey.isBlank()) {
+            return List.of();
+        }
+
+        if (!normalizeText(subscription.getProviderSubscriptionId()).isBlank()) {
+            return listPayments(Map.of("subscription", subscription.getProviderSubscriptionId(), "limit", limit));
+        }
+
+        if (!normalizeText(subscription.getProviderCustomerId()).isBlank()) {
+            return listPayments(Map.of("customer", subscription.getProviderCustomerId(), "limit", limit));
+        }
+
+        return List.of();
+    }
+
+    private List<BillingInvoiceSummary> listPaidInvoiceSummaries(
+            JpaIoAutoBillingSubscriptionEntity subscription,
+            String fallbackPlanName,
+            String currency
+    ) {
+        return listPaymentsForSubscription(subscription, "50").stream()
+                .filter(item -> !normalizeText(item.id()).isBlank())
+                .filter(item -> isPaidPaymentStatus(item.status()))
+                .sorted(Comparator
+                        .comparing((AsaasPayment item) -> item.confirmedAt() == null ? Instant.EPOCH : item.confirmedAt())
+                        .thenComparing(item -> item.dueDate() == null ? LocalDate.MIN : item.dueDate())
+                        .thenComparing(item -> item.createdAt() == null ? Instant.EPOCH : item.createdAt())
+                        .reversed())
+                .map(item -> toBillingInvoiceSummary(item, fallbackPlanName, currency))
+                .limit(6)
+                .toList();
+    }
+
+    private BillingInvoiceSummary toBillingInvoiceSummary(AsaasPayment payment, String fallbackPlanName, String currency) {
+        Long amountCents = toCents(payment == null ? null : payment.value());
+        return new BillingInvoiceSummary(
+                normalizeText(payment == null ? null : payment.id()),
+                normalizeText(payment == null ? null : payment.description(), fallbackPlanName),
+                amountCents,
+                normalizeText(currency, "brl"),
+                payment == null ? null : payment.dueDate(),
+                payment == null ? null : payment.confirmedAt(),
+                normalizeText(payment == null ? null : payment.invoiceUrl()),
+                normalizeText(payment == null ? null : payment.status())
+        );
     }
 
     private Optional<AsaasPayment> selectMostRelevantPayment(List<AsaasPayment> payments) {
@@ -2908,7 +2975,21 @@ record BillingSnapshot(
         SuperAdminPlanManagementService.PlanFeatures features,
         List<String> enabledModules,
         SuperAdminPlanManagementService.TenantPlanUsage usage,
-        List<BillingPlanOption> availablePlans
+        List<BillingPlanOption> availablePlans,
+        BillingInvoiceSummary nextInvoice,
+        List<BillingInvoiceSummary> paidInvoices
+) {
+}
+
+record BillingInvoiceSummary(
+        String paymentId,
+        String title,
+        Long amountCents,
+        String currency,
+        LocalDate dueDate,
+        Instant paidAt,
+        String invoiceUrl,
+        String status
 ) {
 }
 
