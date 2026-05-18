@@ -27,7 +27,7 @@ type ApiErrorPayload = {
 
 export function SubscriptionCenter({
     title = "Assinatura do tenant",
-    description = "Cobranca recorrente pronta para operacao automatica via Asaas.",
+    description = "Cobrança recorrente pronta para operação automática via Asaas.",
     currentUserRoles,
     onBillingChange,
 }: SubscriptionCenterProps) {
@@ -115,8 +115,8 @@ export function SubscriptionCenter({
 
         const response = await fetch("/api/ioauto/billing/portal", { method: "POST" });
         if (!response.ok) {
-            const payload = await response.json().catch(() => ({ message: "Falha ao abrir a cobranca." }));
-            setError(payload.message ?? "Falha ao abrir a cobranca.");
+            const payload = await response.json().catch(() => ({ message: "Falha ao abrir a cobrança." }));
+            setError(payload.message ?? "Falha ao abrir a cobrança.");
             setOpeningPortal(false);
             return;
         }
@@ -145,15 +145,15 @@ export function SubscriptionCenter({
             });
 
             if (!response.ok) {
-                const payload = (await response.json().catch(() => ({ message: "Falha ao gerar a previa da troca." }))) as ApiErrorPayload;
-                throw new Error(payload.message ?? "Falha ao gerar a previa da troca.");
+                const payload = (await response.json().catch(() => ({ message: "Falha ao gerar a prévia da troca." }))) as ApiErrorPayload;
+                throw new Error(payload.message ?? "Falha ao gerar a prévia da troca.");
             }
 
             const payload = (await response.json()) as BillingPlanChangePreview;
             setPreview(payload);
             setPreviewPlanKey(plan.planKey);
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao gerar a previa da troca.");
+            setError(cause instanceof Error ? cause.message : "Falha ao gerar a prévia da troca.");
         } finally {
             setPreviewingPlanKey(null);
         }
@@ -201,7 +201,7 @@ export function SubscriptionCenter({
     const showDelinquencyCards = Boolean(accessStatus?.accessBlocked || regularization?.available);
     const regularizationSummary = regularization?.message
         || accessStatus?.blockReason
-        || "A assinatura possui pendencia e precisa de regularizacao para liberar o acesso.";
+        || "A assinatura possui pendência e precisa de regularização para liberar o acesso.";
     const currentPlanFeatureLabels = useMemo(() => listEnabledFeatureLabels(billing?.features).slice(0, 8), [billing?.features]);
 
     if (error && !billing) {
@@ -226,7 +226,7 @@ export function SubscriptionCenter({
                 <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700">
                     <ExternalLink className="h-4 w-4" />
                     <a href={adjustmentResult.invoiceUrl} target="_blank" rel="noreferrer" className="underline decoration-emerald-300 underline-offset-4">
-                        Abrir cobranca proporcional
+                        Abrir cobrança proporcional
                     </a>
                 </div>
             ) : null}
@@ -235,15 +235,15 @@ export function SubscriptionCenter({
                 <InfoCard label="Plano" value={billing?.planName ?? "Plano principal"} />
                 <InfoCard label="Assinatura" value={statusLabel(currentStatus)} />
                 <InfoCard label="Pagamento" value={statusLabel(currentPaymentStatus)} />
-                <InfoCard label={accessStatus?.accessBlocked ? "Vencimento" : "Renovacao"} value={formatDateTime(currentPeriodEnd)} />
+                <InfoCard label={accessStatus?.accessBlocked ? "Vencimento" : "Renovação"} value={formatDateTime(currentPeriodEnd)} />
             </div>
 
             {billing?.pendingProrationCreditCents ? (
                 <div className="mt-4 rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-emerald-800">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700">Credito programado</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700">Crédito programado</p>
                     <p className="mt-2 text-lg font-bold">{formatMoney(billing.pendingProrationCreditCents, "BRL")}</p>
                     <p className="mt-2 text-sm leading-6 text-emerald-800/85">
-                        {billing.pendingProrationCreditNote || "Este valor sera abatido automaticamente das proximas cobrancas da assinatura."}
+                        {billing.pendingProrationCreditNote || "Este valor será abatido automaticamente das próximas cobranças da assinatura."}
                     </p>
                     <p className="mt-2 text-xs text-emerald-800/70">
                         Atualizado em {formatDateTime(billing.pendingProrationCreditUpdatedAt)}
@@ -253,10 +253,10 @@ export function SubscriptionCenter({
 
             {showDelinquencyCards ? (
                 <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <InfoCard label="Valor em cobranca" value={formatMoney(billing?.amountCents, (billing?.currency ?? "BRL").toUpperCase())} tone="warning" />
+                    <InfoCard label="Valor em cobrança" value={formatMoney(billing?.amountCents, (billing?.currency ?? "BRL").toUpperCase())} tone="warning" />
                     <InfoCard label="Forma de pagamento" value={billingTypeLabel(accessStatus?.billingType)} tone="warning" />
                     <InfoCard label="Bloqueio" value={accessStatus?.blockedAt ? formatDateTime(accessStatus.blockedAt) : "Pendente"} tone="danger" />
-                    <InfoCard label="Regularizacao" value={regularizationSummary} tone="warning" compact />
+                    <InfoCard label="Regularização" value={regularizationSummary} tone="warning" compact />
                 </div>
             ) : (
                 <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -296,14 +296,14 @@ export function SubscriptionCenter({
                         </div>
 
                         <div className="mt-5 grid gap-3 md:grid-cols-2">
-                            <UsageCard label="Usuarios ativos" value={billing.usage.activeUsers} limit={billing.usersLimit} />
-                            <UsageCard label="Veiculos ativos" value={billing.usage.activeVehicles} limit={billing.vehiclesLimit} />
-                            <UsageCard label="Anuncios ativos" value={billing.usage.activeAds} limit={billing.activeAdsLimit} />
-                            <UsageCard label="Integracoes conectadas" value={billing.usage.connectedIntegrations} />
+                            <UsageCard label="Usuários ativos" value={billing.usage.activeUsers} limit={billing.usersLimit} />
+                            <UsageCard label="Veículos ativos" value={billing.usage.activeVehicles} limit={billing.vehiclesLimit} />
+                            <UsageCard label="Anúncios ativos" value={billing.usage.activeAds} limit={billing.activeAdsLimit} />
+                            <UsageCard label="Integrações conectadas" value={billing.usage.connectedIntegrations} />
                         </div>
 
                         <div className="mt-5">
-                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Modulos habilitados</p>
+                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Módulos habilitados</p>
                             <div className="mt-3 flex flex-wrap gap-2">
                                 {(billing.enabledModules.length ? billing.enabledModules : currentPlanFeatureLabels).map((label) => (
                                     <span key={label} className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs text-black/65">
@@ -335,7 +335,7 @@ export function SubscriptionCenter({
                     className="inline-flex items-center gap-2 rounded-full bg-[#6b00e3] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#5800bb] disabled:cursor-not-allowed disabled:bg-[#6b00e3]/35"
                 >
                     {openingPortal ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                    Abrir cobranca no Asaas
+                    Abrir cobrança no Asaas
                 </button>
             </div>
 
@@ -584,15 +584,15 @@ function changeTypeLabel(value: BillingPlanChangePreview["changeType"]) {
 }
 
 function prorationModeLabel(value: BillingPlanChangePreview["proration"]["adjustmentMode"]) {
-    if (value === "IMMEDIATE_CHARGE") return "Cobranca imediata";
-    if (value === "NEXT_CYCLE_CREDIT") return "Credito nas proximas cobrancas";
-    if (value === "UPCOMING_PAYMENT_UPDATE") return "Substitui cobranca pendente";
+    if (value === "IMMEDIATE_CHARGE") return "Cobrança imediata";
+    if (value === "NEXT_CYCLE_CREDIT") return "Crédito nas próximas cobranças";
+    if (value === "UPCOMING_PAYMENT_UPDATE") return "Substitui cobrança pendente";
     return "Sem ajuste adicional";
 }
 
 function limitLabel(value: number | null | undefined, suffix: string) {
     if (value == null || value <= 0) return `Sem limite de ${suffix}`;
-    return `Ate ${value.toLocaleString("pt-BR")} ${suffix}`;
+    return `Até ${value.toLocaleString("pt-BR")} ${suffix}`;
 }
 
 function UsageCard({
