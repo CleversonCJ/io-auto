@@ -58,6 +58,8 @@ type LeadCard = {
     phone: string;
     photoUrl?: string | null;
     description: string;
+    interestLabel?: string | null;
+    sourceLabel?: string | null;
     ownerId: string | null;
     owner: string;
     status: string;
@@ -385,6 +387,8 @@ export function CrmKanban() {
                     phone: item.phone,
                     photoUrl: item.photoUrl ?? null,
                     description: (item.lastMessage ?? "").trim() || "Sem descrição.",
+                    interestLabel: null,
+                    sourceLabel: null,
                     owner: (item.assignedUserName ?? "").trim() || "Não atribuído",
                     ownerId: item.assignedUserId?.trim() || null,
                     status: item.status,
@@ -397,9 +401,10 @@ export function CrmKanban() {
 
             const catalogLeads = publicCatalogLeads.map((item) => {
                 const vehicleLabel = (item.vehicleTitle ?? "").trim();
+                const sourceLabel = sourceTypeLabel(item.sourceType);
                 const description = vehicleLabel
-                    ? `Interesse em ${vehicleLabel}. Origem: ${sourceTypeLabel(item.sourceType)}.`
-                    : `Lead captado pelo catálogo público. Origem: ${sourceTypeLabel(item.sourceType)}.`;
+                    ? `Interesse em ${vehicleLabel}. Origem: ${sourceLabel}.`
+                    : `Lead captado pelo catálogo público. Origem: ${sourceLabel}.`;
                 return {
                     id: item.id,
                     kind: "public_catalog" as const,
@@ -407,6 +412,8 @@ export function CrmKanban() {
                     phone: item.customerPhone,
                     photoUrl: null,
                     description,
+                    interestLabel: vehicleLabel || "Catálogo geral",
+                    sourceLabel,
                     owner: "Catálogo público",
                     ownerId: null,
                     status: "NEW",
@@ -1232,6 +1239,18 @@ export function CrmKanban() {
                                                     ? selectedLeadLabels.map((label) => <LabelBadge key={label.id} label={label} />)
                                                     : <span className="text-xs text-black/50">Sem etiquetas</span>}
                                             </div>
+                                            {selectedLead.kind === "public_catalog" ? (
+                                                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-3 py-2">
+                                                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700/80">Veículo de interesse</p>
+                                                        <p className="mt-1 text-sm font-semibold text-io-dark">{selectedLead.interestLabel ?? "Catálogo geral"}</p>
+                                                    </div>
+                                                    <div className="rounded-2xl border border-black/10 bg-io-light px-3 py-2">
+                                                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-black/45">Origem</p>
+                                                        <p className="mt-1 text-sm font-semibold text-io-dark">{selectedLead.sourceLabel ?? "Catálogo público"}</p>
+                                                    </div>
+                                                </div>
+                                            ) : null}
                                         </div>
                                     </div>
                                     {selectedLead.kind === "conversation" ? (
