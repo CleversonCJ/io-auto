@@ -127,6 +127,14 @@ function currencyInputValue(raw: string) {
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(digits) / 100);
 }
 
+function formatPhoneInput(raw: string) {
+    const digits = raw.replace(/\D/g, "").slice(0, 11);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 function barWidth(value: number, max: number) {
     if (max <= 0) return "0%";
     return `${Math.max(8, Math.round((value / max) * 100))}%`;
@@ -156,7 +164,7 @@ function buildPartnerForm(partner: PartnerRow): PartnerFormState {
         partnerId: partner.partnerId,
         partnerName: partner.partnerName,
         companyName: partner.companyName === "-" ? "" : partner.companyName,
-        whatsapp: partner.whatsapp === "-" ? "" : partner.whatsapp,
+        whatsapp: partner.whatsapp === "-" ? "" : formatPhoneInput(partner.whatsapp),
         email: partner.email === "-" ? "" : partner.email,
         city: partner.city === "-" ? "" : partner.city,
         state: partner.state === "-" ? "" : partner.state,
@@ -402,9 +410,9 @@ export function SuperAdminPartnersPage() {
                             WhatsApp
                             <input
                                 value={partnerForm.whatsapp}
-                                onChange={(event) => setPartnerForm((current) => ({ ...current, whatsapp: event.target.value }))}
+                                onChange={(event) => setPartnerForm((current) => ({ ...current, whatsapp: formatPhoneInput(event.target.value) }))}
                                 className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
-                                placeholder="11999999999"
+                                placeholder="(11) 99999-9999"
                             />
                         </label>
                         <label className="grid gap-2 text-sm text-black/62">

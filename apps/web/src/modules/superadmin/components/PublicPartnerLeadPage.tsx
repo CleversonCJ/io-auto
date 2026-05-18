@@ -32,8 +32,16 @@ async function fetchJson<T>(url: string, init?: RequestInit, fallbackMessage = "
     return payload as T;
 }
 
+function formatPhoneInput(raw: string) {
+    const digits = raw.replace(/\D/g, "").slice(0, 11);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 export function PublicPartnerLeadPage({ initialRef }: { initialRef: string }) {
-    const [partner, setPartner] = useState<PublicPartnerResponse | null>(null);
+    const [, setPartner] = useState<PublicPartnerResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [feedback, setFeedback] = useState<string | null>(null);
@@ -108,18 +116,13 @@ export function PublicPartnerLeadPage({ initialRef }: { initialRef: string }) {
             <div className="mx-auto grid min-h-[85vh] w-full max-w-5xl place-items-center">
                 <div className="grid w-full gap-6 rounded-[38px] border border-black/10 bg-white/92 p-6 shadow-[0_30px_90px_rgba(15,23,42,0.12)] backdrop-blur md:p-10">
                     <div className="text-center">
-                        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-black/42">Programa de parceiros IO Auto</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-black/42">IO Auto</p>
                         <h1 className="mt-4 font-display text-[2.1rem] font-bold leading-tight text-io-dark">
-                            Indique uma loja e acelere a entrada dela no IO Auto.
+                            Descubra como o IO Auto pode acelerar a operacao da sua loja.
                         </h1>
                         <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-black/56">
-                            Preencha os dados do lojista e nossa equipe comercial recebe esse lead ja vinculado ao parceiro de origem para seguir a negociacao.
+                            Preencha o formulario para demonstrar interesse no sistema IO Auto. Nosso time comercial vai analisar seu perfil e entrar em contato para apresentar a plataforma.
                         </p>
-                        {partner ? (
-                            <div className="mt-4 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700">
-                                Indicacao vinculada a {partner.partnerName}
-                            </div>
-                        ) : null}
                     </div>
 
                     {loading ? (
@@ -156,9 +159,9 @@ export function PublicPartnerLeadPage({ initialRef }: { initialRef: string }) {
                                     WhatsApp
                                     <input
                                         value={form.whatsapp}
-                                        onChange={(event) => setForm((current) => ({ ...current, whatsapp: event.target.value }))}
+                                        onChange={(event) => setForm((current) => ({ ...current, whatsapp: formatPhoneInput(event.target.value) }))}
                                         className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
-                                        placeholder="11999999999"
+                                        placeholder="(11) 99999-9999"
                                     />
                                 </label>
                                 <label className="grid gap-2 text-sm text-black/62">
