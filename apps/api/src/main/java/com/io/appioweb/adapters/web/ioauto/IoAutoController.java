@@ -4,6 +4,8 @@ import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoConversation
 import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoSessionRepositoryJpa;
 import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoConversationEntity;
 import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoSessionEntity;
+import com.io.appioweb.adapters.persistence.crm.CrmCompanyStateRepositoryJpa;
+import com.io.appioweb.adapters.persistence.crm.JpaCrmCompanyStateEntity;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoPublicCatalogLeadRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoIntegrationRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoPublicLinkRepositoryJpa;
@@ -133,6 +135,7 @@ public class IoAutoController {
     private final CompanyRepositoryPort companies;
     private final AtendimentoConversationRepositoryJpa conversations;
     private final AtendimentoSessionRepositoryJpa sessions;
+    private final CrmCompanyStateRepositoryJpa crmState;
     private final IoAutoVehicleRepositoryJpa vehicles;
     private final IoAutoVehiclePublicationRepositoryJpa publications;
     private final IoAutoIntegrationRepositoryJpa integrations;
@@ -154,6 +157,7 @@ public class IoAutoController {
             CompanyRepositoryPort companies,
             AtendimentoConversationRepositoryJpa conversations,
             AtendimentoSessionRepositoryJpa sessions,
+            CrmCompanyStateRepositoryJpa crmState,
             IoAutoVehicleRepositoryJpa vehicles,
             IoAutoVehiclePublicationRepositoryJpa publications,
             IoAutoIntegrationRepositoryJpa integrations,
@@ -174,6 +178,7 @@ public class IoAutoController {
         this.companies = companies;
         this.conversations = conversations;
         this.sessions = sessions;
+        this.crmState = crmState;
         this.vehicles = vehicles;
         this.publications = publications;
         this.integrations = integrations;
@@ -455,19 +460,108 @@ public class IoAutoController {
         entity.setConvertedSaleId(null);
         entity.setCreatedAt(Instant.now());
         publicCatalogLeads.save(entity);
+        boolean crmStateChanged = ensurePublicCatalogLeadCrmCard(companyId, entity, entity.getCreatedAt());
 
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            boolean notifyCrmState = crmStateChanged;
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
                     realtime.publicCatalogLeadCreated(companyId);
+                    if (notifyCrmState) {
+                        realtime.crmStateChanged(companyId);
+                    }
                 }
             });
         } else {
             realtime.publicCatalogLeadCreated(companyId);
+            if (crmStateChanged) {
+                realtime.crmStateChanged(companyId);
+            }
         }
 
         return ResponseEntity.noContent().build();
+    }
+
+    private boolean ensurePublicCatalogLeadCrmCard(UUID companyId, JpaIoAutoPublicCatalogLeadEntity lead, Instant now) {
+        var plan = planManagementService.resolvePlanForCompany(companyId);
+        if (!plan.features().crmKanban() || !plan.features().leadManagement()) {
+            return false;
+        }
+
+        JpaCrmCompanyStateEntity entity = crmState.findByCompanyIdForUpdate(companyId).orElseGet(() -> {
+            JpaCrmCompanyStateEntity created = new JpaCrmCompanyStateEntity();
+            created.setCompanyId(companyId);
+            created.setStagesJson("[]");
+            created.setLeadStageMapJson("{}");
+            created.setCustomFieldsJson("[]");
+            created.setLeadFieldValuesJson("{}");
+            created.setLeadFieldsOrderJson("[]");
+            created.setCreatedAt(now);
+            created.setUpdatedAt(now);
+            return created;
+        });
+
+        List<Map<String, Object>> stages = readJsonListOfObjects(entity.getStagesJson());
+        String firstStageId = resolveFirstCrmStageId(stages);
+        if (firstStageId == null) {
+            Map<String, Object> defaultStage = createDefaultCrmInitialStage(now);
+            stages = new ArrayList<>(stages);
+            stages.add(defaultStage);
+            firstStageId = String.valueOf(defaultStage.get("id"));
+            entity.setStagesJson(writeJsonValue(stages, "[]"));
+        }
+
+        Map<String, String> leadStageMap = readJsonStringMap(entity.getLeadStageMapJson());
+        String leadKey = lead.getId().toString();
+        if (firstStageId.equals(leadStageMap.get(leadKey))) {
+            return false;
+        }
+
+        leadStageMap.put(leadKey, firstStageId);
+        entity.setLeadStageMapJson(writeJsonValue(leadStageMap, "{}"));
+        entity.setUpdatedAt(now);
+        crmState.saveAndFlush(entity);
+        return true;
+    }
+
+    private String resolveFirstCrmStageId(List<Map<String, Object>> stages) {
+        if (stages == null || stages.isEmpty()) {
+            return null;
+        }
+
+        return stages.stream()
+                .filter(stage -> normalizeText(String.valueOf(stage.getOrDefault("id", ""))).isBlank() == false)
+                .sorted(Comparator
+                        .comparing((Map<String, Object> stage) -> readStageOrder(stage))
+                        .thenComparing(stage -> "initial".equalsIgnoreCase(normalizeText(String.valueOf(stage.get("kind")))) ? 0 : 1))
+                .map(stage -> normalizeText(String.valueOf(stage.get("id"))))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private int readStageOrder(Map<String, Object> stage) {
+        if (stage == null) return Integer.MAX_VALUE;
+        Object raw = stage.get("order");
+        if (raw instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(raw));
+        } catch (Exception ignored) {
+            return Integer.MAX_VALUE;
+        }
+    }
+
+    private Map<String, Object> createDefaultCrmInitialStage(Instant now) {
+        Map<String, Object> stage = new LinkedHashMap<>();
+        stage.put("id", "crm_stage_catalog_entry");
+        stage.put("title", "Entrada");
+        stage.put("kind", "initial");
+        stage.put("order", 0);
+        stage.put("createdAt", now.toString());
+        stage.put("updatedAt", now.toString());
+        return stage;
     }
 
     @PostMapping("/ioauto/vehicles")
@@ -1465,6 +1559,15 @@ public class IoAutoController {
         }
     }
 
+    private List<Map<String, Object>> readJsonListOfObjects(String raw) {
+        try {
+            return OBJECT_MAPPER.readValue(normalizeText(raw, "[]"), new TypeReference<List<Map<String, Object>>>() {
+            });
+        } catch (Exception ignored) {
+            return List.of();
+        }
+    }
+
     private String writeVehicleFinancing(VehicleFinancingHttpRequest financing) {
         try {
             VehicleFinancingHttpResponse normalized = sanitizeVehicleFinancing(
@@ -1518,6 +1621,24 @@ public class IoAutoController {
             });
         } catch (Exception ignored) {
             return Map.of();
+        }
+    }
+
+    private String writeJsonValue(Object value, String fallbackJson) {
+        if (value == null) return fallbackJson;
+        try {
+            return OBJECT_MAPPER.writeValueAsString(value);
+        } catch (Exception ignored) {
+            return fallbackJson;
+        }
+    }
+
+    private Map<String, String> readJsonStringMap(String raw) {
+        try {
+            return new LinkedHashMap<>(OBJECT_MAPPER.readValue(normalizeText(raw, "{}"), new TypeReference<Map<String, String>>() {
+            }));
+        } catch (Exception ignored) {
+            return new LinkedHashMap<>();
         }
     }
 

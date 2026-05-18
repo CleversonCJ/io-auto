@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, MessageCircleMore, Search, Trash2, X } from "lucide-react";
+import { ChevronDown, ExternalLink, MessageCircleMore, Search, Trash2, X } from "lucide-react";
 import {
     CRM_VALUE_FIELD_ID,
     CRM_VALUE_FIELD_KEY,
@@ -21,6 +21,7 @@ import {
     type CrmStage,
 } from "@/modules/crm/storage";
 import { CrmFollowUpsManager } from "@/modules/crm/components/CrmFollowUpsManager";
+import type { PublicCatalogLeadList } from "@/modules/ioauto/types";
 import {
     getLabelTextColor,
     listContactLabelAssignments,
@@ -52,6 +53,7 @@ type AtendimentoUser = {
 
 type LeadCard = {
     id: string;
+    kind: "conversation" | "public_catalog";
     name: string;
     phone: string;
     photoUrl?: string | null;
@@ -60,9 +62,12 @@ type LeadCard = {
     owner: string;
     status: string;
     lastAt: string;
+    lastAtRaw?: string | null;
     unreadCount: number;
     createdAtRaw?: string | null;
 };
+
+type PublicCatalogLead = PublicCatalogLeadList["leads"][number];
 
 type ConfigFieldDraft = {
     key: string;
@@ -102,6 +107,15 @@ function toInitials(value: string) {
 
 function normalizePhone(value: string) {
     return value.replace(/\D/g, "");
+}
+
+function sourceTypeLabel(value?: string | null) {
+    const normalized = String(value ?? "").trim().toUpperCase();
+    if (normalized === "CAMPAIGN") return "Campanha";
+    if (normalized === "INFLUENCER") return "Influenciador";
+    if (normalized === "DIRECT") return "Direto";
+    if (!normalized) return "Catálogo público";
+    return normalized.replaceAll("_", " ");
 }
 
 function parseCurrencyAmount(value?: string | null) {
@@ -312,6 +326,7 @@ export function CrmKanban() {
     const [followUps, setFollowUps] = useState<CrmFollowUp[]>([]);
     const [followUpNotifications, setFollowUpNotifications] = useState<CrmFollowUpNotification[]>([]);
     const [conversations, setConversations] = useState<ApiConversation[]>([]);
+    const [publicCatalogLeads, setPublicCatalogLeads] = useState<PublicCatalogLead[]>([]);
     const [availableUsers, setAvailableUsers] = useState<AtendimentoUser[]>([]);
     const [availableLabels, setAvailableLabels] = useState<ContactLabel[]>([]);
     const [labelsByContact, setLabelsByContact] = useState<Record<string, string[]>>({});
@@ -359,12 +374,13 @@ export function CrmKanban() {
             .filter(Boolean) as ConfigFieldDraft[];
     }, [orderedCustomFields, leadFieldOrder]);
     const leads = useMemo<LeadCard[]>(
-        () =>
-            conversations.map((item) => {
+        () => {
+            const conversationLeads = conversations.map((item) => {
                 const fallbackUnread = item.lastMessageFromMe !== true && Boolean(item.lastAt) ? 1 : 0;
                 const unreadCount = Math.max(0, Number(item.unreadCount ?? fallbackUnread) || 0);
                 return {
                     id: item.id,
+                    kind: "conversation" as const,
                     name: (item.displayName ?? "").trim() || item.phone,
                     phone: item.phone,
                     photoUrl: item.photoUrl ?? null,
@@ -373,11 +389,41 @@ export function CrmKanban() {
                     ownerId: item.assignedUserId?.trim() || null,
                     status: item.status,
                     lastAt: formatDateTime(item.lastAt),
+                    lastAtRaw: item.lastAt ?? item.startedAt ?? null,
                     unreadCount,
                     createdAtRaw: item.startedAt ?? null,
                 };
-            }),
-        [conversations]
+            });
+
+            const catalogLeads = publicCatalogLeads.map((item) => {
+                const vehicleLabel = (item.vehicleTitle ?? "").trim();
+                const description = vehicleLabel
+                    ? `Interesse em ${vehicleLabel}. Origem: ${sourceTypeLabel(item.sourceType)}.`
+                    : `Lead captado pelo catálogo público. Origem: ${sourceTypeLabel(item.sourceType)}.`;
+                return {
+                    id: item.id,
+                    kind: "public_catalog" as const,
+                    name: item.customerName.trim() || item.customerPhone,
+                    phone: item.customerPhone,
+                    photoUrl: null,
+                    description,
+                    owner: "Catálogo público",
+                    ownerId: null,
+                    status: "NEW",
+                    lastAt: formatDateTime(item.createdAt),
+                    lastAtRaw: item.createdAt ?? null,
+                    unreadCount: 0,
+                    createdAtRaw: item.createdAt ?? null,
+                };
+            });
+
+            return [...conversationLeads, ...catalogLeads].sort((left, right) => {
+                const rightTime = new Date(right.lastAtRaw ?? right.createdAtRaw ?? 0).getTime();
+                const leftTime = new Date(left.lastAtRaw ?? left.createdAtRaw ?? 0).getTime();
+                return rightTime - leftTime;
+            });
+        },
+        [conversations, publicCatalogLeads]
     );
     const ownerOptions = useMemo(() => {
         const map = new Map<string, string>();
@@ -516,6 +562,19 @@ export function CrmKanban() {
         setAvailableUsers(Array.isArray(data) ? data : []);
     }
 
+    async function refreshPublicCatalogLeads() {
+        const res = await fetch("/api/ioauto/public-catalog-leads?preset=LAST_30_DAYS", { cache: "no-store" });
+        if (!res.ok) {
+            if (res.status === 403 || res.status === 404) {
+                setPublicCatalogLeads([]);
+                return;
+            }
+            throw new Error("Falha ao carregar leads do catálogo público.");
+        }
+        const data = (await res.json().catch(() => ({ leads: [] }))) as PublicCatalogLeadList;
+        setPublicCatalogLeads(Array.isArray(data?.leads) ? data.leads : []);
+    }
+
     async function refreshCrmState() {
         const crmState = await loadCrmStateFromApi();
         applyCrmState(crmState);
@@ -542,7 +601,7 @@ export function CrmKanban() {
             setLoading(true);
             setError(null);
             try {
-                await Promise.all([refreshConversations(), refreshCrmState(), refreshUsers()]);
+                await Promise.all([refreshConversations(), refreshCrmState(), refreshUsers(), refreshPublicCatalogLeads()]);
                 setAvailableLabels(listContactLabels());
                 setLabelsByContact(listContactLabelAssignments());
             } catch {
@@ -557,6 +616,7 @@ export function CrmKanban() {
     useEffect(() => {
         let isRefreshingConversations = false;
         let isRefreshingCrmState = false;
+        let isRefreshingPublicCatalogLeads = false;
         const unsubscribe = subscribeRealtime((event) => {
             if (event.type === "conversation.changed" || event.type === "message.changed") {
                 if (isRefreshingConversations) return;
@@ -568,6 +628,19 @@ export function CrmKanban() {
                         // ignora erro momentaneo realtime
                     } finally {
                         isRefreshingConversations = false;
+                    }
+                }, 120);
+            }
+            if (event.type === "public.catalog.lead.created") {
+                if (isRefreshingPublicCatalogLeads) return;
+                isRefreshingPublicCatalogLeads = true;
+                window.setTimeout(async () => {
+                    try {
+                        await refreshPublicCatalogLeads();
+                    } catch {
+                        // ignora erro momentaneo realtime
+                    } finally {
+                        isRefreshingPublicCatalogLeads = false;
                     }
                 }, 120);
             }
@@ -635,6 +708,12 @@ export function CrmKanban() {
     function openAtendimento(conversationId: string) {
         const path = `/protected/atendimentos/${conversationId}?tab=auto`;
         setIsOpeningAtendimento(true);
+        router.prefetch(path);
+        router.push(path);
+    }
+
+    function openPublicLeadDesk() {
+        const path = "/protected/leads";
         router.prefetch(path);
         router.push(path);
     }
@@ -1029,7 +1108,7 @@ export function CrmKanban() {
                                     <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-black/65 shadow-sm">{stageLeads.length}</span>
                                 </header>
                                 <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-                                    {stageLeads.length === 0 ? <div className="rounded-[22px] border border-dashed border-black/15 bg-io-light px-3 py-5 text-center text-xs text-black/45">Nenhum atendimento nesta etapa.</div> : stageLeads.map((lead) => {
+                                    {stageLeads.length === 0 ? <div className="rounded-[22px] border border-dashed border-black/15 bg-io-light px-3 py-5 text-center text-xs text-black/45">Nenhum lead nesta etapa.</div> : stageLeads.map((lead) => {
                                         return (
                                             <div
                                                 key={lead.id}
@@ -1056,24 +1135,39 @@ export function CrmKanban() {
                                                         <span className="rounded-full bg-black/[0.04] px-2.5 py-1">{lead.phone}</span>
                                                         <span className="rounded-full bg-black/[0.04] px-2.5 py-1">{lead.lastAt}</span>
                                                     </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={(event) => {
-                                                        event.stopPropagation();
-                                                        openAtendimento(lead.id);
-                                                    }}
-                                                    onMouseEnter={() => prefetchAtendimento(lead.id)}
-                                                    className="absolute bottom-4 right-4 grid h-9 w-9 place-items-center rounded-full border border-black/12 bg-io-purple text-white transition hover:bg-io-purple"
-                                                    aria-label={`Abrir atendimento${lead.unreadCount > 0 ? ` com ${lead.unreadCount} mensagens não lidas` : ""}`}
-                                                    title="Abrir atendimento"
-                                                >
-                                                    <MessageCircleMore className="h-3.5 w-3.5" strokeWidth={2} />
-                                                    {lead.unreadCount > 0 && (
-                                                        <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-red-600 px-1 text-center text-[10px] font-bold leading-4 text-white">
-                                                            {lead.unreadCount > 9 ? "9+" : lead.unreadCount}
-                                                        </span>
+                                                    {lead.kind === "conversation" ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                openAtendimento(lead.id);
+                                                            }}
+                                                            onMouseEnter={() => prefetchAtendimento(lead.id)}
+                                                            className="absolute bottom-4 right-4 grid h-9 w-9 place-items-center rounded-full border border-black/12 bg-io-purple text-white transition hover:bg-io-purple"
+                                                            aria-label={`Abrir atendimento${lead.unreadCount > 0 ? ` com ${lead.unreadCount} mensagens não lidas` : ""}`}
+                                                            title="Abrir atendimento"
+                                                        >
+                                                            <MessageCircleMore className="h-3.5 w-3.5" strokeWidth={2} />
+                                                            {lead.unreadCount > 0 && (
+                                                                <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-red-600 px-1 text-center text-[10px] font-bold leading-4 text-white">
+                                                                    {lead.unreadCount > 9 ? "9+" : lead.unreadCount}
+                                                                </span>
+                                                            )}
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                openPublicLeadDesk();
+                                                            }}
+                                                            className="absolute bottom-4 right-4 grid h-9 w-9 place-items-center rounded-full border border-black/12 bg-emerald-600 text-white transition hover:bg-emerald-700"
+                                                            aria-label="Abrir lista de leads"
+                                                            title="Abrir lista de leads"
+                                                        >
+                                                            <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} />
+                                                        </button>
                                                     )}
-                                                </button>
                                             </div>
                                         );
                                     })}
@@ -1131,22 +1225,36 @@ export function CrmKanban() {
                                         <div>
                                             <p className="text-lg font-medium text-io-dark">{selectedLead.name}</p>
                                             <div className="mt-1 flex flex-wrap gap-1">
+                                                {selectedLead.kind === "public_catalog" ? (
+                                                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">Catálogo público</span>
+                                                ) : null}
                                                 {selectedLeadLabels.length > 0
                                                     ? selectedLeadLabels.map((label) => <LabelBadge key={label.id} label={label} />)
                                                     : <span className="text-xs text-black/50">Sem etiquetas</span>}
                                             </div>
                                         </div>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => openAtendimento(selectedLead.id)}
-                                        onMouseEnter={() => prefetchAtendimento(selectedLead.id)}
-                                        className="grid h-10 w-10 place-items-center rounded-full border border-black/12 bg-io-purple text-white transition hover:bg-io-purple"
-                                        aria-label="Abrir atendimento"
-                                        title="Abrir atendimento"
-                                    >
-                                        <MessageCircleMore className="h-5 w-5" strokeWidth={2} />
-                                    </button>
+                                    {selectedLead.kind === "conversation" ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => openAtendimento(selectedLead.id)}
+                                            onMouseEnter={() => prefetchAtendimento(selectedLead.id)}
+                                            className="grid h-10 w-10 place-items-center rounded-full border border-black/12 bg-io-purple text-white transition hover:bg-io-purple"
+                                            aria-label="Abrir atendimento"
+                                            title="Abrir atendimento"
+                                        >
+                                            <MessageCircleMore className="h-5 w-5" strokeWidth={2} />
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={openPublicLeadDesk}
+                                            className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                                        >
+                                            <ExternalLink className="h-4 w-4" strokeWidth={2} />
+                                            Abrir lista de leads
+                                        </button>
+                                    )}
                                 </div>
                                 <div className="space-y-5">
                                     {allLeadFields.length === 0 ? (
