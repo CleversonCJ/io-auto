@@ -48,6 +48,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -249,14 +250,12 @@ public class IoAutoBillingService {
                     );
                 })
                 .toList();
-        BillingInvoiceSummary nextInvoice = subscription
-                .flatMap(item -> findNextPendingSubscriptionPayment(item, LocalDate.now(BILLING_ZONE)))
-                .map(payment -> toBillingInvoiceSummary(
-                        payment,
-                        currentPlan.planName(),
-                        normalizeText(subscription.map(JpaIoAutoBillingSubscriptionEntity::getCurrency).orElse("brl"), "brl")
-                ))
-                .orElse(null);
+        BillingInvoiceSummary nextInvoice = resolveNextInvoiceSummary(
+                subscription.orElse(null),
+                currentPlan.planName(),
+                normalizeText(subscription.map(JpaIoAutoBillingSubscriptionEntity::getCurrency).orElse("brl"), "brl"),
+                resolvedAmountCents
+        );
         List<BillingInvoiceSummary> paidInvoices = subscription
                 .map(item -> listPaidInvoiceSummaries(
                         item,
@@ -1350,6 +1349,56 @@ public class IoAutoBillingService {
         }
 
         return List.of();
+    }
+
+    private BillingInvoiceSummary resolveNextInvoiceSummary(
+            JpaIoAutoBillingSubscriptionEntity subscription,
+            String currentPlanName,
+            String currency,
+            Long expectedAmountCents
+    ) {
+        return findNextPendingSubscriptionPayment(subscription, LocalDate.now(BILLING_ZONE))
+                .map(payment -> repairUpcomingPendingPaymentIfStale(payment, currentPlanName, expectedAmountCents))
+                .map(payment -> toBillingInvoiceSummary(payment, currentPlanName, currency))
+                .orElse(null);
+    }
+
+    private AsaasPayment repairUpcomingPendingPaymentIfStale(
+            AsaasPayment payment,
+            String currentPlanName,
+            Long expectedAmountCents
+    ) {
+        if (payment == null) {
+            return null;
+        }
+
+        String normalizedPlanName = normalizeText(currentPlanName);
+        String normalizedDescription = normalizeText(payment.description());
+        boolean descriptionMatchesCurrentPlan = !normalizedPlanName.isBlank() && normalizedDescription.contains(normalizedPlanName);
+        if (descriptionMatchesCurrentPlan) {
+            return payment;
+        }
+
+        Long targetAmountCents = expectedAmountCents != null ? expectedAmountCents : toCents(payment.value());
+        if (targetAmountCents == null) {
+            return payment;
+        }
+
+        try {
+            return updateAsaasPaymentValue(
+                    payment,
+                    targetAmountCents,
+                    "Assinatura " + currentPlanName
+            );
+        } catch (BusinessException exception) {
+            log.warn(
+                    "Failed to repair upcoming pending payment paymentId={} currentPlan={} reason={}",
+                    normalizeText(payment.id()),
+                    currentPlanName,
+                    exception.getMessage()
+            );
+            return payment;
+        }
     }
 
     private List<BillingInvoiceSummary> listPaidInvoiceSummaries(
@@ -2477,6 +2526,7 @@ public class IoAutoBillingService {
 
         try {
             AsaasPayment payment = toAsaasPayment(callAsaas("POST", "/payments", body));
+            alignNextRecurringPendingPayment(context);
             return new PlanChangeAdjustmentResult(
                     "IMMEDIATE_CHARGE",
                     chargeCents,
@@ -2505,8 +2555,7 @@ public class IoAutoBillingService {
         String paymentId = null;
         String invoiceUrl = null;
 
-        LocalDate periodEndExclusive = resolveCurrentPeriodEndDate(context);
-        Optional<AsaasPayment> nextPendingPayment = findNextPendingSubscriptionPayment(context.subscription(), periodEndExclusive);
+        Optional<AsaasPayment> nextPendingPayment = alignNextRecurringPendingPayment(context);
         if (nextPendingPayment.isPresent()) {
             AsaasPayment payment = nextPendingPayment.get();
             long paymentValueCents = toCents(payment.value()) == null ? 0L : toCents(payment.value());
@@ -2585,6 +2634,32 @@ public class IoAutoBillingService {
         }
     }
 
+    private Optional<AsaasPayment> alignNextRecurringPendingPayment(PlanChangeContext context) {
+        LocalDate periodEndExclusive = resolveCurrentPeriodEndDate(context);
+        Optional<AsaasPayment> nextPendingPayment = findNextPendingSubscriptionPayment(context.subscription(), periodEndExclusive);
+        if (nextPendingPayment.isEmpty()) {
+            return Optional.empty();
+        }
+
+        AsaasPayment payment = nextPendingPayment.get();
+        Long paymentValueCents = toCents(payment.value());
+        boolean sameAmount = Objects.equals(paymentValueCents, context.targetAmountCents());
+        boolean sameDescription = normalizeText(payment.description()).equals(normalizeText(buildRecurringPaymentDescription(context)));
+        if (sameAmount && sameDescription) {
+            return Optional.of(payment);
+        }
+
+        try {
+            return Optional.of(updateAsaasPaymentValue(
+                    payment,
+                    context.targetAmountCents(),
+                    buildRecurringPaymentDescription(context)
+            ));
+        } catch (BusinessException exception) {
+            throw wrapProrationAdjustmentFailure(exception);
+        }
+    }
+
     private Optional<AsaasPayment> findCurrentPendingSubscriptionPayment(JpaIoAutoBillingSubscriptionEntity subscription) {
         if (subscription == null || normalizeText(subscription.getProviderSubscriptionId()).isBlank() || asaasApiKey.isBlank()) {
             return Optional.empty();
@@ -2594,7 +2669,7 @@ public class IoAutoBillingService {
                 .filter(this::isPendingPayment)
                 .sorted(Comparator
                         .comparing((AsaasPayment item) -> item.dueDate() == null ? LocalDate.MAX : item.dueDate())
-                        .thenComparing(item -> item.createdAt() == null ? Instant.EPOCH : item.createdAt()))
+                        .thenComparing((AsaasPayment item) -> item.createdAt() == null ? Instant.EPOCH : item.createdAt(), Comparator.reverseOrder()))
                 .findFirst();
     }
 
@@ -2612,7 +2687,7 @@ public class IoAutoBillingService {
                 .filter(item -> item.dueDate() != null && !item.dueDate().isBefore(dueDateFloor))
                 .sorted(Comparator
                         .comparing((AsaasPayment item) -> item.dueDate() == null ? LocalDate.MAX : item.dueDate())
-                        .thenComparing(item -> item.createdAt() == null ? Instant.EPOCH : item.createdAt()))
+                        .thenComparing((AsaasPayment item) -> item.createdAt() == null ? Instant.EPOCH : item.createdAt(), Comparator.reverseOrder()))
                 .findFirst();
     }
 
