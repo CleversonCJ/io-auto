@@ -37,6 +37,8 @@ public class PartnerProgramService {
     private static final String LEAD_STATUS_QUALIFIED = "QUALIFIED";
     private static final String LEAD_STATUS_CONVERTED = "CONVERTED";
     private static final String LEAD_STATUS_LOST = "LOST";
+    private static final String BILLING_RECURRENCE_MONTHLY = "MONTHLY";
+    private static final String BILLING_RECURRENCE_ANNUAL = "ANNUAL";
     private static final String COMMISSION_STATUS_PENDING = "PENDING";
     private static final String COMMISSION_STATUS_PAID = "PAID";
     private static final String COMMISSION_STATUS_CANCELED = "CANCELED";
@@ -115,6 +117,7 @@ public class PartnerProgramService {
                         lead.getId(),
                         normalizeText(lead.getStoreName()),
                         normalizeText(lead.getClosedPlan()),
+                        normalizeText(lead.getClosedBillingRecurrence()),
                         lead.getFirstMonthlyFeeCents(),
                         lead.getCommissionCents(),
                         normalizeText(lead.getCommissionStatus()),
@@ -183,6 +186,7 @@ public class PartnerProgramService {
         if (LEAD_STATUS_CONVERTED.equals(leadStatus)) {
             JpaPartnerProgramPartnerEntity partner = findPartner(entity.getPartnerId());
             String closedPlan = requireText(command.closedPlan(), "Informe o plano fechado.");
+            String closedBillingRecurrence = normalizeBillingRecurrence(command.closedBillingRecurrence());
             Long firstMonthlyFeeCents = requireMoney(command.firstMonthlyFeeCents(), "Informe o valor da primeira mensalidade.");
             Instant closedAt = requireInstant(command.closedAt(), "Informe a data de fechamento.");
             String commissionStatus = normalizeCommissionStatus(command.commissionStatus());
@@ -191,6 +195,7 @@ public class PartnerProgramService {
                     : closedAt.atZone(DEFAULT_ZONE).toLocalDate().plusDays(30);
 
             entity.setClosedPlan(closedPlan);
+            entity.setClosedBillingRecurrence(closedBillingRecurrence);
             entity.setFirstMonthlyFeeCents(firstMonthlyFeeCents);
             entity.setClosedAt(closedAt);
             entity.setCommissionCents(calculateCommission(firstMonthlyFeeCents, partner.getDefaultCommissionBps()));
@@ -201,6 +206,7 @@ public class PartnerProgramService {
                     : null);
         } else {
             entity.setClosedPlan(null);
+            entity.setClosedBillingRecurrence(null);
             entity.setFirstMonthlyFeeCents(null);
             entity.setClosedAt(null);
             entity.setCommissionCents(null);
@@ -243,6 +249,7 @@ public class PartnerProgramService {
         entity.setSalesOwner(null);
         entity.setNotes(null);
         entity.setClosedPlan(null);
+        entity.setClosedBillingRecurrence(null);
         entity.setFirstMonthlyFeeCents(null);
         entity.setClosedAt(null);
         entity.setCommissionCents(null);
@@ -345,6 +352,7 @@ public class PartnerProgramService {
                 normalizeText(lead.getSalesOwner()),
                 normalizeText(lead.getNotes()),
                 normalizeText(lead.getClosedPlan()),
+                normalizeText(lead.getClosedBillingRecurrence()),
                 lead.getFirstMonthlyFeeCents(),
                 lead.getClosedAt(),
                 lead.getCommissionCents(),
@@ -547,6 +555,19 @@ public class PartnerProgramService {
         };
     }
 
+    private String normalizeBillingRecurrence(String raw) {
+        String value = normalizeNullable(raw, 20);
+        if (value == null) {
+            throw new BusinessException("PARTNER_PROGRAM_VALIDATION", "Informe a recorrencia do pagamento.");
+        }
+        String normalized = value.toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case BILLING_RECURRENCE_MONTHLY, "MONTH" -> BILLING_RECURRENCE_MONTHLY;
+            case BILLING_RECURRENCE_ANNUAL, "YEARLY", "YEAR" -> BILLING_RECURRENCE_ANNUAL;
+            default -> throw new BusinessException("PARTNER_PROGRAM_VALIDATION", "Recorrencia de pagamento invalida.");
+        };
+    }
+
     public record SavePartnerCommand(
             String partnerName,
             String companyName,
@@ -565,6 +586,7 @@ public class PartnerProgramService {
             String salesOwner,
             String notes,
             String closedPlan,
+            String closedBillingRecurrence,
             Long firstMonthlyFeeCents,
             Instant closedAt,
             String commissionStatus,
@@ -655,6 +677,7 @@ public class PartnerProgramService {
             String salesOwner,
             String notes,
             String closedPlan,
+            String closedBillingRecurrence,
             Long firstMonthlyFeeCents,
             Instant closedAt,
             Long commissionCents,
@@ -678,6 +701,7 @@ public class PartnerProgramService {
             UUID leadId,
             String closedClient,
             String closedPlan,
+            String closedBillingRecurrence,
             Long firstMonthlyFeeCents,
             Long commissionCents,
             String status,

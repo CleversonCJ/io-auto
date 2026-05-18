@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Copy, Handshake, PencilLine, Plus, Save, Trophy } from "lucide-react";
-import type { PartnerDashboardResponse, PartnerDecimalMetricPoint, PartnerLeadRow, PartnerMetricPoint, PartnerRow } from "@/modules/superadmin/partnerProgramTypes";
+import type { PartnerDashboardResponse, PartnerDecimalMetricPoint, PartnerLeadRow, PartnerMetricPoint, PartnerRow, SuperAdminPlanOption } from "@/modules/superadmin/partnerProgramTypes";
 
 type PartnerFormState = {
     partnerId: string | null;
@@ -24,6 +24,7 @@ type LeadFormState = {
     salesOwner: string;
     notes: string;
     closedPlan: string;
+    closedBillingRecurrence: "MONTHLY" | "ANNUAL";
     firstMonthlyFee: string;
     closedAt: string;
     commissionStatus: string;
@@ -55,6 +56,11 @@ const COMMISSION_STATUS_OPTIONS = [
     { value: "PENDING", label: "Pendente" },
     { value: "PAID", label: "Paga" },
     { value: "CANCELED", label: "Cancelada" },
+];
+
+const BILLING_RECURRENCE_OPTIONS = [
+    { value: "MONTHLY", label: "Mensal" },
+    { value: "ANNUAL", label: "Anual" },
 ];
 
 async function fetchJson<T>(url: string, init?: RequestInit, fallbackMessage = "Falha ao carregar dados.") {
@@ -144,6 +150,32 @@ function chartValue(point: PartnerMetricPoint | PartnerDecimalMetricPoint) {
     return typeof point.value === "number" ? point.value : 0;
 }
 
+function normalizeBillingRecurrence(value?: string | null): "MONTHLY" | "ANNUAL" {
+    return value === "ANNUAL" ? "ANNUAL" : "MONTHLY";
+}
+
+function resolvePlanPrice(plan: SuperAdminPlanOption | null | undefined, recurrence: "MONTHLY" | "ANNUAL") {
+    if (!plan) return null;
+
+    if (recurrence === "ANNUAL") {
+        if (plan.annualPriceCents != null) return plan.annualPriceCents;
+        if ((plan.billingRecurrence ?? "").toUpperCase() === "ANNUAL") {
+            return plan.priceCents ?? plan.monthlyPriceCents ?? null;
+        }
+        return plan.priceCents != null && plan.monthlyPriceCents == null && plan.annualPriceCents == null
+            ? plan.priceCents
+            : plan.monthlyPriceCents ?? plan.priceCents ?? null;
+    }
+
+    if (plan.monthlyPriceCents != null) return plan.monthlyPriceCents;
+    if ((plan.billingRecurrence ?? "").toUpperCase() === "MONTHLY") {
+        return plan.priceCents ?? plan.annualPriceCents ?? null;
+    }
+    return plan.priceCents != null && plan.monthlyPriceCents == null && plan.annualPriceCents == null
+        ? plan.priceCents
+        : plan.annualPriceCents ?? plan.priceCents ?? null;
+}
+
 function buildLeadForm(lead: PartnerLeadRow): LeadFormState {
     const closedDate = lead.closedAt ? new Date(lead.closedAt).toISOString().slice(0, 10) : "";
     return {
@@ -152,6 +184,7 @@ function buildLeadForm(lead: PartnerLeadRow): LeadFormState {
         salesOwner: lead.salesOwner === "-" ? "" : lead.salesOwner,
         notes: lead.notes === "-" ? "" : lead.notes,
         closedPlan: lead.closedPlan === "-" ? "" : lead.closedPlan,
+        closedBillingRecurrence: normalizeBillingRecurrence(lead.closedBillingRecurrence),
         firstMonthlyFee: lead.firstMonthlyFeeCents ? currencyInputValue(String(lead.firstMonthlyFeeCents)) : "",
         closedAt: closedDate,
         commissionStatus: lead.commissionStatus && lead.commissionStatus !== "-" ? lead.commissionStatus : "PENDING",
@@ -221,6 +254,7 @@ function MiniChart({
 
 export function SuperAdminPartnersPage() {
     const [dashboard, setDashboard] = useState<PartnerDashboardResponse | null>(null);
+    const [planOptions, setPlanOptions] = useState<SuperAdminPlanOption[]>([]);
     const [loading, setLoading] = useState(true);
     const [savingPartner, setSavingPartner] = useState(false);
     const [savingLead, setSavingLead] = useState(false);
@@ -238,10 +272,15 @@ export function SuperAdminPartnersPage() {
         setLoading(true);
         setError(null);
         try {
-            const payload = await fetchJson<PartnerDashboardResponse>("/api/superadmin/partners/dashboard", undefined, "Falha ao carregar o programa de parceiros.");
-            setDashboard(payload);
+            const [dashboardPayload, plansPayload] = await Promise.all([
+                fetchJson<PartnerDashboardResponse>("/api/superadmin/partners/dashboard", undefined, "Falha ao carregar o programa de parceiros."),
+                fetchJson<SuperAdminPlanOption[]>("/api/superadmin/plans/options", undefined, "Falha ao carregar os planos do sistema."),
+            ]);
+            setDashboard(dashboardPayload);
+            setPlanOptions(Array.isArray(plansPayload) ? plansPayload : []);
         } catch (requestError) {
             setDashboard(null);
+            setPlanOptions([]);
             setError(requestError instanceof Error ? requestError.message : "Falha ao carregar o programa de parceiros.");
         } finally {
             setLoading(false);
@@ -255,6 +294,26 @@ export function SuperAdminPartnersPage() {
     const ranking = useMemo(() => {
         return [...(dashboard?.partners ?? [])].sort((left, right) => right.revenueGeneratedCents - left.revenueGeneratedCents);
     }, [dashboard]);
+
+    const selectablePlans = useMemo(() => {
+        return [...planOptions].sort((left, right) => left.planName.localeCompare(right.planName, "pt-BR"));
+    }, [planOptions]);
+
+    function updateLeadModal(recipe: (current: LeadFormState) => LeadFormState) {
+        setLeadModal((current) => {
+            if (!current) return current;
+            const next = recipe(current);
+            const selectedPlan = planOptions.find((item) => item.planName === next.closedPlan);
+            const autoPrice = resolvePlanPrice(selectedPlan, next.closedBillingRecurrence);
+
+            return {
+                ...next,
+                firstMonthlyFee: next.closedPlan && autoPrice != null
+                    ? currencyInputValue(String(autoPrice))
+                    : next.firstMonthlyFee,
+            };
+        });
+    }
 
     async function handlePartnerSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -309,6 +368,7 @@ export function SuperAdminPartnersPage() {
                     salesOwner: leadModal.salesOwner || null,
                     notes: leadModal.notes || null,
                     closedPlan: leadModal.closedPlan || null,
+                    closedBillingRecurrence: leadModal.closedBillingRecurrence || null,
                     firstMonthlyFeeCents: centsFromCurrencyInput(leadModal.firstMonthlyFee),
                     closedAt: leadModal.closedAt ? new Date(`${leadModal.closedAt}T12:00:00`).toISOString() : null,
                     commissionStatus: leadModal.commissionStatus || null,
@@ -707,12 +767,28 @@ export function SuperAdminPartnersPage() {
                             </label>
                             <label className="grid gap-2 text-sm text-black/62">
                                 Plano fechado
-                                <input
+                                <select
                                     value={leadModal.closedPlan}
-                                    onChange={(event) => setLeadModal((current) => current ? { ...current, closedPlan: event.target.value } : current)}
+                                    onChange={(event) => updateLeadModal((current) => ({ ...current, closedPlan: event.target.value }))}
                                     className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
-                                    placeholder="Scale"
-                                />
+                                >
+                                    <option value="">Selecione um plano</option>
+                                    {selectablePlans.map((plan) => (
+                                        <option key={plan.planId} value={plan.planName}>{plan.planName}</option>
+                                    ))}
+                                </select>
+                            </label>
+                            <label className="grid gap-2 text-sm text-black/62">
+                                Recorrencia do pagamento
+                                <select
+                                    value={leadModal.closedBillingRecurrence}
+                                    onChange={(event) => updateLeadModal((current) => ({ ...current, closedBillingRecurrence: event.target.value as "MONTHLY" | "ANNUAL" }))}
+                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                >
+                                    {BILLING_RECURRENCE_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                </select>
                             </label>
                             <label className="grid gap-2 text-sm text-black/62">
                                 Primeira mensalidade

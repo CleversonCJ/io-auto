@@ -58,6 +58,7 @@ export type PartnerLeadRow = {
     salesOwner: string;
     notes: string;
     closedPlan: string;
+    closedBillingRecurrence: string;
     firstMonthlyFeeCents?: number | null;
     closedAt?: string | null;
     commissionCents?: number | null;
@@ -72,6 +73,7 @@ export type PartnerCommissionRow = {
     leadId: string;
     closedClient: string;
     closedPlan: string;
+    closedBillingRecurrence: string;
     firstMonthlyFeeCents?: number | null;
     commissionCents?: number | null;
     status: string;
@@ -109,4 +111,18 @@ export type PublicPartnerResponse = {
     referenceCode: string;
     partnerName: string;
     companyName: string;
+};
+
+export type SuperAdminPlanOption = {
+    planId: string;
+    planKey: string;
+    planName: string;
+    billingRecurrence?: string | null;
+    priceCents?: number | null;
+    monthlyPriceCents?: number | null;
+    annualPriceCents?: number | null;
+    customPlan: boolean;
+    usersLimit?: number | null;
+    vehiclesLimit?: number | null;
+    activeAdsLimit?: number | null;
 };

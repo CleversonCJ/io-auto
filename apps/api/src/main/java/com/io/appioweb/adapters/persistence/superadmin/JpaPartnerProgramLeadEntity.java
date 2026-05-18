@@ -52,6 +52,9 @@ public class JpaPartnerProgramLeadEntity {
     @Column(name = "closed_plan", length = 120)
     private String closedPlan;
 
+    @Column(name = "closed_billing_recurrence", length = 20)
+    private String closedBillingRecurrence;
+
     @Column(name = "first_monthly_fee_cents")
     private Long firstMonthlyFeeCents;
 
@@ -178,6 +181,14 @@ public class JpaPartnerProgramLeadEntity {
 
     public void setClosedPlan(String closedPlan) {
         this.closedPlan = closedPlan;
+    }
+
+    public String getClosedBillingRecurrence() {
+        return closedBillingRecurrence;
+    }
+
+    public void setClosedBillingRecurrence(String closedBillingRecurrence) {
+        this.closedBillingRecurrence = closedBillingRecurrence;
     }
 
     public Long getFirstMonthlyFeeCents() {
