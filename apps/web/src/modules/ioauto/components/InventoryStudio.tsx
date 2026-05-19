@@ -200,9 +200,9 @@ function vehicleToForm(vehicle: VehicleRecord): VehicleFormState {
         doors: vehicle.doors != null ? String(vehicle.doors) : "",
         color: vehicle.color ?? "",
         plateFinal: vehicle.plateFinal ?? "",
-        plate: vehicle.plate ?? "",
-        contactPhone: vehicle.contactPhone ?? "",
-        zipcode: vehicle.zipcode ?? "",
+        plate: normalizePlateValue(vehicle.plate ?? ""),
+        contactPhone: formatPhoneInput(vehicle.contactPhone ?? ""),
+        zipcode: formatZipcodeInput(vehicle.zipcode ?? ""),
         city: vehicle.city ?? "",
         state: vehicle.state ?? "",
         downPaymentCents: vehicle.financing.downPaymentCents ? String(vehicle.financing.downPaymentCents) : "",
@@ -263,8 +263,22 @@ function normalizeDigits(value: string) {
     return value.replace(/\D/g, "");
 }
 
+function formatPhoneInput(value: string) {
+    const digits = normalizeDigits(value).slice(0, 11);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function formatZipcodeInput(value: string) {
+    const digits = normalizeDigits(value).slice(0, 8);
+    if (digits.length <= 5) return digits;
+    return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
 function normalizePlateValue(value: string) {
-    return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    return value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
 }
 
 function normalizeProviderKey(value: string) {
@@ -965,7 +979,7 @@ export function InventoryStudio() {
                 color: form.color || null,
                 plateFinal: form.plateFinal || null,
                 plate: normalizePlateValue(form.plate) || null,
-                contactPhone: form.contactPhone || null,
+                contactPhone: normalizeDigits(form.contactPhone) || null,
                 zipcode: normalizeDigits(form.zipcode) || null,
                 city: form.city || null,
                 state: form.state || null,
@@ -1146,6 +1160,7 @@ export function InventoryStudio() {
                                                     value={form.plate}
                                                     onChange={(value) => updateField("plate", normalizePlateValue(value))}
                                                     placeholder="ABC1D23"
+                                                    maxLength={7}
                                                     required={requiresOlxPublication && Number(form.mileage || "0") > 0}
                                                 />
                                                 <Field
@@ -1158,16 +1173,19 @@ export function InventoryStudio() {
                                                 <Field
                                                     label="Telefone para atendimento"
                                                     value={form.contactPhone}
-                                                    onChange={(value) => updateField("contactPhone", value)}
+                                                    onChange={(value) => updateField("contactPhone", formatPhoneInput(value))}
                                                     placeholder="(11) 99999-9999"
+                                                    inputMode="tel"
+                                                    maxLength={15}
                                                     required={requiresOlxPublication}
                                                 />
                                                 <Field
                                                     label="CEP do anúncio"
                                                     value={form.zipcode}
-                                                    onChange={(value) => updateField("zipcode", normalizeDigits(value).slice(0, 8))}
+                                                    onChange={(value) => updateField("zipcode", formatZipcodeInput(value))}
                                                     inputMode="numeric"
-                                                    placeholder="00000000"
+                                                    placeholder="00000-000"
+                                                    maxLength={9}
                                                     required={requiresOlxPublication}
                                                 />
                                                 <Field label="Cidade" value={form.city} onChange={(value) => updateField("city", value)} />
@@ -1543,6 +1561,7 @@ function Field({
     required = false,
     placeholder = "",
     inputMode,
+    maxLength,
 }: {
     label: string;
     value: string;
@@ -1550,6 +1569,7 @@ function Field({
     required?: boolean;
     placeholder?: string;
     inputMode?: InputHTMLAttributes<HTMLInputElement>["inputMode"];
+    maxLength?: number;
 }) {
     return (
         <label className="grid gap-2">
@@ -1560,6 +1580,7 @@ function Field({
                 required={required}
                 placeholder={placeholder}
                 inputMode={inputMode}
+                maxLength={maxLength}
                 className="h-12 rounded-2xl border border-black/10 bg-[#f7f7f7] px-4 text-sm text-io-dark outline-none transition focus:border-black/30 focus:bg-white"
             />
         </label>
