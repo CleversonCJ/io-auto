@@ -81,7 +81,7 @@ export function FinancialCashFlow() {
                 <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center rounded-2xl border border-black/10 bg-black/5 p-1">
                         {(["ALL", "RECEIVABLE", "PAYABLE"] as const).map((type) => {
-                            const labels = { ALL: "Todas", RECEIVABLE: "Entradas", PAYABLE: "Saidas" };
+                            const labels = { ALL: "Todas", RECEIVABLE: "Entradas", PAYABLE: "Saídas" };
                             const isActive = typeFilter === type;
                             return (
                                 <button
@@ -96,7 +96,7 @@ export function FinancialCashFlow() {
                     </div>
 
                     <div className="flex items-center gap-2 rounded-2xl border border-black/10 bg-[#fafafa] px-4 py-2">
-                        <span className="text-sm font-medium text-black/50">Periodo:</span>
+                        <span className="text-sm font-medium text-black/50">Período:</span>
                         <input
                             type="date"
                             value={startDate}
@@ -116,7 +116,7 @@ export function FinancialCashFlow() {
                         <Search className="h-4 w-4 shrink-0 text-black/40" />
                         <input
                             type="text"
-                            placeholder="Buscar por descricao, subcategoria, secao ou contraparte"
+                            placeholder="Buscar por descrição, subcategoria, seção ou contraparte"
                             value={searchQuery}
                             onChange={(event) => setSearchQuery(event.target.value)}
                             className="w-full bg-transparent text-sm text-io-dark outline-none placeholder:text-black/40"
@@ -146,7 +146,7 @@ export function FinancialCashFlow() {
                     className="inline-flex shrink-0 items-center gap-2 rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#111]"
                 >
                     <Plus className="h-4 w-4" />
-                    <span>Nova transacao</span>
+                    <span>Nova transação</span>
                 </button>
             </div>
 
@@ -156,7 +156,7 @@ export function FinancialCashFlow() {
                     <p className="text-2xl font-bold text-emerald-600">{formatMoney(summary.entradas)}</p>
                 </div>
                 <div className="rounded-[24px] border border-black/10 bg-[#fbfbfb] p-5 shadow-sm">
-                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-black/50">Saidas</p>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-black/50">Saídas</p>
                     <p className="text-2xl font-bold text-rose-600">{formatMoney(summary.saidas)}</p>
                 </div>
                 <div className="rounded-[24px] border border-black/10 bg-black p-5 text-white shadow-sm">
@@ -169,7 +169,7 @@ export function FinancialCashFlow() {
                 <div className="grid gap-3">
                     {!filteredEntries.length ? (
                         <div className="rounded-[24px] border border-dashed border-black/10 px-5 py-10 text-center text-sm text-black/45">
-                            Nenhuma movimentacao registrada neste periodo.
+                            Nenhuma movimentação registrada neste período.
                         </div>
                     ) : (
                         filteredEntries.map((entry) => {

@@ -25,7 +25,7 @@ export type FinancialFormState = {
 
 export const DRE_SECTION_LABELS: Record<FinancialDreSectionCode, string> = {
     GROSS_REVENUE: "Receita Bruta",
-    GROSS_REVENUE_DEDUCTIONS: "Deducoes da Receita Bruta",
+    GROSS_REVENUE_DEDUCTIONS: "Deduções da Receita Bruta",
     COST_OF_SALES: "Custos das Vendas (CMV)",
     SALES_EXPENSES: "Despesas com Vendas",
     ADMINISTRATIVE_EXPENSES: "Despesas Administrativas",
@@ -54,8 +54,8 @@ export function emptyForm(type: FinancialEntryType = "RECEIVABLE", defaultSubcat
 
 export function categoryLabel(category: FinancialEntryCategory) {
     const labels: Record<FinancialEntryCategory, string> = {
-        VEHICLE_SALE: "Venda de veiculo",
-        SERVICE_REVENUE: "Receita de servico",
+        VEHICLE_SALE: "Venda de veículo",
+        SERVICE_REVENUE: "Receita de serviço",
         OTHER_REVENUE: "Outra receita",
         SUPPLIER: "Fornecedor",
         OPERATING_EXPENSE: "Despesa operacional",

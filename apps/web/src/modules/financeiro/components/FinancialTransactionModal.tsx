@@ -123,18 +123,18 @@ export function FinancialTransactionModal({ isOpen, onClose, editingEntry }: Pro
 
     async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        setSaveError(null);
+            setSaveError(null);
 
         try {
             setSaving(true);
 
             if (!form.dreSubcategoryId) {
-                throw new Error("Selecione uma subcategoria para a transacao.");
+                throw new Error("Selecione uma subcategoria para a transação.");
             }
 
             const amountCents = parseAmount(form.amount);
             if (!amountCents) {
-                throw new Error("Informe um valor valido maior que zero.");
+                throw new Error("Informe um valor válido maior que zero.");
             }
 
             await saveEntry(form.id, {
@@ -150,7 +150,7 @@ export function FinancialTransactionModal({ isOpen, onClose, editingEntry }: Pro
 
             onClose();
         } catch (cause) {
-            setSaveError(cause instanceof Error ? cause.message : "Nao foi possivel salvar a transacao.");
+            setSaveError(cause instanceof Error ? cause.message : "Não foi possível salvar a transação.");
         } finally {
             setSaving(false);
         }
@@ -158,7 +158,7 @@ export function FinancialTransactionModal({ isOpen, onClose, editingEntry }: Pro
 
     async function handleDelete() {
         if (!form.id) return;
-        if (!confirm("Tem certeza que deseja excluir esta transacao?")) return;
+        if (!confirm("Tem certeza que deseja excluir esta transação?")) return;
 
         setSaveError(null);
 
@@ -167,7 +167,7 @@ export function FinancialTransactionModal({ isOpen, onClose, editingEntry }: Pro
             await deleteEntry(form.id);
             onClose();
         } catch (cause) {
-            setSaveError(cause instanceof Error ? cause.message : "Nao foi possivel excluir a transacao.");
+            setSaveError(cause instanceof Error ? cause.message : "Não foi possível excluir a transação.");
         } finally {
             setDeleting(false);
         }
@@ -175,36 +175,40 @@ export function FinancialTransactionModal({ isOpen, onClose, editingEntry }: Pro
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
-            <div className="relative w-full max-w-[560px] rounded-[34px] bg-white shadow-[0_32px_90px_rgba(0,0,0,0.22)]">
-                <div className="border-b border-black/8 px-6 py-6 sm:px-8">
+            <div className="relative w-full max-w-xl rounded-[32px] border border-black/10 bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
+                <div className="border-b border-black/8 px-6 py-5">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="absolute right-6 top-5 inline-flex h-12 w-12 items-center justify-center rounded-full bg-black/[0.03] text-black/35 transition hover:bg-black/[0.06] hover:text-black/65"
+                        className="absolute right-6 top-5 inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-black/[0.03] text-black/35 transition hover:bg-black/[0.06] hover:text-black/65"
                     >
                         <X className="h-5 w-5" />
                     </button>
 
-                    <h2 className="pr-14 font-display text-[28px] font-black uppercase tracking-[-0.03em] text-[#10141f]">
-                        {form.id ? "Editar transacao" : "Nova transacao"}
+                    <h2 className="pr-14 font-display text-2xl font-bold uppercase tracking-[-0.02em] text-io-dark">
+                        {form.id ? "Editar Transação" : "Nova Transação"}
                     </h2>
                 </div>
 
-                <form className="grid gap-6 px-6 py-7 sm:px-8 sm:py-8" onSubmit={handleSubmit}>
+                <form className="grid gap-5 px-6 py-6" onSubmit={handleSubmit}>
                     <div className="grid grid-cols-2 gap-4">
                         {([
                             { type: "RECEIVABLE" as const, label: "Entrada" },
-                            { type: "PAYABLE" as const, label: "Saida" },
+                            { type: "PAYABLE" as const, label: "Saída" },
                         ]).map((option) => {
                             const isActive = form.type === option.type;
+                            const activeTone =
+                                option.type === "RECEIVABLE"
+                                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                                    : "border-rose-300 bg-rose-50 text-rose-700";
                             return (
                                 <button
                                     key={option.type}
                                     type="button"
                                     onClick={() => handleTypeChange(option.type)}
-                                    className={`rounded-[18px] border px-4 py-4 text-lg font-bold transition ${
+                                    className={`rounded-2xl border px-4 py-3 text-base font-semibold transition ${
                                         isActive
-                                            ? "border-emerald-400 bg-emerald-50 text-emerald-700 shadow-[inset_0_0_0_1px_rgba(74,222,128,0.24)]"
+                                            ? activeTone
                                             : "border-black/10 bg-white text-black/45 hover:border-black/20 hover:text-black/70"
                                     }`}
                                 >
@@ -215,50 +219,50 @@ export function FinancialTransactionModal({ isOpen, onClose, editingEntry }: Pro
                     </div>
 
                     <label className="grid gap-2">
-                        <span className="text-sm font-extrabold uppercase tracking-[0.12em] text-black/68">Descricao *</span>
+                        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-black/60">Descrição *</span>
                         <input
                             value={form.description}
                             onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
                             placeholder="Ex: Venda Carro X"
-                            className="h-16 rounded-[18px] border border-black/8 bg-[#fafbff] px-5 text-xl font-semibold text-[#10141f] outline-none transition placeholder:text-black/26 focus:border-emerald-300"
+                            className="h-14 rounded-2xl border border-black/10 bg-[#fafafa] px-4 text-sm text-io-dark outline-none transition placeholder:text-black/30 focus:border-black/20"
                             required
                         />
                     </label>
 
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <label className="grid gap-2">
-                            <span className="text-sm font-extrabold uppercase tracking-[0.12em] text-black/68">Valor *</span>
-                            <div className="flex h-16 items-center rounded-[18px] border border-black/8 bg-[#fafbff] px-5 focus-within:border-emerald-300">
-                                <span className="mr-2 text-[1.15rem] font-bold text-black/42">R$</span>
+                        <label className="grid min-w-0 gap-2">
+                            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-black/60">Valor *</span>
+                            <div className="flex h-14 items-center rounded-2xl border border-black/10 bg-[#fafafa] px-4 focus-within:border-black/20">
+                                <span className="mr-2 text-sm font-semibold text-black/45">R$</span>
                                 <input
                                     type="text"
                                     value={form.amount}
                                     onChange={(event) => setForm((current) => ({ ...current, amount: formatAmountInput(event.target.value) }))}
                                     placeholder="0,00"
-                                    className="w-full bg-transparent text-xl font-semibold text-[#10141f] outline-none placeholder:text-black/26"
+                                    className="w-full min-w-0 bg-transparent text-sm text-io-dark outline-none placeholder:text-black/30"
                                     required
                                 />
                             </div>
                         </label>
 
-                        <label className="grid gap-2">
-                            <span className="text-sm font-extrabold uppercase tracking-[0.12em] text-black/68">Data *</span>
-                            <div className="flex h-16 items-center rounded-[18px] border border-black/8 bg-[#fafbff] px-5 focus-within:border-emerald-300">
+                        <label className="grid min-w-0 gap-2">
+                            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-black/60">Data *</span>
+                            <div className="flex h-14 items-center rounded-2xl border border-black/10 bg-[#fafafa] px-4 focus-within:border-black/20">
                                 <input
                                     type="date"
                                     value={form.dueDate}
                                     onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))}
-                                    className="w-full bg-transparent text-xl font-semibold text-[#10141f] outline-none"
+                                    className="w-full min-w-0 bg-transparent text-sm text-io-dark outline-none"
                                     required
                                 />
-                                <CalendarDays className="h-5 w-5 shrink-0 text-black/42" />
+                                <CalendarDays className="h-4 w-4 shrink-0 text-black/42" />
                             </div>
                         </label>
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <label className="grid gap-2">
-                            <span className="text-sm font-extrabold uppercase tracking-[0.12em] text-black/68">Categoria *</span>
+                        <label className="grid min-w-0 gap-2">
+                            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-black/60">Categoria *</span>
                             <select
                                 value={selectedSectionCode}
                                 onChange={(event) => {
@@ -270,7 +274,7 @@ export function FinancialTransactionModal({ isOpen, onClose, editingEntry }: Pro
                                         dreSubcategoryId: nextGroup?.subcategories[0]?.id ?? "",
                                     }));
                                 }}
-                                className="h-16 rounded-[18px] border border-black/8 bg-[#fafbff] px-5 text-xl font-semibold text-[#10141f] outline-none transition focus:border-emerald-300"
+                                className="h-14 w-full min-w-0 rounded-2xl border border-black/10 bg-[#fafafa] px-4 text-sm text-io-dark outline-none transition focus:border-black/20"
                                 required
                             >
                                 {!subcategoryGroups.length ? <option value="">Selecione...</option> : null}
@@ -282,12 +286,12 @@ export function FinancialTransactionModal({ isOpen, onClose, editingEntry }: Pro
                             </select>
                         </label>
 
-                        <label className="grid gap-2">
-                            <span className="text-sm font-extrabold uppercase tracking-[0.12em] text-black/68">Subcategoria *</span>
+                        <label className="grid min-w-0 gap-2">
+                            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-black/60">Subcategoria *</span>
                             <select
                                 value={form.dreSubcategoryId}
                                 onChange={(event) => setForm((current) => ({ ...current, dreSubcategoryId: event.target.value }))}
-                                className="h-16 rounded-[18px] border border-black/8 bg-[#fafbff] px-5 text-xl font-semibold text-[#10141f] outline-none transition focus:border-emerald-300"
+                                className="h-14 w-full min-w-0 rounded-2xl border border-black/10 bg-[#fafafa] px-4 text-sm text-io-dark outline-none transition focus:border-black/20"
                                 required
                             >
                                 {!availableSubcategories.length ? <option value="">Selecione...</option> : null}
@@ -302,7 +306,7 @@ export function FinancialTransactionModal({ isOpen, onClose, editingEntry }: Pro
 
                     {!subcategoryGroups.length ? (
                         <p className="rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-                            Cadastre ao menos uma categoria/subcategoria desta direcao no DRE para criar transacoes.
+                            Cadastre ao menos uma categoria/subcategoria desta direção no DRE para criar transações.
                         </p>
                     ) : null}
 
@@ -319,16 +323,16 @@ export function FinancialTransactionModal({ isOpen, onClose, editingEntry }: Pro
                             disabled={saving || deleting}
                             className="text-sm font-bold text-red-600 transition hover:text-red-700 disabled:opacity-50"
                         >
-                            {deleting ? "Excluindo..." : "Excluir transacao"}
+                            {deleting ? "Excluindo..." : "Excluir transação"}
                         </button>
                     ) : null}
 
                     <button
                         type="submit"
                         disabled={saving || deleting || !availableSubcategories.length}
-                        className="mt-1 h-16 rounded-[18px] bg-black px-6 text-lg font-black uppercase tracking-[-0.02em] text-white transition hover:bg-[#111] disabled:cursor-wait disabled:opacity-70"
+                        className="mt-1 h-14 rounded-2xl bg-black px-6 text-sm font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-[#111] disabled:cursor-wait disabled:opacity-70"
                     >
-                        {saving ? "Salvando..." : form.id ? "Salvar alteracoes" : "Salvar transacao"}
+                        {saving ? "Salvando..." : form.id ? "Salvar alterações" : "Salvar transação"}
                     </button>
                 </form>
             </div>
