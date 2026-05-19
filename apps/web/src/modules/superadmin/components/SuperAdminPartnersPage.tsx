@@ -436,6 +436,17 @@ export function SuperAdminPartnersPage() {
             {error ? <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
             {feedback ? <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{feedback}</div> : null}
 
+            <div className="flex justify-end">
+                <button
+                    type="button"
+                    onClick={openNewPartnerModal}
+                    className="inline-flex items-center gap-2 rounded-full bg-io-dark px-5 py-3 text-sm font-semibold text-white transition hover:bg-black"
+                >
+                    <Plus className="h-4 w-4" />
+                    Novo parceiro
+                </button>
+            </div>
+
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <MetricCard label="Parceiros ativos" value={String(dashboard.summary.activePartners)} helper="Parceiros aptos a gerar links e leads." />
                 <MetricCard label="Leads gerados" value={String(dashboard.summary.leadsGenerated)} helper="Todos os leads recebidos via programa." />
@@ -447,39 +458,7 @@ export function SuperAdminPartnersPage() {
                 <MetricCard label="Taxa de conversao" value={formatPercent(dashboard.summary.conversionRate)} helper="Proporcao entre leads recebidos e vendas fechadas." />
             </section>
 
-            <section className="grid gap-6 xl:grid-cols-[0.96fr_1.04fr]">
-                <article className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
-                    <div className="flex items-start justify-between gap-4">
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Cadastro do parceiro</p>
-                            <h2 className="mt-2 text-2xl font-bold text-io-dark">Gerencie novas indicacoes</h2>
-                            <p className="mt-2 text-sm text-black/56">Cadastre parceiros em um popup dedicado e gere links exclusivos para acompanhar leads, vendas e comissoes.</p>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={openNewPartnerModal}
-                            className="inline-flex items-center gap-2 rounded-full bg-io-dark px-5 py-3 text-sm font-semibold text-white transition hover:bg-black"
-                        >
-                            <Plus className="h-4 w-4" />
-                            Novo parceiro
-                        </button>
-                    </div>
-                    <div className="mt-6 grid gap-4 md:grid-cols-3">
-                        <div className="rounded-[28px] border border-black/8 bg-black/[0.02] p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/38">Fluxo</p>
-                            <p className="mt-2 text-sm text-black/60">Crie o parceiro, compartilhe o link e acompanhe cada indicacao ate a comissao.</p>
-                        </div>
-                        <div className="rounded-[28px] border border-black/8 bg-black/[0.02] p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/38">Link exclusivo</p>
-                            <p className="mt-2 text-sm text-black/60">O sistema gera automaticamente a URL publica no primeiro cadastro do parceiro.</p>
-                        </div>
-                        <div className="rounded-[28px] border border-black/8 bg-black/[0.02] p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/38">Operacao</p>
-                            <p className="mt-2 text-sm text-black/60">Use o mesmo popup para criar novos parceiros ou editar um cadastro ja existente.</p>
-                        </div>
-                    </div>
-                </article>
-
+            <section className="grid gap-6">
                 <article className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                     <div className="flex items-start justify-between gap-3">
                         <div>
