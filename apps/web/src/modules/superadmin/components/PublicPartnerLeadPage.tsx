@@ -23,7 +23,7 @@ const EMPTY_FORM: FormState = {
     approximateStock: "",
 };
 
-async function fetchJson<T>(url: string, init?: RequestInit, fallbackMessage = "Falha ao processar a solicitacao.") {
+async function fetchJson<T>(url: string, init?: RequestInit, fallbackMessage = "Falha ao processar a solicitação.") {
     const response = await fetch(url, { cache: "no-store", ...init });
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
@@ -53,7 +53,7 @@ export function PublicPartnerLeadPage({ initialRef }: { initialRef: string }) {
     useEffect(() => {
         if (!referenceCode) {
             setLoading(false);
-            setError("Link de parceiro invalido.");
+            setError("Link de parceiro inválido.");
             return;
         }
 
@@ -61,14 +61,14 @@ export function PublicPartnerLeadPage({ initialRef }: { initialRef: string }) {
         setLoading(true);
         setError(null);
 
-        fetchJson<PublicPartnerResponse>(`/api/public/parceiros?ref=${encodeURIComponent(referenceCode)}`, undefined, "Nao foi possivel validar o parceiro.")
+        fetchJson<PublicPartnerResponse>(`/api/public/parceiros?ref=${encodeURIComponent(referenceCode)}`, undefined, "Não foi possível validar o parceiro.")
             .then((payload) => {
                 if (!active) return;
                 setPartner(payload);
             })
             .catch((requestError) => {
                 if (!active) return;
-                setError(requestError instanceof Error ? requestError.message : "Nao foi possivel validar o parceiro.");
+                setError(requestError instanceof Error ? requestError.message : "Não foi possível validar o parceiro.");
             })
             .finally(() => {
                 if (active) setLoading(false);
@@ -100,12 +100,12 @@ export function PublicPartnerLeadPage({ initialRef }: { initialRef: string }) {
                     state: form.state || null,
                     approximateStock: form.approximateStock ? Number(form.approximateStock) : null,
                 }),
-            }, "Nao foi possivel enviar seu cadastro.");
+            }, "Não foi possível enviar seu cadastro.");
 
             setFeedback("Recebemos seus dados. Nosso time comercial vai continuar esse contato.");
             setForm(EMPTY_FORM);
         } catch (requestError) {
-            setError(requestError instanceof Error ? requestError.message : "Nao foi possivel enviar seu cadastro.");
+            setError(requestError instanceof Error ? requestError.message : "Não foi possível enviar seu cadastro.");
         } finally {
             setSaving(false);
         }
@@ -121,16 +121,16 @@ export function PublicPartnerLeadPage({ initialRef }: { initialRef: string }) {
                         <div className="relative">
                             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/62">IO Auto</p>
                             <h1 className="mt-4 font-display text-[2.15rem] font-bold leading-tight">
-                                Descubra como o IO Auto pode acelerar a operacao da sua loja.
+                                Descubra como o IO Auto pode acelerar a operação da sua loja.
                             </h1>
                             <p className="mt-4 max-w-xl text-sm leading-6 text-white/76">
-                                Centralize estoque, publicacoes e operacao comercial em uma plataforma pensada para revendas que querem mais organizacao, mais velocidade e mais resultado.
+                                Centralize estoque, publicações e operação comercial em uma plataforma pensada para revendas que querem mais organização, mais velocidade e mais resultado.
                             </p>
 
                             <div className="mt-7 grid gap-3">
                                 <div className="rounded-[22px] border border-white/12 bg-white/10 px-4 py-4 backdrop-blur">
                                     <p className="text-sm font-semibold">Mais controle em menos tempo</p>
-                                    <p className="mt-1 text-sm text-white/68">Organize a operacao da loja em um fluxo simples e profissional.</p>
+                                    <p className="mt-1 text-sm text-white/68">Organize a operação da loja em um fluxo simples e profissional.</p>
                                 </div>
                                 <div className="rounded-[22px] border border-white/12 bg-black/18 px-4 py-4">
                                     <p className="text-sm font-semibold">Contato comercial consultivo</p>
@@ -144,10 +144,10 @@ export function PublicPartnerLeadPage({ initialRef }: { initialRef: string }) {
                         <div className="max-w-3xl">
                             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Solicite seu atendimento</p>
                             <h2 className="mt-3 text-[1.9rem] font-bold leading-tight text-io-dark">
-                                Preencha os dados e conheca o sistema IO Auto.
+                                Preencha os dados e conheça o sistema IO Auto.
                             </h2>
                             <p className="mt-3 text-sm leading-6 text-black/56">
-                                Nosso time comercial vai analisar seu perfil e entrar em contato para apresentar a plataforma e os planos disponiveis.
+                                Nosso time comercial vai analisar seu perfil e entrar em contato para apresentar a plataforma e os planos disponíveis.
                             </p>
                         </div>
 
@@ -229,7 +229,7 @@ export function PublicPartnerLeadPage({ initialRef }: { initialRef: string }) {
                                             value={form.approximateStock}
                                             onChange={(event) => setForm((current) => ({ ...current, approximateStock: event.target.value }))}
                                             className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-io-purple-2 focus:ring-4 focus:ring-[#6b00e3]/10"
-                                            placeholder="Quantidade de veiculos"
+                                            placeholder="Quantidade de veículos"
                                         />
                                     </label>
 

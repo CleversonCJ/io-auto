@@ -178,7 +178,7 @@ public class PartnerProgramService {
         JpaPartnerProgramLeadEntity entity = leads.findById(leadId)
                 .orElseThrow(() -> new BusinessException("PARTNER_LEAD_NOT_FOUND", "Lead do programa de parceiros nao encontrado."));
 
-        String leadStatus = normalizeLeadStatus(command.leadStatus());
+        String leadStatus = resolveEffectiveLeadStatus(command);
         entity.setLeadStatus(leadStatus);
         entity.setSalesOwner(normalizeNullable(command.salesOwner(), 160));
         entity.setNotes(normalizeLongText(command.notes()));
@@ -566,6 +566,20 @@ public class PartnerProgramService {
             case BILLING_RECURRENCE_ANNUAL, "YEARLY", "YEAR" -> BILLING_RECURRENCE_ANNUAL;
             default -> throw new BusinessException("PARTNER_PROGRAM_VALIDATION", "Recorrencia de pagamento invalida.");
         };
+    }
+
+    private String resolveEffectiveLeadStatus(UpdateLeadCommand command) {
+        String normalizedLeadStatus = normalizeLeadStatus(command.leadStatus());
+        boolean hasSalePayload =
+                normalizeNullable(command.closedPlan(), 120) != null
+                        || normalizeNullable(command.closedBillingRecurrence(), 20) != null
+                        || command.firstMonthlyFeeCents() != null
+                        || command.closedAt() != null
+                        || normalizeNullable(command.commissionStatus(), 30) != null
+                        || command.commissionDueDate() != null
+                        || command.commissionPaidAt() != null;
+
+        return hasSalePayload ? LEAD_STATUS_CONVERTED : normalizedLeadStatus;
     }
 
     public record SavePartnerCommand(

@@ -305,9 +305,11 @@ export function SuperAdminPartnersPage() {
             const next = recipe(current);
             const selectedPlan = planOptions.find((item) => item.planName === next.closedPlan);
             const autoPrice = resolvePlanPrice(selectedPlan, next.closedBillingRecurrence);
+            const hasSaleSignals = Boolean(next.closedPlan || next.firstMonthlyFee || next.closedAt);
 
             return {
                 ...next,
+                leadStatus: hasSaleSignals ? "CONVERTED" : next.leadStatus,
                 firstMonthlyFee: next.closedPlan && autoPrice != null
                     ? currencyInputValue(String(autoPrice))
                     : next.firstMonthlyFee,
@@ -794,7 +796,7 @@ export function SuperAdminPartnersPage() {
                                 Primeira mensalidade
                                 <input
                                     value={leadModal.firstMonthlyFee}
-                                    onChange={(event) => setLeadModal((current) => current ? { ...current, firstMonthlyFee: currencyInputValue(event.target.value) } : current)}
+                                    onChange={(event) => updateLeadModal((current) => ({ ...current, firstMonthlyFee: currencyInputValue(event.target.value) }))}
                                     className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
                                     placeholder="R$ 397,00"
                                 />
@@ -804,7 +806,7 @@ export function SuperAdminPartnersPage() {
                                 <input
                                     type="date"
                                     value={leadModal.closedAt}
-                                    onChange={(event) => setLeadModal((current) => current ? { ...current, closedAt: event.target.value } : current)}
+                                    onChange={(event) => updateLeadModal((current) => ({ ...current, closedAt: event.target.value }))}
                                     className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
                                 />
                             </label>
