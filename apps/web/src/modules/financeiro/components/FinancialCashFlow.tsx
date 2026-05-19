@@ -5,7 +5,7 @@ import { ArrowDownRight, ArrowUpRight, CalendarClock, Plus, Search } from "lucid
 import { formatDateTime, formatMoney } from "@/modules/ioauto/formatters";
 import { useFinancialData } from "@/modules/financeiro/contexts/FinancialContext";
 import { entryPrimaryLabel, entrySecondaryLabel, formatDate, sortEntries, statusLabel, statusTone } from "./financial-utils";
-import { FinancialEntryModal } from "./FinancialEntryModal";
+import { FinancialTransactionModal } from "./FinancialTransactionModal";
 import type { FinancialEntryRecord } from "@/modules/financeiro/types";
 
 export function FinancialCashFlow() {
@@ -146,7 +146,7 @@ export function FinancialCashFlow() {
                     className="inline-flex shrink-0 items-center gap-2 rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#111]"
                 >
                     <Plus className="h-4 w-4" />
-                    <span>Criar uma movimentacao</span>
+                    <span>Nova transacao</span>
                 </button>
             </div>
 
@@ -231,10 +231,9 @@ export function FinancialCashFlow() {
                     )}
                 </div>
 
-                <FinancialEntryModal
+                <FinancialTransactionModal
                     isOpen={isModalOpen}
                     onClose={() => setIsModalOpen(false)}
-                    mode="contas"
                     editingEntry={editingEntry}
                 />
             </article>
