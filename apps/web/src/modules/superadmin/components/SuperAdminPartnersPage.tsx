@@ -262,6 +262,7 @@ export function SuperAdminPartnersPage() {
     const [feedback, setFeedback] = useState<string | null>(null);
     const [origin, setOrigin] = useState("");
     const [partnerForm, setPartnerForm] = useState<PartnerFormState>(EMPTY_PARTNER_FORM);
+    const [partnerModalOpen, setPartnerModalOpen] = useState(false);
     const [leadModal, setLeadModal] = useState<LeadFormState | null>(null);
 
     useEffect(() => {
@@ -317,6 +318,21 @@ export function SuperAdminPartnersPage() {
         });
     }
 
+    function openNewPartnerModal() {
+        setPartnerForm(EMPTY_PARTNER_FORM);
+        setPartnerModalOpen(true);
+    }
+
+    function openEditPartnerModal(partner: PartnerRow) {
+        setPartnerForm(buildPartnerForm(partner));
+        setPartnerModalOpen(true);
+    }
+
+    function closePartnerModal() {
+        setPartnerModalOpen(false);
+        setPartnerForm(EMPTY_PARTNER_FORM);
+    }
+
     async function handlePartnerSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setSavingPartner(true);
@@ -344,7 +360,7 @@ export function SuperAdminPartnersPage() {
             }, "Falha ao salvar o parceiro.");
 
             setFeedback(partnerForm.partnerId ? "Parceiro atualizado com sucesso." : "Parceiro criado com sucesso.");
-            setPartnerForm(EMPTY_PARTNER_FORM);
+            closePartnerModal();
             await loadDashboard();
         } catch (requestError) {
             setError(requestError instanceof Error ? requestError.message : "Falha ao salvar o parceiro.");
@@ -436,116 +452,32 @@ export function SuperAdminPartnersPage() {
                     <div className="flex items-start justify-between gap-4">
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Cadastro do parceiro</p>
-                            <h2 className="mt-2 text-2xl font-bold text-io-dark">{partnerForm.partnerId ? "Editar parceiro" : "Novo parceiro"}</h2>
-                            <p className="mt-2 text-sm text-black/56">Cada parceiro recebe um link exclusivo que aponta para a pagina publica de captacao.</p>
+                            <h2 className="mt-2 text-2xl font-bold text-io-dark">Gerencie novas indicacoes</h2>
+                            <p className="mt-2 text-sm text-black/56">Cadastre parceiros em um popup dedicado e gere links exclusivos para acompanhar leads, vendas e comissoes.</p>
                         </div>
                         <button
                             type="button"
-                            onClick={() => setPartnerForm(EMPTY_PARTNER_FORM)}
-                            className="inline-flex items-center gap-2 rounded-full border border-black/10 px-4 py-2 text-sm font-semibold text-io-dark transition hover:border-black/20 hover:bg-black/[0.03]"
+                            onClick={openNewPartnerModal}
+                            className="inline-flex items-center gap-2 rounded-full bg-io-dark px-5 py-3 text-sm font-semibold text-white transition hover:bg-black"
                         >
                             <Plus className="h-4 w-4" />
-                            Novo
+                            Novo parceiro
                         </button>
                     </div>
-
-                    <form className="mt-6 grid gap-4 md:grid-cols-2" onSubmit={handlePartnerSubmit}>
-                        <label className="grid gap-2 text-sm text-black/62">
-                            Nome do parceiro
-                            <input
-                                value={partnerForm.partnerName}
-                                onChange={(event) => setPartnerForm((current) => ({ ...current, partnerName: event.target.value }))}
-                                className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
-                                placeholder="Ex.: Igor Barbosa"
-                            />
-                        </label>
-                        <label className="grid gap-2 text-sm text-black/62">
-                            Empresa
-                            <input
-                                value={partnerForm.companyName}
-                                onChange={(event) => setPartnerForm((current) => ({ ...current, companyName: event.target.value }))}
-                                className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
-                                placeholder="Ex.: IB Partners"
-                            />
-                        </label>
-                        <label className="grid gap-2 text-sm text-black/62">
-                            WhatsApp
-                            <input
-                                value={partnerForm.whatsapp}
-                                onChange={(event) => setPartnerForm((current) => ({ ...current, whatsapp: formatPhoneInput(event.target.value) }))}
-                                className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
-                                placeholder="(11) 99999-9999"
-                            />
-                        </label>
-                        <label className="grid gap-2 text-sm text-black/62">
-                            E-mail
-                            <input
-                                value={partnerForm.email}
-                                onChange={(event) => setPartnerForm((current) => ({ ...current, email: event.target.value }))}
-                                className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
-                                placeholder="contato@parceiro.com"
-                            />
-                        </label>
-                        <label className="grid gap-2 text-sm text-black/62">
-                            Cidade
-                            <input
-                                value={partnerForm.city}
-                                onChange={(event) => setPartnerForm((current) => ({ ...current, city: event.target.value }))}
-                                className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
-                                placeholder="Sao Paulo"
-                            />
-                        </label>
-                        <label className="grid gap-2 text-sm text-black/62">
-                            Estado
-                            <input
-                                maxLength={2}
-                                value={partnerForm.state}
-                                onChange={(event) => setPartnerForm((current) => ({ ...current, state: event.target.value.toUpperCase() }))}
-                                className="rounded-2xl border border-black/10 px-4 py-3 uppercase outline-none transition focus:border-io-purple-2"
-                                placeholder="SP"
-                            />
-                        </label>
-                        <label className="grid gap-2 text-sm text-black/62">
-                            Tipo de parceiro
-                            <input
-                                value={partnerForm.partnerType}
-                                onChange={(event) => setPartnerForm((current) => ({ ...current, partnerType: event.target.value }))}
-                                className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
-                                placeholder="Consultor, agencia, influenciador..."
-                            />
-                        </label>
-                        <label className="grid gap-2 text-sm text-black/62">
-                            Comissao padrao (%)
-                            <input
-                                value={partnerForm.defaultCommissionPercent}
-                                onChange={(event) => setPartnerForm((current) => ({ ...current, defaultCommissionPercent: event.target.value }))}
-                                className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
-                                placeholder="25"
-                            />
-                        </label>
-                        <label className="grid gap-2 text-sm text-black/62">
-                            Status
-                            <select
-                                value={partnerForm.status}
-                                onChange={(event) => setPartnerForm((current) => ({ ...current, status: event.target.value as "ACTIVE" | "INACTIVE" }))}
-                                className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
-                            >
-                                <option value="ACTIVE">Ativo</option>
-                                <option value="INACTIVE">Inativo</option>
-                            </select>
-                        </label>
-                        <div className="md:col-span-2 flex flex-wrap items-center gap-3">
-                            <button
-                                type="submit"
-                                disabled={savingPartner}
-                                className="inline-flex items-center gap-2 rounded-full bg-io-dark px-5 py-3 text-sm font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                <Save className="h-4 w-4" />
-                                {savingPartner ? "Salvando..." : partnerForm.partnerId ? "Salvar parceiro" : "Criar parceiro"}
-                            </button>
-                            <p className="text-sm text-black/50">Links sao gerados automaticamente no primeiro cadastro.</p>
+                    <div className="mt-6 grid gap-4 md:grid-cols-3">
+                        <div className="rounded-[28px] border border-black/8 bg-black/[0.02] p-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/38">Fluxo</p>
+                            <p className="mt-2 text-sm text-black/60">Crie o parceiro, compartilhe o link e acompanhe cada indicacao ate a comissao.</p>
                         </div>
-                    </form>
+                        <div className="rounded-[28px] border border-black/8 bg-black/[0.02] p-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/38">Link exclusivo</p>
+                            <p className="mt-2 text-sm text-black/60">O sistema gera automaticamente a URL publica no primeiro cadastro do parceiro.</p>
+                        </div>
+                        <div className="rounded-[28px] border border-black/8 bg-black/[0.02] p-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/38">Operacao</p>
+                            <p className="mt-2 text-sm text-black/60">Use o mesmo popup para criar novos parceiros ou editar um cadastro ja existente.</p>
+                        </div>
+                    </div>
                 </article>
 
                 <article className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
@@ -649,7 +581,7 @@ export function SuperAdminPartnersPage() {
                                             </button>
                                             <button
                                                 type="button"
-                                                onClick={() => setPartnerForm(buildPartnerForm(partner))}
+                                                onClick={() => openEditPartnerModal(partner)}
                                                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 text-black/58 transition hover:border-black/20 hover:bg-black/[0.03]"
                                                 title="Editar parceiro"
                                             >
@@ -727,6 +659,134 @@ export function SuperAdminPartnersPage() {
                     </table>
                 </div>
             </section>
+
+            {partnerModalOpen ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-8">
+                    <div className="w-full max-w-3xl rounded-[32px] border border-black/10 bg-white p-6 shadow-2xl">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Cadastro do parceiro</p>
+                                <h3 className="mt-2 text-2xl font-bold text-io-dark">{partnerForm.partnerId ? "Editar parceiro" : "Novo parceiro"}</h3>
+                                <p className="mt-2 text-sm text-black/56">Preencha os dados principais para gerar o link exclusivo e ativar o acompanhamento das indicacoes.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={closePartnerModal}
+                                className="rounded-full border border-black/10 px-4 py-2 text-sm font-semibold text-black/60 transition hover:border-black/20 hover:bg-black/[0.03]"
+                            >
+                                Fechar
+                            </button>
+                        </div>
+
+                        <form className="mt-6 grid gap-4 md:grid-cols-2" onSubmit={handlePartnerSubmit}>
+                            <label className="grid gap-2 text-sm text-black/62">
+                                Nome do parceiro
+                                <input
+                                    value={partnerForm.partnerName}
+                                    onChange={(event) => setPartnerForm((current) => ({ ...current, partnerName: event.target.value }))}
+                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    placeholder="Ex.: Igor Barbosa"
+                                />
+                            </label>
+                            <label className="grid gap-2 text-sm text-black/62">
+                                Empresa
+                                <input
+                                    value={partnerForm.companyName}
+                                    onChange={(event) => setPartnerForm((current) => ({ ...current, companyName: event.target.value }))}
+                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    placeholder="Ex.: IB Partners"
+                                />
+                            </label>
+                            <label className="grid gap-2 text-sm text-black/62">
+                                WhatsApp
+                                <input
+                                    value={partnerForm.whatsapp}
+                                    onChange={(event) => setPartnerForm((current) => ({ ...current, whatsapp: formatPhoneInput(event.target.value) }))}
+                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    placeholder="(11) 99999-9999"
+                                />
+                            </label>
+                            <label className="grid gap-2 text-sm text-black/62">
+                                E-mail
+                                <input
+                                    value={partnerForm.email}
+                                    onChange={(event) => setPartnerForm((current) => ({ ...current, email: event.target.value }))}
+                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    placeholder="contato@parceiro.com"
+                                />
+                            </label>
+                            <label className="grid gap-2 text-sm text-black/62">
+                                Cidade
+                                <input
+                                    value={partnerForm.city}
+                                    onChange={(event) => setPartnerForm((current) => ({ ...current, city: event.target.value }))}
+                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    placeholder="Sao Paulo"
+                                />
+                            </label>
+                            <label className="grid gap-2 text-sm text-black/62">
+                                Estado
+                                <input
+                                    maxLength={2}
+                                    value={partnerForm.state}
+                                    onChange={(event) => setPartnerForm((current) => ({ ...current, state: event.target.value.toUpperCase() }))}
+                                    className="rounded-2xl border border-black/10 px-4 py-3 uppercase outline-none transition focus:border-io-purple-2"
+                                    placeholder="SP"
+                                />
+                            </label>
+                            <label className="grid gap-2 text-sm text-black/62">
+                                Tipo de parceiro
+                                <input
+                                    value={partnerForm.partnerType}
+                                    onChange={(event) => setPartnerForm((current) => ({ ...current, partnerType: event.target.value }))}
+                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    placeholder="Consultor, agencia, influenciador..."
+                                />
+                            </label>
+                            <label className="grid gap-2 text-sm text-black/62">
+                                Comissao padrao (%)
+                                <input
+                                    value={partnerForm.defaultCommissionPercent}
+                                    onChange={(event) => setPartnerForm((current) => ({ ...current, defaultCommissionPercent: event.target.value }))}
+                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    placeholder="25"
+                                />
+                            </label>
+                            <label className="grid gap-2 text-sm text-black/62">
+                                Status
+                                <select
+                                    value={partnerForm.status}
+                                    onChange={(event) => setPartnerForm((current) => ({ ...current, status: event.target.value as "ACTIVE" | "INACTIVE" }))}
+                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                >
+                                    <option value="ACTIVE">Ativo</option>
+                                    <option value="INACTIVE">Inativo</option>
+                                </select>
+                            </label>
+                            <div className="flex items-end md:justify-end">
+                                <p className="text-sm text-black/50">Links sao gerados automaticamente no primeiro cadastro.</p>
+                            </div>
+                            <div className="md:col-span-2 flex flex-wrap items-center gap-3">
+                                <button
+                                    type="submit"
+                                    disabled={savingPartner}
+                                    className="inline-flex items-center gap-2 rounded-full bg-io-dark px-5 py-3 text-sm font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    <Save className="h-4 w-4" />
+                                    {savingPartner ? "Salvando..." : partnerForm.partnerId ? "Salvar parceiro" : "Criar parceiro"}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={closePartnerModal}
+                                    className="inline-flex items-center rounded-full border border-black/10 px-5 py-3 text-sm font-semibold text-io-dark transition hover:border-black/20 hover:bg-black/[0.03]"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            ) : null}
 
             {leadModal ? (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-8">
