@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, CalendarClock, Plus, Search } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CalendarClock, PencilLine, Plus, Search } from "lucide-react";
 import { formatDateTime, formatMoney } from "@/modules/ioauto/formatters";
 import { useFinancialData } from "@/modules/financeiro/contexts/FinancialContext";
 import { entryPrimaryLabel, entrySecondaryLabel, formatDate, sortEntries, statusLabel, statusTone } from "./financial-utils";
@@ -19,7 +19,7 @@ export function FinancialCashFlow() {
     const [searchQuery, setSearchQuery] = useState("");
 
     const filteredEntries = useMemo(() => {
-        let entries = data?.entries ?? [];
+        let entries = (data?.entries ?? []).filter((entry) => entry.status === "SETTLED");
 
         if (typeFilter !== "ALL") {
             entries = entries.filter((entry) => entry.type === typeFilter);
@@ -218,9 +218,11 @@ export function FinancialCashFlow() {
                                                         setEditingEntry(entry);
                                                         setIsModalOpen(true);
                                                     }}
-                                                    className="text-xs font-semibold text-black/40 transition hover:text-black/80"
+                                                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-black/60 transition hover:border-black/20 hover:text-black"
+                                                    aria-label={`Editar ${entry.description}`}
+                                                    title="Editar lançamento"
                                                 >
-                                                    Editar
+                                                    <PencilLine className="h-4 w-4" />
                                                 </button>
                                             ) : null}
                                         </div>

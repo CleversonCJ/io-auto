@@ -1269,10 +1269,12 @@ public class IoAutoController {
         JpaIoAutoVehicleEntity vehicle = link.getVehicleId() == null ? null : vehiclesById.get(link.getVehicleId());
         String sourceType = normalizeNullableText(link.getSourceType());
         String sourceReference = normalizeNullableText(link.getSourceReference());
+        String trackingSourceType = resolvePublicLinkTrackingSourceType(link);
+        String trackingSourceReference = resolvePublicLinkTrackingSourceReference(link);
 
         List<JpaIoAutoPublicLeadEventEntity> matchingEvents = events.stream()
-                .filter(event -> normalizeText(event.getSourceType()).equalsIgnoreCase(normalizeText(sourceType)))
-                .filter(event -> normalizeText(event.getSourceReference()).equalsIgnoreCase(normalizeText(sourceReference)))
+                .filter(event -> normalizeText(event.getSourceType()).equalsIgnoreCase(normalizeText(trackingSourceType)))
+                .filter(event -> normalizeText(event.getSourceReference()).equalsIgnoreCase(normalizeText(trackingSourceReference)))
                 .toList();
 
         long totalInteractions = matchingEvents.size();
@@ -1881,15 +1883,37 @@ public class IoAutoController {
             basePath += "/veiculo/" + link.getVehicleId();
         }
 
-        String sourceReference = normalizeNullableText(link.getSourceReference());
+        String sourceReference = resolvePublicLinkTrackingSourceReference(link);
         if (sourceReference == null) {
             return basePath;
         }
 
-        String sourceType = normalizeText(link.getSourceType(), "INFLUENCER").toLowerCase(Locale.ROOT);
+        String sourceType = normalizeText(resolvePublicLinkTrackingSourceType(link), "INFLUENCER").toLowerCase(Locale.ROOT);
         return basePath
                 + "?source=" + URLEncoder.encode(sourceType, StandardCharsets.UTF_8)
                 + "&ref=" + URLEncoder.encode(sourceReference, StandardCharsets.UTF_8);
+    }
+
+    private String resolvePublicLinkTrackingSourceType(JpaIoAutoPublicLinkEntity link) {
+        String sourceType = normalizeNullableText(link.getSourceType());
+        if (sourceType != null) {
+            return sourceType.toUpperCase(Locale.ROOT);
+        }
+        if ("PUBLIC".equalsIgnoreCase(normalizeText(link.getLinkKind()))) {
+            return "PUBLIC";
+        }
+        return null;
+    }
+
+    private String resolvePublicLinkTrackingSourceReference(JpaIoAutoPublicLinkEntity link) {
+        String sourceReference = normalizeNullableText(link.getSourceReference());
+        if (sourceReference != null) {
+            return sourceReference;
+        }
+        if ("PUBLIC".equalsIgnoreCase(normalizeText(link.getLinkKind())) && link.getId() != null) {
+            return "public-" + link.getId();
+        }
+        return null;
     }
 
     private String normalizePublicLinkKind(String raw) {

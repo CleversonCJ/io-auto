@@ -750,7 +750,9 @@ function LinkSection({
 
                             <div>
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/35">Origem</p>
-                                <p className="mt-1 text-sm text-black/62">{link.sourceReference || "Sem rastreio"}</p>
+                                <p className="mt-1 text-sm text-black/62">
+                                    {link.sourceReference || (link.linkKind === "PUBLIC" ? "Rastreamento automático" : "Sem rastreio")}
+                                </p>
                             </div>
 
                             <div>
