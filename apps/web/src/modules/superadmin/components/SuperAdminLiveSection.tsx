@@ -58,6 +58,9 @@ type SupportTicketDetail = {
     urgency: string;
     status: string;
     bugArea?: string | null;
+    evidenceFileName?: string | null;
+    evidenceContentType?: string | null;
+    evidenceDataUrl?: string | null;
     createdAt: string;
     firstResponseAt?: string | null;
     resolvedAt?: string | null;
@@ -130,6 +133,10 @@ function titleCase(value?: string | null) {
         .filter(Boolean)
         .map((token) => token[0]?.toUpperCase() + token.slice(1))
         .join(" ");
+}
+
+function isVideoEvidence(contentType?: string | null) {
+    return String(contentType ?? "").trim().toLowerCase().startsWith("video/");
 }
 
 function formatHealthLabel(value?: string | null) {
@@ -824,6 +831,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                                             <p className="mt-1"><span className="font-semibold text-io-dark">Status:</span> {titleCase(ticketDetail.status)}</p>
                                             <p className="mt-1"><span className="font-semibold text-io-dark">Aberto por:</span> {ticketDetail.openedByName || "-"}</p>
                                             <p className="mt-1"><span className="font-semibold text-io-dark">Area do bug:</span> {ticketDetail.bugArea ? titleCase(ticketDetail.bugArea) : "-"}</p>
+                                            <p className="mt-1"><span className="font-semibold text-io-dark">Arquivo anexado:</span> {ticketDetail.evidenceFileName || "-"}</p>
                                         </div>
                                         <div className="rounded-xl border border-black/8 bg-white p-4 text-sm text-black/65">
                                             <p><span className="font-semibold text-io-dark">Criado em:</span> {toBrDateTime(ticketDetail.createdAt)}</p>
@@ -831,6 +839,35 @@ export function SuperAdminLiveSection({ section }: Props) {
                                             <p className="mt-1"><span className="font-semibold text-io-dark">Resolvido em:</span> {toBrDateTime(ticketDetail.resolvedAt)}</p>
                                             <p className="mt-1"><span className="font-semibold text-io-dark">Fechado em:</span> {toBrDateTime(ticketDetail.closedAt)}</p>
                                         </div>
+                                    </div>
+
+                                    <div className="rounded-xl border border-black/8 bg-white p-4">
+                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                            <p className="text-sm font-semibold text-io-dark">Evidencia anexada</p>
+                                            {ticketDetail.evidenceDataUrl ? (
+                                                <a
+                                                    href={ticketDetail.evidenceDataUrl}
+                                                    download={ticketDetail.evidenceFileName || "evidencia-ticket"}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="rounded-full border border-black/12 px-3 py-1 text-xs font-semibold text-black/65"
+                                                >
+                                                    Abrir arquivo
+                                                </a>
+                                            ) : null}
+                                        </div>
+                                        {ticketDetail.evidenceDataUrl ? (
+                                            <div className="mt-3 grid gap-3">
+                                                <p className="text-xs text-black/55">{ticketDetail.evidenceContentType || "Arquivo de evidencia"}</p>
+                                                {isVideoEvidence(ticketDetail.evidenceContentType) ? (
+                                                    <video src={ticketDetail.evidenceDataUrl} controls className="max-h-[420px] w-full rounded-xl bg-black" />
+                                                ) : (
+                                                    <img src={ticketDetail.evidenceDataUrl} alt="Evidencia do ticket" className="max-h-[420px] w-full rounded-xl object-contain bg-black/[0.03]" />
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <p className="mt-3 text-sm text-black/55">Este ticket nao possui evidencia anexada. Isso pode acontecer em chamados antigos.</p>
+                                        )}
                                     </div>
 
                                     <div className="rounded-xl border border-black/8 bg-white p-4">

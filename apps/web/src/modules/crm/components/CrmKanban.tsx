@@ -20,7 +20,6 @@ import {
     type CrmState,
     type CrmStage,
 } from "@/modules/crm/storage";
-import { CrmFollowUpsManager } from "@/modules/crm/components/CrmFollowUpsManager";
 import type { PublicCatalogLeadList } from "@/modules/ioauto/types";
 import {
     getLabelTextColor,
@@ -353,7 +352,6 @@ export function CrmKanban() {
 
     const [isConfigureFieldsOpen, setIsConfigureFieldsOpen] = useState(false);
     const [isCreateFieldOpen, setIsCreateFieldOpen] = useState(false);
-    const [isFollowUpsOpen, setIsFollowUpsOpen] = useState(false);
     const [fieldDrafts, setFieldDrafts] = useState<ConfigFieldDraft[]>([]);
     const [newFieldLabel, setNewFieldLabel] = useState("");
     const [newFieldType, setNewFieldType] = useState<CrmCustomFieldType>("text");
@@ -491,11 +489,6 @@ export function CrmKanban() {
     const selectedLeadStage = useMemo(
         () => orderedStages.find((stage) => stage.id === (selectedLead ? leadStageMap[selectedLead.id] : "")) ?? orderedStages[0] ?? null,
         [orderedStages, selectedLead, leadStageMap]
-    );
-    const activeFollowUpsCount = useMemo(() => followUps.filter((item) => item.isActive).length, [followUps]);
-    const pendingFollowUpAlertCount = useMemo(
-        () => followUpNotifications.filter((item) => !item.resolvedAt).length,
-        [followUpNotifications]
     );
     const activeFilterCount = useMemo(() => {
         let total = 0;
@@ -718,11 +711,6 @@ export function CrmKanban() {
             persistCrmStatePatch({ leadFieldValues: next });
             return next;
         });
-    }
-
-    function saveFollowUps(nextFollowUps: CrmFollowUp[]) {
-        setFollowUps(nextFollowUps);
-        persistCrmStatePatch({ followUps: nextFollowUps });
     }
 
     function prefetchAtendimento(conversationId: string) {
@@ -1062,14 +1050,13 @@ export function CrmKanban() {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
-                            <button type="button" onClick={() => setIsFollowUpsOpen(true)} className="inline-flex h-14 items-center gap-2 rounded-full bg-io-purple px-5 text-sm font-semibold text-white transition hover:bg-black/85">Follow-ups</button>
                             <button type="button" onClick={exportCrmCsv} className="inline-flex h-14 items-center gap-2 rounded-full border border-black/12 bg-white px-5 text-sm font-semibold text-io-dark transition hover:border-black/20 hover:bg-black/[0.03]">Exportar</button>
                             <button type="button" onClick={() => router.push("/protected/configuracoes?view=stages")} className="inline-flex h-14 items-center gap-2 rounded-full border border-black/12 bg-white px-5 text-sm font-semibold text-io-dark transition hover:border-black/20 hover:bg-black/[0.03]">Gerenciar etapas</button>
                         </div>
                     </div>
 
                     {/* Metric cards abaixo */}
-                    <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
                         <div className="rounded-[24px] border border-black/8 bg-[#fafafa] px-4 py-4">
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/35">Leads visíveis</p>
                             <p className="mt-2 text-3xl font-bold tracking-tight text-io-dark">{filteredLeads.length}</p>
@@ -1084,11 +1071,6 @@ export function CrmKanban() {
                                 {formatCompactCurrencyTotal(totalPipelineValue)}
                             </p>
                             <p className="mt-2 text-sm text-black/52">Valor somado dos cards filtrados</p>
-                        </div>
-                        <div className="rounded-[24px] border border-black/8 bg-[#fafafa] px-4 py-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/35">Alertas</p>
-                            <p className="mt-2 text-3xl font-bold tracking-tight text-io-dark">{pendingFollowUpAlertCount}</p>
-                            <p className="mt-2 text-sm text-black/52">{activeFollowUpsCount} follow-ups ativos</p>
                         </div>
                     </div>
                 </div>
@@ -1462,14 +1444,6 @@ export function CrmKanban() {
                     </div>
                 </div>
             )}
-
-            <CrmFollowUpsManager
-                isOpen={isFollowUpsOpen}
-                followUps={followUps}
-                notifications={followUpNotifications}
-                onClose={() => setIsFollowUpsOpen(false)}
-                onSave={saveFollowUps}
-            />
 
             {isCreateFieldOpen && (
                 <div className="fixed inset-0 z-[70] grid place-items-center bg-black/45 p-4">

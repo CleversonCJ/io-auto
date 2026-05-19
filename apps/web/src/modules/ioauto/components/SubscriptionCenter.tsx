@@ -197,7 +197,6 @@ export function SubscriptionCenter({
     const currentStatus = accessStatus?.subscriptionStatus || billing?.status;
     const currentPaymentStatus = accessStatus?.paymentStatus || billing?.status;
     const currentPeriodEnd = accessStatus?.currentPeriodEnd || billing?.currentPeriodEnd;
-    const regularizationUrl = regularization?.regularizationUrl || accessStatus?.regularizationUrl;
     const showDelinquencyCards = Boolean(accessStatus?.accessBlocked || regularization?.available);
     const regularizationSummary = regularization?.message
         || accessStatus?.blockReason
@@ -317,17 +316,6 @@ export function SubscriptionCenter({
             ) : null}
 
             <div className="mt-6 flex flex-wrap gap-3">
-                {regularizationUrl ? (
-                    <a
-                        href={regularizationUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
-                    >
-                        <ExternalLink className="h-4 w-4" />
-                        Regularizar pagamento
-                    </a>
-                ) : null}
                 <button
                     type="button"
                     onClick={handleOpenPortal}

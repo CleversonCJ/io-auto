@@ -39,6 +39,15 @@ public class JpaSupportTicketEntity {
     @Column(name = "bug_area", length = 120)
     private String bugArea;
 
+    @Column(name = "evidence_file_name", length = 255)
+    private String evidenceFileName;
+
+    @Column(name = "evidence_content_type", length = 120)
+    private String evidenceContentType;
+
+    @Column(name = "evidence_data_url", columnDefinition = "text")
+    private String evidenceDataUrl;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -124,6 +133,30 @@ public class JpaSupportTicketEntity {
 
     public void setBugArea(String bugArea) {
         this.bugArea = bugArea;
+    }
+
+    public String getEvidenceFileName() {
+        return evidenceFileName;
+    }
+
+    public void setEvidenceFileName(String evidenceFileName) {
+        this.evidenceFileName = evidenceFileName;
+    }
+
+    public String getEvidenceContentType() {
+        return evidenceContentType;
+    }
+
+    public void setEvidenceContentType(String evidenceContentType) {
+        this.evidenceContentType = evidenceContentType;
+    }
+
+    public String getEvidenceDataUrl() {
+        return evidenceDataUrl;
+    }
+
+    public void setEvidenceDataUrl(String evidenceDataUrl) {
+        this.evidenceDataUrl = evidenceDataUrl;
     }
 
     public Instant getCreatedAt() {

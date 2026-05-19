@@ -21,6 +21,9 @@ import java.util.UUID;
 @Service
 public class SupportTicketService {
 
+    private static final int REQUIRED_GUIDED_QUESTION_COUNT = 6;
+    private static final long MAX_IMAGE_BYTES = 5L * 1024 * 1024;
+    private static final long MAX_VIDEO_BYTES = 16L * 1024 * 1024;
     private static final List<String> VALID_CATEGORIES = List.of("BUG", "QUESTION", "BILLING", "INTEGRATION", "FEATURE_REQUEST", "OTHER");
     private static final List<String> VALID_URGENCIES = List.of("LOW", "MEDIUM", "HIGH", "CRITICAL");
     private static final List<String> VALID_STATUSES = List.of("OPEN", "IN_PROGRESS", "WAITING_CUSTOMER", "RESOLVED", "CLOSED");
@@ -50,10 +53,12 @@ public class SupportTicketService {
         String title = requireText(command.title(), "SUPPORT_TICKET_TITLE_REQUIRED", "Informe o titulo do ticket.");
         String description = requireText(command.description(), "SUPPORT_TICKET_DESCRIPTION_REQUIRED", "Explique o problema para abrir o ticket.");
         String category = normalizeCategory(command.category());
-        String bugArea = normalizeNullable(command.bugArea());
+        String bugArea = requireText(command.bugArea(), "SUPPORT_TICKET_BUG_AREA_REQUIRED", "Informe a area do bug.");
+        List<GuidedAnswer> guidedAnswers = validateGuidedAnswers(command.guidedAnswers());
+        TicketEvidence evidence = validateEvidence(command.evidenceFileName(), command.evidenceContentType(), command.evidenceDataUrl());
         String urgency = normalizeUrgency(command.urgency());
         if (urgency == null) {
-            urgency = inferUrgency(title, description, category, bugArea, command.guidedAnswers());
+            urgency = inferUrgency(title, description, category, bugArea, guidedAnswers);
         }
 
         Instant now = Instant.now();
@@ -68,6 +73,9 @@ public class SupportTicketService {
         ticket.setUrgency(urgency);
         ticket.setStatus("OPEN");
         ticket.setBugArea(trimToMax(bugArea, 120));
+        ticket.setEvidenceFileName(evidence.fileName());
+        ticket.setEvidenceContentType(evidence.contentType());
+        ticket.setEvidenceDataUrl(evidence.dataUrl());
         ticket.setCreatedAt(now);
         ticket.setUpdatedAt(now);
         tickets.save(ticket);
@@ -77,7 +85,7 @@ public class SupportTicketService {
         message.setTicketId(ticket.getId());
         message.setSenderUserId(userId);
         message.setSenderType("CUSTOMER");
-        message.setMessage(buildInitialMessage(description, command.guidedAnswers()));
+        message.setMessage(buildInitialMessage(description, guidedAnswers));
         message.setCreatedAt(now);
         messages.save(message);
 
@@ -267,6 +275,9 @@ public class SupportTicketService {
                 ticket.getUrgency(),
                 ticket.getStatus(),
                 ticket.getBugArea(),
+                ticket.getEvidenceFileName(),
+                ticket.getEvidenceContentType(),
+                ticket.getEvidenceDataUrl(),
                 ticket.getCreatedAt(),
                 ticket.getFirstResponseAt(),
                 ticket.getResolvedAt(),
@@ -294,8 +305,8 @@ public class SupportTicketService {
     }
 
     private String normalizeCategory(String raw) {
-        String normalized = normalizeNullable(raw);
-        String value = normalized == null ? "OTHER" : normalized.toUpperCase(Locale.ROOT);
+        String normalized = requireText(raw, "SUPPORT_TICKET_CATEGORY_REQUIRED", "Informe a categoria do ticket.");
+        String value = normalized.toUpperCase(Locale.ROOT);
         if (!VALID_CATEGORIES.contains(value)) {
             throw new BusinessException("SUPPORT_TICKET_CATEGORY_INVALID", "Categoria de ticket invalida.");
         }
@@ -372,6 +383,83 @@ public class SupportTicketService {
         return builder.toString();
     }
 
+    private List<GuidedAnswer> validateGuidedAnswers(List<GuidedAnswer> guidedAnswers) {
+        if (guidedAnswers == null || guidedAnswers.size() != REQUIRED_GUIDED_QUESTION_COUNT) {
+            throw new BusinessException(
+                    "SUPPORT_TICKET_GUIDED_ANSWERS_REQUIRED",
+                    "Responda todas as perguntas guiadas antes de abrir o ticket."
+            );
+        }
+
+        List<GuidedAnswer> normalizedAnswers = new ArrayList<>();
+        for (GuidedAnswer answer : guidedAnswers) {
+            if (answer == null) {
+                throw new BusinessException(
+                        "SUPPORT_TICKET_GUIDED_ANSWERS_REQUIRED",
+                        "Responda todas as perguntas guiadas antes de abrir o ticket."
+                );
+            }
+            normalizedAnswers.add(new GuidedAnswer(
+                    trimToMax(requireText(answer.question(), "SUPPORT_TICKET_GUIDED_ANSWERS_REQUIRED", "Responda todas as perguntas guiadas antes de abrir o ticket."), 220),
+                    trimToMax(requireText(answer.answer(), "SUPPORT_TICKET_GUIDED_ANSWERS_REQUIRED", "Responda todas as perguntas guiadas antes de abrir o ticket."), 300)
+            ));
+        }
+        return List.copyOf(normalizedAnswers);
+    }
+
+    private TicketEvidence validateEvidence(String fileName, String contentType, String dataUrl) {
+        String normalizedFileName = trimToMax(
+                requireText(fileName, "SUPPORT_TICKET_EVIDENCE_REQUIRED", "Anexe uma imagem ou video do bug."),
+                255
+        );
+        String normalizedContentType = requireText(
+                contentType,
+                "SUPPORT_TICKET_EVIDENCE_REQUIRED",
+                "Anexe uma imagem ou video do bug."
+        ).toLowerCase(Locale.ROOT);
+        String normalizedDataUrl = requireText(
+                dataUrl,
+                "SUPPORT_TICKET_EVIDENCE_REQUIRED",
+                "Anexe uma imagem ou video do bug."
+        );
+
+        boolean isImage = normalizedContentType.startsWith("image/");
+        boolean isVideo = normalizedContentType.startsWith("video/");
+        if (!isImage && !isVideo) {
+            throw new BusinessException("SUPPORT_TICKET_EVIDENCE_INVALID", "Anexe uma imagem ou video valido do bug.");
+        }
+
+        String prefix = "data:" + normalizedContentType + ";base64,";
+        if (!normalizedDataUrl.regionMatches(true, 0, prefix, 0, prefix.length())) {
+            throw new BusinessException("SUPPORT_TICKET_EVIDENCE_INVALID", "Anexe uma imagem ou video valido do bug.");
+        }
+
+        long bytes = estimateDataUrlBytes(normalizedDataUrl);
+        if (isImage && bytes > MAX_IMAGE_BYTES) {
+            throw new BusinessException("SUPPORT_TICKET_EVIDENCE_TOO_LARGE", "A imagem anexada excede o limite de 5 MB.");
+        }
+        if (isVideo && bytes > MAX_VIDEO_BYTES) {
+            throw new BusinessException("SUPPORT_TICKET_EVIDENCE_TOO_LARGE", "O video anexado excede o limite de 16 MB.");
+        }
+
+        return new TicketEvidence(normalizedFileName, trimToMax(normalizedContentType, 120), normalizedDataUrl);
+    }
+
+    private long estimateDataUrlBytes(String dataUrl) {
+        int commaIndex = dataUrl.indexOf(',');
+        if (commaIndex < 0 || commaIndex == dataUrl.length() - 1) {
+            throw new BusinessException("SUPPORT_TICKET_EVIDENCE_INVALID", "Anexe uma imagem ou video valido do bug.");
+        }
+
+        String base64 = dataUrl.substring(commaIndex + 1).trim();
+        if (base64.isEmpty()) {
+            throw new BusinessException("SUPPORT_TICKET_EVIDENCE_INVALID", "Anexe uma imagem ou video valido do bug.");
+        }
+
+        int padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+        return Math.max(0L, ((long) base64.length() * 3 / 4) - padding);
+    }
+
     private String joinGuided(List<GuidedAnswer> guidedAnswers) {
         if (guidedAnswers == null || guidedAnswers.isEmpty()) return "";
         StringBuilder builder = new StringBuilder();
@@ -410,8 +498,14 @@ public class SupportTicketService {
             String category,
             String urgency,
             String bugArea,
+            String evidenceFileName,
+            String evidenceContentType,
+            String evidenceDataUrl,
             List<GuidedAnswer> guidedAnswers
     ) {
+    }
+
+    private record TicketEvidence(String fileName, String contentType, String dataUrl) {
     }
 
     public record GuidedAnswer(String question, String answer) {
@@ -455,6 +549,9 @@ public class SupportTicketService {
             String urgency,
             String status,
             String bugArea,
+            String evidenceFileName,
+            String evidenceContentType,
+            String evidenceDataUrl,
             Instant createdAt,
             Instant firstResponseAt,
             Instant resolvedAt,

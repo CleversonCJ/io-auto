@@ -1,11 +1,18 @@
 ﻿"use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { BellRing, LifeBuoy, LogOut, X } from "lucide-react";
 
 type GuidedAnswer = {
     question: string;
     answer: string;
+};
+
+type EvidenceAttachment = {
+    kind: "image" | "video";
+    fileName: string;
+    contentType: string;
+    dataUrl: string;
 };
 
 const GUIDED_QUESTIONS: string[] = [
@@ -16,6 +23,14 @@ const GUIDED_QUESTIONS: string[] = [
     "Voce ja tentou atualizar a pagina ou sair e entrar novamente?",
     "Quantos usuarios ou atendimentos estao impactados?",
 ];
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 16 * 1024 * 1024;
+
+function formatBytes(bytes: number) {
+    if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function ProtectedNotificationsRail() {
     const [open, setOpen] = useState(false);
@@ -28,12 +43,14 @@ export function ProtectedNotificationsRail() {
     const [category, setCategory] = useState("BUG");
     const [bugArea, setBugArea] = useState("");
     const [answers, setAnswers] = useState<string[]>(GUIDED_QUESTIONS.map(() => ""));
+    const [attachment, setAttachment] = useState<EvidenceAttachment | null>(null);
+    const [attachmentInputKey, setAttachmentInputKey] = useState(0);
 
     const guidedAnswers = useMemo<GuidedAnswer[]>(() => {
         return GUIDED_QUESTIONS.map((question, index) => ({
             question,
             answer: answers[index] ?? "",
-        })).filter((item) => item.answer.trim().length > 0);
+        }));
     }, [answers]);
 
     function resetForm() {
@@ -42,11 +59,68 @@ export function ProtectedNotificationsRail() {
         setCategory("BUG");
         setBugArea("");
         setAnswers(GUIDED_QUESTIONS.map(() => ""));
+        setAttachment(null);
+        setAttachmentInputKey((current) => current + 1);
+    }
+
+    async function readFileAsDataUrl(file: File) {
+        return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result ?? ""));
+            reader.onerror = () => reject(new Error("Nao foi possivel processar o arquivo anexado."));
+            reader.readAsDataURL(file);
+        });
+    }
+
+    async function handleEvidenceChange(event: ChangeEvent<HTMLInputElement>) {
+        const file = event.target.files?.[0] ?? null;
+        if (!file) {
+            setAttachment(null);
+            return;
+        }
+
+        const normalizedContentType = String(file.type ?? "").trim().toLowerCase();
+        const isImage = normalizedContentType.startsWith("image/");
+        const isVideo = normalizedContentType.startsWith("video/");
+        const sizeLimit = isImage ? MAX_IMAGE_BYTES : isVideo ? MAX_VIDEO_BYTES : 0;
+
+        if (!isImage && !isVideo) {
+            setAttachment(null);
+            setAttachmentInputKey((current) => current + 1);
+            setError("Anexe uma imagem ou um video valido para abrir o ticket.");
+            return;
+        }
+
+        if (file.size > sizeLimit) {
+            setAttachment(null);
+            setAttachmentInputKey((current) => current + 1);
+            setError(`O arquivo anexado excede o limite de ${formatBytes(sizeLimit)}.`);
+            return;
+        }
+
+        try {
+            const dataUrl = await readFileAsDataUrl(file);
+            setAttachment({
+                kind: isVideo ? "video" : "image",
+                fileName: file.name,
+                contentType: normalizedContentType,
+                dataUrl,
+            });
+            setError(null);
+        } catch (attachmentError) {
+            setAttachment(null);
+            setAttachmentInputKey((current) => current + 1);
+            setError(attachmentError instanceof Error ? attachmentError.message : "Nao foi possivel processar o arquivo anexado.");
+        }
     }
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (loading) return;
+        if (!attachment) {
+            setError("Anexe uma imagem ou um video do bug antes de abrir o ticket.");
+            return;
+        }
 
         setLoading(true);
         setError(null);
@@ -57,11 +131,17 @@ export function ProtectedNotificationsRail() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    title,
-                    description,
+                    title: title.trim(),
+                    description: description.trim(),
                     category,
-                    bugArea: bugArea.trim() || undefined,
-                    guidedAnswers,
+                    bugArea: bugArea.trim(),
+                    evidenceFileName: attachment.fileName,
+                    evidenceContentType: attachment.contentType,
+                    evidenceDataUrl: attachment.dataUrl,
+                    guidedAnswers: guidedAnswers.map((item) => ({
+                        question: item.question,
+                        answer: item.answer.trim(),
+                    })),
                 }),
             });
 
@@ -154,7 +234,7 @@ export function ProtectedNotificationsRail() {
                             <div className="grid gap-3 sm:grid-cols-2">
                                 <label className="grid gap-1 text-xs text-black/55">
                                     Categoria
-                                    <select value={category} onChange={(event) => setCategory(event.target.value)} className="h-11 rounded-xl border border-black/12 px-3 text-sm text-io-dark">
+                                    <select value={category} onChange={(event) => setCategory(event.target.value)} required className="h-11 rounded-xl border border-black/12 px-3 text-sm text-io-dark">
                                         <option value="BUG">Bug</option>
                                         <option value="QUESTION">Duvida</option>
                                         <option value="BILLING">Cobranca</option>
@@ -165,15 +245,60 @@ export function ProtectedNotificationsRail() {
                                 </label>
 
                                 <label className="grid gap-1 text-xs text-black/55">
-                                    Area do bug (opcional)
+                                    Area do bug
                                     <input
                                         value={bugArea}
                                         onChange={(event) => setBugArea(event.target.value)}
                                         placeholder="Ex.: Publicacoes / Financeiro"
                                         maxLength={120}
+                                        required
                                         className="h-11 rounded-xl border border-black/12 px-3 text-sm"
                                     />
                                 </label>
+                            </div>
+
+                            <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-4">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <p className="text-sm font-semibold text-io-dark">Imagem ou video do bug</p>
+                                        <p className="mt-1 text-xs text-black/55">Obrigatorio. Aceita imagem ate {formatBytes(MAX_IMAGE_BYTES)} ou video ate {formatBytes(MAX_VIDEO_BYTES)}.</p>
+                                    </div>
+                                    {attachment ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setAttachment(null);
+                                                setAttachmentInputKey((current) => current + 1);
+                                            }}
+                                            className="rounded-full border border-black/12 px-3 py-1 text-xs font-semibold text-black/65"
+                                        >
+                                            Remover arquivo
+                                        </button>
+                                    ) : null}
+                                </div>
+
+                                <input
+                                    key={attachmentInputKey}
+                                    type="file"
+                                    accept="image/*,video/*"
+                                    required
+                                    onChange={(event) => void handleEvidenceChange(event)}
+                                    className="mt-3 block w-full rounded-xl border border-black/12 bg-white px-3 py-2 text-sm"
+                                />
+
+                                {attachment ? (
+                                    <div className="mt-3 grid gap-3 rounded-2xl border border-black/10 bg-white p-3">
+                                        <div className="text-xs text-black/55">
+                                            <p className="font-semibold text-io-dark">{attachment.fileName}</p>
+                                            <p className="mt-1">{attachment.kind === "video" ? "Video anexado" : "Imagem anexada"}</p>
+                                        </div>
+                                        {attachment.kind === "video" ? (
+                                            <video src={attachment.dataUrl} controls className="max-h-72 w-full rounded-xl bg-black" />
+                                        ) : (
+                                            <img src={attachment.dataUrl} alt="Evidencia do bug" className="max-h-72 w-full rounded-xl object-contain bg-black/[0.03]" />
+                                        )}
+                                    </div>
+                                ) : null}
                             </div>
 
                             <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-4">
@@ -189,6 +314,7 @@ export function ProtectedNotificationsRail() {
                                                     next[index] = event.target.value;
                                                     setAnswers(next);
                                                 }}
+                                                required
                                                 className="h-10 rounded-lg border border-black/12 px-3 text-sm"
                                             />
                                         </label>

@@ -3,6 +3,7 @@ package com.io.appioweb.adapters.web.superadmin;
 import com.io.appioweb.application.superadmin.SupportTicketService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,6 +30,9 @@ public class SupportTicketController {
                 request.category(),
                 request.urgency(),
                 request.bugArea(),
+                request.evidenceFileName(),
+                request.evidenceContentType(),
+                request.evidenceDataUrl(),
                 request.guidedAnswers() == null
                         ? List.of()
                         : request.guidedAnswers().stream()
@@ -46,16 +50,19 @@ public class SupportTicketController {
     public record CreateSupportTicketHttpRequest(
             @NotBlank @Size(max = 220) String title,
             @NotBlank String description,
-            String category,
+            @NotBlank String category,
             String urgency,
-            @Size(max = 120) String bugArea,
-            List<GuidedAnswerHttpRequest> guidedAnswers
+            @NotBlank @Size(max = 120) String bugArea,
+            @NotBlank @Size(max = 255) String evidenceFileName,
+            @NotBlank @Size(max = 120) String evidenceContentType,
+            @NotBlank String evidenceDataUrl,
+            @NotEmpty List<@Valid GuidedAnswerHttpRequest> guidedAnswers
     ) {
     }
 
     public record GuidedAnswerHttpRequest(
-            @Size(max = 220) String question,
-            @Size(max = 300) String answer
+            @NotBlank @Size(max = 220) String question,
+            @NotBlank @Size(max = 300) String answer
     ) {
     }
 }

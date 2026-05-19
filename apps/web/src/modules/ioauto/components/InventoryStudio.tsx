@@ -7,6 +7,7 @@ import {
     CarFront,
     Gauge,
     Globe2,
+    GripVertical,
     Link2,
     LoaderCircle,
     PencilLine,
@@ -170,6 +171,15 @@ function emptyForm(): VehicleFormState {
 
 function uniqueImageList(values: Array<string | null | undefined>) {
     return Array.from(new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean)));
+}
+
+function reorderImageList(imageUrls: string[], draggedUrl: string, targetUrl: string) {
+    if (!draggedUrl || !targetUrl || draggedUrl === targetUrl) return imageUrls;
+    const next = imageUrls.filter((item) => item !== draggedUrl);
+    const targetIndex = next.indexOf(targetUrl);
+    if (targetIndex < 0) return imageUrls;
+    next.splice(targetIndex, 0, draggedUrl);
+    return next;
 }
 
 function vehicleToForm(vehicle: VehicleRecord): VehicleFormState {
@@ -341,6 +351,8 @@ export function InventoryStudio() {
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [uploadingImages, setUploadingImages] = useState(false);
     const [isImageDragActive, setIsImageDragActive] = useState(false);
+    const [draggedImageUrl, setDraggedImageUrl] = useState<string | null>(null);
+    const [dragOverImageUrl, setDragOverImageUrl] = useState<string | null>(null);
     const [meliListingTypes, setMeliListingTypes] = useState<MeliListingTypeRecord[]>([]);
     const [loadingMeliListingTypes, setLoadingMeliListingTypes] = useState(false);
     const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -793,6 +805,8 @@ export function InventoryStudio() {
         setError(null);
         setUploadingImages(false);
         setIsImageDragActive(false);
+        setDraggedImageUrl(null);
+        setDragOverImageUrl(null);
         setIsEditorOpen(true);
     }
 
@@ -802,6 +816,8 @@ export function InventoryStudio() {
         setError(null);
         setUploadingImages(false);
         setIsImageDragActive(false);
+        setDraggedImageUrl(null);
+        setDragOverImageUrl(null);
         setIsEditorOpen(true);
     }
 
@@ -810,6 +826,8 @@ export function InventoryStudio() {
         setError(null);
         setUploadingImages(false);
         setIsImageDragActive(false);
+        setDraggedImageUrl(null);
+        setDragOverImageUrl(null);
         setForm(selectedVehicle ? vehicleToForm(selectedVehicle) : emptyForm());
     }
 
@@ -876,6 +894,41 @@ export function InventoryStudio() {
             ...current,
             imageUrls: current.imageUrls.filter((item) => item !== url),
         }));
+    }
+
+    function handleImageCardDragStart(event: DragEvent<HTMLDivElement>, imageUrl: string) {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", imageUrl);
+        setDraggedImageUrl(imageUrl);
+        setDragOverImageUrl(imageUrl);
+    }
+
+    function handleImageCardDragOver(event: DragEvent<HTMLDivElement>, imageUrl: string) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        if (dragOverImageUrl !== imageUrl) {
+            setDragOverImageUrl(imageUrl);
+        }
+    }
+
+    function handleImageCardDrop(event: DragEvent<HTMLDivElement>, targetUrl: string) {
+        event.preventDefault();
+        const sourceUrl = draggedImageUrl || event.dataTransfer.getData("text/plain");
+        if (!sourceUrl || sourceUrl === targetUrl) {
+            setDragOverImageUrl(null);
+            return;
+        }
+
+        setForm((current) => ({
+            ...current,
+            imageUrls: reorderImageList(current.imageUrls, sourceUrl, targetUrl),
+        }));
+        setDragOverImageUrl(targetUrl);
+    }
+
+    function handleImageCardDragEnd() {
+        setDraggedImageUrl(null);
+        setDragOverImageUrl(null);
     }
 
     async function handleSaveVehicle(event: FormEvent<HTMLFormElement>) {
@@ -1260,7 +1313,7 @@ export function InventoryStudio() {
                                             <div className="flex items-center justify-between gap-3">
                                                 <div>
                                                     <p className="text-sm font-semibold text-io-dark">Imagens do veículo</p>
-                                                    <p className="mt-1 text-sm text-black/50">Arraste e solte ou selecione imagens no computador.</p>
+                                                    <p className="mt-1 text-sm text-black/50">Arraste e solte para enviar. Depois, arraste as miniaturas para organizar a ordem.</p>
                                                 </div>
                                                 <button
                                                     type="button"
@@ -1290,9 +1343,27 @@ export function InventoryStudio() {
                                             {form.imageUrls.length ? (
                                                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                                                     {form.imageUrls.map((imageUrl, index) => (
-                                                        <div key={imageUrl} className="overflow-hidden rounded-[24px] border border-black/10 bg-white">
+                                                        <div
+                                                            key={imageUrl}
+                                                            draggable
+                                                            onDragStart={(event) => handleImageCardDragStart(event, imageUrl)}
+                                                            onDragOver={(event) => handleImageCardDragOver(event, imageUrl)}
+                                                            onDrop={(event) => handleImageCardDrop(event, imageUrl)}
+                                                            onDragEnd={handleImageCardDragEnd}
+                                                            className={`overflow-hidden rounded-[24px] border bg-white transition ${
+                                                                dragOverImageUrl === imageUrl && draggedImageUrl !== imageUrl
+                                                                    ? "border-[#2b57d9] ring-2 ring-[#2b57d9]/15"
+                                                                    : "border-black/10"
+                                                            } ${draggedImageUrl === imageUrl ? "cursor-grabbing opacity-80" : "cursor-grab"}`}
+                                                        >
                                                             <img src={imageUrl} alt={`Imagem ${index + 1}`} className="h-40 w-full object-cover" />
                                                             <div className="flex items-center justify-between gap-2 px-3 py-3">
+                                                                <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-black/40">
+                                                                    <GripVertical className="h-4 w-4" />
+                                                                    <span>{index === 0 ? "Capa" : `Posição ${index + 1}`}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center justify-between gap-2 border-t border-black/6 px-3 py-3">
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => promoteImage(imageUrl)}
