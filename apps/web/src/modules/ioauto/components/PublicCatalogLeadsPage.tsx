@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
     CalendarDays,
     CarFront,
+    CheckCircle2,
     ExternalLink,
     Gauge,
     LoaderCircle,
@@ -31,6 +32,13 @@ const PRESET_OPTIONS = [
 ] as const;
 
 type LeadItem = PublicCatalogLeadList["leads"][number];
+type TeamMember = {
+    id: string;
+    fullName: string;
+    email: string;
+    teamId: string | null;
+    teamName: string | null;
+};
 
 function formatDate(value?: string | null) {
     if (!value) return "-";
@@ -153,6 +161,11 @@ export function PublicCatalogLeadsPage() {
     const [previewLoading, setPreviewLoading] = useState(false);
     const [previewError, setPreviewError] = useState<string | null>(null);
     const [previewImage, setPreviewImage] = useState<string | null>(null);
+    const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+    const [saleLead, setSaleLead] = useState<LeadItem | null>(null);
+    const [saleSellerUserId, setSaleSellerUserId] = useState("");
+    const [saleSubmitting, setSaleSubmitting] = useState(false);
+    const [saleMessage, setSaleMessage] = useState<string | null>(null);
     const previewRequestRef = useRef(0);
 
     useEffect(() => {
@@ -223,6 +236,34 @@ export function PublicCatalogLeadsPage() {
                 window.clearTimeout(refreshTimer);
             }
             unsubscribe();
+        };
+    }, []);
+
+    useEffect(() => {
+        let active = true;
+
+        fetch("/api/atendimentos/users", {
+            cache: "no-store",
+            credentials: "include",
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    const payload = await response.json().catch(() => ({ message: "Falha ao carregar a equipe." }));
+                    throw new Error(payload.message ?? "Falha ao carregar a equipe.");
+                }
+                return response.json() as Promise<TeamMember[]>;
+            })
+            .then((payload) => {
+                if (!active) return;
+                setTeamMembers(payload);
+            })
+            .catch(() => {
+                if (!active) return;
+                setTeamMembers([]);
+            });
+
+        return () => {
+            active = false;
         };
     }, []);
 
@@ -329,6 +370,73 @@ export function PublicCatalogLeadsPage() {
         setPreviewError(null);
         setPreviewLoading(false);
         setPreviewImage(null);
+    }
+
+    function openSaleModal(lead: LeadItem) {
+        if (!lead.vehicleId || lead.convertedToSale) return;
+        setSaleLead(lead);
+        setSaleSellerUserId(lead.sellerUserId ?? "");
+        setSaleMessage(null);
+    }
+
+    function closeSaleModal() {
+        if (saleSubmitting) return;
+        setSaleLead(null);
+        setSaleSellerUserId("");
+        setSaleMessage(null);
+    }
+
+    async function handleCloseSale() {
+        if (!saleLead) return;
+        if (!saleLead.vehicleId) {
+            setSaleMessage("Este lead não possui um veículo vinculado para fechar a venda.");
+            return;
+        }
+        if (!saleSellerUserId) {
+            setSaleMessage("Selecione o vendedor responsável para concluir a venda.");
+            return;
+        }
+
+        setSaleSubmitting(true);
+        setSaleMessage(null);
+
+        try {
+            const response = await fetch(`/api/ioauto/public-catalog-leads/${saleLead.id}/close-sale`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    sellerUserId: saleSellerUserId,
+                }),
+            });
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({ message: "Falha ao concluir a venda." }));
+                throw new Error(payload.message ?? "Falha ao concluir a venda.");
+            }
+
+            setData((current) => {
+                if (!current) return current;
+                return {
+                    ...current,
+                    leads: current.leads.map((lead) =>
+                        lead.id === saleLead.id
+                            ? {
+                                ...lead,
+                                sellerUserId: saleSellerUserId,
+                                convertedToSale: true,
+                            }
+                            : lead
+                    ),
+                };
+            });
+            closeSaleModal();
+            setRefreshTick((value) => value + 1);
+        } catch (cause) {
+            setSaleMessage(cause instanceof Error ? cause.message : "Falha ao concluir a venda.");
+        } finally {
+            setSaleSubmitting(false);
+        }
     }
 
     const previewImages = getVehicleImages(previewVehicle);
@@ -502,6 +610,7 @@ export function PublicCatalogLeadsPage() {
                         {filteredLeads.map((lead) => {
                             const previewVehicleData = lead.vehicleId ? vehiclesById[lead.vehicleId] ?? null : null;
                             const whatsappHref = buildWhatsappLeadHref(lead, previewVehicleData);
+                            const saleSeller = lead.sellerUserId ? teamMembers.find((member) => member.id === lead.sellerUserId) ?? null : null;
 
                             return (
                                 <article
@@ -515,6 +624,12 @@ export function PublicCatalogLeadsPage() {
                                                     <UserRound className="h-3.5 w-3.5" />
                                                     {"Lead"}
                                                 </span>
+                                                {lead.convertedToSale ? (
+                                                    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">
+                                                        <CheckCircle2 className="h-3.5 w-3.5" />
+                                                        {"Venda concluída"}
+                                                    </span>
+                                                ) : null}
                                                 <span className="text-xs font-medium text-black/42">
                                                     {formatDateTime(lead.createdAt)}
                                                 </span>
@@ -525,6 +640,11 @@ export function PublicCatalogLeadsPage() {
                                                 <Phone className="h-4 w-4 text-io-purple" />
                                                 {formatPhone(lead.customerPhone)}
                                             </p>
+                                            {lead.convertedToSale ? (
+                                                <p className="mt-2 text-sm text-black/52">
+                                                    {saleSeller ? `Vendedor: ${saleSeller.fullName}` : "Venda vinculada ao lead"}
+                                                </p>
+                                            ) : null}
                                         </div>
 
                                         <div>
@@ -565,7 +685,17 @@ export function PublicCatalogLeadsPage() {
                                             </p>
                                         </div>
 
-                                        <div className="flex xl:justify-end">
+                                        <div className="flex flex-wrap gap-2 xl:justify-end">
+                                            {lead.vehicleId && !lead.convertedToSale ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openSaleModal(lead)}
+                                                    className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
+                                                >
+                                                    <CheckCircle2 className="h-4 w-4" />
+                                                    {"Fechar venda"}
+                                                </button>
+                                            ) : null}
                                             {whatsappHref ? (
                                                 <a
                                                     href={whatsappHref}
@@ -601,6 +731,74 @@ export function PublicCatalogLeadsPage() {
                     </div>
                 )}
             </section>
+
+            {saleLead ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2d0a52]/38 px-4 py-6 backdrop-blur-[3px]">
+                    <div className="w-full max-w-xl rounded-[32px] border border-[#6b00e3]/10 bg-white p-6 shadow-[0_30px_80px_rgba(61,16,122,0.24)]">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs uppercase tracking-[0.28em] text-black/35">Fechamento comercial</p>
+                                <h3 className="mt-2 font-display text-3xl font-bold text-io-dark">Fechar venda do lead</h3>
+                                <p className="mt-2 text-sm text-black/55">
+                                    Vincule o vendedor responsável e conclua a venda usando o veículo de interesse já informado neste lead.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={closeSaleModal}
+                                className="rounded-full border border-black/10 px-3 py-2 text-sm font-semibold text-black/60 transition hover:border-black/20 hover:text-io-dark"
+                            >
+                                Fechar
+                            </button>
+                        </div>
+
+                        <div className="mt-5 rounded-[24px] bg-black/[0.03] px-4 py-4">
+                            <p className="text-sm font-semibold text-io-dark">{saleLead.customerName}</p>
+                            <p className="mt-1 text-sm text-black/55">{formatPhone(saleLead.customerPhone)}</p>
+                            <p className="mt-2 text-sm text-black/55">{saleLead.vehicleTitle || "Veículo de interesse"}</p>
+                        </div>
+
+                        <div className="mt-5 grid gap-2">
+                            <label className="text-xs uppercase tracking-[0.22em] text-black/40">Vendedor responsável</label>
+                            <select
+                                value={saleSellerUserId}
+                                onChange={(event) => setSaleSellerUserId(event.target.value)}
+                                className="rounded-[22px] border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/25"
+                            >
+                                <option value="">Selecione um vendedor</option>
+                                {teamMembers.map((member) => (
+                                    <option key={member.id} value={member.id}>
+                                        {member.fullName}{member.teamName ? ` • ${member.teamName}` : ""}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {saleMessage ? (
+                            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{saleMessage}</div>
+                        ) : null}
+
+                        <div className="mt-6 flex flex-wrap justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={closeSaleModal}
+                                className="rounded-full border border-black/10 px-5 py-3 text-sm font-semibold text-black/60 transition hover:border-black/20 hover:text-io-dark"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleCloseSale}
+                                disabled={saleSubmitting}
+                                className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-black/20"
+                            >
+                                {saleSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                Concluir venda
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
 
             {previewLead ? (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2d0a52]/38 px-4 py-6 backdrop-blur-[3px]">

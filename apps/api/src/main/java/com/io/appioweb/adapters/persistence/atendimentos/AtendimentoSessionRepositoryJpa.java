@@ -14,4 +14,5 @@ public interface AtendimentoSessionRepositoryJpa extends JpaRepository<JpaAtendi
     List<JpaAtendimentoSessionEntity> findAllByCompanyIdAndConversationIdInOrderByArrivedAtDescCreatedAtDesc(UUID companyId, Collection<UUID> conversationIds);
     List<JpaAtendimentoSessionEntity> findAllByCompanyIdAndArrivedAtGreaterThanEqualAndArrivedAtLessThanOrderByArrivedAtAsc(UUID companyId, java.time.Instant startAt, java.time.Instant endAt);
     List<JpaAtendimentoSessionEntity> findAllByCompanyIdAndSaleCompletedIsTrueAndSaleCompletedAtGreaterThanEqualAndSaleCompletedAtLessThanOrderBySaleCompletedAtAsc(UUID companyId, java.time.Instant startAt, java.time.Instant endAt);
+    List<JpaAtendimentoSessionEntity> findAllByCompanyIdAndSaleCompletedIsTrueOrderBySaleCompletedAtDesc(UUID companyId);
 }

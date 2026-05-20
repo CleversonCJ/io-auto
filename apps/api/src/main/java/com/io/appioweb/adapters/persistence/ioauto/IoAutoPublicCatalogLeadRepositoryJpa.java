@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.UUID;
 
 public interface IoAutoPublicCatalogLeadRepositoryJpa extends JpaRepository<JpaIoAutoPublicCatalogLeadEntity, UUID> {
+    java.util.Optional<JpaIoAutoPublicCatalogLeadEntity> findByIdAndCompanyId(UUID id, UUID companyId);
+
     List<JpaIoAutoPublicCatalogLeadEntity> findAllByCompanyIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
             UUID companyId,
             Instant fromAt,

@@ -36,6 +36,7 @@ export function platformLabel(platform?: string | null) {
     if (normalized === "ICARROS") return "iCarros";
     if (normalized === "OLX" || normalized === "OLX_AUTOS") return "OLX";
     if (normalized === "MERCADOLIVRE" || normalized === "MERCADO_LIVRE") return "Mercado Livre";
+    if (normalized === "PUBLIC_CATALOG" || normalized === "CATALOG") return "Catálogo";
     if (normalized === "FACEBOOK_MARKETPLACE") return "Facebook Marketplace";
     if (!normalized) return "Origem";
     return normalized;

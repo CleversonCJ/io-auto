@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent,
 import {
     CalendarDays,
     CarFront,
+    CheckCircle2,
     Gauge,
     Globe2,
     GripVertical,
@@ -64,6 +65,14 @@ type VehicleFormState = {
     targetIntegrations: string[];
     meli: MeliVehicleFormState;
     olx: OlxVehicleFormState;
+};
+
+type TeamMember = {
+    id: string;
+    fullName: string;
+    email: string;
+    teamId: string | null;
+    teamName: string | null;
 };
 
 const TRANSMISSION_OPTIONS = [
@@ -356,12 +365,14 @@ function getPublicationBadgeConfig(publication: VehiclePublication) {
 export function InventoryStudio() {
     const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
     const [integrations, setIntegrations] = useState<IntegrationRecord[]>([]);
+    const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [form, setForm] = useState<VehicleFormState>(emptyForm());
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
+    const [stockTab, setStockTab] = useState<"ALL" | "AVAILABLE" | "SOLD">("ALL");
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [uploadingImages, setUploadingImages] = useState(false);
     const [isImageDragActive, setIsImageDragActive] = useState(false);
@@ -369,6 +380,10 @@ export function InventoryStudio() {
     const [dragOverImageUrl, setDragOverImageUrl] = useState<string | null>(null);
     const [meliListingTypes, setMeliListingTypes] = useState<MeliListingTypeRecord[]>([]);
     const [loadingMeliListingTypes, setLoadingMeliListingTypes] = useState(false);
+    const [saleVehicle, setSaleVehicle] = useState<VehicleRecord | null>(null);
+    const [saleSellerUserId, setSaleSellerUserId] = useState("");
+    const [saleSubmitting, setSaleSubmitting] = useState(false);
+    const [saleMessage, setSaleMessage] = useState<string | null>(null);
     const imageInputRef = useRef<HTMLInputElement | null>(null);
 
     const selectedVehicle = useMemo(() => vehicles.find((vehicle) => vehicle.id === selectedId) ?? null, [selectedId, vehicles]);
@@ -407,9 +422,16 @@ export function InventoryStudio() {
         [form.targetIntegrations, readyPublicationProviderKeys]
     );
     const visibleVehicles = useMemo(() => {
+        let filteredByTab = vehicles;
+        if (stockTab === "AVAILABLE") {
+            filteredByTab = vehicles.filter((vehicle) => String(vehicle.status ?? "").trim().toUpperCase() !== "SOLD");
+        } else if (stockTab === "SOLD") {
+            filteredByTab = vehicles.filter((vehicle) => String(vehicle.status ?? "").trim().toUpperCase() === "SOLD");
+        }
+
         const query = search.trim().toLowerCase();
-        if (!query) return vehicles;
-        return vehicles.filter((vehicle) =>
+        if (!query) return filteredByTab;
+        return filteredByTab.filter((vehicle) =>
             [
                 vehicle.title,
                 vehicle.brand,
@@ -425,7 +447,15 @@ export function InventoryStudio() {
                 .toLowerCase()
                 .includes(query)
         );
-    }, [search, vehicles]);
+    }, [search, stockTab, vehicles]);
+    const availableVehiclesCount = useMemo(
+        () => vehicles.filter((vehicle) => String(vehicle.status ?? "").trim().toUpperCase() !== "SOLD").length,
+        [vehicles]
+    );
+    const soldVehiclesCount = useMemo(
+        () => vehicles.filter((vehicle) => String(vehicle.status ?? "").trim().toUpperCase() === "SOLD").length,
+        [vehicles]
+    );
 
     useEffect(() => {
         void loadInventory();
@@ -789,21 +819,25 @@ export function InventoryStudio() {
     async function loadInventory() {
         setLoading(true);
         try {
-            const [vehiclesResponse, integrationsResponse] = await Promise.all([
+            const [vehiclesResponse, integrationsResponse, usersResponse] = await Promise.all([
                 fetch("/api/ioauto/vehicles", { cache: "no-store" }),
                 fetch("/api/ioauto/integrations", { cache: "no-store" }),
+                fetch("/api/atendimentos/users", { cache: "no-store", credentials: "include" }),
             ]);
+            if (!usersResponse.ok) throw new Error("Falha ao listar a equipe.");
 
             if (!vehiclesResponse.ok) throw new Error("Falha ao listar os veículos.");
             if (!integrationsResponse.ok) throw new Error("Falha ao listar as integrações.");
 
-            const [vehiclePayload, integrationPayload] = await Promise.all([
+            const [vehiclePayload, integrationPayload, usersPayload] = await Promise.all([
                 vehiclesResponse.json() as Promise<VehicleRecord[]>,
                 integrationsResponse.json() as Promise<IntegrationRecord[]>,
+                usersResponse.json() as Promise<TeamMember[]>,
             ]);
 
             setVehicles(vehiclePayload);
             setIntegrations(integrationPayload);
+            setTeamMembers(usersPayload);
             setSelectedId((current) => (current && vehiclePayload.some((vehicle) => vehicle.id === current) ? current : vehiclePayload[0]?.id ?? null));
             setError(null);
         } catch (cause) {
@@ -843,6 +877,60 @@ export function InventoryStudio() {
         setDraggedImageUrl(null);
         setDragOverImageUrl(null);
         setForm(selectedVehicle ? vehicleToForm(selectedVehicle) : emptyForm());
+    }
+
+    function openCloseSaleModal(vehicle: VehicleRecord) {
+        setSaleVehicle(vehicle);
+        setSaleSellerUserId("");
+        setSaleMessage(null);
+    }
+
+    function closeSaleModal() {
+        setSaleVehicle(null);
+        setSaleSellerUserId("");
+        setSaleMessage(null);
+    }
+
+    async function handleCloseSale() {
+        if (!saleVehicle) return;
+        if (!saleSellerUserId) {
+            setSaleMessage("Selecione o vendedor responsável para concluir a venda.");
+            return;
+        }
+
+        setSaleSubmitting(true);
+        setSaleMessage(null);
+        try {
+            const response = await fetch(`/api/ioauto/vehicles/${saleVehicle.id}/close-sale`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ sellerUserId: saleSellerUserId }),
+            });
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({ message: "Não foi possível concluir a venda do veículo." }));
+                throw new Error(payload.message ?? "Não foi possível concluir a venda do veículo.");
+            }
+
+            setVehicles((current) =>
+                current.map((vehicle) =>
+                    vehicle.id === saleVehicle.id
+                        ? {
+                              ...vehicle,
+                              status: "SOLD",
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : vehicle
+                )
+            );
+            closeSaleModal();
+            await loadInventory();
+        } catch (cause) {
+            setSaleMessage(cause instanceof Error ? cause.message : "Não foi possível concluir a venda do veículo.");
+        } finally {
+            setSaleSubmitting(false);
+        }
     }
 
     function openImagePicker() {
@@ -1077,6 +1165,12 @@ export function InventoryStudio() {
                     </div>
                 </section>
 
+                <div className="mt-5 flex flex-wrap gap-3">
+                    <StockTabButton active={stockTab === "ALL"} label="Todos" count={vehicles.length} onClick={() => setStockTab("ALL")} />
+                    <StockTabButton active={stockTab === "AVAILABLE"} label="Disponíveis" count={availableVehiclesCount} onClick={() => setStockTab("AVAILABLE")} />
+                    <StockTabButton active={stockTab === "SOLD"} label="Vendidos" count={soldVehiclesCount} onClick={() => setStockTab("SOLD")} />
+                </div>
+
                 {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
 
                 {loading ? (
@@ -1089,7 +1183,12 @@ export function InventoryStudio() {
                 ) : visibleVehicles.length ? (
                     <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                         {visibleVehicles.map((vehicle) => (
-                            <InventoryVehicleCard key={vehicle.id} vehicle={vehicle} onEdit={() => openEditEditor(vehicle)} />
+                            <InventoryVehicleCard
+                                key={vehicle.id}
+                                vehicle={vehicle}
+                                onEdit={() => openEditEditor(vehicle)}
+                                onCloseSale={() => openCloseSaleModal(vehicle)}
+                            />
                         ))}
                     </section>
                 ) : (
@@ -1456,12 +1555,89 @@ export function InventoryStudio() {
                     </div>
                 </div>
             ) : null}
+
+            {saleVehicle ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
+                    <div className="w-full max-w-xl rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_30px_80px_rgba(0,0,0,0.24)]">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/38">Venda pelo estoque</p>
+                                <h3 className="mt-2 font-display text-[1.85rem] font-bold text-io-dark">Fechar venda do veículo</h3>
+                                <p className="mt-2 text-sm text-black/55">
+                                    Selecione o vendedor responsável para concluir a venda e disparar as regras automáticas do veículo vendido.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={closeSaleModal}
+                                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 text-black/60 transition hover:border-black/20 hover:text-io-dark"
+                                aria-label="Fechar modal de venda"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="mt-5 rounded-[24px] bg-black/[0.03] px-4 py-4">
+                            <p className="text-sm font-semibold text-io-dark">{saleVehicle.title}</p>
+                            <p className="mt-1 text-sm text-black/55">{buildVehicleSubtitle(saleVehicle)}</p>
+                            <p className="mt-2 text-sm font-semibold text-io-dark">{formatMoney(saleVehicle.priceCents)}</p>
+                        </div>
+
+                        <div className="mt-5 grid gap-2">
+                            <label className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Vendedor responsável</label>
+                            <select
+                                value={saleSellerUserId}
+                                onChange={(event) => setSaleSellerUserId(event.target.value)}
+                                className="rounded-[22px] border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/25"
+                            >
+                                <option value="">Selecione um vendedor</option>
+                                {teamMembers.map((member) => (
+                                    <option key={member.id} value={member.id}>
+                                        {member.fullName}{member.teamName ? ` • ${member.teamName}` : ""}
+                                    </option>
+                                ))}
+                            </select>
+                            {!teamMembers.length ? <p className="text-xs text-black/45">Nenhum membro da equipe foi encontrado para vincular a venda.</p> : null}
+                        </div>
+
+                        {saleMessage ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{saleMessage}</div> : null}
+
+                        <div className="mt-6 flex flex-wrap justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={closeSaleModal}
+                                className="inline-flex h-12 items-center justify-center rounded-full border border-black/12 px-5 text-sm font-semibold text-black/68 transition hover:border-black/20 hover:text-io-dark"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleCloseSale}
+                                disabled={saleSubmitting || !teamMembers.length}
+                                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-emerald-500 px-5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-black/20"
+                            >
+                                {saleSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                Concluir venda
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
         </>
     );
 }
 
-function InventoryVehicleCard({ vehicle, onEdit }: { vehicle: VehicleRecord; onEdit: () => void }) {
+function InventoryVehicleCard({
+    vehicle,
+    onEdit,
+    onCloseSale,
+}: {
+    vehicle: VehicleRecord;
+    onEdit: () => void;
+    onCloseSale: () => void;
+}) {
     const imageUrl = getVehicleImage(vehicle);
+    const isSold = String(vehicle.status ?? "").trim().toUpperCase() === "SOLD";
 
     return (
         <article className="group flex h-full flex-col overflow-hidden rounded-[30px] border border-black/10 bg-white p-3 shadow-[0_18px_45px_rgba(15,23,42,0.06)] transition hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
@@ -1507,6 +1683,17 @@ function InventoryVehicleCard({ vehicle, onEdit }: { vehicle: VehicleRecord; onE
                         <p className="mt-1 text-[10px] text-black/35 font-medium">Atualizado em {formatDateTime(vehicle.updatedAt)}</p>
                     </div>
 
+                    {!isSold ? (
+                        <button
+                            type="button"
+                            onClick={onCloseSale}
+                            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-emerald-500 text-sm font-semibold text-white transition hover:brightness-110 shadow-sm"
+                        >
+                            <CheckCircle2 className="h-4 w-4" />
+                            Fechar venda
+                        </button>
+                    ) : null}
+
                     <button type="button" onClick={onEdit} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-black text-sm font-semibold text-white transition hover:bg-black/85 shadow-sm">
                         <PencilLine className="h-4 w-4" />
                         Editar veículo
@@ -1514,6 +1701,27 @@ function InventoryVehicleCard({ vehicle, onEdit }: { vehicle: VehicleRecord; onE
                 </div>
             </div>
         </article>
+    );
+}
+
+function StockTabButton({ active, label, count, onClick }: { active: boolean; label: string; count: number; onClick: () => void }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`inline-flex h-12 items-center gap-3 rounded-full border px-4 text-sm font-semibold transition ${
+                active ? "border-io-purple bg-[#f6efff] text-io-purple" : "border-black/10 bg-white text-black/65 hover:border-black/18 hover:text-io-dark"
+            }`}
+        >
+            <span>{label}</span>
+            <span
+                className={`inline-flex min-w-8 items-center justify-center rounded-full px-2 py-1 text-xs ${
+                    active ? "bg-white text-io-purple" : "bg-black/[0.05] text-black/55"
+                }`}
+            >
+                {count}
+            </span>
+        </button>
     );
 }
 

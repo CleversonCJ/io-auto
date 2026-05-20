@@ -387,6 +387,16 @@ public class AtendimentosController {
 
         AtendimentoClassificationResult classificationResult = parseClassificationResult(req.classificationResult());
         Instant now = Instant.now();
+        ResolvedSaleSeller saleSeller = null;
+        if (Boolean.TRUE.equals(req.saleCompleted())) {
+            saleSeller = resolveSaleSeller(companyId, req.sellerUserId());
+            conversation.setAssignedTeamId(saleSeller.team() == null ? null : saleSeller.team().id());
+            conversation.setAssignedUserId(saleSeller.user().id());
+            conversation.setAssignedUserName(saleSeller.user().fullName());
+            if (conversation.getStartedAt() == null) {
+                conversation.setStartedAt(now);
+            }
+        }
         var session = sessionLifecycleService.concludeConversation(
                 companyId,
                 conversation,
@@ -406,7 +416,17 @@ public class AtendimentosController {
             if (saleOriginPlatform == null) {
                 throw new BusinessException("ATENDIMENTO_SALE_ORIGIN_REQUIRED", "Informe a origem da venda para concluir o atendimento.");
             }
-            ioAutoSalesService.registerCompletedSale(companyId, session, req.soldVehicleId(), now, saleOriginPlatform);
+            ioAutoSalesService.registerCompletedSale(
+                    companyId,
+                    session,
+                    req.soldVehicleId(),
+                    now,
+                    saleOriginPlatform,
+                    saleSeller == null ? null : saleSeller.user().id(),
+                    saleSeller == null ? null : saleSeller.user().fullName(),
+                    saleSeller == null || saleSeller.team() == null ? null : saleSeller.team().id(),
+                    saleSeller == null || saleSeller.team() == null ? null : saleSeller.team().name()
+            );
             featureUsageService.registerUsage(
                     companyId,
                     FeatureUsageService.FEATURE_SALES_MANAGEMENT,
@@ -2156,7 +2176,7 @@ public class AtendimentosController {
         String normalized = trimToNull(sourcePlatform);
         if (normalized == null) return true;
         String upper = normalized.toUpperCase(Locale.ROOT);
-        return !"ZAPI".equals(upper) && !"WHATSAPP".equals(upper);
+        return !"ZAPI".equals(upper) && !"WHATSAPP".equals(upper) && !"SYSTEM_SALE".equals(upper);
     }
 
     private boolean whatsappChannelRemoved() {
@@ -2361,6 +2381,18 @@ public class AtendimentosController {
         };
     }
 
+    private ResolvedSaleSeller resolveSaleSeller(UUID companyId, UUID sellerUserId) {
+        if (sellerUserId == null) {
+            throw new BusinessException("ATENDIMENTO_SALE_SELLER_REQUIRED", "Selecione o vendedor responsavel para concluir a venda.");
+        }
+
+        User seller = users.findByIdAndCompanyId(sellerUserId, companyId)
+                .filter(User::isActive)
+                .orElseThrow(() -> new BusinessException("ATENDIMENTO_SALE_SELLER_NOT_FOUND", "Vendedor nao encontrado para concluir a venda."));
+        Team sellerTeam = seller.teamId() == null ? null : teams.findByIdAndCompanyId(seller.teamId(), companyId).orElse(null);
+        return new ResolvedSaleSeller(seller, sellerTeam);
+    }
+
     private ZapiContactMetadata fetchZapiContactMetadata(Company company, String phone) {
         String instanceId = company == null ? null : trimToNull(company.zapiInstanceId());
         String instanceToken = company == null ? null : trimToNull(company.zapiInstanceToken());
@@ -2417,5 +2449,8 @@ public class AtendimentosController {
     }
 
     private record ResolvedConversationAssignment(Team team, User user) {
+    }
+
+    private record ResolvedSaleSeller(User user, Team team) {
     }
 }

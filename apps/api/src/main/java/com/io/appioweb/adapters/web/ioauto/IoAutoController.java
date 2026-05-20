@@ -27,6 +27,7 @@ import com.io.appioweb.realtime.RealtimeGateway;
 import com.io.appioweb.shared.errors.BusinessException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -151,6 +152,7 @@ public class IoAutoController {
     private final MeliCategoryService meliCategoryService;
     private final MeliListingTypeService meliListingTypeService;
     private final OlxAdService olxAdService;
+    private final IoAutoSalesService ioAutoSalesService;
 
     public IoAutoController(
             CurrentUserPort currentUser,
@@ -172,7 +174,8 @@ public class IoAutoController {
             MeliAdService meliAdService,
             MeliCategoryService meliCategoryService,
             MeliListingTypeService meliListingTypeService,
-            OlxAdService olxAdService
+            OlxAdService olxAdService,
+            IoAutoSalesService ioAutoSalesService
     ) {
         this.currentUser = currentUser;
         this.companies = companies;
@@ -194,6 +197,7 @@ public class IoAutoController {
         this.meliCategoryService = meliCategoryService;
         this.meliListingTypeService = meliListingTypeService;
         this.olxAdService = olxAdService;
+        this.ioAutoSalesService = ioAutoSalesService;
     }
 
     @GetMapping("/ioauto/dashboard")
@@ -214,12 +218,17 @@ public class IoAutoController {
         List<JpaAtendimentoConversationEntity> companyConversations = conversations.findAllByCompanyIdOrderByLastMessageAtDescUpdatedAtDesc(companyId).stream()
                 .filter(conversation -> isSupportedLeadSource(conversation.getSourcePlatform()))
                 .toList();
+        java.util.Set<UUID> supportedConversationIds = companyConversations.stream()
+                .map(JpaAtendimentoConversationEntity::getId)
+                .collect(java.util.stream.Collectors.toSet());
         BillingSnapshot billing = billingService.getBillingSnapshot(companyId);
         List<JpaAtendimentoSessionEntity> periodLeadSessions = sessions.findAllByCompanyIdAndArrivedAtGreaterThanEqualAndArrivedAtLessThanOrderByArrivedAtAsc(
                 companyId,
                 periodSelection.fromAt(),
                 periodSelection.toExclusiveAt()
-        );
+        ).stream()
+                .filter(session -> supportedConversationIds.contains(session.getConversationId()))
+                .toList();
         List<JpaAtendimentoSessionEntity> periodSalesSessions = sessions.findAllByCompanyIdAndSaleCompletedIsTrueAndSaleCompletedAtGreaterThanEqualAndSaleCompletedAtLessThanOrderBySaleCompletedAtAsc(
                 companyId,
                 periodSelection.fromAt(),
@@ -782,6 +791,9 @@ public class IoAutoController {
                             normalizeNullableText(lead.getSourceReference()),
                             normalizeNullableText(lead.getPagePath()),
                             normalizeNullableText(lead.getSourceUrl()),
+                            lead.getSellerUserId(),
+                            lead.isConvertedToSale(),
+                            lead.getConvertedSaleId(),
                             lead.getCreatedAt()
                     );
                 })
@@ -797,6 +809,39 @@ public class IoAutoController {
                 uniquePhones.size(),
                 items
         ));
+    }
+
+    @PostMapping("/ioauto/public-catalog-leads/{leadId}/close-sale")
+    @Transactional
+    public ResponseEntity<Void> closePublicCatalogLeadSale(
+            @PathVariable UUID leadId,
+            @Valid @RequestBody ClosePublicCatalogLeadSaleHttpRequest request
+    ) {
+        UUID companyId = currentUser.companyId();
+        planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_LEAD_MANAGEMENT);
+        ioAutoSalesService.registerPublicCatalogLeadSale(companyId, leadId, request.sellerUserId(), Instant.now());
+        featureUsageService.registerUsage(
+                companyId,
+                FeatureUsageService.FEATURE_SALES_MANAGEMENT,
+                Map.of("action", "REGISTER_SALE", "saleOriginPlatform", "CATALOG")
+        );
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/ioauto/vehicles/{vehicleId}/close-sale")
+    @Transactional
+    public ResponseEntity<Void> closeVehicleSale(
+            @PathVariable UUID vehicleId,
+            @Valid @RequestBody CloseVehicleSaleHttpRequest request
+    ) {
+        UUID companyId = currentUser.companyId();
+        ioAutoSalesService.registerInventoryVehicleSale(companyId, vehicleId, request.sellerUserId(), Instant.now());
+        featureUsageService.registerUsage(
+                companyId,
+                FeatureUsageService.FEATURE_SALES_MANAGEMENT,
+                Map.of("action", "REGISTER_SALE", "saleOriginPlatform", "MANUAL")
+        );
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/ioauto/public-links")
@@ -2107,7 +2152,7 @@ public class IoAutoController {
 
     private boolean isSupportedLeadSource(String sourcePlatform) {
         String normalized = normalizeSourcePlatform(sourcePlatform);
-        return !"ZAPI".equals(normalized) && !"WHATSAPP".equals(normalized);
+        return !"ZAPI".equals(normalized) && !"WHATSAPP".equals(normalized) && !"SYSTEM_SALE".equals(normalized);
     }
 
     private record DashboardPeriodSelection(
@@ -2346,6 +2391,9 @@ public class IoAutoController {
                 String sourceReference,
                 String pagePath,
                 String sourceUrl,
+                UUID sellerUserId,
+                boolean convertedToSale,
+                UUID convertedSaleId,
                 Instant createdAt
         ) {
         }
@@ -2477,6 +2525,16 @@ public class IoAutoController {
             String pagePath,
             String sourceUrl,
             String sessionId
+    ) {
+    }
+
+    public record ClosePublicCatalogLeadSaleHttpRequest(
+            @NotNull(message = "Informe o vendedor responsável.") UUID sellerUserId
+    ) {
+    }
+
+    public record CloseVehicleSaleHttpRequest(
+            @NotNull(message = "Informe o vendedor responsável.") UUID sellerUserId
     ) {
     }
 

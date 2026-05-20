@@ -1,5 +1,7 @@
 package com.io.appioweb.adapters.web.ioauto;
 
+import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoSessionRepositoryJpa;
+import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoSessionEntity;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoDreSubcategoryRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoFinancialEntryRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoVehicleRepositoryJpa;
@@ -99,6 +101,7 @@ public class IoAutoFinancialController {
     private final FeatureUsageService featureUsageService;
     private final IoAutoFinancialEntryRepositoryJpa financialEntries;
     private final IoAutoVehicleRepositoryJpa vehicles;
+    private final AtendimentoSessionRepositoryJpa sessions;
     private final IoAutoDreSubcategoryRepositoryJpa dreSubcategories;
     private final SuperAdminPlanManagementService planManagementService;
 
@@ -107,6 +110,7 @@ public class IoAutoFinancialController {
             FeatureUsageService featureUsageService,
             IoAutoFinancialEntryRepositoryJpa financialEntries,
             IoAutoVehicleRepositoryJpa vehicles,
+            AtendimentoSessionRepositoryJpa sessions,
             IoAutoDreSubcategoryRepositoryJpa dreSubcategories,
             SuperAdminPlanManagementService planManagementService
     ) {
@@ -114,6 +118,7 @@ public class IoAutoFinancialController {
         this.featureUsageService = featureUsageService;
         this.financialEntries = financialEntries;
         this.vehicles = vehicles;
+        this.sessions = sessions;
         this.dreSubcategories = dreSubcategories;
         this.planManagementService = planManagementService;
     }
@@ -422,6 +427,13 @@ public class IoAutoFinancialController {
 
         JpaIoAutoDreSubcategoryEntity vehicleSalesSubcategory = byCode.get(SUBCATEGORY_VEHICLE_SALES);
         DreSectionDefinition grossRevenueSection = requireSection(SECTION_GROSS_REVENUE);
+        Map<UUID, JpaAtendimentoSessionEntity> settledSalesByVehicle = new LinkedHashMap<>();
+        for (JpaAtendimentoSessionEntity session : sessions.findAllByCompanyIdAndSaleCompletedIsTrueOrderBySaleCompletedAtDesc(companyId)) {
+            if (session.getSoldVehicleId() == null || settledSalesByVehicle.containsKey(session.getSoldVehicleId())) {
+                continue;
+            }
+            settledSalesByVehicle.put(session.getSoldVehicleId(), session);
+        }
 
         for (JpaIoAutoVehicleEntity vehicle : vehicles.findAllByCompanyIdOrderByUpdatedAtDesc(companyId)) {
             String status = normalizeText(vehicle.getStatus(), "DRAFT").toUpperCase(Locale.ROOT);
@@ -429,21 +441,27 @@ public class IoAutoFinancialController {
                 continue;
             }
 
+            JpaAtendimentoSessionEntity settledSale = settledSalesByVehicle.get(vehicle.getId());
+            Instant saleCompletedAt = settledSale == null ? null : settledSale.getSaleCompletedAt();
+            Instant entryUpdatedAt = saleCompletedAt != null ? saleCompletedAt : vehicle.getUpdatedAt();
+
             entries.add(new FinancialEntryView(
                     vehicle.getId(),
                     normalizeText(vehicle.getTitle(), "Venda de veiculo"),
                     ENTRY_TYPE_RECEIVABLE,
                     "VEHICLE_SALE",
                     vehicle.getPriceCents() == null ? 0L : Math.max(vehicle.getPriceCents(), 0L),
-                    vehicle.getUpdatedAt() == null ? null : vehicle.getUpdatedAt().atZone(FINANCIAL_ZONE).toLocalDate(),
+                    entryUpdatedAt == null ? null : entryUpdatedAt.atZone(FINANCIAL_ZONE).toLocalDate(),
+                    saleCompletedAt,
                     null,
-                    null,
-                    "Veiculo marcado como vendido no estoque.",
+                    saleCompletedAt == null
+                            ? "Veiculo marcado como vendido no estoque."
+                            : "Venda concluida e liquidada pelo fluxo comercial.",
                     SOURCE_VEHICLE_SALE,
                     vehicle.getId(),
                     vehicle.getTitle(),
-                    vehicle.getUpdatedAt(),
-                    vehicle.getUpdatedAt(),
+                    entryUpdatedAt,
+                    entryUpdatedAt,
                     grossRevenueSection.code(),
                     grossRevenueSection.label(),
                     vehicleSalesSubcategory == null ? null : vehicleSalesSubcategory.getId(),

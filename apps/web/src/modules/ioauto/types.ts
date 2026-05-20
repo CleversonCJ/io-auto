@@ -724,6 +724,9 @@ export type PublicCatalogLeadList = {
         sourceReference: string | null;
         pagePath: string | null;
         sourceUrl: string | null;
+        sellerUserId: string | null;
+        convertedToSale: boolean;
+        convertedSaleId: string | null;
         createdAt: string | null;
     }>;
 };

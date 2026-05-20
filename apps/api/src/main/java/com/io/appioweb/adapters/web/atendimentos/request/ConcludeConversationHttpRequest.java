@@ -13,6 +13,7 @@ public record ConcludeConversationHttpRequest(
         @Valid List<ConversationLabelHttpRequest> labels,
         Boolean saleCompleted,
         UUID soldVehicleId,
-        @Size(max = 40) String saleOriginPlatform
+        @Size(max = 40) String saleOriginPlatform,
+        UUID sellerUserId
 ) {
 }
