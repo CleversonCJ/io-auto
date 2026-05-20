@@ -832,10 +832,20 @@ public class IoAutoController {
     @Transactional
     public ResponseEntity<Void> closeVehicleSale(
             @PathVariable UUID vehicleId,
-            @Valid @RequestBody CloseVehicleSaleHttpRequest request
+            @Valid @RequestBody CloseInventoryVehicleSaleHttpRequest request
     ) {
         UUID companyId = currentUser.companyId();
-        ioAutoSalesService.registerInventoryVehicleSale(companyId, vehicleId, request.sellerUserId(), Instant.now());
+        boolean requireBuyerLead = planManagementService.resolvePlanForCompany(companyId).features().leadManagement();
+        ioAutoSalesService.registerInventoryVehicleSale(
+                companyId,
+                vehicleId,
+                request.sellerUserId(),
+                request.buyerConversationId(),
+                request.buyerName(),
+                request.buyerPhone(),
+                requireBuyerLead,
+                Instant.now()
+        );
         featureUsageService.registerUsage(
                 companyId,
                 FeatureUsageService.FEATURE_SALES_MANAGEMENT,

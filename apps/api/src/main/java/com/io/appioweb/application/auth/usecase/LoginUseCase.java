@@ -46,6 +46,14 @@ public class LoginUseCase implements AuthUseCase {
             throw new BusinessException("AUTH_INACTIVE", "Usuario inativo");
         }
 
+        if (companies.isTenantBlocked(user.companyId())) {
+            log.warn("Login blocked: tenant blocked companyId={} userId={} email={}", user.companyId(), user.id(), user.email());
+            throw new BusinessException(
+                    "TENANT_BLOCKED",
+                    "A conta da sua empresa foi bloqueada, para saber mais entre em contato conosco via suporte."
+            );
+        }
+
         boolean matches = hasher.matches(command.password(), user.passwordHash());
         log.info(
                 "Login check: requestedEmail={} resolvedUserId={} resolvedEmail={} active={} rawPasswordLength={} hashLength={} hashPrefix={} bcryptMatches={}",

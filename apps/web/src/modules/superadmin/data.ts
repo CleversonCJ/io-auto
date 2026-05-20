@@ -58,7 +58,8 @@ export type SuperAdminSectionKey =
     | "operacional"
     | "insights"
     | "planos"
-    | "tenants";
+    | "tenants"
+    | "configuracoes";
 
 export type SuperAdminSection = {
     key: SuperAdminSectionKey;
@@ -101,6 +102,7 @@ export const superAdminNavItems: SuperAdminNavItem[] = [
     { href: "/protected/superadmin/insights", label: "Insights", summary: "Risco, upgrade e upsell" },
     { href: "/protected/superadmin/tenants", label: "Tenants", summary: "Gestão operacional das contas" },
     { href: "/protected/superadmin/planos", label: "Planos", summary: "Catalogo, limites e recursos" },
+    { href: "/protected/superadmin/configuracoes", label: "Configurações", summary: "Suporte e ajustes globais" },
 ];
 
 export const superAdminPillars: SuperAdminPillar[] = [
@@ -793,6 +795,21 @@ export const superAdminSections: Record<SuperAdminSectionKey, SuperAdminSection>
             { title: "Entrar como admin é o próximo passo óbvio", description: "A UX já está pronta; falta apenas o backend seguro de impersonação.", tone: "critical" },
             { title: "Último acesso é o melhor atalho visual", description: "Esse campo ajuda a separar problema comercial, operacional ou de cobrança.", tone: "warning" },
         ],
+    },
+    configuracoes: {
+        key: "configuracoes",
+        label: "Configurações",
+        eyebrow: "Ajustes globais",
+        title: "Configurações do superadmin",
+        description: "Centralize contatos e preferências usadas pelos fluxos administrativos e públicos do sistema.",
+        spotlight: "Um ajuste salvo aqui passa a servir a experiência de bloqueio, suporte e comunicação institucional.",
+        metrics: [],
+        alerts: [],
+        charts: [],
+        statCards: [],
+        leaderboardTitle: "",
+        leaderboard: [],
+        insights: [],
     },
 };
 

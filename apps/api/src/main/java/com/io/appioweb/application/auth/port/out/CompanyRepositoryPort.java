@@ -12,6 +12,7 @@ public interface CompanyRepositoryPort {
     Optional<Company> findByEmail(String email);
     Optional<Company> findByZapiInstanceId(String zapiInstanceId);
     List<Company> findAll();
+    boolean isTenantBlocked(UUID companyId);
     void deleteById(UUID id);
     void save(Company company);
     void touchLastAccess(UUID companyId, Instant accessAt);

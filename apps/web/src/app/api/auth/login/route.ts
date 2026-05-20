@@ -19,8 +19,14 @@ export async function POST(req: Request) {
         });
 
         if (!res.ok) {
-            const data = await readJsonSafely<{ message?: string }>(res);
-            return NextResponse.json({ message: data?.message ?? "Falha no login" }, { status: res.status });
+            const data = await readJsonSafely<{ code?: string; message?: string }>(res);
+            return NextResponse.json(
+                {
+                    code: data?.code ?? null,
+                    message: data?.message ?? "Falha no login",
+                },
+                { status: res.status },
+            );
         }
 
         const data = await readJsonSafely<{ accessToken?: string; refreshToken?: string }>(res);

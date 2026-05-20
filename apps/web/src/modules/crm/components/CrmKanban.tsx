@@ -949,18 +949,18 @@ export function CrmKanban() {
     }
 
     return (
-        <section className="flex h-full w-full flex-col bg-io-light pt-4 md:pt-6">
-            <div className="mb-4 px-4 md:px-6">
+        <section className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden bg-io-light pt-4 md:pt-6">
+            <div className="mb-4 w-full max-w-full shrink-0 px-4 md:px-6">
                 <div className="mb-6">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">Módulo CRM</p>
                     <h2 className="mt-2 font-display text-[1.75rem] font-bold leading-tight text-io-dark">Kanban de atendimentos</h2>
                     <p className="mt-1.5 text-sm text-black/55">Visualize seus atendimentos em tempo real, com etapas personalizáveis, filtros e movimentação dos leads entre colunas.</p>
                 </div>
-                <div className="rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)] md:p-6">
+                <div className="min-w-0 overflow-hidden rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)] md:p-6">
                     {/* Linha superior: busca, filtros e botões */}
-                    <div className="flex w-full flex-col gap-3 xl:flex-row xl:items-center">
-                        <div ref={filterPanelRef} className="relative flex flex-1 flex-wrap items-center gap-3">
-                            <label className="flex h-14 flex-1 items-center gap-3 rounded-full border border-black/10 bg-[#fafafa] px-5">
+                    <div className="flex w-full min-w-0 flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
+                        <div ref={filterPanelRef} className="relative flex min-w-0 flex-1 flex-wrap items-center gap-3">
+                            <label className="flex h-14 min-w-0 flex-1 items-center gap-3 rounded-full border border-black/10 bg-[#fafafa] px-5">
                                 <Search className="h-5 w-5 shrink-0 text-black/40" />
                                 <input
                                     value={searchTerm}
@@ -1049,14 +1049,14 @@ export function CrmKanban() {
                             )}
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex w-full flex-wrap items-center gap-2 xl:w-auto xl:justify-end">
                             <button type="button" onClick={exportCrmCsv} className="inline-flex h-14 items-center gap-2 rounded-full border border-black/12 bg-white px-5 text-sm font-semibold text-io-dark transition hover:border-black/20 hover:bg-black/[0.03]">Exportar</button>
                             <button type="button" onClick={() => router.push("/protected/configuracoes?view=stages")} className="inline-flex h-14 items-center gap-2 rounded-full border border-black/12 bg-white px-5 text-sm font-semibold text-io-dark transition hover:border-black/20 hover:bg-black/[0.03]">Gerenciar etapas</button>
                         </div>
                     </div>
 
                     {/* Metric cards abaixo */}
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2">
                         <div className="rounded-[24px] border border-black/8 bg-[#fafafa] px-4 py-4">
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/35">Leads visíveis</p>
                             <p className="mt-2 text-3xl font-bold tracking-tight text-io-dark">{filteredLeads.length}</p>
@@ -1077,8 +1077,8 @@ export function CrmKanban() {
             </div>
 
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <div className="flex-1 overflow-x-auto overflow-y-hidden [scrollbar-gutter:stable]">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [scrollbar-gutter:stable]">
                     <div className="flex h-full min-h-0 min-w-max gap-4 pb-4 pl-4 pr-4 md:pl-6 md:pr-6">
                     {orderedStages.map((stage) => {
                         const stageLeads = filteredLeads.filter((lead) => leadStageMap[lead.id] === stage.id);

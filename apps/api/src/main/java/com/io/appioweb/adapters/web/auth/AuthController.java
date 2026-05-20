@@ -141,6 +141,63 @@ public class AuthController {
         return ResponseEntity.ok(meUseCase.me());
     }
 
+    @PutMapping("/users/me/profile-image")
+    public ResponseEntity<UpdateMyProfileImageHttpResponse> updateMyProfileImage(@Valid @RequestBody UpdateMyProfileImageHttpRequest req) {
+        UUID companyId = currentUser.companyId();
+        UUID userId = currentUser.userId();
+
+        User existingUser = users.findByIdAndCompanyId(userId, companyId)
+                .orElseThrow(() -> new BusinessException("AUTH_NOT_FOUND", "Usuario nao encontrado"));
+
+        String normalizedImageUrl = normalizeProfileImageUrl(req.profileImageUrl());
+
+        User updatedUser = new User(
+                existingUser.id(),
+                existingUser.companyId(),
+                existingUser.email(),
+                existingUser.passwordHash(),
+                existingUser.fullName(),
+                normalizedImageUrl,
+                existingUser.jobTitle(),
+                existingUser.birthDate(),
+                existingUser.permissionPreset(),
+                existingUser.modulePermissions(),
+                existingUser.teamId(),
+                existingUser.isActive(),
+                existingUser.createdAt(),
+                existingUser.roles()
+        );
+        users.save(updatedUser);
+
+        boolean companyLogoUpdated = Boolean.TRUE.equals(req.syncCompanyLogo());
+        if (companyLogoUpdated) {
+            var existingCompany = companyRepository.findById(companyId)
+                    .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada"));
+
+            companyRepository.save(new com.io.appioweb.domain.auth.entity.Company(
+                    existingCompany.id(),
+                    existingCompany.name(),
+                    normalizedImageUrl,
+                    existingCompany.email(),
+                    existingCompany.contractEndDate(),
+                    existingCompany.cnpj(),
+                    existingCompany.openedAt(),
+                    existingCompany.whatsappNumber(),
+                    existingCompany.zapiInstanceId(),
+                    existingCompany.zapiInstanceToken(),
+                    existingCompany.zapiClientToken(),
+                    existingCompany.businessHoursStart(),
+                    existingCompany.businessHoursEnd(),
+                    existingCompany.businessHoursWeeklyJson(),
+                    existingCompany.publicStockBannerMode(),
+                    existingCompany.publicStockBannerImagesJson(),
+                    existingCompany.createdAt()
+            ));
+        }
+
+        return ResponseEntity.ok(new UpdateMyProfileImageHttpResponse(normalizedImageUrl, companyLogoUpdated));
+    }
+
     @GetMapping("/roles")
     @PreAuthorize("hasAnyRole('ADMIN','SUPERADMIN')")
     public ResponseEntity<?> listRoles() {
@@ -461,6 +518,18 @@ public class AuthController {
         return normalized;
     }
 
+    private String normalizeProfileImageUrl(String value) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.isBlank()) {
+            throw new BusinessException("PROFILE_IMAGE_REQUIRED", "Informe uma imagem de perfil valida.");
+        }
+        String lower = normalized.toLowerCase();
+        if (!lower.startsWith("data:image/") && !lower.startsWith("http://") && !lower.startsWith("https://")) {
+            throw new BusinessException("PROFILE_IMAGE_INVALID", "Informe uma URL ou imagem valida para o perfil.");
+        }
+        return normalized;
+    }
+
     private String normalizeBusinessHoursWeekly(JsonNode rawWeekly, String fallbackStart, String fallbackEnd) {
         ObjectNode root = OBJECT_MAPPER.createObjectNode();
         JsonNode source = rawWeekly == null ? OBJECT_MAPPER.createObjectNode() : rawWeekly;
@@ -513,5 +582,11 @@ public class AuthController {
     private String trimOr(String value, String fallback) {
         String normalized = value == null ? "" : value.trim();
         return normalized.isBlank() ? fallback : normalized;
+    }
+
+    public record UpdateMyProfileImageHttpResponse(
+            String profileImageUrl,
+            boolean companyLogoUpdated
+    ) {
     }
 }

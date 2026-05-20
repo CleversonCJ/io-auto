@@ -1,8 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
-import { BadgeCheck, CalendarClock, ExternalLink, Mail, ReceiptText, ShieldCheck, UserCircle2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { BadgeCheck, CalendarClock, Camera, ExternalLink, Loader2, Mail, ReceiptText, ShieldCheck, UserCircle2 } from "lucide-react";
 import { SubscriptionCenter } from "@/modules/ioauto/components/SubscriptionCenter";
 import type { BillingSnapshot } from "@/modules/ioauto/types";
 import { formatDateTime, formatMoney } from "@/modules/ioauto/formatters";
@@ -18,7 +18,10 @@ type CurrentUser = {
     modulePermissions?: string[] | null;
     createdAt?: string | null;
     roles: string[];
+    teamId?: string | null;
 };
+
+const MAX_PROFILE_IMAGE_BYTES = 5 * 1024 * 1024;
 
 function getInitials(fullName?: string | null, email?: string | null) {
     const source = (fullName?.trim() || email?.trim() || "IOAuto").split(/\s+/).filter(Boolean);
@@ -65,10 +68,52 @@ function formatBillingDate(value?: string | null) {
     return formatDateTime(value);
 }
 
+async function compressProfileImage(file: File) {
+    if (!file.type.startsWith("image/")) {
+        throw new Error("Selecione apenas arquivos de imagem.");
+    }
+    if (file.size > MAX_PROFILE_IMAGE_BYTES) {
+        throw new Error("A imagem ultrapassa o limite de 5 MB.");
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    try {
+        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const nextImage = new Image();
+            nextImage.onload = () => resolve(nextImage);
+            nextImage.onerror = () => reject(new Error("Nao foi possivel processar a imagem selecionada."));
+            nextImage.src = objectUrl;
+        });
+
+        const maxDimension = 1200;
+        const width = image.naturalWidth || image.width || 1;
+        const height = image.naturalHeight || image.height || 1;
+        const scale = Math.min(1, maxDimension / Math.max(width, height, 1));
+        const outputWidth = Math.max(1, Math.round(width * scale));
+        const outputHeight = Math.max(1, Math.round(height * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = outputWidth;
+        canvas.height = outputHeight;
+
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Nao foi possivel preparar a imagem para upload.");
+
+        context.drawImage(image, 0, 0, outputWidth, outputHeight);
+        const outputType = file.type === "image/png" ? "image/png" : "image/jpeg";
+        return canvas.toDataURL(outputType, outputType === "image/jpeg" ? 0.84 : undefined);
+    } finally {
+        URL.revokeObjectURL(objectUrl);
+    }
+}
+
 export function ProfileCenter() {
     const [user, setUser] = useState<CurrentUser | null>(null);
     const [billing, setBilling] = useState<BillingSnapshot | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [profileImageSaving, setProfileImageSaving] = useState(false);
+    const [profileImageFeedback, setProfileImageFeedback] = useState<string | null>(null);
+    const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
         let active = true;
@@ -114,6 +159,52 @@ export function ProfileCenter() {
         return (billing?.enabledModules ?? []).filter((item) => item.trim().length > 0);
     }, [billing?.enabledModules]);
 
+    const isSuperAdmin = useMemo(() => {
+        return (user?.roles ?? []).some((role) => role.toUpperCase() === "SUPERADMIN");
+    }, [user?.roles]);
+
+    const canSyncCompanyLogo = useMemo(() => {
+        return (user?.roles ?? []).some((role) => {
+            const normalized = role.toUpperCase();
+            return normalized === "ADMIN" || normalized === "SUPERADMIN";
+        });
+    }, [user?.roles]);
+
+    async function handleProfileImageSelected(event: ChangeEvent<HTMLInputElement>) {
+        const file = event.target.files?.[0] ?? null;
+        event.target.value = "";
+        if (!file || !user) return;
+
+        setProfileImageSaving(true);
+        setProfileImageFeedback(null);
+
+        try {
+            const profileImageUrl = await compressProfileImage(file);
+            const response = await fetch("/api/auth/me/profile-image", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    profileImageUrl,
+                    syncCompanyLogo: canSyncCompanyLogo,
+                }),
+            });
+
+            const payload = await response.json().catch(() => null);
+            if (!response.ok) {
+                throw new Error(payload?.message ?? "Nao foi possivel atualizar a foto de perfil.");
+            }
+
+            setUser((previous) => (previous ? { ...previous, profileImageUrl } : previous));
+            setProfileImageFeedback(canSyncCompanyLogo
+                ? "Foto atualizada com sucesso. A logo da empresa tambem foi atualizada."
+                : "Foto atualizada com sucesso.");
+        } catch (cause) {
+            setProfileImageFeedback(cause instanceof Error ? cause.message : "Nao foi possivel atualizar a foto de perfil.");
+        } finally {
+            setProfileImageSaving(false);
+        }
+    }
+
     if (error) {
         return <div className="rounded-[32px] border border-red-200 bg-red-50 px-6 py-5 text-sm text-red-700">{error}</div>;
     }
@@ -137,6 +228,28 @@ export function ProfileCenter() {
                                 {user?.fullName ?? "Carregando perfil"}
                             </h1>
                             <p className="mt-2 text-sm text-black/55">{user?.email ?? "Sem e-mail disponível"}</p>
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => avatarInputRef.current?.click()}
+                                    disabled={profileImageSaving}
+                                    className="inline-flex h-9 items-center gap-2 rounded-full border border-black/12 px-4 text-xs font-semibold text-io-dark transition hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {profileImageSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                                    {profileImageSaving ? "Salvando foto..." : "Trocar foto de perfil"}
+                                </button>
+                                <input
+                                    ref={avatarInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(event) => void handleProfileImageSelected(event)}
+                                    className="hidden"
+                                />
+                                {canSyncCompanyLogo ? (
+                                    <span className="text-xs text-black/45">Ao alterar sua foto, a logo da empresa também será atualizada.</span>
+                                ) : null}
+                            </div>
+                            {profileImageFeedback ? <p className="mt-2 text-xs font-semibold text-emerald-700">{profileImageFeedback}</p> : null}
                         </div>
                     </div>
 
@@ -243,7 +356,8 @@ export function ProfileCenter() {
                 </aside>
             </section>
 
-            <section className="rounded-[34px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
+            {!isSuperAdmin ? (
+            <section id="faturas" className="rounded-[34px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                 <div className="flex items-center gap-3">
                     <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#0f766e] text-white">
                         <ReceiptText className="h-5 w-5" />
@@ -348,13 +462,14 @@ export function ProfileCenter() {
                     </article>
                 </div>
             </section>
+            ) : null}
 
-            <SubscriptionCenter
+            {!isSuperAdmin ? <SubscriptionCenter
                 title="Assinatura e cobrança"
                 description="Todos os dados financeiros e de plano do tenant ficam concentrados no perfil para facilitar a gestão da conta."
                 currentUserRoles={user?.roles}
                 onBillingChange={setBilling}
-            />
+            /> : null}
         </div>
     );
 }

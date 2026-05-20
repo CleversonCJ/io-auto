@@ -551,9 +551,19 @@ public class SuperAdminPlanManagementService {
             throw new BusinessException("PLAN_NAME_REQUIRED", "Informe o nome do plano.");
         }
 
-        String planKey = normalizePlanKey(command.planKey(), planName);
+        String requestedPlanKey = normalizeNullable(command.planKey());
+        if (requestedPlanKey == null) {
+            throw new BusinessException("PLAN_KEY_REQUIRED", "Informe a chave tecnica do plano.");
+        }
+
+        String planKey = normalizePlanKey(requestedPlanKey, planName);
         if (planKey == null) {
             throw new BusinessException("PLAN_KEY_REQUIRED", "Nao foi possivel gerar a chave do plano.");
+        }
+
+        String description = normalizeNullable(command.description());
+        if (description == null) {
+            throw new BusinessException("PLAN_DESCRIPTION_REQUIRED", "Informe a descricao do plano.");
         }
 
         boolean keyTaken = planId == null
@@ -567,6 +577,29 @@ public class SuperAdminPlanManagementService {
         Long legacyPriceCents = normalizePrice(command.priceCents());
         Long monthlyPriceCents = normalizePrice(command.monthlyPriceCents());
         Long annualPriceCents = normalizePrice(command.annualPriceCents());
+
+        if (monthlyPriceCents == null) {
+            throw new BusinessException("PLAN_MONTHLY_PRICE_REQUIRED", "Informe o valor mensal do plano.");
+        }
+        if (annualPriceCents == null) {
+            throw new BusinessException("PLAN_ANNUAL_PRICE_REQUIRED", "Informe o valor anual do plano.");
+        }
+
+        Integer usersLimit = normalizeLimit(command.usersLimit());
+        Integer vehiclesLimit = normalizeLimit(command.vehiclesLimit());
+        Integer activeAdsLimit = normalizeLimit(command.activeAdsLimit());
+        if (command.sortOrder() == null) {
+            throw new BusinessException("PLAN_SORT_ORDER_REQUIRED", "Informe a ordem visual do plano.");
+        }
+        if (usersLimit == null) {
+            throw new BusinessException("PLAN_USERS_LIMIT_REQUIRED", "Informe o limite de usuarios do plano.");
+        }
+        if (vehiclesLimit == null) {
+            throw new BusinessException("PLAN_VEHICLES_LIMIT_REQUIRED", "Informe o limite de veiculos ativos do plano.");
+        }
+        if (activeAdsLimit == null) {
+            throw new BusinessException("PLAN_ACTIVE_ADS_LIMIT_REQUIRED", "Informe o limite de anuncios ativos do plano.");
+        }
 
         if (legacyPriceCents != null) {
             if ("ANNUAL".equals(legacyBillingRecurrence)) {
@@ -582,7 +615,7 @@ public class SuperAdminPlanManagementService {
         return new NormalizedPlanValues(
                 planKey,
                 planName,
-                normalizeNullable(command.description()),
+                description,
                 billingRecurrence,
                 priceCents,
                 monthlyPriceCents,
@@ -591,9 +624,9 @@ public class SuperAdminPlanManagementService {
                 Boolean.TRUE.equals(command.systemPlan()),
                 command.active() == null || command.active(),
                 command.sortOrder() == null ? 0 : command.sortOrder(),
-                normalizeLimit(command.usersLimit()),
-                normalizeLimit(command.vehiclesLimit()),
-                normalizeLimit(command.activeAdsLimit()),
+                usersLimit,
+                vehiclesLimit,
+                activeAdsLimit,
                 new PlanFeatures(
                         Boolean.TRUE.equals(command.featureCatalogBioLink()),
                         Boolean.TRUE.equals(command.featureWhatsappSharing()),

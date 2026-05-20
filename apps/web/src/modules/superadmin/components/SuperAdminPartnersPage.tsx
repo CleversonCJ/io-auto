@@ -31,6 +31,8 @@ type LeadFormState = {
     commissionDueDate: string;
 };
 
+type LeadFieldErrors = Partial<Record<keyof Omit<LeadFormState, "leadId">, string>>;
+
 const EMPTY_PARTNER_FORM: PartnerFormState = {
     partnerId: null,
     partnerName: "",
@@ -192,6 +194,30 @@ function buildLeadForm(lead: PartnerLeadRow): LeadFormState {
     };
 }
 
+function validateLeadForm(form: LeadFormState): LeadFieldErrors {
+    const errors: LeadFieldErrors = {};
+    if (!form.leadStatus.trim()) errors.leadStatus = "Informe o status do lead.";
+    if (!form.salesOwner.trim()) errors.salesOwner = "Informe o responsável comercial.";
+    if (!form.closedPlan.trim()) errors.closedPlan = "Informe o plano fechado.";
+    if (!form.closedBillingRecurrence.trim()) errors.closedBillingRecurrence = "Informe a recorrência do pagamento.";
+    if (!form.firstMonthlyFee.trim()) errors.firstMonthlyFee = "Informe a primeira mensalidade.";
+    if (!form.closedAt.trim()) errors.closedAt = "Informe a data de fechamento.";
+    if (!form.commissionStatus.trim()) errors.commissionStatus = "Informe o status da comissão.";
+    if (!form.notes.trim()) errors.notes = "Informe as observações.";
+    if (!form.commissionDueDate.trim()) errors.commissionDueDate = "Informe a data prevista de pagamento.";
+    return errors;
+}
+
+function hasLeadFieldErrors(errors: LeadFieldErrors) {
+    return Object.keys(errors).length > 0;
+}
+
+function modalFieldClass(hasError: boolean) {
+    return `rounded-2xl border px-4 py-3 outline-none transition ${
+        hasError ? "border-rose-300 bg-rose-50 focus:border-rose-400" : "border-black/10 focus:border-io-purple-2"
+    }`;
+}
+
 function buildPartnerForm(partner: PartnerRow): PartnerFormState {
     return {
         partnerId: partner.partnerId,
@@ -264,6 +290,7 @@ export function SuperAdminPartnersPage() {
     const [partnerForm, setPartnerForm] = useState<PartnerFormState>(EMPTY_PARTNER_FORM);
     const [partnerModalOpen, setPartnerModalOpen] = useState(false);
     const [leadModal, setLeadModal] = useState<LeadFormState | null>(null);
+    const [leadFieldErrors, setLeadFieldErrors] = useState<LeadFieldErrors>({});
 
     useEffect(() => {
         setOrigin(window.location.origin);
@@ -306,16 +333,15 @@ export function SuperAdminPartnersPage() {
             const next = recipe(current);
             const selectedPlan = planOptions.find((item) => item.planName === next.closedPlan);
             const autoPrice = resolvePlanPrice(selectedPlan, next.closedBillingRecurrence);
-            const hasSaleSignals = Boolean(next.closedPlan || next.firstMonthlyFee || next.closedAt);
 
             return {
                 ...next,
-                leadStatus: hasSaleSignals ? "CONVERTED" : next.leadStatus,
                 firstMonthlyFee: next.closedPlan && autoPrice != null
                     ? currencyInputValue(String(autoPrice))
                     : next.firstMonthlyFee,
             };
         });
+        setLeadFieldErrors({});
     }
 
     function openNewPartnerModal() {
@@ -373,7 +399,16 @@ export function SuperAdminPartnersPage() {
         event.preventDefault();
         if (!leadModal) return;
 
+        const validationErrors = validateLeadForm(leadModal);
+        if (hasLeadFieldErrors(validationErrors)) {
+            setLeadFieldErrors(validationErrors);
+            setError("Preencha todos os campos obrigatórios do lead antes de salvar.");
+            setFeedback(null);
+            return;
+        }
+
         setSavingLead(true);
+        setLeadFieldErrors({});
         setError(null);
         setFeedback(null);
 
@@ -397,6 +432,7 @@ export function SuperAdminPartnersPage() {
 
             setFeedback("Lead atualizado com sucesso.");
             setLeadModal(null);
+            setLeadFieldErrors({});
             await loadDashboard();
         } catch (requestError) {
             setError(requestError instanceof Error ? requestError.message : "Falha ao atualizar o lead.");
@@ -610,7 +646,7 @@ export function SuperAdminPartnersPage() {
                                     <td className="px-3 py-4 text-black/56">{toDateTime(lead.createdAt)}</td>
                                     <td className="px-3 py-4 font-medium text-io-dark">{lead.shopkeeperName}</td>
                                     <td className="px-3 py-4 text-black/60">{lead.storeName}</td>
-                                    <td className="px-3 py-4 text-black/60">{lead.whatsapp}</td>
+                                    <td className="px-3 py-4 text-black/60">{lead.whatsapp === "-" ? "-" : formatPhoneInput(lead.whatsapp)}</td>
                                     <td className="px-3 py-4 text-black/60">{`${lead.city === "-" ? "" : lead.city}${lead.state && lead.state !== "-" ? `/${lead.state}` : ""}` || "-"}</td>
                                     <td className="px-3 py-4 text-black/60">{lead.approximateStock ?? "-"}</td>
                                     <td className="px-3 py-4 text-black/60">{lead.partnerName}</td>
@@ -625,7 +661,11 @@ export function SuperAdminPartnersPage() {
                                         <div className="flex justify-end">
                                             <button
                                                 type="button"
-                                                onClick={() => setLeadModal(buildLeadForm(lead))}
+                                                onClick={() => {
+                                                    setLeadModal(buildLeadForm(lead));
+                                                    setLeadFieldErrors({});
+                                                    setError(null);
+                                                }}
                                                 className="inline-flex items-center rounded-full border border-black/10 px-4 py-2 text-sm font-semibold text-io-dark transition hover:border-black/20 hover:bg-black/[0.03]"
                                             >
                                                 Atualizar
@@ -777,7 +817,10 @@ export function SuperAdminPartnersPage() {
                             </div>
                             <button
                                 type="button"
-                                onClick={() => setLeadModal(null)}
+                                onClick={() => {
+                                    setLeadModal(null);
+                                    setLeadFieldErrors({});
+                                }}
                                 className="rounded-full border border-black/10 px-4 py-2 text-sm font-semibold text-black/60 transition hover:border-black/20 hover:bg-black/[0.03]"
                             >
                                 Fechar
@@ -785,100 +828,114 @@ export function SuperAdminPartnersPage() {
                         </div>
 
                         <form className="mt-6 grid gap-4 md:grid-cols-2" onSubmit={handleLeadSubmit}>
+                            {hasLeadFieldErrors(leadFieldErrors) ? (
+                                <div className="rounded-[22px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 md:col-span-2">
+                                    Preencha todos os campos obrigatórios antes de salvar o lead.
+                                </div>
+                            ) : null}
                             <label className="grid gap-2 text-sm text-black/62">
-                                Status do lead
+                                Status do lead *
                                 <select
                                     value={leadModal.leadStatus}
-                                    onChange={(event) => setLeadModal((current) => current ? { ...current, leadStatus: event.target.value } : current)}
-                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    onChange={(event) => updateLeadModal((current) => ({ ...current, leadStatus: event.target.value }))}
+                                    className={modalFieldClass(Boolean(leadFieldErrors.leadStatus))}
                                 >
                                     {LEAD_STATUS_OPTIONS.map((option) => (
                                         <option key={option.value} value={option.value}>{option.label}</option>
                                     ))}
                                 </select>
+                                {leadFieldErrors.leadStatus ? <span className="text-xs text-rose-600">{leadFieldErrors.leadStatus}</span> : null}
                             </label>
                             <label className="grid gap-2 text-sm text-black/62">
-                                Responsavel comercial
+                                Responsavel comercial *
                                 <input
                                     value={leadModal.salesOwner}
-                                    onChange={(event) => setLeadModal((current) => current ? { ...current, salesOwner: event.target.value } : current)}
-                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    onChange={(event) => updateLeadModal((current) => ({ ...current, salesOwner: event.target.value }))}
+                                    className={modalFieldClass(Boolean(leadFieldErrors.salesOwner))}
                                     placeholder="Ex.: Rafael"
                                 />
+                                {leadFieldErrors.salesOwner ? <span className="text-xs text-rose-600">{leadFieldErrors.salesOwner}</span> : null}
                             </label>
                             <label className="grid gap-2 text-sm text-black/62">
-                                Plano fechado
+                                Plano fechado *
                                 <select
                                     value={leadModal.closedPlan}
                                     onChange={(event) => updateLeadModal((current) => ({ ...current, closedPlan: event.target.value }))}
-                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    className={modalFieldClass(Boolean(leadFieldErrors.closedPlan))}
                                 >
                                     <option value="">Selecione um plano</option>
                                     {selectablePlans.map((plan) => (
                                         <option key={plan.planId} value={plan.planName}>{plan.planName}</option>
                                     ))}
                                 </select>
+                                {leadFieldErrors.closedPlan ? <span className="text-xs text-rose-600">{leadFieldErrors.closedPlan}</span> : null}
                             </label>
                             <label className="grid gap-2 text-sm text-black/62">
-                                Recorrencia do pagamento
+                                Recorrencia do pagamento *
                                 <select
                                     value={leadModal.closedBillingRecurrence}
                                     onChange={(event) => updateLeadModal((current) => ({ ...current, closedBillingRecurrence: event.target.value as "MONTHLY" | "ANNUAL" }))}
-                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    className={modalFieldClass(Boolean(leadFieldErrors.closedBillingRecurrence))}
                                 >
                                     {BILLING_RECURRENCE_OPTIONS.map((option) => (
                                         <option key={option.value} value={option.value}>{option.label}</option>
                                     ))}
                                 </select>
+                                {leadFieldErrors.closedBillingRecurrence ? <span className="text-xs text-rose-600">{leadFieldErrors.closedBillingRecurrence}</span> : null}
                             </label>
                             <label className="grid gap-2 text-sm text-black/62">
-                                Primeira mensalidade
+                                Primeira mensalidade *
                                 <input
                                     value={leadModal.firstMonthlyFee}
                                     onChange={(event) => updateLeadModal((current) => ({ ...current, firstMonthlyFee: currencyInputValue(event.target.value) }))}
-                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    className={modalFieldClass(Boolean(leadFieldErrors.firstMonthlyFee))}
                                     placeholder="R$ 397,00"
                                 />
+                                {leadFieldErrors.firstMonthlyFee ? <span className="text-xs text-rose-600">{leadFieldErrors.firstMonthlyFee}</span> : null}
                             </label>
                             <label className="grid gap-2 text-sm text-black/62">
-                                Data de fechamento
+                                Data de fechamento *
                                 <input
                                     type="date"
                                     value={leadModal.closedAt}
                                     onChange={(event) => updateLeadModal((current) => ({ ...current, closedAt: event.target.value }))}
-                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    className={modalFieldClass(Boolean(leadFieldErrors.closedAt))}
                                 />
+                                {leadFieldErrors.closedAt ? <span className="text-xs text-rose-600">{leadFieldErrors.closedAt}</span> : null}
                             </label>
                             <label className="grid gap-2 text-sm text-black/62">
-                                Status da comissao
+                                Status da comissao *
                                 <select
                                     value={leadModal.commissionStatus}
-                                    onChange={(event) => setLeadModal((current) => current ? { ...current, commissionStatus: event.target.value } : current)}
-                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    onChange={(event) => updateLeadModal((current) => ({ ...current, commissionStatus: event.target.value }))}
+                                    className={modalFieldClass(Boolean(leadFieldErrors.commissionStatus))}
                                 >
                                     {COMMISSION_STATUS_OPTIONS.map((option) => (
                                         <option key={option.value} value={option.value}>{option.label}</option>
                                     ))}
                                 </select>
+                                {leadFieldErrors.commissionStatus ? <span className="text-xs text-rose-600">{leadFieldErrors.commissionStatus}</span> : null}
                             </label>
                             <label className="grid gap-2 text-sm text-black/62 md:col-span-2">
-                                Observacoes
+                                Observacoes *
                                 <textarea
                                     value={leadModal.notes}
-                                    onChange={(event) => setLeadModal((current) => current ? { ...current, notes: event.target.value } : current)}
+                                    onChange={(event) => updateLeadModal((current) => ({ ...current, notes: event.target.value }))}
                                     rows={4}
-                                    className="rounded-[24px] border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    className={`rounded-[24px] px-4 py-3 ${modalFieldClass(Boolean(leadFieldErrors.notes))}`}
                                     placeholder="Resumo do andamento comercial..."
                                 />
+                                {leadFieldErrors.notes ? <span className="text-xs text-rose-600">{leadFieldErrors.notes}</span> : null}
                             </label>
                             <label className="grid gap-2 text-sm text-black/62">
-                                Data prevista de pagamento
+                                Data prevista de pagamento *
                                 <input
                                     type="date"
                                     value={leadModal.commissionDueDate}
-                                    onChange={(event) => setLeadModal((current) => current ? { ...current, commissionDueDate: event.target.value } : current)}
-                                    className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
+                                    onChange={(event) => updateLeadModal((current) => ({ ...current, commissionDueDate: event.target.value }))}
+                                    className={modalFieldClass(Boolean(leadFieldErrors.commissionDueDate))}
                                 />
+                                {leadFieldErrors.commissionDueDate ? <span className="text-xs text-rose-600">{leadFieldErrors.commissionDueDate}</span> : null}
                             </label>
                             <div className="flex items-end">
                                 <button

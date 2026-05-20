@@ -116,6 +116,28 @@ public class SupportTicketService {
     }
 
     @Transactional(readOnly = true)
+    public List<TicketSummary> listCompanyTickets() {
+        UUID companyId = currentUser.companyId();
+
+        return tickets.findAllByCompanyIdOrderByCreatedAtDesc(companyId).stream()
+                .map(ticket -> new TicketSummary(
+                        ticket.getId(),
+                        ticket.getCompanyId(),
+                        resolveCompanyName(ticket.getCompanyId()),
+                        ticket.getTitle(),
+                        ticket.getCategory(),
+                        ticket.getUrgency(),
+                        ticket.getStatus(),
+                        ticket.getBugArea(),
+                        ticket.getCreatedAt(),
+                        ticket.getFirstResponseAt(),
+                        ticket.getResolvedAt(),
+                        ticket.getClosedAt()
+                ))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<TicketSummary> listSuperAdminTickets(SuperAdminFilter filter, String status, String category, String search) {
         MapSqlParameterSource params = new MapSqlParameterSource();
         StringBuilder where = new StringBuilder(" where 1=1 ");
@@ -184,6 +206,18 @@ public class SupportTicketService {
                 resolveCompanyName(ticket.getCompanyId()),
                 resolveUserName(ticket.getOpenedByUserId())
         );
+    }
+
+    @Transactional(readOnly = true)
+    public TicketDetail getCompanyTicket(UUID ticketId) {
+        JpaSupportTicketEntity ticket = tickets.findById(ticketId)
+                .orElseThrow(() -> new BusinessException("SUPPORT_TICKET_NOT_FOUND", "Ticket de suporte nao encontrado."));
+
+        if (!currentUser.companyId().equals(ticket.getCompanyId())) {
+            throw new BusinessException("SUPPORT_TICKET_NOT_FOUND", "Ticket de suporte nao encontrado.");
+        }
+
+        return getTicket(ticketId);
     }
 
     @Transactional

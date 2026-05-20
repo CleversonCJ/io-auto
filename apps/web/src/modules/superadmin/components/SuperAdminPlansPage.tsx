@@ -63,6 +63,19 @@ type PlanFormState = {
     features: PlanFeatures;
 };
 
+type PlanFormErrors = Partial<Record<
+    | "planName"
+    | "planKey"
+    | "description"
+    | "monthlyPrice"
+    | "annualPrice"
+    | "usersLimit"
+    | "vehiclesLimit"
+    | "activeAdsLimit"
+    | "sortOrder",
+    string
+>>;
+
 const FEATURE_GROUPS: Array<{
     key: keyof PlanFeatures;
     label: string;
@@ -125,6 +138,8 @@ const EMPTY_FORM: PlanFormState = {
     activeAdsLimit: "",
     features: EMPTY_FEATURES,
 };
+
+const EMPTY_FORM_ERRORS: PlanFormErrors = {};
 
 async function fetchJson<T>(url: string, init?: RequestInit, fallbackMessage = "Falha ao carregar dados.") {
     const response = await fetch(url, { cache: "no-store", ...init });
@@ -230,6 +245,7 @@ export function SuperAdminPlansPage() {
     const [error, setError] = useState<string | null>(null);
     const [feedback, setFeedback] = useState<string | null>(null);
     const [form, setForm] = useState<PlanFormState>(EMPTY_FORM);
+    const [formErrors, setFormErrors] = useState<PlanFormErrors>(EMPTY_FORM_ERRORS);
     const [modalOpen, setModalOpen] = useState(false);
 
     async function loadPlans() {
@@ -252,6 +268,7 @@ export function SuperAdminPlansPage() {
 
     function resetForm() {
         setForm(EMPTY_FORM);
+        setFormErrors(EMPTY_FORM_ERRORS);
     }
 
     function openCreateModal() {
@@ -283,7 +300,31 @@ export function SuperAdminPlansPage() {
         }));
     }
 
+    function validateForm(nextForm: PlanFormState) {
+        const errors: PlanFormErrors = {};
+
+        if (!nextForm.planName.trim()) errors.planName = "Informe o nome do plano.";
+        if (!nextForm.planKey.trim()) errors.planKey = "Informe a chave técnica do plano.";
+        if (!nextForm.description.trim()) errors.description = "Informe a descrição do plano.";
+        if (!nextForm.monthlyPrice.trim()) errors.monthlyPrice = "Informe o valor mensal.";
+        if (!nextForm.annualPrice.trim()) errors.annualPrice = "Informe o valor anual.";
+        if (!nextForm.usersLimit.trim()) errors.usersLimit = "Informe o limite de usuários.";
+        if (!nextForm.vehiclesLimit.trim()) errors.vehiclesLimit = "Informe o limite de veículos ativos.";
+        if (!nextForm.activeAdsLimit.trim()) errors.activeAdsLimit = "Informe o limite de anúncios ativos.";
+        if (!nextForm.sortOrder.trim()) errors.sortOrder = "Informe a ordem visual do plano.";
+
+        return errors;
+    }
+
     async function handleSubmit() {
+        const nextErrors = validateForm(form);
+        setFormErrors(nextErrors);
+        if (Object.keys(nextErrors).length > 0) {
+            setError("Preencha todos os campos obrigatórios antes de salvar o plano.");
+            setFeedback(null);
+            return;
+        }
+
         setSaving(true);
         setError(null);
         setFeedback(null);
@@ -473,84 +514,95 @@ export function SuperAdminPlansPage() {
                                 <input
                                     value={form.planName}
                                     onChange={(event) => setForm((current) => ({ ...current, planName: event.target.value }))}
-                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+                                    className={`h-11 rounded-xl border px-3 text-sm ${formErrors.planName ? "border-red-300 bg-red-50" : "border-black/10"}`}
                                     placeholder="Ex: Pro Plus"
                                 />
+                                {formErrors.planName ? <span className="text-xs text-red-700">{formErrors.planName}</span> : null}
                             </label>
                             <label className="grid gap-1 text-xs text-black/55">
                                 Chave tecnica
                                 <input
                                     value={form.planKey}
                                     onChange={(event) => setForm((current) => ({ ...current, planKey: event.target.value }))}
-                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+                                    className={`h-11 rounded-xl border px-3 text-sm ${formErrors.planKey ? "border-red-300 bg-red-50" : "border-black/10"}`}
                                     placeholder="ex: pro-plus"
                                 />
+                                {formErrors.planKey ? <span className="text-xs text-red-700">{formErrors.planKey}</span> : null}
                             </label>
                             <label className="grid gap-1 text-xs text-black/55 md:col-span-2">
                                 Descricao
                                 <textarea
                                     value={form.description}
                                     onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                                    className="min-h-[96px] rounded-xl border border-black/10 px-3 py-3 text-sm"
+                                    className={`min-h-[96px] rounded-xl border px-3 py-3 text-sm ${formErrors.description ? "border-red-300 bg-red-50" : "border-black/10"}`}
                                     placeholder="Resumo comercial e operacional do plano."
                                 />
+                                {formErrors.description ? <span className="text-xs text-red-700">{formErrors.description}</span> : null}
                             </label>
                             <label className="grid gap-1 text-xs text-black/55">
                                 Valor mensal (BRL)
                                 <MoneyField
                                     value={form.monthlyPrice}
                                     onChange={(value) => setForm((current) => ({ ...current, monthlyPrice: value }))}
+                                    invalid={Boolean(formErrors.monthlyPrice)}
                                 />
+                                {formErrors.monthlyPrice ? <span className="text-xs text-red-700">{formErrors.monthlyPrice}</span> : null}
                             </label>
                             <label className="grid gap-1 text-xs text-black/55">
                                 Valor anual (BRL)
                                 <MoneyField
                                     value={form.annualPrice}
                                     onChange={(value) => setForm((current) => ({ ...current, annualPrice: value }))}
+                                    invalid={Boolean(formErrors.annualPrice)}
                                 />
+                                {formErrors.annualPrice ? <span className="text-xs text-red-700">{formErrors.annualPrice}</span> : null}
                             </label>
                             <label className="grid gap-1 text-xs text-black/55">
                                 Limite de usuarios
                                 <input
                                     value={form.usersLimit}
                                     onChange={(event) => setForm((current) => ({ ...current, usersLimit: event.target.value }))}
-                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+                                    className={`h-11 rounded-xl border px-3 text-sm ${formErrors.usersLimit ? "border-red-300 bg-red-50" : "border-black/10"}`}
                                     type="number"
                                     min="0"
                                     placeholder="3"
                                 />
+                                {formErrors.usersLimit ? <span className="text-xs text-red-700">{formErrors.usersLimit}</span> : null}
                             </label>
                             <label className="grid gap-1 text-xs text-black/55">
                                 Limite de veiculos ativos
                                 <input
                                     value={form.vehiclesLimit}
                                     onChange={(event) => setForm((current) => ({ ...current, vehiclesLimit: event.target.value }))}
-                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+                                    className={`h-11 rounded-xl border px-3 text-sm ${formErrors.vehiclesLimit ? "border-red-300 bg-red-50" : "border-black/10"}`}
                                     type="number"
                                     min="0"
                                     placeholder="20"
                                 />
+                                {formErrors.vehiclesLimit ? <span className="text-xs text-red-700">{formErrors.vehiclesLimit}</span> : null}
                             </label>
                             <label className="grid gap-1 text-xs text-black/55">
                                 Limite de anuncios ativos
                                 <input
                                     value={form.activeAdsLimit}
                                     onChange={(event) => setForm((current) => ({ ...current, activeAdsLimit: event.target.value }))}
-                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+                                    className={`h-11 rounded-xl border px-3 text-sm ${formErrors.activeAdsLimit ? "border-red-300 bg-red-50" : "border-black/10"}`}
                                     type="number"
                                     min="0"
                                     placeholder="20"
                                 />
+                                {formErrors.activeAdsLimit ? <span className="text-xs text-red-700">{formErrors.activeAdsLimit}</span> : null}
                             </label>
                             <label className="grid gap-1 text-xs text-black/55">
                                 Ordem visual
                                 <input
                                     value={form.sortOrder}
                                     onChange={(event) => setForm((current) => ({ ...current, sortOrder: event.target.value }))}
-                                    className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+                                    className={`h-11 rounded-xl border px-3 text-sm ${formErrors.sortOrder ? "border-red-300 bg-red-50" : "border-black/10"}`}
                                     type="number"
                                     min="0"
                                 />
+                                {formErrors.sortOrder ? <span className="text-xs text-red-700">{formErrors.sortOrder}</span> : null}
                             </label>
                         </div>
 
@@ -625,9 +677,11 @@ export function SuperAdminPlansPage() {
 function MoneyField({
     value,
     onChange,
+    invalid = false,
 }: {
     value: string;
     onChange: (value: string) => void;
+    invalid?: boolean;
 }) {
     return (
         <input
@@ -635,7 +689,7 @@ function MoneyField({
             onChange={(event) => onChange(normalizeCurrencyDigits(event.target.value))}
             inputMode="numeric"
             placeholder="R$ 0,00"
-            className="h-11 rounded-xl border border-black/10 px-3 text-sm font-semibold text-io-dark outline-none transition focus:border-black/30"
+            className={`h-11 rounded-xl border px-3 text-sm font-semibold text-io-dark outline-none transition focus:border-black/30 ${invalid ? "border-red-300 bg-red-50" : "border-black/10"}`}
         />
     );
 }

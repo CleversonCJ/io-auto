@@ -77,16 +77,16 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     const [me, billing] = await Promise.all([getCurrentUser(), getBillingSnapshot()]);
 
     return (
-        <div className="min-h-screen bg-io-light md:h-screen md:overflow-hidden">
+        <div className="min-h-screen overflow-x-hidden bg-io-light md:h-screen md:overflow-hidden">
             <AuthSessionWatcher />
             <BillingAccessBlockerPopup />
             <BillingPlanChangeNoticePopup />
 
 
-            <div className="relative flex min-h-screen flex-col md:h-screen md:min-h-0 md:flex-row md:overflow-hidden">
+            <div className="relative flex min-h-screen min-w-0 flex-col overflow-x-hidden md:h-screen md:min-h-0 md:flex-row md:overflow-hidden">
                 <ProtectedSidebar user={me} billing={billing} />
-                <main className="min-h-0 min-w-0 flex-1 p-4 md:h-screen md:overflow-y-auto md:p-6">
-                    <div className="grid gap-4">
+                <main className="min-h-0 min-w-0 w-full max-w-full flex-1 overflow-x-hidden p-4 md:h-screen md:overflow-x-hidden md:overflow-y-auto md:p-6">
+                    <div className="grid min-w-0 gap-4">
                         {me?.impersonation ? <ImpersonationBanner companyName={me.companyName} /> : null}
                         {children}
                     </div>

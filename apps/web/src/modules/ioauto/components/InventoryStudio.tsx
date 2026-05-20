@@ -20,6 +20,8 @@ import {
 import { emptyMeliVehicleForm, type MeliVehicleFormState } from "@/modules/ioauto/components/MeliVehiclePanel";
 import { OlxVehiclePanel, emptyOlxVehicleForm, type OlxVehicleFormState } from "@/modules/ioauto/components/OlxVehiclePanel";
 import type {
+    BillingSnapshot,
+    ConversationRecord,
     IntegrationRecord,
     MeliCategoryRecord,
     MeliCategorySuggestion,
@@ -365,6 +367,8 @@ function getPublicationBadgeConfig(publication: VehiclePublication) {
 export function InventoryStudio() {
     const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
     const [integrations, setIntegrations] = useState<IntegrationRecord[]>([]);
+    const [billing, setBilling] = useState<BillingSnapshot | null>(null);
+    const [saleConversations, setSaleConversations] = useState<ConversationRecord[]>([]);
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [form, setForm] = useState<VehicleFormState>(emptyForm());
@@ -382,6 +386,10 @@ export function InventoryStudio() {
     const [loadingMeliListingTypes, setLoadingMeliListingTypes] = useState(false);
     const [saleVehicle, setSaleVehicle] = useState<VehicleRecord | null>(null);
     const [saleSellerUserId, setSaleSellerUserId] = useState("");
+    const [saleBuyerMode, setSaleBuyerMode] = useState<"EXISTING" | "NEW">("EXISTING");
+    const [saleBuyerConversationId, setSaleBuyerConversationId] = useState("");
+    const [saleBuyerName, setSaleBuyerName] = useState("");
+    const [saleBuyerPhone, setSaleBuyerPhone] = useState("");
     const [saleSubmitting, setSaleSubmitting] = useState(false);
     const [saleMessage, setSaleMessage] = useState<string | null>(null);
     const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -456,6 +464,7 @@ export function InventoryStudio() {
         () => vehicles.filter((vehicle) => String(vehicle.status ?? "").trim().toUpperCase() === "SOLD").length,
         [vehicles]
     );
+    const requiresBuyerLead = Boolean(billing?.features.leadManagement);
 
     useEffect(() => {
         void loadInventory();
@@ -819,24 +828,40 @@ export function InventoryStudio() {
     async function loadInventory() {
         setLoading(true);
         try {
-            const [vehiclesResponse, integrationsResponse, usersResponse] = await Promise.all([
+            const [vehiclesResponse, integrationsResponse, usersResponse, billingResponse] = await Promise.all([
                 fetch("/api/ioauto/vehicles", { cache: "no-store" }),
                 fetch("/api/ioauto/integrations", { cache: "no-store" }),
                 fetch("/api/atendimentos/users", { cache: "no-store", credentials: "include" }),
+                fetch("/api/ioauto/billing", { cache: "no-store", credentials: "include" }),
             ]);
             if (!usersResponse.ok) throw new Error("Falha ao listar a equipe.");
 
             if (!vehiclesResponse.ok) throw new Error("Falha ao listar os veículos.");
             if (!integrationsResponse.ok) throw new Error("Falha ao listar as integrações.");
 
-            const [vehiclePayload, integrationPayload, usersPayload] = await Promise.all([
+            if (!billingResponse.ok) throw new Error("Falha ao carregar o plano atual.");
+
+            const [vehiclePayload, integrationPayload, usersPayload, billingPayload] = await Promise.all([
                 vehiclesResponse.json() as Promise<VehicleRecord[]>,
                 integrationsResponse.json() as Promise<IntegrationRecord[]>,
                 usersResponse.json() as Promise<TeamMember[]>,
+                billingResponse.json() as Promise<BillingSnapshot>,
             ]);
+
+            let conversationsPayload: ConversationRecord[] = [];
+            if (billingPayload.features.leadManagement) {
+                const conversationsResponse = await fetch("/api/atendimentos/conversations", { cache: "no-store", credentials: "include" });
+                if (!conversationsResponse.ok) {
+                    const payload = await conversationsResponse.json().catch(() => ({ message: "Falha ao listar os leads." }));
+                    throw new Error(payload.message ?? "Falha ao listar os leads.");
+                }
+                conversationsPayload = await conversationsResponse.json() as ConversationRecord[];
+            }
 
             setVehicles(vehiclePayload);
             setIntegrations(integrationPayload);
+            setBilling(billingPayload);
+            setSaleConversations(conversationsPayload);
             setTeamMembers(usersPayload);
             setSelectedId((current) => (current && vehiclePayload.some((vehicle) => vehicle.id === current) ? current : vehiclePayload[0]?.id ?? null));
             setError(null);
@@ -882,12 +907,20 @@ export function InventoryStudio() {
     function openCloseSaleModal(vehicle: VehicleRecord) {
         setSaleVehicle(vehicle);
         setSaleSellerUserId("");
+        setSaleBuyerMode(requiresBuyerLead && !saleConversations.length ? "NEW" : "EXISTING");
+        setSaleBuyerConversationId("");
+        setSaleBuyerName("");
+        setSaleBuyerPhone("");
         setSaleMessage(null);
     }
 
     function closeSaleModal() {
         setSaleVehicle(null);
         setSaleSellerUserId("");
+        setSaleBuyerMode("EXISTING");
+        setSaleBuyerConversationId("");
+        setSaleBuyerName("");
+        setSaleBuyerPhone("");
         setSaleMessage(null);
     }
 
@@ -898,6 +931,19 @@ export function InventoryStudio() {
             return;
         }
 
+        if (requiresBuyerLead && saleBuyerMode === "EXISTING" && !saleBuyerConversationId) {
+            setSaleMessage("Selecione o lead comprador para concluir a venda.");
+            return;
+        }
+        if (requiresBuyerLead && saleBuyerMode === "NEW" && !saleBuyerName.trim()) {
+            setSaleMessage("Informe o nome do comprador para criar o lead.");
+            return;
+        }
+        if (requiresBuyerLead && saleBuyerMode === "NEW" && normalizeDigits(saleBuyerPhone).length < 10) {
+            setSaleMessage("Informe um telefone válido para criar o lead do comprador.");
+            return;
+        }
+
         setSaleSubmitting(true);
         setSaleMessage(null);
         try {
@@ -905,7 +951,12 @@ export function InventoryStudio() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
-                body: JSON.stringify({ sellerUserId: saleSellerUserId }),
+                body: JSON.stringify({
+                    sellerUserId: saleSellerUserId,
+                    buyerConversationId: requiresBuyerLead && saleBuyerMode === "EXISTING" ? saleBuyerConversationId : null,
+                    buyerName: requiresBuyerLead && saleBuyerMode === "NEW" ? saleBuyerName.trim() : null,
+                    buyerPhone: requiresBuyerLead && saleBuyerMode === "NEW" ? normalizeDigits(saleBuyerPhone) : null,
+                }),
             });
 
             if (!response.ok) {
@@ -1599,6 +1650,71 @@ export function InventoryStudio() {
                             </select>
                             {!teamMembers.length ? <p className="text-xs text-black/45">Nenhum membro da equipe foi encontrado para vincular a venda.</p> : null}
                         </div>
+
+                        {requiresBuyerLead ? (
+                            <div className="mt-5 grid gap-4">
+                                <div className="grid gap-2">
+                                    <label className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Comprador vinculado</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSaleBuyerMode("EXISTING")}
+                                            className={`inline-flex h-11 items-center justify-center rounded-full border text-sm font-semibold transition ${
+                                                saleBuyerMode === "EXISTING" ? "border-io-purple bg-[#f6efff] text-io-purple" : "border-black/10 text-black/65 hover:border-black/18 hover:text-io-dark"
+                                            }`}
+                                        >
+                                            Lead existente
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSaleBuyerMode("NEW")}
+                                            className={`inline-flex h-11 items-center justify-center rounded-full border text-sm font-semibold transition ${
+                                                saleBuyerMode === "NEW" ? "border-io-purple bg-[#f6efff] text-io-purple" : "border-black/10 text-black/65 hover:border-black/18 hover:text-io-dark"
+                                            }`}
+                                        >
+                                            Novo lead
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {saleBuyerMode === "EXISTING" ? (
+                                    <div className="grid gap-2">
+                                        <select
+                                            value={saleBuyerConversationId}
+                                            onChange={(event) => setSaleBuyerConversationId(event.target.value)}
+                                            className="rounded-[22px] border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/25"
+                                        >
+                                            <option value="">Selecione um lead comprador</option>
+                                            {saleConversations.map((conversation) => (
+                                                <option key={conversation.id} value={conversation.id}>
+                                                    {(conversation.displayName || "Lead sem nome")}
+                                                    {conversation.phone ? ` • ${formatPhoneInput(conversation.phone)}` : ""}
+                                                    {conversation.sourcePlatform ? ` • ${platformLabel(conversation.sourcePlatform)}` : ""}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {!saleConversations.length ? <p className="text-xs text-black/45">Nenhum lead foi encontrado. Use a opção de criar novo lead para vincular o comprador.</p> : null}
+                                    </div>
+                                ) : (
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                        <Field
+                                            label="Nome do comprador"
+                                            value={saleBuyerName}
+                                            onChange={setSaleBuyerName}
+                                            placeholder="Ex.: João da Silva"
+                                            required
+                                        />
+                                        <Field
+                                            label="Telefone do comprador"
+                                            value={saleBuyerPhone}
+                                            onChange={(value) => setSaleBuyerPhone(formatPhoneInput(value))}
+                                            placeholder="(11) 99999-9999"
+                                            required
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        ) : null}
 
                         {saleMessage ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{saleMessage}</div> : null}
 

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { SuperAdminLiveSection, type SuperAdminLiveSectionKey } from "@/modules/superadmin/components/SuperAdminLiveSection";
 import { SuperAdminPlansPage } from "@/modules/superadmin/components/SuperAdminPlansPage";
+import { SuperAdminSupportSettingsPage } from "@/modules/superadmin/components/SuperAdminSupportSettingsPage";
 import { SuperAdminTenantsPage } from "@/modules/superadmin/components/SuperAdminTenantsPage";
 import { superAdminSections, type SuperAdminSectionKey } from "@/modules/superadmin/data";
 
@@ -22,6 +23,10 @@ export default async function SuperAdminSectionPage({
 
     if (key === "planos") {
         return <SuperAdminPlansPage />;
+    }
+
+    if (key === "configuracoes") {
+        return <SuperAdminSupportSettingsPage />;
     }
 
     return <SuperAdminLiveSection section={key as SuperAdminLiveSectionKey} />;

@@ -2,9 +2,8 @@ package com.io.appioweb.adapters.web.superadmin;
 
 import com.io.appioweb.application.superadmin.SuperAdminFilter;
 import com.io.appioweb.application.superadmin.SuperAdminTenantManagementService;
+import com.io.appioweb.adapters.web.ioauto.IoAutoBillingService;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,9 +23,17 @@ import java.util.UUID;
 public class SuperAdminTenantController {
 
     private final SuperAdminTenantManagementService tenantManagementService;
+    private final IoAutoBillingService billingService;
+    private final SuperAdminLandingCheckoutService landingCheckoutService;
 
-    public SuperAdminTenantController(SuperAdminTenantManagementService tenantManagementService) {
+    public SuperAdminTenantController(
+            SuperAdminTenantManagementService tenantManagementService,
+            IoAutoBillingService billingService,
+            SuperAdminLandingCheckoutService landingCheckoutService
+    ) {
         this.tenantManagementService = tenantManagementService;
+        this.billingService = billingService;
+        this.landingCheckoutService = landingCheckoutService;
     }
 
     @GetMapping("/api/superadmin/tenants")
@@ -132,6 +140,63 @@ public class SuperAdminTenantController {
         return ResponseEntity.ok(tenantManagementService.listLogs(tenantId));
     }
 
+    @GetMapping("/api/superadmin/tenants/{tenantId}/billing")
+    @PreAuthorize("hasRole('SUPERADMIN')")
+    public ResponseEntity<Object> getTenantBilling(@PathVariable UUID tenantId) {
+        return ResponseEntity.ok(billingService.getBillingSnapshot(tenantId));
+    }
+
+    @PostMapping("/api/superadmin/tenants/{tenantId}/billing/plan-change/preview")
+    @PreAuthorize("hasRole('SUPERADMIN')")
+    public ResponseEntity<Object> previewTenantBillingPlanChange(
+            @PathVariable UUID tenantId,
+            @Valid @RequestBody PlanChangePreviewHttpRequest request
+    ) {
+        return ResponseEntity.ok(
+                billingService.previewPlanChange(
+                        tenantId,
+                        request.targetPlanKey(),
+                        request.targetBillingInterval()
+                )
+        );
+    }
+
+    @PostMapping("/api/superadmin/tenants/{tenantId}/billing/plan-change/confirm")
+    @PreAuthorize("hasRole('SUPERADMIN')")
+    public ResponseEntity<Object> confirmTenantBillingPlanChange(
+            @PathVariable UUID tenantId,
+            @Valid @RequestBody PlanChangeConfirmHttpRequest request
+    ) {
+        return ResponseEntity.ok(
+                billingService.confirmSuperAdminManagedPlanChange(
+                        tenantId,
+                        request.targetPlanKey(),
+                        request.targetBillingInterval(),
+                        request.updatePendingPayments()
+                )
+        );
+    }
+
+    @PostMapping("/api/superadmin/tenants/{tenantId}/manual-checkout-link")
+    @PreAuthorize("hasRole('SUPERADMIN')")
+    public ResponseEntity<SuperAdminLandingCheckoutService.ManualCheckoutLinkResult> createManualCheckoutLink(
+            @PathVariable UUID tenantId,
+            @Valid @RequestBody ManualCheckoutLinkHttpRequest request
+    ) {
+        return ResponseEntity.ok(
+                landingCheckoutService.createAndStoreManualCheckoutLink(
+                        tenantId,
+                        new SuperAdminLandingCheckoutService.ManualCheckoutLinkCommand(
+                                request.value(),
+                                request.planName(),
+                                request.billingPeriod(),
+                                request.origem(),
+                                request.expiresInMinutes()
+                        )
+                )
+        );
+    }
+
     private LocalDate parseDate(String raw) {
         if (raw == null || raw.isBlank()) return null;
         return LocalDate.parse(raw.trim());
@@ -148,5 +213,27 @@ public class SuperAdminTenantController {
     }
 
     public record BlockHttpRequest(String reason) {
+    }
+
+    public record PlanChangePreviewHttpRequest(
+            String targetPlanKey,
+            String targetBillingInterval
+    ) {
+    }
+
+    public record PlanChangeConfirmHttpRequest(
+            String targetPlanKey,
+            String targetBillingInterval,
+            Boolean updatePendingPayments
+    ) {
+    }
+
+    public record ManualCheckoutLinkHttpRequest(
+            BigDecimal value,
+            String planName,
+            String billingPeriod,
+            String origem,
+            Integer expiresInMinutes
+    ) {
     }
 }

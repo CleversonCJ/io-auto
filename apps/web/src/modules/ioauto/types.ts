@@ -94,6 +94,7 @@ export type BillingSnapshot = {
         targetPlanName: string;
         targetBillingInterval: string;
         changeType: string;
+        unlockedFeatures: string[];
         prorationAdjustmentMode: "IMMEDIATE_CHARGE" | "NEXT_CYCLE_CREDIT" | "UPCOMING_PAYMENT_UPDATE" | "NONE" | string;
         immediateChargeCents: number | null;
         creditNextCycleCents: number | null;

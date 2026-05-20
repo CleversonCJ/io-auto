@@ -111,6 +111,18 @@ public class JpaCompanyEntity {
     @Column(name = "pending_plan_change_notice_created_at")
     private Instant pendingPlanChangeNoticeCreatedAt;
 
+    @Column(name = "manual_checkout_url", columnDefinition = "text")
+    private String manualCheckoutUrl;
+
+    @Column(name = "manual_checkout_reference", length = 180)
+    private String manualCheckoutReference;
+
+    @Column(name = "manual_checkout_expires_at")
+    private Instant manualCheckoutExpiresAt;
+
+    @Column(name = "manual_checkout_created_at")
+    private Instant manualCheckoutCreatedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -221,6 +233,18 @@ public class JpaCompanyEntity {
 
     public Instant getPendingPlanChangeNoticeCreatedAt() { return pendingPlanChangeNoticeCreatedAt; }
     public void setPendingPlanChangeNoticeCreatedAt(Instant pendingPlanChangeNoticeCreatedAt) { this.pendingPlanChangeNoticeCreatedAt = pendingPlanChangeNoticeCreatedAt; }
+
+    public String getManualCheckoutUrl() { return manualCheckoutUrl; }
+    public void setManualCheckoutUrl(String manualCheckoutUrl) { this.manualCheckoutUrl = manualCheckoutUrl; }
+
+    public String getManualCheckoutReference() { return manualCheckoutReference; }
+    public void setManualCheckoutReference(String manualCheckoutReference) { this.manualCheckoutReference = manualCheckoutReference; }
+
+    public Instant getManualCheckoutExpiresAt() { return manualCheckoutExpiresAt; }
+    public void setManualCheckoutExpiresAt(Instant manualCheckoutExpiresAt) { this.manualCheckoutExpiresAt = manualCheckoutExpiresAt; }
+
+    public Instant getManualCheckoutCreatedAt() { return manualCheckoutCreatedAt; }
+    public void setManualCheckoutCreatedAt(Instant manualCheckoutCreatedAt) { this.manualCheckoutCreatedAt = manualCheckoutCreatedAt; }
 
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }

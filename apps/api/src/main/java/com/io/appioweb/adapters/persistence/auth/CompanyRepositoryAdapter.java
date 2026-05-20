@@ -109,6 +109,13 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
     }
 
     @Override
+    public boolean isTenantBlocked(java.util.UUID companyId) {
+        return jpa.findById(companyId)
+                .map(entity -> "BLOCKED".equalsIgnoreCase(entity.getStatus()))
+                .orElse(false);
+    }
+
+    @Override
     public void deleteById(java.util.UUID id) {
         jpa.deleteById(id);
     }

@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Ban, ClipboardList, KeyRound, LogIn, PencilLine, X } from "lucide-react";
+import { Ban, ClipboardList, KeyRound, LogIn, PencilLine, Plus, X } from "lucide-react";
+import { SuperAdminTenantPlanChangeModal } from "@/modules/superadmin/components/SuperAdminTenantPlanChangeModal";
+import { SuperAdminTenantCreateModal } from "@/modules/superadmin/components/SuperAdminTenantCreateModal";
 
 type TenantRow = {
     tenantId: string;
@@ -44,33 +46,12 @@ type ResetPasswordResult = {
     expiresAt: string;
 };
 
-type PlanOption = {
-    planId: string;
-    planKey: string;
-    planName: string;
-    billingRecurrence?: string | null;
-    priceCents?: number | null;
-    monthlyPriceCents?: number | null;
-    annualPriceCents?: number | null;
-    customPlan: boolean;
-    usersLimit?: number | null;
-    vehiclesLimit?: number | null;
-    activeAdsLimit?: number | null;
-};
-
 type FilterState = {
     status: string;
     search: string;
     plan: string;
     city: string;
     origin: string;
-};
-
-type PlanFormState = {
-    planId: string;
-    amount: string;
-    billingRecurrence: string;
-    subscriptionStatus: string;
 };
 
 type TenantActionModalState =
@@ -84,13 +65,6 @@ const DEFAULT_FILTERS: FilterState = {
     plan: "",
     city: "",
     origin: "",
-};
-
-const EMPTY_PLAN_FORM: PlanFormState = {
-    planId: "",
-    amount: "",
-    billingRecurrence: "MONTHLY",
-    subscriptionStatus: "ACTIVE",
 };
 
 function toBrDate(value?: string | null) {
@@ -110,11 +84,6 @@ function toBrDateTime(value?: string | null) {
 function toCurrency(cents?: number | null) {
     const value = (cents ?? 0) / 100;
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
-}
-
-function toOptionalCurrency(cents?: number | null) {
-    if (cents == null || cents <= 0) return "sob consulta";
-    return toCurrency(cents);
 }
 
 function toNumber(value?: number | null) {
@@ -141,15 +110,6 @@ function billingCycleLabel(value?: string | null) {
     if (normalized === "QUARTERLY") return "Trimestral";
     if (normalized === "SEMIANNUALLY") return "Semestral";
     return titleCase(normalized);
-}
-
-function resolvePlanAmountCents(plan: PlanOption | undefined, billingRecurrence: string) {
-    if (!plan) return null;
-    const normalized = String(billingRecurrence).trim().toUpperCase();
-    if (normalized === "YEARLY" || normalized === "ANNUAL" || normalized === "YEAR") {
-        return plan.annualPriceCents ?? plan.priceCents ?? plan.monthlyPriceCents ?? null;
-    }
-    return plan.monthlyPriceCents ?? plan.priceCents ?? plan.annualPriceCents ?? null;
 }
 
 function buildQuery(filters: FilterState) {
@@ -196,9 +156,7 @@ export function SuperAdminTenantsPage() {
     const [feedback, setFeedback] = useState<string | null>(null);
     const [busyAction, setBusyAction] = useState<string | null>(null);
     const [planTenant, setPlanTenant] = useState<TenantRow | null>(null);
-    const [planForm, setPlanForm] = useState<PlanFormState>(EMPTY_PLAN_FORM);
-    const [planOptions, setPlanOptions] = useState<PlanOption[]>([]);
-    const [planSaving, setPlanSaving] = useState(false);
+    const [createTenantOpen, setCreateTenantOpen] = useState(false);
     const [logsTenant, setLogsTenant] = useState<TenantRow | null>(null);
     const [logsRows, setLogsRows] = useState<TenantAdminLogRow[]>([]);
     const [logsLoading, setLogsLoading] = useState(false);
@@ -228,9 +186,6 @@ export function SuperAdminTenantsPage() {
 
     useEffect(() => {
         void loadTenants(DEFAULT_FILTERS);
-        void fetchJson<PlanOption[]>("/api/superadmin/plans/options", undefined, "Falha ao carregar os planos disponiveis.")
-            .then((payload) => setPlanOptions(Array.isArray(payload) ? payload : []))
-            .catch(() => setPlanOptions([]));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -257,12 +212,6 @@ export function SuperAdminTenantsPage() {
         setResetResult(null);
         setActionModal(null);
         setPlanTenant(tenant);
-        setPlanForm({
-            planId: tenant.planId ?? "",
-            amount: ((tenant.subscriptionAmountCents ?? 0) / 100).toFixed(2),
-            billingRecurrence: tenant.billingRecurrence || "MONTHLY",
-            subscriptionStatus: tenant.status || "ACTIVE",
-        });
     }
 
     async function handleImpersonate(tenant: TenantRow) {
@@ -357,67 +306,8 @@ export function SuperAdminTenantsPage() {
         }
     }
 
-    async function handlePlanSubmit() {
-        if (!planTenant) return;
-
-        setPlanSaving(true);
-        setFeedback(null);
-
-        try {
-            const amountNumber = Number(planForm.amount);
-            const subscriptionAmountCents = Number.isFinite(amountNumber) ? Math.round(amountNumber * 100) : 0;
-
-            await fetchJson(
-                `/api/superadmin/tenants/${encodeURIComponent(planTenant.tenantId)}/plan`,
-                {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        planId: planForm.planId || null,
-                        subscriptionAmountCents,
-                        billingRecurrence: planForm.billingRecurrence,
-                        subscriptionStatus: planForm.subscriptionStatus,
-                    }),
-                },
-                "Falha ao atualizar o plano da conta.",
-            );
-
-            setFeedback(`Plano de ${planTenant.companyName} atualizado.`);
-            setPlanTenant(null);
-            setPlanForm(EMPTY_PLAN_FORM);
-            await loadTenants();
-        } catch (requestError) {
-            setFeedback(requestError instanceof Error ? requestError.message : "Falha ao salvar o plano.");
-        } finally {
-            setPlanSaving(false);
-        }
-    }
-
-    function handlePlanSelection(planId: string) {
-        setPlanForm((current) => {
-            const selectedPlan = planOptions.find((plan) => plan.planId === planId);
-            const resolvedAmountCents = resolvePlanAmountCents(selectedPlan, current.billingRecurrence);
-            return {
-                ...current,
-                planId,
-                amount: resolvedAmountCents != null ? (resolvedAmountCents / 100).toFixed(2) : current.amount,
-            };
-        });
-    }
-
-    function handleRecurrenceSelection(nextRecurrence: string) {
-        setPlanForm((current) => {
-            const selectedPlan = planOptions.find((plan) => plan.planId === current.planId);
-            const resolvedAmountCents = resolvePlanAmountCents(selectedPlan, nextRecurrence);
-            return {
-                ...current,
-                billingRecurrence: nextRecurrence,
-                amount: resolvedAmountCents != null ? (resolvedAmountCents / 100).toFixed(2) : current.amount,
-            };
-        });
-    }
-
     function closeAllOverlays() {
+        setCreateTenantOpen(false);
         setPlanTenant(null);
         setLogsTenant(null);
         setResetResult(null);
@@ -482,6 +372,14 @@ export function SuperAdminTenantsPage() {
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                     <button type="button" onClick={() => void loadTenants()} disabled={loading} className="h-10 rounded-full bg-io-dark px-4 text-sm font-semibold text-white disabled:opacity-60">
                         {loading ? "Carregando..." : "Aplicar filtros"}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setCreateTenantOpen(true)}
+                        className="inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-semibold text-io-dark transition hover:border-black/20"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Novo tenant
                     </button>
                     <button
                         type="button"
@@ -621,72 +519,24 @@ export function SuperAdminTenantsPage() {
             </section>
 
             {planTenant ? (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6" onClick={closeAllOverlays}>
-                    <section
-                        className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.18)]"
-                        onClick={(event) => event.stopPropagation()}
-                    >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div>
-                                <p className="text-sm font-semibold text-io-dark">Editar plano de {planTenant.companyName}</p>
-                                <p className="text-xs text-black/55">Atualiza plano, ciclo, valor contratado e status da assinatura.</p>
-                            </div>
-                            <button type="button" onClick={closeAllOverlays} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 text-black/55">
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-                        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                            <label className="grid gap-1 text-xs text-black/55">
-                                Plano
-                                <select value={planForm.planId} onChange={(event) => handlePlanSelection(event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
-                                    <option value="">Selecione</option>
-                                    {planOptions.map((plan) => (
-                                        <option key={plan.planId} value={plan.planId}>
-                                            {plan.planName}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                            <label className="grid gap-1 text-xs text-black/55">
-                                Valor contratado (BRL)
-                                <input value={planForm.amount} onChange={(event) => setPlanForm((current) => ({ ...current, amount: event.target.value }))} type="number" min="0" step="0.01" className="h-10 rounded-lg border border-black/12 px-3 text-sm" />
-                            </label>
-                            <label className="grid gap-1 text-xs text-black/55">
-                                Ciclo
-                                <select value={planForm.billingRecurrence} onChange={(event) => handleRecurrenceSelection(event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
-                                    <option value="MONTHLY">Mensal</option>
-                                    <option value="YEARLY">Anual</option>
-                                </select>
-                            </label>
-                            <label className="grid gap-1 text-xs text-black/55">
-                                Status da assinatura
-                                <select value={planForm.subscriptionStatus} onChange={(event) => setPlanForm((current) => ({ ...current, subscriptionStatus: event.target.value }))} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
-                                    <option value="ACTIVE">Ativo</option>
-                                    <option value="OVERDUE">Em atraso</option>
-                                    <option value="BLOCKED">Bloqueado</option>
-                                    <option value="CANCELED">Cancelado</option>
-                                </select>
-                            </label>
-                            <div className="rounded-lg border border-dashed border-black/10 bg-black/[0.02] px-3 py-2 text-xs text-black/55">
-                                {planForm.planId
-                                    ? (() => {
-                                          const plan = planOptions.find((item) => item.planId === planForm.planId);
-                                          if (!plan) return "Plano selecionado sem detalhes disponiveis.";
-                                          return `${plan.planName} | mensal ${toOptionalCurrency(plan.monthlyPriceCents)} | anual ${toOptionalCurrency(plan.annualPriceCents)} | ${plan.usersLimit ?? "ilimitado"} usuarios | ${plan.vehiclesLimit ?? "ilimitado"} veiculos`;
-                                      })()
-                                    : "Selecione um plano do catalogo para aplicar a conta."}
-                            </div>
-                        </div>
-                        <div className="mt-4 flex justify-end gap-2">
-                            <button type="button" onClick={closeAllOverlays} className="h-10 rounded-full border border-black/10 px-4 text-sm font-semibold text-io-dark">
-                                Cancelar
-                            </button>
-                            <button type="button" onClick={() => void handlePlanSubmit()} disabled={planSaving} className="h-10 rounded-full bg-io-dark px-4 text-sm font-semibold text-white disabled:opacity-60">
-                                {planSaving ? "Salvando..." : "Salvar plano"}
-                            </button>
-                        </div>
-                    </section>
-                </div>
+                <SuperAdminTenantPlanChangeModal
+                    tenant={{ tenantId: planTenant.tenantId, companyName: planTenant.companyName }}
+                    onClose={() => setPlanTenant(null)}
+                    onConfirmed={async (message) => {
+                        setFeedback(message);
+                        await loadTenants();
+                    }}
+                />
+            ) : null}
+
+            {createTenantOpen ? (
+                <SuperAdminTenantCreateModal
+                    onClose={() => setCreateTenantOpen(false)}
+                    onCreated={async (message) => {
+                        setFeedback(message);
+                        await loadTenants();
+                    }}
+                />
             ) : null}
 
             {logsTenant ? (

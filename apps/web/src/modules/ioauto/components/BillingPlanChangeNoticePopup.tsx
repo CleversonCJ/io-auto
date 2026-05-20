@@ -70,6 +70,19 @@ export function BillingPlanChangeNoticePopup() {
                     <PopupInfoCard label="Registrado em" value={formatDateTime(notice.createdAt)} />
                 </div>
 
+                {notice.unlockedFeatures?.length ? (
+                    <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                        <p className="text-sm font-semibold text-emerald-900">Funcionalidades liberadas no novo plano</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            {notice.unlockedFeatures.map((feature) => (
+                                <span key={feature} className="rounded-full border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-800">
+                                    {feature}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
+
                 {(notice.immediateChargeCents || notice.creditNextCycleCents || notice.remainingCreditCents) ? (
                     <div className="mt-5 grid gap-3 md:grid-cols-3">
                         <PopupInfoCard label="Cobranca agora" value={formatMoney(notice.immediateChargeCents, "BRL")} />
@@ -89,6 +102,12 @@ export function BillingPlanChangeNoticePopup() {
                             Abrir cobranca proporcional
                         </a>
                     ) : null}
+                    <a
+                        href="/protected/perfil#faturas"
+                        className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-700"
+                    >
+                        Ver faturas no perfil
+                    </a>
                     <button
                         type="button"
                         onClick={() => void dismissNotice()}

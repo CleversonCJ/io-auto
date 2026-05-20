@@ -340,7 +340,9 @@ public class SuperAdminTenantManagementService {
                 billingService.applySuperAdminManagedPlanChange(tenantId, resolvedPlan.get().planKey(), resolvedRecurrence);
                 billingManagedPlanChangeApplied = true;
             } catch (BusinessException exception) {
-                if (!"PLAN_CHANGE_REDUNDANT".equals(exception.code())) {
+                if ("PLAN_CHANGE_REDUNDANT".equals(exception.code())) {
+                    billingManagedPlanChangeApplied = true;
+                } else if (!shouldFallbackToLocalPlanUpdate(exception.code())) {
                     throw exception;
                 }
             }
@@ -450,7 +452,6 @@ public class SuperAdminTenantManagementService {
                 update companies
                 set
                     status = 'BLOCKED',
-                    subscription_status = 'BLOCKED',
                     blocked_at = :blockedAt,
                     updated_at = :blockedAt
                 where id = :tenantId
@@ -477,10 +478,6 @@ public class SuperAdminTenantManagementService {
                 update companies
                 set
                     status = 'ACTIVE',
-                    subscription_status = case
-                        when upper(coalesce(subscription_status, 'ACTIVE')) = 'BLOCKED' then 'ACTIVE'
-                        else subscription_status
-                    end,
                     blocked_at = null,
                     updated_at = :updatedAt
                 where id = :tenantId
@@ -632,6 +629,14 @@ public class SuperAdminTenantManagementService {
     private String mapBillingInterval(String recurrence) {
         if (recurrence == null) return null;
         return recurrence;
+    }
+
+    private boolean shouldFallbackToLocalPlanUpdate(String rawCode) {
+        String code = normalizeNullable(rawCode);
+        if (code == null) return false;
+        return "BILLING_NOT_FOUND".equals(code)
+                || "MISSING_PROVIDER_SUBSCRIPTION".equals(code)
+                || "BILLING_NOT_CONFIGURED".equals(code);
     }
 
     private String normalizeNullable(String value) {

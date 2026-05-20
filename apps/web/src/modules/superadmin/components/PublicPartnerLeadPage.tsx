@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { BrandMark } from "@/modules/ioauto/components/BrandMark";
 import type { PublicPartnerResponse } from "@/modules/superadmin/partnerProgramTypes";
 
 type FormState = {
@@ -119,7 +120,7 @@ export function PublicPartnerLeadPage({ initialRef }: { initialRef: string }) {
                         <div className="absolute -right-16 top-8 h-44 w-44 rounded-full bg-white/10 blur-2xl" />
                         <div className="absolute -bottom-10 left-8 h-28 w-28 rounded-full bg-black/20 blur-2xl" />
                         <div className="relative">
-                            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/62">IO Auto</p>
+                            <BrandMark href="/login" variant="white" />
                             <h1 className="mt-4 font-display text-[2.15rem] font-bold leading-tight">
                                 Descubra como o IO Auto pode acelerar a operação da sua loja.
                             </h1>

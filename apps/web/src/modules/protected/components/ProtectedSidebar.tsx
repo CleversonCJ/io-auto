@@ -14,6 +14,7 @@ import {
     HandCoins,
     Handshake,
     LayoutDashboard,
+    LifeBuoy,
     Lightbulb,
     Link2,
     MapPinned,
@@ -49,6 +50,7 @@ type NavItem = {
         | "estoque"
         | "financeiro"
         | "links"
+        | "chamados"
         | "publicacoes"
         | "integracoes"
         | "equipe"
@@ -62,7 +64,8 @@ type NavItem = {
         | "insights"
         | "planos"
         | "tenants"
-        | "parceiros";
+        | "parceiros"
+        | "configuracoes";
 };
 
 type NavAccessKey =
@@ -105,6 +108,7 @@ function NavIcon({ icon }: { icon: NavItem["icon"] }) {
     if (icon === "estoque") return <CarFront className="h-5 w-5" strokeWidth={2} />;
     if (icon === "financeiro") return <HandCoins className="h-5 w-5" strokeWidth={2} />;
     if (icon === "links") return <Link2 className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "chamados") return <LifeBuoy className="h-5 w-5" strokeWidth={2} />;
     if (icon === "publicacoes") return <Workflow className="h-5 w-5" strokeWidth={2} />;
     if (icon === "integracoes") return <Cable className="h-5 w-5" strokeWidth={2} />;
     if (icon === "superadmin") return <Building2 className="h-5 w-5" strokeWidth={2} />;
@@ -118,6 +122,7 @@ function NavIcon({ icon }: { icon: NavItem["icon"] }) {
     if (icon === "planos") return <Settings2 className="h-5 w-5" strokeWidth={2} />;
     if (icon === "tenants") return <MapPinned className="h-5 w-5" strokeWidth={2} />;
     if (icon === "parceiros") return <Handshake className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "configuracoes") return <Settings2 className="h-5 w-5" strokeWidth={2} />;
     return <Users2 className="h-5 w-5" strokeWidth={2} />;
 }
 
@@ -129,6 +134,7 @@ function getDefaultSidebarItems(): SidebarItem[] {
         { label: "Estoque", href: "/protected/estoque", icon: "estoque" },
         { label: "Financeiro", href: "/protected/financeiro", icon: "financeiro", accessKey: "finance" },
         { label: "Links", href: "/protected/links-publicos", icon: "links", accessKey: "ownSite" },
+        { label: "Chamados", href: "/protected/chamados", icon: "chamados" },
         { label: "Publicações", href: "/protected/publicacoes", icon: "publicacoes" },
         { label: "Integrações", href: "/protected/integracoes", icon: "integracoes" },
     ];
@@ -146,6 +152,7 @@ function getSuperAdminSidebarItems(): NavItem[] {
         if (item.href.endsWith("/insights")) return { label: item.label, href: item.href, icon: "insights" };
         if (item.href.endsWith("/planos")) return { label: item.label, href: item.href, icon: "planos" };
         if (item.href.endsWith("/parceiros")) return { label: item.label, href: item.href, icon: "parceiros" };
+        if (item.href.endsWith("/configuracoes")) return { label: item.label, href: item.href, icon: "configuracoes" };
         return { label: item.label, href: item.href, icon: "tenants" };
     });
 }
@@ -188,7 +195,11 @@ export function ProtectedSidebar({ user, billing }: { user: CurrentUser | null; 
     const visibleItems = items.filter((item) => canAccessSidebarItem(item, billing));
 
     return (
-        <aside className={`bg-io-dark text-white md:h-screen md:border-r md:border-white/10 ${collapsed ? "md:w-[96px]" : "md:w-[304px]"}`}>
+        <aside
+            className={`shrink-0 overflow-hidden bg-io-dark text-white transition-[width] duration-200 ease-out md:h-screen md:border-r md:border-white/10 ${
+                collapsed ? "md:w-[96px]" : "md:w-[304px]"
+            }`}
+        >
             <div className="flex items-center justify-between px-5 py-5">
                 <button
                     type="button"

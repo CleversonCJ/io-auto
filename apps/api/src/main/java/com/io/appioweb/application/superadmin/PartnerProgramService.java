@@ -569,17 +569,7 @@ public class PartnerProgramService {
     }
 
     private String resolveEffectiveLeadStatus(UpdateLeadCommand command) {
-        String normalizedLeadStatus = normalizeLeadStatus(command.leadStatus());
-        boolean hasSalePayload =
-                normalizeNullable(command.closedPlan(), 120) != null
-                        || normalizeNullable(command.closedBillingRecurrence(), 20) != null
-                        || command.firstMonthlyFeeCents() != null
-                        || command.closedAt() != null
-                        || normalizeNullable(command.commissionStatus(), 30) != null
-                        || command.commissionDueDate() != null
-                        || command.commissionPaidAt() != null;
-
-        return hasSalePayload ? LEAD_STATUS_CONVERTED : normalizedLeadStatus;
+        return normalizeLeadStatus(command.leadStatus());
     }
 
     public record SavePartnerCommand(

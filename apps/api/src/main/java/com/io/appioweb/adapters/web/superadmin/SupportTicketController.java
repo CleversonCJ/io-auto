@@ -7,11 +7,13 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 public class SupportTicketController {
@@ -45,6 +47,16 @@ public class SupportTicketController {
     @GetMapping("/api/support/tickets/my")
     public ResponseEntity<List<SupportTicketService.TicketSummary>> listMyTickets() {
         return ResponseEntity.ok(supportTicketService.listMyTickets());
+    }
+
+    @GetMapping("/api/support/tickets")
+    public ResponseEntity<List<SupportTicketService.TicketSummary>> listCompanyTickets() {
+        return ResponseEntity.ok(supportTicketService.listCompanyTickets());
+    }
+
+    @GetMapping("/api/support/tickets/{ticketId}")
+    public ResponseEntity<SupportTicketService.TicketDetail> getCompanyTicket(@PathVariable UUID ticketId) {
+        return ResponseEntity.ok(supportTicketService.getCompanyTicket(ticketId));
     }
 
     public record CreateSupportTicketHttpRequest(

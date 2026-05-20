@@ -351,10 +351,21 @@ public class IoAutoBillingService {
 
     @Transactional
     public BillingSnapshot applySuperAdminManagedPlanChange(UUID companyId, String targetPlanKey, String targetBillingInterval) {
-        PlanChangePreviewResponse preview = previewPlanChange(companyId, targetPlanKey, targetBillingInterval);
-        PlanChangeConfirmResponse confirm = confirmPlanChange(companyId, targetPlanKey, targetBillingInterval, null);
-        registerSuperAdminPlanChangeNotice(companyId, preview, confirm);
+        confirmSuperAdminManagedPlanChange(companyId, targetPlanKey, targetBillingInterval, null);
         return getBillingSnapshot(companyId);
+    }
+
+    @Transactional
+    public PlanChangeConfirmResponse confirmSuperAdminManagedPlanChange(
+            UUID companyId,
+            String targetPlanKey,
+            String targetBillingInterval,
+            Boolean requestedUpdatePendingPayments
+    ) {
+        PlanChangePreviewResponse preview = previewPlanChange(companyId, targetPlanKey, targetBillingInterval);
+        PlanChangeConfirmResponse confirm = confirmPlanChange(companyId, targetPlanKey, targetBillingInterval, requestedUpdatePendingPayments);
+        registerSuperAdminPlanChangeNotice(companyId, preview, confirm);
+        return confirm;
     }
 
     public void assertPlanChangeAllowed(Set<String> roles) {
@@ -954,6 +965,7 @@ public class IoAutoBillingService {
                     normalizeText(stored.targetPlanName()),
                     normalizeText(stored.targetBillingInterval()),
                     normalizeText(stored.changeType()),
+                    stored.unlockedFeatures() == null ? List.of() : List.copyOf(stored.unlockedFeatures()),
                     normalizeText(stored.prorationAdjustmentMode()),
                     stored.immediateChargeCents(),
                     stored.creditNextCycleCents(),
@@ -979,14 +991,16 @@ public class IoAutoBillingService {
     ) {
         PlanChangeAdjustmentResult adjustment = confirm == null ? null : confirm.adjustment();
         String title = "Seu plano foi alterado pela administracao da conta";
-        String message = confirm != null && !normalizeText(confirm.message()).isBlank()
+        String baseMessage = confirm != null && !normalizeText(confirm.message()).isBlank()
                 ? confirm.message()
                 : preview == null
                 ? "Sua assinatura foi atualizada."
                 : preview.message();
+        String message = baseMessage + " Confira abaixo os recursos liberados e revise as faturas da assinatura no seu perfil.";
         boolean requiresAction = adjustment != null
                 && adjustment.immediateChargeCents() != null
                 && adjustment.immediateChargeCents() > 0L;
+        List<String> unlockedFeatures = resolveUnlockedFeatures(preview);
         return new StoredPlanChangeNotice(
                 title,
                 message,
@@ -994,6 +1008,7 @@ public class IoAutoBillingService {
                 preview == null || preview.targetPlan() == null ? "" : normalizeText(preview.targetPlan().name()),
                 preview == null || preview.targetPlan() == null ? "" : normalizeText(preview.targetPlan().billingInterval()),
                 preview == null ? "" : normalizeText(preview.changeType()),
+                unlockedFeatures,
                 preview == null || preview.proration() == null ? "" : normalizeText(preview.proration().adjustmentMode()),
                 adjustment == null ? null : adjustment.immediateChargeCents(),
                 adjustment == null ? null : adjustment.appliedCreditCents(),
@@ -1002,6 +1017,34 @@ public class IoAutoBillingService {
                 requiresAction,
                 createdAt
         );
+    }
+
+    private List<String> resolveUnlockedFeatures(PlanChangePreviewResponse preview) {
+        if (preview == null || preview.currentPlan() == null || preview.targetPlan() == null) {
+            return List.of();
+        }
+
+        Optional<SuperAdminPlanManagementService.PlanSnapshot> currentPlan = resolvePlanSnapshotByKey(preview.currentPlan().key());
+        Optional<SuperAdminPlanManagementService.PlanSnapshot> targetPlan = resolvePlanSnapshotByKey(preview.targetPlan().key());
+        if (currentPlan.isEmpty() || targetPlan.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> currentFeatures = buildEnabledModules(currentPlan.get().features());
+        List<String> targetFeatures = buildEnabledModules(targetPlan.get().features());
+        return targetFeatures.stream()
+                .filter(feature -> !currentFeatures.contains(feature))
+                .toList();
+    }
+
+    private Optional<SuperAdminPlanManagementService.PlanSnapshot> resolvePlanSnapshotByKey(String planKey) {
+        String normalized = normalizeText(planKey);
+        if (normalized.isBlank()) {
+            return Optional.empty();
+        }
+        return planManagementService.listActivePlanSnapshots().stream()
+                .filter(plan -> normalized.equalsIgnoreCase(plan.planKey()))
+                .findFirst();
     }
 
     @Transactional(readOnly = true)
@@ -3076,6 +3119,7 @@ record BillingPlanChangeNotice(
         String targetPlanName,
         String targetBillingInterval,
         String changeType,
+        List<String> unlockedFeatures,
         String prorationAdjustmentMode,
         Long immediateChargeCents,
         Long creditNextCycleCents,
@@ -3093,6 +3137,7 @@ record StoredPlanChangeNotice(
         String targetPlanName,
         String targetBillingInterval,
         String changeType,
+        List<String> unlockedFeatures,
         String prorationAdjustmentMode,
         Long immediateChargeCents,
         Long creditNextCycleCents,

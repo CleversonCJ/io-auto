@@ -202,6 +202,10 @@ public class IoAutoSalesService {
             UUID companyId,
             UUID vehicleId,
             UUID sellerUserId,
+            UUID buyerConversationId,
+            String buyerName,
+            String buyerPhone,
+            boolean requireBuyerLead,
             Instant soldAt
     ) {
         JpaIoAutoVehicleEntity vehicle = vehicles.findByIdAndCompanyId(vehicleId, companyId)
@@ -214,7 +218,16 @@ public class IoAutoSalesService {
         }
 
         ResolvedSeller seller = resolveSeller(companyId, sellerUserId);
-        JpaAtendimentoConversationEntity conversation = createSystemSaleConversation(companyId, vehicle, seller, soldAt);
+        JpaAtendimentoConversationEntity conversation = resolveInventorySaleConversation(
+                companyId,
+                vehicle,
+                seller,
+                buyerConversationId,
+                buyerName,
+                buyerPhone,
+                requireBuyerLead,
+                soldAt
+        );
         JpaAtendimentoSessionEntity session = sessionLifecycleService.ensureSessionForHumanAction(
                 companyId,
                 conversation,
@@ -245,6 +258,50 @@ public class IoAutoSalesService {
                 seller.teamId(),
                 seller.teamName()
         );
+    }
+
+    private JpaAtendimentoConversationEntity resolveInventorySaleConversation(
+            UUID companyId,
+            JpaIoAutoVehicleEntity vehicle,
+            ResolvedSeller seller,
+            UUID buyerConversationId,
+            String buyerName,
+            String buyerPhone,
+            boolean requireBuyerLead,
+            Instant referenceAt
+    ) {
+        if (buyerConversationId != null) {
+            JpaAtendimentoConversationEntity conversation = conversations.findByIdAndCompanyId(buyerConversationId, companyId)
+                    .orElseThrow(() -> new BusinessException("IOAUTO_SALE_BUYER_LEAD_NOT_FOUND", "Lead selecionado não encontrado para vincular a venda."));
+            if ("SYSTEM_SALE".equalsIgnoreCase(safeTrim(conversation.getSourcePlatform()))) {
+                throw new BusinessException("IOAUTO_SALE_BUYER_LEAD_INVALID", "Selecione um lead válido para vincular a venda.");
+            }
+            return prepareBuyerConversation(conversation, seller, vehicle, referenceAt);
+        }
+
+        String normalizedBuyerName = safeTrim(buyerName);
+        String normalizedBuyerPhone = normalizePhone(buyerPhone);
+        if (normalizedBuyerName != null || !normalizedBuyerPhone.isBlank()) {
+            if (normalizedBuyerName == null) {
+                throw new BusinessException("IOAUTO_SALE_BUYER_NAME_REQUIRED", "Informe o nome do comprador para criar o lead.");
+            }
+            if (normalizedBuyerPhone.isBlank()) {
+                throw new BusinessException("IOAUTO_SALE_BUYER_PHONE_REQUIRED", "Informe o telefone do comprador para criar o lead.");
+            }
+
+            JpaAtendimentoConversationEntity conversation = conversations.findByCompanyIdAndPhone(companyId, normalizedBuyerPhone)
+                    .orElseGet(() -> createInventoryBuyerConversation(companyId, vehicle, normalizedBuyerName, normalizedBuyerPhone, referenceAt));
+            if (safeTrim(conversation.getDisplayName()) == null) {
+                conversation.setDisplayName(normalizedBuyerName);
+            }
+            return prepareBuyerConversation(conversation, seller, vehicle, referenceAt);
+        }
+
+        if (requireBuyerLead) {
+            throw new BusinessException("IOAUTO_SALE_BUYER_LEAD_REQUIRED", "Selecione um lead existente ou crie o comprador para concluir a venda.");
+        }
+
+        return createSystemSaleConversation(companyId, vehicle, seller, referenceAt);
     }
 
     private JpaAtendimentoConversationEntity resolveCatalogConversation(
@@ -335,6 +392,56 @@ public class IoAutoSalesService {
         return conversations.saveAndFlush(entity);
     }
 
+    private JpaAtendimentoConversationEntity createInventoryBuyerConversation(
+            UUID companyId,
+            JpaIoAutoVehicleEntity vehicle,
+            String buyerName,
+            String buyerPhone,
+            Instant referenceAt
+    ) {
+        JpaAtendimentoConversationEntity entity = new JpaAtendimentoConversationEntity();
+        entity.setId(UUID.randomUUID());
+        entity.setCompanyId(companyId);
+        entity.setPhone(buyerPhone);
+        entity.setDisplayName(firstNonBlank(buyerName, buyerPhone));
+        entity.setSourcePlatform("MANUAL");
+        entity.setSourceReference("inventory-sale-" + vehicle.getId());
+        entity.setLastMessageText(buildInventorySaleSummary(vehicle));
+        entity.setLastMessageAt(referenceAt);
+        entity.setStatus("NEW");
+        entity.setHumanHandoffRequested(false);
+        entity.setHumanHandoffQueue(null);
+        entity.setHumanHandoffRequestedAt(null);
+        entity.setHumanUserChoiceRequired(false);
+        entity.setHumanChoiceOptionsJson("[]");
+        entity.setCreatedAt(referenceAt);
+        entity.setUpdatedAt(referenceAt);
+        return conversations.saveAndFlush(entity);
+    }
+
+    private JpaAtendimentoConversationEntity prepareBuyerConversation(
+            JpaAtendimentoConversationEntity conversation,
+            ResolvedSeller seller,
+            JpaIoAutoVehicleEntity vehicle,
+            Instant referenceAt
+    ) {
+        conversation.setAssignedTeamId(seller.teamId());
+        conversation.setAssignedUserId(seller.user().id());
+        conversation.setAssignedUserName(seller.user().fullName());
+        conversation.setStatus("IN_PROGRESS");
+        conversation.setStartedAt(conversation.getStartedAt() == null ? referenceAt : conversation.getStartedAt());
+        conversation.setLastMessageText(firstNonBlank(conversation.getLastMessageText(), buildInventorySaleSummary(vehicle)));
+        conversation.setLastMessageAt(conversation.getLastMessageAt() == null ? referenceAt : conversation.getLastMessageAt());
+        conversation.setUpdatedAt(referenceAt);
+        if (safeTrim(conversation.getSourcePlatform()) == null) {
+            conversation.setSourcePlatform("MANUAL");
+        }
+        if (safeTrim(conversation.getSourceReference()) == null) {
+            conversation.setSourceReference("inventory-sale-" + vehicle.getId());
+        }
+        return conversations.saveAndFlush(conversation);
+    }
+
     private void deactivateIntegratedAds(UUID companyId, UUID soldVehicleId, List<JpaIoAutoVehiclePublicationEntity> vehiclePublications) {
         boolean hasWebmotors = false;
         boolean hasOlx = false;
@@ -387,6 +494,10 @@ public class IoAutoSalesService {
     private String buildCatalogLeadSummary(JpaIoAutoPublicCatalogLeadEntity lead) {
         String vehicleName = firstNonBlank(safeTrim(lead.getVehicleInterestName()), "veículo do catálogo");
         return "Lead do catálogo público com interesse em " + vehicleName + ".";
+    }
+
+    private String buildInventorySaleSummary(JpaIoAutoVehicleEntity vehicle) {
+        return "Venda concluída pelo estoque para o veículo " + firstNonBlank(safeTrim(vehicle.getTitle()), "sem identificação") + ".";
     }
 
     private String normalizeStatus(String value) {

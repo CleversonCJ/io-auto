@@ -1,21 +1,63 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginForm } from "@/modules/auth/schemas/loginSchema";
-import { useState } from "react";
 
 type LoginFormProps = {
     embedded?: boolean;
 };
 
+type LoginErrorState = {
+    code?: string | null;
+    message: string;
+};
+
+type SupportContactState = {
+    configured: boolean;
+    whatsappNumber: string;
+    whatsappDisplay: string;
+    whatsappUrl: string;
+};
+
 export function LoginForm({ embedded = false }: LoginFormProps) {
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<LoginErrorState | null>(null);
+    const [supportContact, setSupportContact] = useState<SupportContactState | null>(null);
+    const [supportLoading, setSupportLoading] = useState(false);
 
     const form = useForm<LoginForm>({
         resolver: zodResolver(loginSchema),
         defaultValues: { email: "", password: "" },
     });
+
+    async function loadSupportContact() {
+        if (supportLoading || supportContact?.configured) {
+            return;
+        }
+
+        setSupportLoading(true);
+        try {
+            const response = await fetch("/api/auth/support-contact", { cache: "no-store" });
+            if (!response.ok) {
+                return;
+            }
+
+            const payload = (await response.json()) as SupportContactState;
+            setSupportContact(payload);
+        } catch {
+            // Ignore contact loading failures so the login flow keeps working.
+        } finally {
+            setSupportLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        if (error?.code === "TENANT_BLOCKED") {
+            void loadSupportContact();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [error?.code]);
 
     async function onSubmit(values: LoginForm) {
         setError(null);
@@ -27,8 +69,11 @@ export function LoginForm({ embedded = false }: LoginFormProps) {
             });
 
             if (!res.ok) {
-                const data = await res.json().catch(() => ({ message: "Falha no login" }));
-                setError(data.message ?? "Falha no login");
+                const data = await res.json().catch(() => ({ code: null, message: "Falha no login" }));
+                setError({
+                    code: data.code ?? null,
+                    message: data.message ?? "Falha no login",
+                });
                 return;
             }
 
@@ -36,21 +81,48 @@ export function LoginForm({ embedded = false }: LoginFormProps) {
             // auth cookies before the protected app bootstraps.
             window.location.assign("/protected");
         } catch {
-            setError("Não foi possível conectar com o servidor de autenticação.");
+            setError({ message: "Não foi possível conectar com o servidor de autenticação." });
         }
     }
+
+    const blockedTenant = error?.code === "TENANT_BLOCKED";
 
     const content = (
         <>
             <div style={{ marginBottom: 24 }}>
                 <p style={{ fontSize: 11, letterSpacing: "0.28em", textTransform: "uppercase", color: "rgba(0,0,0,0.45)", marginBottom: 8 }}>Acesso seguro</p>
                 <h1 style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.08 }}>Entrar no IOAuto</h1>
-                <p style={{ marginTop: 8, color: "rgba(0,0,0,0.58)", lineHeight: 1.7 }}>Use o e-mail e a senha configurados na ativacao da operacao.</p>
+                <p style={{ marginTop: 8, color: "rgba(0,0,0,0.58)", lineHeight: 1.7 }}>Use o e-mail e a senha configurados na ativação da operação.</p>
             </div>
 
             {error && (
-                <div style={{ background: "#ffecec", border: "1px solid #ffb3b3", padding: 12, borderRadius: 18, marginBottom: 12, fontSize: 14 }}>
-                    {error}
+                <div style={{ background: "#ffecec", border: "1px solid #ffb3b3", padding: 16, borderRadius: 18, marginBottom: 12, fontSize: 14, display: "grid", gap: 12 }}>
+                    <span>{error.message}</span>
+                    {blockedTenant && supportContact?.configured && supportContact.whatsappUrl ? (
+                        <a
+                            href={supportContact.whatsappUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                minHeight: 44,
+                                padding: "0 18px",
+                                borderRadius: 999,
+                                background: "#121212",
+                                color: "#ffffff",
+                                fontWeight: 700,
+                                textDecoration: "none",
+                                width: "fit-content",
+                            }}
+                        >
+                            Falar com o suporte no WhatsApp
+                        </a>
+                    ) : null}
+                    {blockedTenant && supportLoading ? (
+                        <span style={{ color: "rgba(0,0,0,0.58)", fontSize: 13 }}>Carregando contato do suporte...</span>
+                    ) : null}
                 </div>
             )}
 
