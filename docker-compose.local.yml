@@ -1,5 +1,9 @@
 name: ioauto-local
 
+x-api-environment:
+  IOAUTO_LANDING_CHECKOUT_URL: ${IOAUTO_LANDING_CHECKOUT_URL:-https://ioauto.com.br/api/checkout/link}
+  IOAUTO_LANDING_CHECKOUT_BEARER: ${IOAUTO_LANDING_CHECKOUT_BEARER:-}
+
 services:
   postgres:
     image: postgres:16
