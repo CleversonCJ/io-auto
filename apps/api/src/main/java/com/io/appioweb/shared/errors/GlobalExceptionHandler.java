@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -48,15 +49,24 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex) {
         log.error("Validation error: {}", ex.getMessage());
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(FieldError::getDefaultMessage)
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst()
+                .orElseGet(() -> ex.getBindingResult().getGlobalErrors().stream()
+                        .map(error -> error.getDefaultMessage())
+                        .filter(value -> value != null && !value.isBlank())
+                        .findFirst()
+                        .orElse("Dados invalidos"));
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(new ApiError("VALIDATION_ERROR", "Dados inválidos", Instant.now()));
+                .body(new ApiError("VALIDATION_ERROR", message, Instant.now()));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiError> handleInvalidJson(HttpMessageNotReadableException ex) {
         log.error("Invalid JSON error: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ApiError("INVALID_JSON", "JSON inválido", Instant.now()));
+                .body(new ApiError("INVALID_JSON", "JSON invalido", Instant.now()));
     }
 
     @ExceptionHandler(Exception.class)

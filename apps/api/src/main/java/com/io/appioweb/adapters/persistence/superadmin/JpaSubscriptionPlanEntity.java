@@ -111,6 +111,18 @@ public class JpaSubscriptionPlanEntity {
     @Column(name = "feature_customizations", nullable = false)
     private boolean featureCustomizations;
 
+    @Column(name = "checkout_url", columnDefinition = "text")
+    private String checkoutUrl;
+
+    @Column(name = "checkout_reference", length = 180)
+    private String checkoutReference;
+
+    @Column(name = "checkout_expires_at")
+    private Instant checkoutExpiresAt;
+
+    @Column(name = "checkout_created_at")
+    private Instant checkoutCreatedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -215,6 +227,18 @@ public class JpaSubscriptionPlanEntity {
 
     public boolean isFeatureCustomizations() { return featureCustomizations; }
     public void setFeatureCustomizations(boolean featureCustomizations) { this.featureCustomizations = featureCustomizations; }
+
+    public String getCheckoutUrl() { return checkoutUrl; }
+    public void setCheckoutUrl(String checkoutUrl) { this.checkoutUrl = checkoutUrl; }
+
+    public String getCheckoutReference() { return checkoutReference; }
+    public void setCheckoutReference(String checkoutReference) { this.checkoutReference = checkoutReference; }
+
+    public Instant getCheckoutExpiresAt() { return checkoutExpiresAt; }
+    public void setCheckoutExpiresAt(Instant checkoutExpiresAt) { this.checkoutExpiresAt = checkoutExpiresAt; }
+
+    public Instant getCheckoutCreatedAt() { return checkoutCreatedAt; }
+    public void setCheckoutCreatedAt(Instant checkoutCreatedAt) { this.checkoutCreatedAt = checkoutCreatedAt; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

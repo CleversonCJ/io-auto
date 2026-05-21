@@ -366,7 +366,7 @@ export function SuperAdminTenantPlanChangeModal({ tenant, onClose, onConfirmed }
                                                     <div className="grid gap-3 md:grid-cols-3">
                                                         <PreviewMetric label="Tipo de alteração" value={changeTypeLabel(preview.changeType)} />
                                                         <PreviewMetric label="Ciclo no Asaas" value={billingIntervalLabel(preview.asaasCycle)} />
-                                                        <PreviewMetric label="Cobranças pendentes" value={preview.willUpdatePendingPayments ? "Atualiza quando aplicável" : "Mantém as já emitidas"} />
+                                                        <PreviewMetric label="Cobranças pendentes" value={preview.willUpdatePendingPayments ? "Serão atualizadas" : "Serão mantidas"} />
                                                     </div>
 
                                                     <div className="grid gap-3 md:grid-cols-4">
@@ -385,7 +385,7 @@ export function SuperAdminTenantPlanChangeModal({ tenant, onClose, onConfirmed }
                                                             value={formatMoney(preview.proration.currentPlanRemainingCents, "BRL")}
                                                         />
                                                         <PreviewMetric
-                                                            label="Uso proporcional novo plano"
+                                                            label="Valor proporcional novo plano"
                                                             value={formatMoney(preview.proration.targetPlanRemainingCents, "BRL")}
                                                         />
                                                     </div>

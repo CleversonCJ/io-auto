@@ -27,7 +27,14 @@ public final class SuperAdminSqlFilterBuilder {
             params.addValue("recurrence", filter.recurrence().trim().toUpperCase());
         }
         if (hasText(filter.status())) {
-            sql.append(" and upper(coalesce(").append(alias).append(".subscription_status, '')) = :subscriptionStatus");
+            sql.append("""
+                     and upper(
+                         case
+                             when upper(coalesce(%s.status, '')) = 'BLOCKED' then 'BLOCKED'
+                             else coalesce(nullif(%s.subscription_status, ''), nullif(%s.status, ''), 'ACTIVE')
+                         end
+                     ) = :subscriptionStatus
+                    """.formatted(alias, alias, alias));
             params.addValue("subscriptionStatus", filter.status().trim().toUpperCase());
         }
         if (filter.planId() != null) {

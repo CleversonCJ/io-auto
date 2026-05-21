@@ -4,6 +4,7 @@ import com.io.appioweb.application.superadmin.SuperAdminPlanManagementService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,15 +14,22 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 @RestController
 public class SuperAdminPlanController {
 
     private final SuperAdminPlanManagementService planManagementService;
+    private final SuperAdminLandingCheckoutService landingCheckoutService;
 
-    public SuperAdminPlanController(SuperAdminPlanManagementService planManagementService) {
+    public SuperAdminPlanController(
+            SuperAdminPlanManagementService planManagementService,
+            SuperAdminLandingCheckoutService landingCheckoutService
+    ) {
         this.planManagementService = planManagementService;
+        this.landingCheckoutService = landingCheckoutService;
     }
 
     @GetMapping("/api/superadmin/plans")
@@ -42,6 +50,43 @@ public class SuperAdminPlanController {
             @Valid @RequestBody SavePlanHttpRequest request
     ) {
         return ResponseEntity.ok(planManagementService.createPlan(toCommand(request)));
+    }
+
+    @PostMapping("/api/superadmin/plans/custom-checkout")
+    @PreAuthorize("hasRole('SUPERADMIN')")
+    @Transactional
+    public ResponseEntity<CreateCustomCheckoutPlanHttpResponse> createCustomCheckoutPlan(
+            @Valid @RequestBody CreateCustomCheckoutPlanHttpRequest request
+    ) {
+        SuperAdminPlanManagementService.PlanRow createdPlan = planManagementService.createCustomCheckoutPlan(
+                new SuperAdminPlanManagementService.CreateCustomCheckoutPlanCommand(
+                        request.planName(),
+                        request.billingPeriod(),
+                        request.value()
+                )
+        );
+
+        SuperAdminLandingCheckoutService.ManualCheckoutLinkResult checkout = landingCheckoutService.createAndStorePlanCheckoutLink(
+                createdPlan.planId(),
+                new SuperAdminLandingCheckoutService.ManualCheckoutLinkCommand(
+                        request.value(),
+                        createdPlan.planName(),
+                        request.billingPeriod(),
+                        request.origem(),
+                        1440
+                )
+        );
+
+        return ResponseEntity.ok(
+                new CreateCustomCheckoutPlanHttpResponse(
+                        createdPlan.planId(),
+                        createdPlan.planKey(),
+                        createdPlan.planName(),
+                        checkout.checkoutUrl(),
+                        checkout.checkoutReference(),
+                        checkout.expiresAt()
+                )
+        );
     }
 
     @PutMapping("/api/superadmin/plans/{planId}")
@@ -130,6 +175,24 @@ public class SuperAdminPlanController {
             Boolean featureAssistedOnboarding,
             Boolean featurePrioritySupport,
             Boolean featureCustomizations
+    ) {
+    }
+
+    public record CreateCustomCheckoutPlanHttpRequest(
+            BigDecimal value,
+            String planName,
+            String billingPeriod,
+            String origem
+    ) {
+    }
+
+    public record CreateCustomCheckoutPlanHttpResponse(
+            UUID planId,
+            String planKey,
+            String planName,
+            String checkoutUrl,
+            String checkoutReference,
+            Instant expiresAt
     ) {
     }
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertCircle, CheckCircle2, Clock3, LifeBuoy, RefreshCcw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { AlertCircle, CheckCircle2, Clock3, LifeBuoy, RefreshCcw, SendHorizontal } from "lucide-react";
 import { formatDateTime, statusLabel } from "@/modules/ioauto/formatters";
 
 type SupportTicketSummary = {
@@ -72,10 +72,10 @@ function categoryLabel(value?: string | null) {
     const normalized = String(value ?? "").trim().toUpperCase();
     const labels: Record<string, string> = {
         BUG: "Bug",
-        QUESTION: "Dúvida",
-        BILLING: "Cobrança",
-        INTEGRATION: "Integração",
-        FEATURE_REQUEST: "Sugestão",
+        QUESTION: "Duvida",
+        BILLING: "Cobranca",
+        INTEGRATION: "Integracao",
+        FEATURE_REQUEST: "Sugestao",
         OTHER: "Outro",
     };
     return labels[normalized] ?? (normalized ? normalized.replaceAll("_", " ") : "-");
@@ -85,9 +85,9 @@ function urgencyLabel(value?: string | null) {
     const normalized = String(value ?? "").trim().toUpperCase();
     const labels: Record<string, string> = {
         LOW: "Baixa",
-        MEDIUM: "Média",
+        MEDIUM: "Media",
         HIGH: "Alta",
-        CRITICAL: "Crítica",
+        CRITICAL: "Critica",
     };
     return labels[normalized] ?? (normalized ? normalized.replaceAll("_", " ") : "-");
 }
@@ -108,6 +108,18 @@ function urgencyTone(value?: string | null) {
     return "border-slate-200 bg-slate-100 text-slate-700";
 }
 
+function isTicketClosed(status?: string | null) {
+    return String(status ?? "").trim().toUpperCase() === "CLOSED";
+}
+
+function replyHelperText(status?: string | null) {
+    const normalized = String(status ?? "").trim().toUpperCase();
+    if (normalized === "WAITING_CUSTOMER") return "O suporte esta aguardando a sua resposta.";
+    if (normalized === "RESOLVED") return "Se ainda precisar de ajuda, responda abaixo para retomar o atendimento.";
+    if (normalized === "CLOSED") return "Este ticket foi encerrado e nao aceita novas mensagens.";
+    return "Digite sua mensagem para continuar a conversa com o suporte.";
+}
+
 export function SupportTicketsPage() {
     const [tickets, setTickets] = useState<SupportTicketSummary[]>([]);
     const [ticketsLoading, setTicketsLoading] = useState(true);
@@ -116,6 +128,10 @@ export function SupportTicketsPage() {
     const [ticketDetail, setTicketDetail] = useState<SupportTicketDetail | null>(null);
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState<string | null>(null);
+    const [replyDraft, setReplyDraft] = useState("");
+    const [replyLoading, setReplyLoading] = useState(false);
+    const [replyFeedback, setReplyFeedback] = useState<string | null>(null);
+    const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
     const metrics = useMemo(() => {
         const openCount = tickets.filter((ticket) => !["RESOLVED", "CLOSED"].includes(ticket.status)).length;
@@ -124,9 +140,12 @@ export function SupportTicketsPage() {
         return { total: tickets.length, openCount, waitingCount, resolvedCount };
     }, [tickets]);
 
-    async function loadTickets(preferredTicketId?: string | null) {
-        setTicketsLoading(true);
-        setTicketsError(null);
+    async function loadTickets(preferredTicketId?: string | null, options?: { silent?: boolean }) {
+        const silent = options?.silent ?? false;
+        if (!silent) {
+            setTicketsLoading(true);
+            setTicketsError(null);
+        }
 
         try {
             const payload = await fetchJson<SupportTicketSummary[]>("/api/support/tickets", undefined, "Falha ao carregar os chamados da empresa.");
@@ -138,17 +157,24 @@ export function SupportTicketsPage() {
                 : nextTickets[0]?.ticketId ?? null;
             setSelectedTicketId(resolvedTicketId);
         } catch (requestError) {
-            setTickets([]);
-            setSelectedTicketId(null);
-            setTicketsError(requestError instanceof Error ? requestError.message : "Falha ao carregar os chamados da empresa.");
+            if (!silent) {
+                setTickets([]);
+                setSelectedTicketId(null);
+                setTicketsError(requestError instanceof Error ? requestError.message : "Falha ao carregar os chamados da empresa.");
+            }
         } finally {
-            setTicketsLoading(false);
+            if (!silent) {
+                setTicketsLoading(false);
+            }
         }
     }
 
-    async function loadTicketDetail(ticketId: string) {
-        setDetailLoading(true);
-        setDetailError(null);
+    async function loadTicketDetail(ticketId: string, options?: { silent?: boolean }) {
+        const silent = options?.silent ?? false;
+        if (!silent) {
+            setDetailLoading(true);
+            setDetailError(null);
+        }
 
         try {
             const payload = await fetchJson<SupportTicketDetail>(
@@ -158,10 +184,55 @@ export function SupportTicketsPage() {
             );
             setTicketDetail(payload);
         } catch (requestError) {
-            setTicketDetail(null);
-            setDetailError(requestError instanceof Error ? requestError.message : "Falha ao carregar o chamado selecionado.");
+            if (!silent) {
+                setTicketDetail(null);
+                setDetailError(requestError instanceof Error ? requestError.message : "Falha ao carregar o chamado selecionado.");
+            }
         } finally {
-            setDetailLoading(false);
+            if (!silent) {
+                setDetailLoading(false);
+            }
+        }
+    }
+
+    async function handleReplySubmit() {
+        if (!ticketDetail || !replyDraft.trim() || isTicketClosed(ticketDetail.status)) return;
+
+        setReplyLoading(true);
+        setReplyFeedback(null);
+        try {
+            await fetchJson(
+                `/api/support/tickets/${encodeURIComponent(ticketDetail.ticketId)}/messages`,
+                {
+                    method: "POST",
+                    body: JSON.stringify({ message: replyDraft.trim() }),
+                },
+                "Falha ao enviar sua mensagem ao suporte.",
+            );
+            setReplyDraft("");
+            setReplyFeedback("Mensagem enviada ao suporte.");
+            await Promise.all([
+                loadTickets(ticketDetail.ticketId, { silent: true }),
+                loadTicketDetail(ticketDetail.ticketId, { silent: true }),
+            ]);
+        } catch (requestError) {
+            setReplyFeedback(requestError instanceof Error ? requestError.message : "Falha ao enviar sua mensagem ao suporte.");
+        } finally {
+            setReplyLoading(false);
+        }
+    }
+
+    async function handleManualRefresh() {
+        await loadTickets(selectedTicketId);
+        if (selectedTicketId) {
+            await loadTicketDetail(selectedTicketId, { silent: true });
+        }
+    }
+
+    function handleReplyKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            void handleReplySubmit();
         }
     }
 
@@ -173,10 +244,29 @@ export function SupportTicketsPage() {
         if (!selectedTicketId) {
             setTicketDetail(null);
             setDetailError(null);
+            setReplyDraft("");
+            setReplyFeedback(null);
             return;
         }
+        setReplyDraft("");
+        setReplyFeedback(null);
         void loadTicketDetail(selectedTicketId);
     }, [selectedTicketId]);
+
+    useEffect(() => {
+        if (!selectedTicketId) return;
+
+        const interval = window.setInterval(() => {
+            void loadTickets(selectedTicketId, { silent: true });
+            void loadTicketDetail(selectedTicketId, { silent: true });
+        }, 5000);
+
+        return () => window.clearInterval(interval);
+    }, [selectedTicketId]);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }, [ticketDetail?.messages.length, selectedTicketId]);
 
     return (
         <section className="grid gap-6">
@@ -186,25 +276,25 @@ export function SupportTicketsPage() {
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">Suporte</p>
                         <h1 className="mt-2 text-3xl font-black tracking-[-0.03em] text-io-dark">Chamados da empresa</h1>
                         <p className="mt-3 text-sm leading-6 text-black/60">
-                            Acompanhe todos os chamados já criados pela sua empresa, veja o status atual de cada ticket e leia as respostas enviadas pelo time do IO Auto.
+                            Acompanhe todos os chamados da sua empresa, veja o status atual e converse com o time de suporte em uma unica tela.
                         </p>
                     </div>
 
                     <button
                         type="button"
-                        onClick={() => void loadTickets(selectedTicketId)}
+                        onClick={() => void handleManualRefresh()}
                         className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-black/10 px-4 text-sm font-semibold text-io-dark transition hover:border-black/20 hover:bg-black/[0.03]"
                     >
                         <RefreshCcw className="h-4 w-4" />
-                        Atualizar lista
+                        Atualizar conversa
                     </button>
                 </div>
 
                 <div className="mt-6 grid gap-3 md:grid-cols-4">
-                    <SummaryCard label="Total de chamados" value={String(metrics.total)} detail="Histórico completo da empresa." icon={<LifeBuoy className="h-4 w-4" />} tone="violet" />
+                    <SummaryCard label="Total de chamados" value={String(metrics.total)} detail="Historico completo da empresa." icon={<LifeBuoy className="h-4 w-4" />} tone="violet" />
                     <SummaryCard label="Em aberto" value={String(metrics.openCount)} detail="Chamados ainda em andamento." icon={<Clock3 className="h-4 w-4" />} tone="sky" />
                     <SummaryCard label="Aguardando retorno" value={String(metrics.waitingCount)} detail="Tickets esperando resposta da empresa." icon={<AlertCircle className="h-4 w-4" />} tone="amber" />
-                    <SummaryCard label="Resolvidos" value={String(metrics.resolvedCount)} detail="Chamados já finalizados." icon={<CheckCircle2 className="h-4 w-4" />} tone="emerald" />
+                    <SummaryCard label="Resolvidos" value={String(metrics.resolvedCount)} detail="Chamados ja finalizados." icon={<CheckCircle2 className="h-4 w-4" />} tone="emerald" />
                 </div>
             </div>
 
@@ -242,7 +332,7 @@ export function SupportTicketsPage() {
                                             <div className="flex flex-wrap items-start justify-between gap-2">
                                                 <div className="min-w-0">
                                                     <p className="truncate text-sm font-bold text-io-dark">{ticket.title}</p>
-                                                    <p className="mt-1 text-xs text-black/55">{ticket.bugArea || "Área não informada"}</p>
+                                                    <p className="mt-1 text-xs text-black/55">{ticket.bugArea || "Area nao informada"}</p>
                                                 </div>
                                                 <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusTone(ticket.status)}`}>
                                                     {statusLabel(ticket.status)}
@@ -256,7 +346,7 @@ export function SupportTicketsPage() {
 
                                             <div className="mt-3 text-xs text-black/45">
                                                 <p>Abertura: {formatDateTime(ticket.createdAt)}</p>
-                                                <p>Última etapa: {formatDateTime(ticket.closedAt || ticket.resolvedAt || ticket.firstResponseAt || ticket.createdAt)}</p>
+                                                <p>Ultima etapa: {formatDateTime(ticket.closedAt || ticket.resolvedAt || ticket.firstResponseAt || ticket.createdAt)}</p>
                                             </div>
                                         </button>
                                     );
@@ -266,7 +356,7 @@ export function SupportTicketsPage() {
                             <div className="rounded-[28px] border border-dashed border-black/10 bg-black/[0.02] px-5 py-10 text-center">
                                 <p className="text-base font-semibold text-io-dark">Nenhum chamado encontrado</p>
                                 <p className="mt-2 text-sm leading-6 text-black/55">
-                                    Quando sua empresa abrir tickets de suporte, eles aparecerão aqui com status e histórico de respostas.
+                                    Quando sua empresa abrir tickets de suporte, eles aparecerao aqui com status e historico de respostas.
                                 </p>
                             </div>
                         )}
@@ -276,7 +366,7 @@ export function SupportTicketsPage() {
                 <div className="rounded-[28px] border border-black/10 bg-white shadow-sm">
                     <div className="border-b border-black/6 px-5 py-4">
                         <h2 className="text-lg font-bold text-io-dark">Detalhes do chamado</h2>
-                        <p className="mt-1 text-sm text-black/55">Selecione um item da lista para acompanhar o andamento e as respostas.</p>
+                        <p className="mt-1 text-sm text-black/55">Selecione um item da lista para acompanhar o andamento e responder o suporte.</p>
                     </div>
 
                     <div className="p-5">
@@ -305,9 +395,9 @@ export function SupportTicketsPage() {
                                     </div>
 
                                     <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                                        <InfoCard label="Aberto por" value={ticketDetail.openedByName || "Usuário da empresa"} />
+                                        <InfoCard label="Aberto por" value={ticketDetail.openedByName || "Usuario da empresa"} />
                                         <InfoCard label="Abertura" value={formatDateTime(ticketDetail.createdAt)} />
-                                        <InfoCard label="Área" value={ticketDetail.bugArea || "-"} />
+                                        <InfoCard label="Area" value={ticketDetail.bugArea || "-"} />
                                         <InfoCard label="Primeira resposta" value={formatDateTime(ticketDetail.firstResponseAt)} />
                                     </div>
                                 </div>
@@ -316,7 +406,7 @@ export function SupportTicketsPage() {
                                     <div className="rounded-[28px] border border-black/8 bg-white p-5">
                                         <div className="flex items-center justify-between gap-3">
                                             <div>
-                                                <h3 className="text-base font-bold text-io-dark">Evidência anexada</h3>
+                                                <h3 className="text-base font-bold text-io-dark">Evidencia anexada</h3>
                                                 <p className="mt-1 text-sm text-black/55">{ticketDetail.evidenceFileName || "Arquivo enviado no ticket"}</p>
                                             </div>
                                         </div>
@@ -326,7 +416,7 @@ export function SupportTicketsPage() {
                                                 <video src={ticketDetail.evidenceDataUrl} controls className="max-h-[420px] w-full rounded-[20px] bg-black" />
                                             ) : (
                                                 // eslint-disable-next-line @next/next/no-img-element
-                                                <img src={ticketDetail.evidenceDataUrl} alt="Evidência do ticket" className="max-h-[420px] w-full rounded-[20px] object-contain" />
+                                                <img src={ticketDetail.evidenceDataUrl} alt="Evidencia do ticket" className="max-h-[420px] w-full rounded-[20px] object-contain" />
                                             )}
                                         </div>
                                     </div>
@@ -335,36 +425,77 @@ export function SupportTicketsPage() {
                                 <div className="rounded-[28px] border border-black/8 bg-white p-5">
                                     <div className="flex items-center justify-between gap-3">
                                         <div>
-                                            <h3 className="text-base font-bold text-io-dark">Respostas e andamento</h3>
-                                            <p className="mt-1 text-sm text-black/55">Aqui você acompanha as mensagens trocadas dentro do chamado.</p>
+                                            <h3 className="text-base font-bold text-io-dark">Conversa com o suporte</h3>
+                                            <p className="mt-1 text-sm text-black/55">As novas mensagens aparecem automaticamente enquanto o ticket estiver ativo.</p>
                                         </div>
                                         <span className="rounded-full border border-black/10 bg-black/[0.03] px-3 py-1 text-xs font-semibold text-black/55">
                                             {ticketDetail.messages.length} mensagem(ns)
                                         </span>
                                     </div>
 
-                                    <div className="mt-4 grid gap-3">
-                                        {ticketDetail.messages.map((message) => {
-                                            const fromSupport = message.senderType === "SUPPORT";
-                                            return (
-                                                <article
-                                                    key={message.id}
-                                                    className={`rounded-[24px] border px-4 py-4 ${
-                                                        fromSupport
-                                                            ? "border-cyan-200 bg-cyan-50"
-                                                            : "border-black/8 bg-black/[0.02]"
-                                                    }`}
-                                                >
-                                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                                        <p className="text-sm font-bold text-io-dark">
-                                                            {fromSupport ? "Time de suporte" : "Sua empresa"}
-                                                        </p>
-                                                        <p className="text-xs text-black/45">{formatDateTime(message.createdAt)}</p>
-                                                    </div>
-                                                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-black/65">{message.message}</p>
-                                                </article>
-                                            );
-                                        })}
+                                    <div className="mt-4 max-h-[460px] overflow-y-auto rounded-[24px] border border-black/8 bg-black/[0.02] p-3">
+                                        <div className="grid gap-3">
+                                            {ticketDetail.messages.map((message) => {
+                                                const fromSupport = message.senderType === "SUPPORT";
+                                                return (
+                                                    <article
+                                                        key={message.id}
+                                                        className={`rounded-[24px] border px-4 py-4 ${
+                                                            fromSupport
+                                                                ? "border-cyan-200 bg-cyan-50"
+                                                                : "border-black/8 bg-white"
+                                                        }`}
+                                                    >
+                                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                                            <p className="text-sm font-bold text-io-dark">
+                                                                {fromSupport ? "Time de suporte" : "Sua empresa"}
+                                                            </p>
+                                                            <p className="text-xs text-black/45">{formatDateTime(message.createdAt)}</p>
+                                                        </div>
+                                                        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-black/65">{message.message}</p>
+                                                    </article>
+                                                );
+                                            })}
+                                            {!ticketDetail.messages.length ? (
+                                                <p className="px-2 py-6 text-center text-sm text-black/55">Nenhuma mensagem registrada neste ticket.</p>
+                                            ) : null}
+                                            <div ref={messagesEndRef} />
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 rounded-[24px] border border-black/8 bg-white p-4">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <p className="text-sm font-semibold text-io-dark">Responder chamado</p>
+                                            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusTone(ticketDetail.status)}`}>
+                                                {statusLabel(ticketDetail.status)}
+                                            </span>
+                                        </div>
+                                        <p className="mt-1 text-sm text-black/55">{replyHelperText(ticketDetail.status)}</p>
+
+                                        <textarea
+                                            value={replyDraft}
+                                            onChange={(event) => setReplyDraft(event.target.value)}
+                                            onKeyDown={handleReplyKeyDown}
+                                            rows={4}
+                                            disabled={replyLoading || isTicketClosed(ticketDetail.status)}
+                                            placeholder={isTicketClosed(ticketDetail.status) ? "Ticket encerrado." : "Digite sua mensagem para o suporte"}
+                                            className="mt-4 w-full rounded-[20px] border border-black/12 px-4 py-3 text-sm leading-6 text-io-dark outline-none transition focus:border-black/25 disabled:cursor-not-allowed disabled:bg-black/[0.03]"
+                                        />
+
+                                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                                            <div className="text-sm text-black/55">
+                                                {replyFeedback ? <p>{replyFeedback}</p> : <p>Pressione Enter para enviar e Shift + Enter para quebrar linha.</p>}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleReplySubmit()}
+                                                disabled={replyLoading || !replyDraft.trim() || isTicketClosed(ticketDetail.status)}
+                                                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-io-dark px-5 text-sm font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
+                                                <SendHorizontal className="h-4 w-4" />
+                                                {replyLoading ? "Enviando..." : "Enviar mensagem"}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -372,7 +503,7 @@ export function SupportTicketsPage() {
                             <div className="rounded-[28px] border border-dashed border-black/10 bg-black/[0.02] px-5 py-12 text-center">
                                 <p className="text-base font-semibold text-io-dark">Selecione um chamado</p>
                                 <p className="mt-2 text-sm leading-6 text-black/55">
-                                    Escolha um ticket na coluna ao lado para visualizar o status atual, a evidência enviada e as respostas do suporte.
+                                    Escolha um ticket na coluna ao lado para visualizar o status atual, a evidencia enviada e as respostas do suporte.
                                 </p>
                             </div>
                         )}

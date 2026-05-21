@@ -59,6 +59,14 @@ public class SupportTicketController {
         return ResponseEntity.ok(supportTicketService.getCompanyTicket(ticketId));
     }
 
+    @PostMapping("/api/support/tickets/{ticketId}/messages")
+    public ResponseEntity<SupportTicketService.TicketMessage> addCompanyMessage(
+            @PathVariable UUID ticketId,
+            @Valid @RequestBody CreateSupportMessageHttpRequest request
+    ) {
+        return ResponseEntity.ok(supportTicketService.addCompanyMessage(ticketId, request.message()));
+    }
+
     public record CreateSupportTicketHttpRequest(
             @NotBlank @Size(max = 220) String title,
             @NotBlank String description,
@@ -75,6 +83,11 @@ public class SupportTicketController {
     public record GuidedAnswerHttpRequest(
             @NotBlank @Size(max = 220) String question,
             @NotBlank @Size(max = 300) String answer
+    ) {
+    }
+
+    public record CreateSupportMessageHttpRequest(
+            @NotBlank @Size(max = 4000) String message
     ) {
     }
 }

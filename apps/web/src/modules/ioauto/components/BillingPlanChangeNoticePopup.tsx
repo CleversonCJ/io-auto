@@ -15,7 +15,6 @@ function adjustmentModeLabel(mode?: string | null) {
 export function BillingPlanChangeNoticePopup() {
     const [billing, setBilling] = useState<BillingSnapshot | null>(null);
     const [loading, setLoading] = useState(true);
-    const [dismissing, setDismissing] = useState(false);
 
     useEffect(() => {
         let active = true;
@@ -42,16 +41,6 @@ export function BillingPlanChangeNoticePopup() {
             active = false;
         };
     }, []);
-
-    async function dismissNotice() {
-        setDismissing(true);
-        try {
-            await fetch("/api/ioauto/billing/plan-change/notice/dismiss", { method: "POST" });
-            setBilling((current) => current ? { ...current, planChangeNotice: null } : current);
-        } finally {
-            setDismissing(false);
-        }
-    }
 
     const notice = billing?.planChangeNotice;
     if (loading || !notice?.active) return null;
@@ -108,14 +97,6 @@ export function BillingPlanChangeNoticePopup() {
                     >
                         Ver faturas no perfil
                     </a>
-                    <button
-                        type="button"
-                        onClick={() => void dismissNotice()}
-                        disabled={dismissing}
-                        className="rounded-full border border-black/10 px-5 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        {dismissing ? "Fechando..." : "Entendi"}
-                    </button>
                 </div>
             </div>
         </div>

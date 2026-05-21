@@ -12,6 +12,8 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -129,6 +131,43 @@ public class SuperAdminPlanManagementService {
         JpaSubscriptionPlanEntity entity = new JpaSubscriptionPlanEntity();
         entity.setId(UUID.randomUUID());
         apply(entity, values, now, true);
+        return toRow(plans.save(entity), 0L);
+    }
+
+    @Transactional
+    public PlanRow createCustomCheckoutPlan(CreateCustomCheckoutPlanCommand command) {
+        String planName = normalizeNullable(command.planName());
+        if (planName == null) {
+            throw new BusinessException("PLAN_NAME_REQUIRED", "Informe o nome do plano personalizado.");
+        }
+
+        BigDecimal normalizedValue = normalizeCheckoutValue(command.value());
+        if (normalizedValue.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException("PLAN_PRICE_INVALID", "O valor do plano personalizado não pode ser negativo.");
+        }
+
+        String normalizedBillingPeriod = normalizeCustomCheckoutBillingPeriod(command.billingPeriod());
+        JpaSubscriptionPlanEntity template = plans.findByPlanKeyIgnoreCase(DEFAULT_CUSTOM_PLAN_KEY).orElse(null);
+        Instant now = Instant.now();
+        Long valueCents = toPriceCents(normalizedValue);
+
+        JpaSubscriptionPlanEntity entity = new JpaSubscriptionPlanEntity();
+        entity.setId(UUID.randomUUID());
+        entity.setPlanKey(generateUniquePlanKey(planName));
+        entity.setPlanName(planName);
+        entity.setDescription(resolveCustomCheckoutDescription(template));
+        entity.setBillingRecurrence(toPlanBillingRecurrence(normalizedBillingPeriod));
+        entity.setPriceCents(valueCents);
+        entity.setMonthlyPriceCents("MONTHLY".equals(entity.getBillingRecurrence()) ? valueCents : null);
+        entity.setAnnualPriceCents("ANNUAL".equals(entity.getBillingRecurrence()) ? valueCents : null);
+        entity.setCustomPlan(true);
+        entity.setSystemPlan(false);
+        entity.setActive(true);
+        entity.setSortOrder(resolveNextSortOrder(template));
+        applyTemplateLimitsAndFeatures(entity, template);
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+
         return toRow(plans.save(entity), 0L);
     }
 
@@ -670,7 +709,11 @@ public class SuperAdminPlanManagementService {
                 toFeatures(entity),
                 assignedCompaniesCount,
                 entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                entity.getUpdatedAt(),
+                entity.getCheckoutUrl(),
+                entity.getCheckoutReference(),
+                entity.getCheckoutExpiresAt(),
+                entity.getCheckoutCreatedAt()
         );
     }
 
@@ -776,6 +819,115 @@ public class SuperAdminPlanManagementService {
                 .replaceAll("^-+", "")
                 .replaceAll("-+$", "");
         return normalized.isBlank() ? null : normalized;
+    }
+
+    private BigDecimal normalizeCheckoutValue(BigDecimal value) {
+        if (value == null) return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        return value.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private Long toPriceCents(BigDecimal value) {
+        return value.movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact();
+    }
+
+    private String normalizeCustomCheckoutBillingPeriod(String raw) {
+        String normalized = normalizeNullable(raw);
+        if (normalized == null) return "monthly";
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        if ("monthly".equals(lower) || "mensal".equals(lower)) return "monthly";
+        if ("annual".equals(lower) || "yearly".equals(lower) || "anual".equals(lower)) return "annual";
+        if ("quarterly".equals(lower) || "trimestral".equals(lower)) return "quarterly";
+        if ("semiannually".equals(lower) || "semestral".equals(lower)) return "semiannually";
+        throw new BusinessException("PLAN_RECURRENCE_INVALID", "Período de cobrança do plano personalizado inválido.");
+    }
+
+    private String toPlanBillingRecurrence(String billingPeriod) {
+        return switch (billingPeriod) {
+            case "annual" -> "ANNUAL";
+            case "quarterly" -> "QUARTERLY";
+            case "semiannually" -> "SEMIANNUALLY";
+            default -> "MONTHLY";
+        };
+    }
+
+    private String generateUniquePlanKey(String planName) {
+        String base = normalizePlanKey(planName, "plano-personalizado");
+        if (base == null) {
+            base = "plano-personalizado";
+        }
+
+        String candidate = base;
+        int suffix = 2;
+        while (plans.existsByPlanKeyIgnoreCase(candidate)) {
+            candidate = base + "-" + suffix;
+            suffix += 1;
+        }
+        return candidate;
+    }
+
+    private int resolveNextSortOrder(JpaSubscriptionPlanEntity template) {
+        int highestSortOrder = plans.findAllByOrderBySortOrderAscPlanNameAsc().stream()
+                .mapToInt(JpaSubscriptionPlanEntity::getSortOrder)
+                .max()
+                .orElse(0);
+        int templateSortOrder = template != null ? template.getSortOrder() : 0;
+        return Math.max(highestSortOrder, templateSortOrder) + 1;
+    }
+
+    private String resolveCustomCheckoutDescription(JpaSubscriptionPlanEntity template) {
+        String templateDescription = template == null ? null : normalizeNullable(template.getDescription());
+        return templateDescription != null
+                ? templateDescription
+                : "Plano personalizado gerado pelo superadmin com checkout da landing.";
+    }
+
+    private void applyTemplateLimitsAndFeatures(JpaSubscriptionPlanEntity entity, JpaSubscriptionPlanEntity template) {
+        if (template != null) {
+            entity.setUsersLimit(template.getUsersLimit());
+            entity.setVehiclesLimit(template.getVehiclesLimit());
+            entity.setActiveAdsLimit(template.getActiveAdsLimit());
+            entity.setFeatureCatalogBioLink(template.isFeatureCatalogBioLink());
+            entity.setFeatureWhatsappSharing(template.isFeatureWhatsappSharing());
+            entity.setFeatureStorefrontPage(template.isFeatureStorefrontPage());
+            entity.setFeatureWebmotors(template.isFeatureWebmotors());
+            entity.setFeatureOlx(template.isFeatureOlx());
+            entity.setFeatureIcarros(template.isFeatureIcarros());
+            entity.setFeatureCrmKanban(template.isFeatureCrmKanban());
+            entity.setFeatureLeadManagement(template.isFeatureLeadManagement());
+            entity.setFeatureFinance(template.isFeatureFinance());
+            entity.setFeatureReports(template.isFeatureReports());
+            entity.setFeatureTrackableLinks(template.isFeatureTrackableLinks());
+            entity.setFeatureMultiunits(template.isFeatureMultiunits());
+            entity.setFeatureAdvancedMultiuser(template.isFeatureAdvancedMultiuser());
+            entity.setFeatureExecutiveDashboard(template.isFeatureExecutiveDashboard());
+            entity.setFeatureIntegrationsApi(template.isFeatureIntegrationsApi());
+            entity.setFeatureAssistedOnboarding(template.isFeatureAssistedOnboarding());
+            entity.setFeaturePrioritySupport(template.isFeaturePrioritySupport());
+            entity.setFeatureCustomizations(template.isFeatureCustomizations());
+            return;
+        }
+
+        entity.setUsersLimit(null);
+        entity.setVehiclesLimit(null);
+        entity.setActiveAdsLimit(null);
+        entity.setFeatureCatalogBioLink(true);
+        entity.setFeatureWhatsappSharing(true);
+        entity.setFeatureStorefrontPage(true);
+        entity.setFeatureWebmotors(true);
+        entity.setFeatureOlx(true);
+        entity.setFeatureIcarros(true);
+        entity.setFeatureCrmKanban(true);
+        entity.setFeatureLeadManagement(true);
+        entity.setFeatureFinance(true);
+        entity.setFeatureReports(true);
+        entity.setFeatureTrackableLinks(true);
+        entity.setFeatureMultiunits(true);
+        entity.setFeatureAdvancedMultiuser(true);
+        entity.setFeatureExecutiveDashboard(true);
+        entity.setFeatureIntegrationsApi(true);
+        entity.setFeatureAssistedOnboarding(true);
+        entity.setFeaturePrioritySupport(true);
+        entity.setFeatureCustomizations(true);
     }
 
     private Integer normalizeLimit(Integer value) {
@@ -890,7 +1042,11 @@ public class SuperAdminPlanManagementService {
             PlanFeatures features,
             long assignedCompaniesCount,
             Instant createdAt,
-            Instant updatedAt
+            Instant updatedAt,
+            String checkoutUrl,
+            String checkoutReference,
+            Instant checkoutExpiresAt,
+            Instant checkoutCreatedAt
     ) {
     }
 
@@ -1009,6 +1165,13 @@ public class SuperAdminPlanManagementService {
             Boolean featureAssistedOnboarding,
             Boolean featurePrioritySupport,
             Boolean featureCustomizations
+    ) {
+    }
+
+    public record CreateCustomCheckoutPlanCommand(
+            String planName,
+            String billingPeriod,
+            BigDecimal value
     ) {
     }
 }

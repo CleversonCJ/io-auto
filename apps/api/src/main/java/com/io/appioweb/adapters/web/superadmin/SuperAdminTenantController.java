@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,16 +23,13 @@ public class SuperAdminTenantController {
 
     private final SuperAdminTenantManagementService tenantManagementService;
     private final IoAutoBillingService billingService;
-    private final SuperAdminLandingCheckoutService landingCheckoutService;
 
     public SuperAdminTenantController(
             SuperAdminTenantManagementService tenantManagementService,
-            IoAutoBillingService billingService,
-            SuperAdminLandingCheckoutService landingCheckoutService
+            IoAutoBillingService billingService
     ) {
         this.tenantManagementService = tenantManagementService;
         this.billingService = billingService;
-        this.landingCheckoutService = landingCheckoutService;
     }
 
     @GetMapping("/api/superadmin/tenants")
@@ -177,26 +173,6 @@ public class SuperAdminTenantController {
         );
     }
 
-    @PostMapping("/api/superadmin/tenants/{tenantId}/manual-checkout-link")
-    @PreAuthorize("hasRole('SUPERADMIN')")
-    public ResponseEntity<SuperAdminLandingCheckoutService.ManualCheckoutLinkResult> createManualCheckoutLink(
-            @PathVariable UUID tenantId,
-            @Valid @RequestBody ManualCheckoutLinkHttpRequest request
-    ) {
-        return ResponseEntity.ok(
-                landingCheckoutService.createAndStoreManualCheckoutLink(
-                        tenantId,
-                        new SuperAdminLandingCheckoutService.ManualCheckoutLinkCommand(
-                                request.value(),
-                                request.planName(),
-                                request.billingPeriod(),
-                                request.origem(),
-                                request.expiresInMinutes()
-                        )
-                )
-        );
-    }
-
     private LocalDate parseDate(String raw) {
         if (raw == null || raw.isBlank()) return null;
         return LocalDate.parse(raw.trim());
@@ -228,12 +204,4 @@ public class SuperAdminTenantController {
     ) {
     }
 
-    public record ManualCheckoutLinkHttpRequest(
-            BigDecimal value,
-            String planName,
-            String billingPeriod,
-            String origem,
-            Integer expiresInMinutes
-    ) {
-    }
 }

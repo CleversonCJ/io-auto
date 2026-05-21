@@ -125,7 +125,12 @@ public class SuperAdminTenantManagementService {
                     c.subscription_started_at,
                     c.created_at,
                     c.last_access_at,
-                    upper(coalesce(nullif(c.subscription_status, ''), nullif(c.status, ''), 'ACTIVE')) as subscription_status,
+                    upper(
+                        case
+                            when upper(coalesce(c.status, '')) = 'BLOCKED' then 'BLOCKED'
+                            else coalesce(nullif(c.subscription_status, ''), nullif(c.status, ''), 'ACTIVE')
+                        end
+                    ) as subscription_status,
                     coalesce(nullif(latest_billing.plan_name, ''), plan.plan_name, 'Start') as plan_name,
                     coalesce(nullif(latest_billing.plan_key, ''), plan.plan_key, 'start') as plan_key,
                     coalesce(

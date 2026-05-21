@@ -1,7 +1,7 @@
 package com.io.appioweb.adapters.web.superadmin;
 
-import com.io.appioweb.adapters.persistence.auth.CompanyRepositoryJpa;
-import com.io.appioweb.adapters.persistence.auth.JpaCompanyEntity;
+import com.io.appioweb.adapters.persistence.superadmin.JpaSubscriptionPlanEntity;
+import com.io.appioweb.adapters.persistence.superadmin.SubscriptionPlanRepositoryJpa;
 import com.io.appioweb.shared.errors.BusinessException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -26,22 +26,22 @@ public class SuperAdminLandingCheckoutService {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().build();
 
-    private final CompanyRepositoryJpa companies;
+    private final SubscriptionPlanRepositoryJpa plans;
     private final String checkoutEndpointUrl;
     private final String checkoutBearerToken;
 
     public SuperAdminLandingCheckoutService(
-            CompanyRepositoryJpa companies,
+            SubscriptionPlanRepositoryJpa plans,
             @Value("${IOAUTO_LANDING_CHECKOUT_URL:https://ioauto.com.br/api/checkout/link}") String checkoutEndpointUrl,
             @Value("${IOAUTO_LANDING_CHECKOUT_BEARER:}") String checkoutBearerToken
     ) {
-        this.companies = companies;
+        this.plans = plans;
         this.checkoutEndpointUrl = normalizeText(checkoutEndpointUrl);
         this.checkoutBearerToken = normalizeText(checkoutBearerToken);
     }
 
     @Transactional
-    public ManualCheckoutLinkResult createAndStoreManualCheckoutLink(UUID companyId, ManualCheckoutLinkCommand command) {
+    public ManualCheckoutLinkResult createAndStorePlanCheckoutLink(UUID planId, ManualCheckoutLinkCommand command) {
         if (checkoutEndpointUrl.isBlank()) {
             throw new BusinessException("MANUAL_CHECKOUT_NOT_CONFIGURED", "URL da landing para gerar checkout não foi configurada.");
         }
@@ -49,8 +49,8 @@ public class SuperAdminLandingCheckoutService {
             throw new BusinessException("MANUAL_CHECKOUT_NOT_CONFIGURED", "Token da landing para gerar checkout não foi configurado.");
         }
 
-        JpaCompanyEntity company = companies.findById(companyId)
-                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa não encontrada."));
+        JpaSubscriptionPlanEntity plan = plans.findById(planId)
+                .orElseThrow(() -> new BusinessException("PLAN_NOT_FOUND", "Plano não encontrado."));
 
         String planName = normalizeText(command.planName());
         if (planName.isBlank()) {
@@ -58,12 +58,12 @@ public class SuperAdminLandingCheckoutService {
         }
 
         BigDecimal value = normalizeValue(command.value());
-        if (value.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException("MANUAL_CHECKOUT_VALUE_INVALID", "O valor do plano personalizado deve ser maior que zero.");
+        if (value.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException("MANUAL_CHECKOUT_VALUE_INVALID", "O valor do plano personalizado não pode ser negativo.");
         }
 
         String billingPeriod = normalizeBillingPeriod(command.billingPeriod());
-        String origin = normalizeText(command.origem(), "superadmin-manual:" + companyId);
+        String origin = normalizeText(command.origem(), "superadmin-custom-plan:" + planId);
         int expiresInMinutes = normalizeExpiresInMinutes(command.expiresInMinutes());
 
         ObjectNode payload = OBJECT_MAPPER.createObjectNode();
@@ -104,14 +104,14 @@ public class SuperAdminLandingCheckoutService {
         ));
 
         Instant now = Instant.now();
-        company.setManualCheckoutUrl(paymentUrl);
-        company.setManualCheckoutReference(reference);
-        company.setManualCheckoutCreatedAt(now);
-        company.setManualCheckoutExpiresAt(expiresAt);
-        company.setUpdatedAt(now);
-        companies.save(company);
+        plan.setCheckoutUrl(paymentUrl);
+        plan.setCheckoutReference(reference);
+        plan.setCheckoutCreatedAt(now);
+        plan.setCheckoutExpiresAt(expiresAt);
+        plan.setUpdatedAt(now);
+        plans.save(plan);
 
-        return new ManualCheckoutLinkResult(companyId, paymentUrl, reference, expiresAt);
+        return new ManualCheckoutLinkResult(planId, paymentUrl, reference, expiresAt);
     }
 
     private JsonNode executeCheckoutRequest(ObjectNode payload) {
@@ -227,7 +227,7 @@ public class SuperAdminLandingCheckoutService {
     }
 
     public record ManualCheckoutLinkResult(
-            UUID companyId,
+            UUID planId,
             String checkoutUrl,
             String checkoutReference,
             Instant expiresAt

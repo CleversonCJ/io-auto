@@ -8,7 +8,7 @@ public record CompletePasswordSetupHttpRequest(
         String token,
 
         @NotBlank(message = "Informe a nova senha.")
-        @Size(min = 6, message = "A senha deve ter pelo menos 6 caracteres.")
+        @Size(min = 8, message = "A senha deve conter no minimo 8 caracteres.")
         String password
 ) {
 }

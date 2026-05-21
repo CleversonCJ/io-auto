@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { BadgeCheck, CalendarClock, Camera, ExternalLink, Loader2, Mail, ReceiptText, ShieldCheck, UserCircle2 } from "lucide-react";
+import { BadgeCheck, CalendarClock, Camera, ExternalLink, Loader2, Mail, ReceiptText, ShieldCheck, UserCircle2, X } from "lucide-react";
 import { SubscriptionCenter } from "@/modules/ioauto/components/SubscriptionCenter";
 import type { BillingSnapshot } from "@/modules/ioauto/types";
 import { formatDateTime, formatMoney } from "@/modules/ioauto/formatters";
@@ -22,6 +22,23 @@ type CurrentUser = {
 };
 
 const MAX_PROFILE_IMAGE_BYTES = 5 * 1024 * 1024;
+const PROFILE_EDITOR_FRAME_SIZE = 320;
+const PROFILE_IMAGE_OUTPUT_SIZE = 512;
+
+type LoadedProfileImage = {
+    image: HTMLImageElement;
+    objectUrl: string;
+    outputType: string;
+    naturalWidth: number;
+    naturalHeight: number;
+};
+
+type ProfileImageEditorState = {
+    source: LoadedProfileImage;
+    zoom: number;
+    positionX: number;
+    positionY: number;
+};
 
 function getInitials(fullName?: string | null, email?: string | null) {
     const source = (fullName?.trim() || email?.trim() || "IOAuto").split(/\s+/).filter(Boolean);
@@ -68,7 +85,28 @@ function formatBillingDate(value?: string | null) {
     return formatDateTime(value);
 }
 
-async function compressProfileImage(file: File) {
+function clamp(value: number, min: number, max: number) {
+    return Math.min(max, Math.max(min, value));
+}
+
+function resolveCoverLayout(width: number, height: number, frameSize: number, zoom: number, positionX: number, positionY: number) {
+    const baseScale = Math.max(frameSize / Math.max(width, 1), frameSize / Math.max(height, 1));
+    const scaledWidth = width * baseScale * zoom;
+    const scaledHeight = height * baseScale * zoom;
+    const maxOffsetX = Math.max(0, scaledWidth - frameSize);
+    const maxOffsetY = Math.max(0, scaledHeight - frameSize);
+    const left = -maxOffsetX * ((clamp(positionX, -1, 1) + 1) / 2);
+    const top = -maxOffsetY * ((clamp(positionY, -1, 1) + 1) / 2);
+
+    return {
+        scaledWidth,
+        scaledHeight,
+        left,
+        top,
+    };
+}
+
+async function loadProfileImage(file: File): Promise<LoadedProfileImage> {
     if (!file.type.startsWith("image/")) {
         throw new Error("Selecione apenas arquivos de imagem.");
     }
@@ -85,26 +123,45 @@ async function compressProfileImage(file: File) {
             nextImage.src = objectUrl;
         });
 
-        const maxDimension = 1200;
-        const width = image.naturalWidth || image.width || 1;
-        const height = image.naturalHeight || image.height || 1;
-        const scale = Math.min(1, maxDimension / Math.max(width, height, 1));
-        const outputWidth = Math.max(1, Math.round(width * scale));
-        const outputHeight = Math.max(1, Math.round(height * scale));
-
-        const canvas = document.createElement("canvas");
-        canvas.width = outputWidth;
-        canvas.height = outputHeight;
-
-        const context = canvas.getContext("2d");
-        if (!context) throw new Error("Nao foi possivel preparar a imagem para upload.");
-
-        context.drawImage(image, 0, 0, outputWidth, outputHeight);
-        const outputType = file.type === "image/png" ? "image/png" : "image/jpeg";
-        return canvas.toDataURL(outputType, outputType === "image/jpeg" ? 0.84 : undefined);
-    } finally {
+        return {
+            image,
+            objectUrl,
+            outputType: file.type === "image/png" ? "image/png" : "image/jpeg",
+            naturalWidth: image.naturalWidth || image.width || 1,
+            naturalHeight: image.naturalHeight || image.height || 1,
+        };
+    } catch (error) {
         URL.revokeObjectURL(objectUrl);
+        throw error;
     }
+}
+
+function exportAdjustedProfileImage(editor: ProfileImageEditorState) {
+    const canvas = document.createElement("canvas");
+    canvas.width = PROFILE_IMAGE_OUTPUT_SIZE;
+    canvas.height = PROFILE_IMAGE_OUTPUT_SIZE;
+
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Nao foi possivel preparar a imagem para upload.");
+
+    const layout = resolveCoverLayout(
+        editor.source.naturalWidth,
+        editor.source.naturalHeight,
+        PROFILE_IMAGE_OUTPUT_SIZE,
+        editor.zoom,
+        editor.positionX,
+        editor.positionY,
+    );
+
+    context.drawImage(
+        editor.source.image,
+        layout.left,
+        layout.top,
+        layout.scaledWidth,
+        layout.scaledHeight,
+    );
+
+    return canvas.toDataURL(editor.source.outputType, editor.source.outputType === "image/jpeg" ? 0.84 : undefined);
 }
 
 export function ProfileCenter() {
@@ -113,6 +170,7 @@ export function ProfileCenter() {
     const [error, setError] = useState<string | null>(null);
     const [profileImageSaving, setProfileImageSaving] = useState(false);
     const [profileImageFeedback, setProfileImageFeedback] = useState<string | null>(null);
+    const [profileImageEditor, setProfileImageEditor] = useState<ProfileImageEditorState | null>(null);
     const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
@@ -170,16 +228,68 @@ export function ProfileCenter() {
         });
     }, [user?.roles]);
 
+    const editorPreviewLayout = useMemo(() => {
+        if (!profileImageEditor) return null;
+        return resolveCoverLayout(
+            profileImageEditor.source.naturalWidth,
+            profileImageEditor.source.naturalHeight,
+            PROFILE_EDITOR_FRAME_SIZE,
+            profileImageEditor.zoom,
+            profileImageEditor.positionX,
+            profileImageEditor.positionY,
+        );
+    }, [profileImageEditor]);
+
+    useEffect(() => {
+        const objectUrl = profileImageEditor?.source.objectUrl;
+        return () => {
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+            }
+        };
+    }, [profileImageEditor?.source.objectUrl]);
+
     async function handleProfileImageSelected(event: ChangeEvent<HTMLInputElement>) {
         const file = event.target.files?.[0] ?? null;
         event.target.value = "";
         if (!file || !user) return;
 
+        try {
+            setProfileImageFeedback(null);
+            const source = await loadProfileImage(file);
+            setProfileImageEditor((previous) => {
+                if (previous?.source.objectUrl) {
+                    URL.revokeObjectURL(previous.source.objectUrl);
+                }
+                return {
+                    source,
+                    zoom: 1,
+                    positionX: 0,
+                    positionY: 0,
+                };
+            });
+        } catch (cause) {
+            setProfileImageFeedback(cause instanceof Error ? cause.message : "Nao foi possivel carregar a imagem selecionada.");
+        }
+    }
+
+    function closeProfileImageEditor() {
+        setProfileImageEditor((previous) => {
+            if (previous?.source.objectUrl) {
+                URL.revokeObjectURL(previous.source.objectUrl);
+            }
+            return null;
+        });
+    }
+
+    async function handleProfileImageSave() {
+        if (!profileImageEditor || !user) return;
+
         setProfileImageSaving(true);
         setProfileImageFeedback(null);
 
         try {
-            const profileImageUrl = await compressProfileImage(file);
+            const profileImageUrl = exportAdjustedProfileImage(profileImageEditor);
             const response = await fetch("/api/auth/me/profile-image", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
@@ -198,6 +308,7 @@ export function ProfileCenter() {
             setProfileImageFeedback(canSyncCompanyLogo
                 ? "Foto atualizada com sucesso. A logo da empresa tambem foi atualizada."
                 : "Foto atualizada com sucesso.");
+            closeProfileImageEditor();
         } catch (cause) {
             setProfileImageFeedback(cause instanceof Error ? cause.message : "Nao foi possivel atualizar a foto de perfil.");
         } finally {
@@ -210,6 +321,7 @@ export function ProfileCenter() {
     }
 
     return (
+        <>
         <div className="grid gap-6">
             <section className="rounded-[36px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                 <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
@@ -471,6 +583,124 @@ export function ProfileCenter() {
                 onBillingChange={setBilling}
             /> : null}
         </div>
+
+        {profileImageEditor && editorPreviewLayout ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
+                <div className="w-full max-w-3xl rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_32px_80px_rgba(0,0,0,0.28)]">
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Ajustar foto</p>
+                            <h2 className="mt-2 font-display text-3xl font-bold text-io-dark">Posicione sua imagem antes de salvar</h2>
+                            <p className="mt-2 text-sm leading-6 text-black/55">
+                                Ajuste o enquadramento para evitar cortes indesejados na foto de perfil.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={closeProfileImageEditor}
+                            disabled={profileImageSaving}
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 text-black/65 transition hover:border-black/20 hover:text-io-dark disabled:opacity-60"
+                            aria-label="Fechar ajuste da foto"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+                    </div>
+
+                    <div className="mt-6 grid gap-6 lg:grid-cols-[360px_1fr] lg:items-start">
+                        <div className="rounded-[28px] border border-black/10 bg-black/[0.02] p-5">
+                            <div
+                                className="relative mx-auto overflow-hidden rounded-[28px] border border-black/10 bg-black/5"
+                                style={{ width: PROFILE_EDITOR_FRAME_SIZE, height: PROFILE_EDITOR_FRAME_SIZE }}
+                            >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src={profileImageEditor.source.objectUrl}
+                                    alt="Previa da foto de perfil"
+                                    className="pointer-events-none absolute max-w-none select-none"
+                                    style={{
+                                        width: editorPreviewLayout.scaledWidth,
+                                        height: editorPreviewLayout.scaledHeight,
+                                        left: editorPreviewLayout.left,
+                                        top: editorPreviewLayout.top,
+                                    }}
+                                />
+                            </div>
+                            <p className="mt-4 text-center text-xs text-black/45">
+                                Esta previa mostra exatamente como a foto ficara no perfil.
+                            </p>
+                        </div>
+
+                        <div className="grid gap-5">
+                            <label className="grid gap-2">
+                                <span className="text-sm font-semibold text-io-dark">Zoom</span>
+                                <input
+                                    type="range"
+                                    min={1}
+                                    max={3}
+                                    step={0.01}
+                                    value={profileImageEditor.zoom}
+                                    onChange={(event) => setProfileImageEditor((previous) => previous ? ({ ...previous, zoom: Number(event.target.value) }) : previous)}
+                                />
+                                <span className="text-xs text-black/50">{Math.round(profileImageEditor.zoom * 100)}%</span>
+                            </label>
+
+                            <label className="grid gap-2">
+                                <span className="text-sm font-semibold text-io-dark">Posicao horizontal</span>
+                                <input
+                                    type="range"
+                                    min={-1}
+                                    max={1}
+                                    step={0.01}
+                                    value={profileImageEditor.positionX}
+                                    onChange={(event) => setProfileImageEditor((previous) => previous ? ({ ...previous, positionX: Number(event.target.value) }) : previous)}
+                                />
+                            </label>
+
+                            <label className="grid gap-2">
+                                <span className="text-sm font-semibold text-io-dark">Posicao vertical</span>
+                                <input
+                                    type="range"
+                                    min={-1}
+                                    max={1}
+                                    step={0.01}
+                                    value={profileImageEditor.positionY}
+                                    onChange={(event) => setProfileImageEditor((previous) => previous ? ({ ...previous, positionY: Number(event.target.value) }) : previous)}
+                                />
+                            </label>
+
+                            <div className="flex flex-wrap gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setProfileImageEditor((previous) => previous ? ({ ...previous, zoom: 1, positionX: 0, positionY: 0 }) : previous)}
+                                    disabled={profileImageSaving}
+                                    className="inline-flex h-11 items-center justify-center rounded-full border border-black/12 px-5 text-sm font-semibold text-io-dark disabled:opacity-60"
+                                >
+                                    Reposicionar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={closeProfileImageEditor}
+                                    disabled={profileImageSaving}
+                                    className="inline-flex h-11 items-center justify-center rounded-full border border-black/12 px-5 text-sm font-semibold text-io-dark disabled:opacity-60"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => void handleProfileImageSave()}
+                                    disabled={profileImageSaving}
+                                    className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-io-dark px-5 text-sm font-semibold text-white disabled:opacity-60"
+                                >
+                                    {profileImageSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                    {profileImageSaving ? "Salvando..." : "Salvar foto"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        ) : null}
+        </>
     );
 }
 

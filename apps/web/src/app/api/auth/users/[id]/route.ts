@@ -37,7 +37,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         profileImageUrl: body.profileImageUrl,
         jobTitle: body.jobTitle,
         birthDate: body.birthDate,
-        password: body.password ?? "",
+        password: body.password?.trim() ? body.password : undefined,
         permissionPreset: body.permissionPreset,
         modulePermissions: body.modulePermissions,
         teamId: body.teamId,

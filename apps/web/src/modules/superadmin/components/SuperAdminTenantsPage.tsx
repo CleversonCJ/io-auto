@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Ban, ClipboardList, KeyRound, LogIn, PencilLine, Plus, X } from "lucide-react";
+import { Ban, ClipboardList, KeyRound, LockOpen, LogIn, PencilLine, Plus, X } from "lucide-react";
+import { SuperAdminCustomPlanCheckoutModal } from "@/modules/superadmin/components/SuperAdminCustomPlanCheckoutModal";
 import { SuperAdminTenantPlanChangeModal } from "@/modules/superadmin/components/SuperAdminTenantPlanChangeModal";
 import { SuperAdminTenantCreateModal } from "@/modules/superadmin/components/SuperAdminTenantCreateModal";
 
@@ -147,6 +148,20 @@ function statusClasses(status: string) {
     return "bg-black/10 text-black/60";
 }
 
+function statusLabel(status?: string | null) {
+    const normalized = String(status ?? "").trim().toUpperCase();
+    if (!normalized) return "-";
+    if (normalized === "BLOCKED") return "blocked";
+    return titleCase(normalized);
+}
+
+function blockButtonClasses(blocked: boolean) {
+    if (blocked) {
+        return "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100";
+    }
+    return "border-red-200 bg-red-50 text-red-700 hover:bg-red-100";
+}
+
 export function SuperAdminTenantsPage() {
     const router = useRouter();
     const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
@@ -157,6 +172,7 @@ export function SuperAdminTenantsPage() {
     const [busyAction, setBusyAction] = useState<string | null>(null);
     const [planTenant, setPlanTenant] = useState<TenantRow | null>(null);
     const [createTenantOpen, setCreateTenantOpen] = useState(false);
+    const [createCustomPlanOpen, setCreateCustomPlanOpen] = useState(false);
     const [logsTenant, setLogsTenant] = useState<TenantRow | null>(null);
     const [logsRows, setLogsRows] = useState<TenantAdminLogRow[]>([]);
     const [logsLoading, setLogsLoading] = useState(false);
@@ -308,6 +324,7 @@ export function SuperAdminTenantsPage() {
 
     function closeAllOverlays() {
         setCreateTenantOpen(false);
+        setCreateCustomPlanOpen(false);
         setPlanTenant(null);
         setLogsTenant(null);
         setResetResult(null);
@@ -383,6 +400,14 @@ export function SuperAdminTenantsPage() {
                     </button>
                     <button
                         type="button"
+                        onClick={() => setCreateCustomPlanOpen(true)}
+                        className="inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-semibold text-io-dark transition hover:border-black/20"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Plano personalizado
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => {
                             setFilters(DEFAULT_FILTERS);
                             void loadTenants(DEFAULT_FILTERS);
@@ -437,8 +462,8 @@ export function SuperAdminTenantsPage() {
                                                 <p className="mt-1 text-xs text-black/55">Contrato: {toCurrency(row.subscriptionAmountCents)}</p>
                                             </td>
                                             <td className="px-3 py-4 align-top">
-                                                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${statusClasses(row.status || "")}`}>
-                                                    {titleCase(row.status)}
+                                                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold tracking-[0.18em] ${statusClasses(row.status || "")}`}>
+                                                    {statusLabel(row.status)}
                                                 </span>
                                             </td>
                                             <td className="px-3 py-4 align-top text-sm text-black/60">{toBrDate(row.entryDate)}</td>
@@ -478,9 +503,9 @@ export function SuperAdminTenantsPage() {
                                                         aria-label={blocked ? "Desbloquear tenant" : "Bloquear tenant"}
                                                         onClick={() => setActionModal({ type: "block", tenant: row })}
                                                         disabled={busyAction === `${blocked ? "unblock" : "block"}:${row.tenantId}`}
-                                                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                                                        className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition disabled:opacity-60 ${blockButtonClasses(blocked)}`}
                                                     >
-                                                        <Ban className="h-4 w-4" />
+                                                        {blocked ? <LockOpen className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
                                                     </button>
                                                     <button
                                                         type="button"
@@ -535,6 +560,15 @@ export function SuperAdminTenantsPage() {
                     onCreated={async (message) => {
                         setFeedback(message);
                         await loadTenants();
+                    }}
+                />
+            ) : null}
+
+            {createCustomPlanOpen ? (
+                <SuperAdminCustomPlanCheckoutModal
+                    onClose={() => setCreateCustomPlanOpen(false)}
+                    onCreated={async (message) => {
+                        setFeedback(message);
                     }}
                 />
             ) : null}
@@ -629,6 +663,11 @@ export function SuperAdminTenantsPage() {
                                 : "Tem certeza que deseja gerar um reset de senha para esse tenant?"}
                         </p>
                         <div className="mt-6 flex justify-end gap-2">
+                            {actionModal.type === "block" ? (
+                                <div className="mr-auto inline-flex items-center rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-black/45">
+                                    {actionModal.tenant.status?.toUpperCase() === "BLOCKED" ? "Acao: desbloquear" : "Acao: bloquear"}
+                                </div>
+                            ) : null}
                             <button type="button" onClick={closeAllOverlays} className="h-10 rounded-full border border-black/10 px-4 text-sm font-semibold text-io-dark">
                                 Cancelar
                             </button>
@@ -640,7 +679,13 @@ export function SuperAdminTenantsPage() {
                                         ? busyAction === `${actionModal.tenant.status?.toUpperCase() === "BLOCKED" ? "unblock" : "block"}:${actionModal.tenant.tenantId}`
                                         : busyAction === `reset:${actionModal.tenant.tenantId}`
                                 }
-                                className="h-10 rounded-full bg-io-dark px-4 text-sm font-semibold text-white disabled:opacity-60"
+                                className={`h-10 rounded-full px-4 text-sm font-semibold text-white disabled:opacity-60 ${
+                                    actionModal.type === "block"
+                                        ? actionModal.tenant.status?.toUpperCase() === "BLOCKED"
+                                            ? "bg-emerald-600"
+                                            : "bg-red-600"
+                                        : "bg-io-dark"
+                                }`}
                             >
                                 {actionModal.type === "block"
                                     ? busyAction === `${actionModal.tenant.status?.toUpperCase() === "BLOCKED" ? "unblock" : "block"}:${actionModal.tenant.tenantId}`

@@ -279,6 +279,47 @@ public class SupportTicketService {
         );
     }
 
+    @Transactional
+    public TicketMessage addCompanyMessage(UUID ticketId, String body) {
+        JpaSupportTicketEntity ticket = tickets.findById(ticketId)
+                .orElseThrow(() -> new BusinessException("SUPPORT_TICKET_NOT_FOUND", "Ticket de suporte nao encontrado."));
+
+        if (!currentUser.companyId().equals(ticket.getCompanyId())) {
+            throw new BusinessException("SUPPORT_TICKET_NOT_FOUND", "Ticket de suporte nao encontrado.");
+        }
+        if ("CLOSED".equalsIgnoreCase(ticket.getStatus())) {
+            throw new BusinessException("SUPPORT_TICKET_CLOSED", "Este ticket ja foi encerrado e nao aceita novas mensagens.");
+        }
+
+        String messageBody = requireText(body, "SUPPORT_TICKET_MESSAGE_REQUIRED", "Informe a sua mensagem.");
+        Instant now = Instant.now();
+
+        JpaSupportTicketMessageEntity message = new JpaSupportTicketMessageEntity();
+        message.setId(UUID.randomUUID());
+        message.setTicketId(ticket.getId());
+        message.setSenderUserId(currentUser.userId());
+        message.setSenderType("CUSTOMER");
+        message.setMessage(messageBody);
+        message.setCreatedAt(now);
+        messages.save(message);
+
+        String currentStatus = normalizeNullable(ticket.getStatus());
+        if (currentStatus == null || "OPEN".equalsIgnoreCase(currentStatus) || "WAITING_CUSTOMER".equalsIgnoreCase(currentStatus) || "RESOLVED".equalsIgnoreCase(currentStatus)) {
+            ticket.setStatus("IN_PROGRESS");
+        }
+        ticket.setUpdatedAt(now);
+        tickets.save(ticket);
+
+        return new TicketMessage(
+                message.getId(),
+                message.getTicketId(),
+                message.getSenderUserId(),
+                message.getSenderType(),
+                message.getMessage(),
+                message.getCreatedAt()
+        );
+    }
+
     private TicketDetail toDetail(
             JpaSupportTicketEntity ticket,
             List<JpaSupportTicketMessageEntity> ticketMessages,

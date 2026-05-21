@@ -44,6 +44,10 @@ type PlanRow = {
     assignedCompaniesCount: number;
     createdAt: string;
     updatedAt: string;
+    checkoutUrl?: string | null;
+    checkoutReference?: string | null;
+    checkoutExpiresAt?: string | null;
+    checkoutCreatedAt?: string | null;
 };
 
 type PlanFormState = {
@@ -151,7 +155,7 @@ async function fetchJson<T>(url: string, init?: RequestInit, fallbackMessage = "
 }
 
 function toCurrency(cents?: number | null) {
-    if (cents == null || cents <= 0) return "Sob consulta";
+    if (cents == null) return "Sob consulta";
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 }
 
@@ -182,8 +186,8 @@ function buildFormFromPlan(plan: PlanRow): PlanFormState {
         planName: plan.planName ?? "",
         planKey: plan.planKey ?? "",
         description: plan.description ?? "",
-        monthlyPrice: plan.monthlyPriceCents ? String(plan.monthlyPriceCents) : "",
-        annualPrice: plan.annualPriceCents ? String(plan.annualPriceCents) : "",
+        monthlyPrice: plan.monthlyPriceCents != null ? String(plan.monthlyPriceCents) : "",
+        annualPrice: plan.annualPriceCents != null ? String(plan.annualPriceCents) : "",
         customPlan: Boolean(plan.customPlan),
         systemPlan: Boolean(plan.systemPlan),
         active: Boolean(plan.active),
@@ -235,6 +239,13 @@ function buildPayload(form: PlanFormState) {
         featurePrioritySupport: form.features.prioritySupport,
         featureCustomizations: form.features.customizations,
     };
+}
+
+function toBrDateTime(value?: string | null) {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString("pt-BR");
 }
 
 export function SuperAdminPlansPage() {
@@ -432,6 +443,17 @@ export function SuperAdminPlansPage() {
                                                 </div>
                                                 <p className="mt-1 text-xs text-black/45">Chave: {plan.planKey}</p>
                                                 <p className="mt-2 max-w-[320px] text-sm text-black/55">{plan.description || "Sem descricao comercial."}</p>
+                                                {plan.checkoutUrl ? (
+                                                    <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-xs text-emerald-800">
+                                                        <p className="font-semibold uppercase tracking-[0.16em] text-emerald-700">Checkout salvo</p>
+                                                        <a href={plan.checkoutUrl} target="_blank" rel="noreferrer" className="mt-2 block break-all font-semibold underline">
+                                                            {plan.checkoutUrl}
+                                                        </a>
+                                                        <p className="mt-2 text-emerald-700/80">
+                                                            {toBrDateTime(plan.checkoutExpiresAt) ? `Expira em ${toBrDateTime(plan.checkoutExpiresAt)}` : "Sem expiracao informada"}
+                                                        </p>
+                                                    </div>
+                                                ) : null}
                                             </td>
                                             <td className="px-3 py-4 align-top">
                                                 <p className="text-sm font-semibold text-io-dark">Mensal: {toCurrency(plan.monthlyPriceCents)}</p>
