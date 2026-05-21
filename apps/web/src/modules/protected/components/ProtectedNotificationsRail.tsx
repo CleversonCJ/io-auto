@@ -196,137 +196,139 @@ export function ProtectedNotificationsRail() {
 
             {open ? (
                 <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4">
-                    <form onSubmit={handleSubmit} className="w-full max-w-2xl rounded-3xl border border-black/10 bg-white p-6 shadow-xl">
+                    <form onSubmit={handleSubmit} className="flex max-h-[calc(100vh-32px)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-black/10 bg-white shadow-xl">
                         <div className="flex items-start justify-between gap-3">
-                            <div>
+                            <div className="px-6 pt-6">
                                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Suporte IO Auto</p>
                                 <h2 className="mt-1 text-2xl font-bold text-io-dark">Abrir ticket</h2>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setOpen(false)}
-                                className="rounded-full border border-black/10 p-2 text-black/55 transition hover:bg-black/5"
+                                className="mr-6 mt-6 rounded-full border border-black/10 p-2 text-black/55 transition hover:bg-black/5"
                                 aria-label="Fechar"
                             >
                                 <X className="h-4 w-4" />
                             </button>
                         </div>
 
-                        <div className="mt-4 grid gap-3">
-                            <input
-                                value={title}
-                                onChange={(event) => setTitle(event.target.value)}
-                                placeholder="Titulo do ticket"
-                                maxLength={220}
-                                required
-                                className="h-11 rounded-xl border border-black/12 px-3 text-sm"
-                            />
+                        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
+                            <div className="mt-4 grid gap-3">
+                                <input
+                                    value={title}
+                                    onChange={(event) => setTitle(event.target.value)}
+                                    placeholder="Titulo do ticket"
+                                    maxLength={220}
+                                    required
+                                    className="h-11 rounded-xl border border-black/12 px-3 text-sm"
+                                />
 
-                            <textarea
-                                value={description}
-                                onChange={(event) => setDescription(event.target.value)}
-                                placeholder="Explique o problema em detalhes"
-                                required
-                                rows={4}
-                                className="rounded-xl border border-black/12 px-3 py-2 text-sm"
-                            />
+                                <textarea
+                                    value={description}
+                                    onChange={(event) => setDescription(event.target.value)}
+                                    placeholder="Explique o problema em detalhes"
+                                    required
+                                    rows={4}
+                                    className="rounded-xl border border-black/12 px-3 py-2 text-sm"
+                                />
 
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                <label className="grid gap-1 text-xs text-black/55">
-                                    Categoria
-                                    <select value={category} onChange={(event) => setCategory(event.target.value)} required className="h-11 rounded-xl border border-black/12 px-3 text-sm text-io-dark">
-                                        <option value="BUG">Bug</option>
-                                        <option value="QUESTION">Duvida</option>
-                                        <option value="BILLING">Cobranca</option>
-                                        <option value="INTEGRATION">Integracao</option>
-                                        <option value="FEATURE_REQUEST">Solicitacao de feature</option>
-                                        <option value="OTHER">Outro</option>
-                                    </select>
-                                </label>
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    <label className="grid gap-1 text-xs text-black/55">
+                                        Categoria
+                                        <select value={category} onChange={(event) => setCategory(event.target.value)} required className="h-11 rounded-xl border border-black/12 px-3 text-sm text-io-dark">
+                                            <option value="BUG">Bug</option>
+                                            <option value="QUESTION">Duvida</option>
+                                            <option value="BILLING">Cobranca</option>
+                                            <option value="INTEGRATION">Integracao</option>
+                                            <option value="FEATURE_REQUEST">Solicitacao de feature</option>
+                                            <option value="OTHER">Outro</option>
+                                        </select>
+                                    </label>
 
-                                <label className="grid gap-1 text-xs text-black/55">
-                                    Area do bug
-                                    <input
-                                        value={bugArea}
-                                        onChange={(event) => setBugArea(event.target.value)}
-                                        placeholder="Ex.: Publicacoes / Financeiro"
-                                        maxLength={120}
-                                        required
-                                        className="h-11 rounded-xl border border-black/12 px-3 text-sm"
-                                    />
-                                </label>
-                            </div>
+                                    <label className="grid gap-1 text-xs text-black/55">
+                                        Area do bug
+                                        <input
+                                            value={bugArea}
+                                            onChange={(event) => setBugArea(event.target.value)}
+                                            placeholder="Ex.: Publicacoes / Financeiro"
+                                            maxLength={120}
+                                            required
+                                            className="h-11 rounded-xl border border-black/12 px-3 text-sm"
+                                        />
+                                    </label>
+                                </div>
 
-                            <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-4">
-                                <div className="flex flex-wrap items-start justify-between gap-3">
-                                    <div>
-                                        <p className="text-sm font-semibold text-io-dark">Imagem ou video do bug</p>
-                                        <p className="mt-1 text-xs text-black/55">Obrigatorio. Aceita imagem ate {formatBytes(MAX_IMAGE_BYTES)} ou video ate {formatBytes(MAX_VIDEO_BYTES)}.</p>
+                                <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-4">
+                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-semibold text-io-dark">Imagem ou video do bug</p>
+                                            <p className="mt-1 text-xs text-black/55">Obrigatorio. Aceita imagem ate {formatBytes(MAX_IMAGE_BYTES)} ou video ate {formatBytes(MAX_VIDEO_BYTES)}.</p>
+                                        </div>
+                                        {attachment ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setAttachment(null);
+                                                    setAttachmentInputKey((current) => current + 1);
+                                                }}
+                                                className="rounded-full border border-black/12 px-3 py-1 text-xs font-semibold text-black/65"
+                                            >
+                                                Remover arquivo
+                                            </button>
+                                        ) : null}
                                     </div>
+
+                                    <input
+                                        key={attachmentInputKey}
+                                        type="file"
+                                        accept="image/*,video/*"
+                                        required
+                                        onChange={(event) => void handleEvidenceChange(event)}
+                                        className="mt-3 block w-full rounded-xl border border-black/12 bg-white px-3 py-2 text-sm"
+                                    />
+
                                     {attachment ? (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setAttachment(null);
-                                                setAttachmentInputKey((current) => current + 1);
-                                            }}
-                                            className="rounded-full border border-black/12 px-3 py-1 text-xs font-semibold text-black/65"
-                                        >
-                                            Remover arquivo
-                                        </button>
+                                        <div className="mt-3 grid gap-3 rounded-2xl border border-black/10 bg-white p-3">
+                                            <div className="text-xs text-black/55">
+                                                <p className="font-semibold text-io-dark">{attachment.fileName}</p>
+                                                <p className="mt-1">{attachment.kind === "video" ? "Video anexado" : "Imagem anexada"}</p>
+                                            </div>
+                                            {attachment.kind === "video" ? (
+                                                <video src={attachment.dataUrl} controls className="max-h-72 w-full rounded-xl bg-black" />
+                                            ) : (
+                                                <img src={attachment.dataUrl} alt="Evidencia do bug" className="max-h-72 w-full rounded-xl object-contain bg-black/[0.03]" />
+                                            )}
+                                        </div>
                                     ) : null}
                                 </div>
 
-                                <input
-                                    key={attachmentInputKey}
-                                    type="file"
-                                    accept="image/*,video/*"
-                                    required
-                                    onChange={(event) => void handleEvidenceChange(event)}
-                                    className="mt-3 block w-full rounded-xl border border-black/12 bg-white px-3 py-2 text-sm"
-                                />
-
-                                {attachment ? (
-                                    <div className="mt-3 grid gap-3 rounded-2xl border border-black/10 bg-white p-3">
-                                        <div className="text-xs text-black/55">
-                                            <p className="font-semibold text-io-dark">{attachment.fileName}</p>
-                                            <p className="mt-1">{attachment.kind === "video" ? "Video anexado" : "Imagem anexada"}</p>
-                                        </div>
-                                        {attachment.kind === "video" ? (
-                                            <video src={attachment.dataUrl} controls className="max-h-72 w-full rounded-xl bg-black" />
-                                        ) : (
-                                            <img src={attachment.dataUrl} alt="Evidencia do bug" className="max-h-72 w-full rounded-xl object-contain bg-black/[0.03]" />
-                                        )}
+                                <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-4">
+                                    <p className="text-sm font-semibold text-io-dark">Perguntas guiadas</p>
+                                    <div className="mt-3 grid gap-2">
+                                        {GUIDED_QUESTIONS.map((question, index) => (
+                                            <label key={question} className="grid gap-1 text-xs text-black/60">
+                                                {question}
+                                                <input
+                                                    value={answers[index] ?? ""}
+                                                    onChange={(event) => {
+                                                        const next = [...answers];
+                                                        next[index] = event.target.value;
+                                                        setAnswers(next);
+                                                    }}
+                                                    required
+                                                    className="h-10 rounded-lg border border-black/12 px-3 text-sm"
+                                                />
+                                            </label>
+                                        ))}
                                     </div>
-                                ) : null}
-                            </div>
-
-                            <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-4">
-                                <p className="text-sm font-semibold text-io-dark">Perguntas guiadas</p>
-                                <div className="mt-3 grid gap-2">
-                                    {GUIDED_QUESTIONS.map((question, index) => (
-                                        <label key={question} className="grid gap-1 text-xs text-black/60">
-                                            {question}
-                                            <input
-                                                value={answers[index] ?? ""}
-                                                onChange={(event) => {
-                                                    const next = [...answers];
-                                                    next[index] = event.target.value;
-                                                    setAnswers(next);
-                                                }}
-                                                required
-                                                className="h-10 rounded-lg border border-black/12 px-3 text-sm"
-                                            />
-                                        </label>
-                                    ))}
                                 </div>
                             </div>
+
+                            {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
+                            {success ? <p className="mt-3 text-sm text-emerald-700">{success}</p> : null}
                         </div>
 
-                        {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
-                        {success ? <p className="mt-3 text-sm text-emerald-700">{success}</p> : null}
-
-                        <div className="mt-5 flex justify-end gap-2">
+                        <div className="flex justify-end gap-2 border-t border-black/8 px-6 py-4">
                             <button
                                 type="button"
                                 onClick={() => setOpen(false)}
