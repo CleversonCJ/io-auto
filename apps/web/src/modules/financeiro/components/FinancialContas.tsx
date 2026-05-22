@@ -13,9 +13,11 @@ import { FinancialEntryModal } from "./FinancialEntryModal";
 import { FinancialFilterBar } from "./FinancialFilterBar";
 
 export function FinancialContas() {
-    const { data, loading } = useFinancialData();
+    const { data, loading, saveEntry } = useFinancialData();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingEntry, setEditingEntry] = useState<FinancialEntryRecord | null>(null);
+    const [settlingEntryId, setSettlingEntryId] = useState<string | null>(null);
+    const [settleError, setSettleError] = useState<string | null>(null);
 
     const receivables = useMemo(
         () => sortEntries((data?.entries ?? []).filter((entry) => entry.type === "RECEIVABLE")),
@@ -134,6 +136,33 @@ export function FinancialContas() {
         setIsModalOpen(true);
     }
 
+    async function handleSettle(entry: FinancialEntryRecord) {
+        if (entry.status === "SETTLED") return;
+        if (!entry.dreSubcategoryId) {
+            setSettleError("Nao foi possivel liquidar este lancamento porque ele nao possui subcategoria do DRE.");
+            return;
+        }
+
+        setSettleError(null);
+        try {
+            setSettlingEntryId(entry.id);
+            await saveEntry(entry.id, {
+                description: entry.description,
+                type: entry.type,
+                dreSubcategoryId: entry.dreSubcategoryId,
+                amountCents: entry.amountCents,
+                dueDate: entry.dueDate,
+                counterparty: entry.counterparty,
+                notes: entry.notes,
+                settled: true,
+            });
+        } catch (cause) {
+            setSettleError(cause instanceof Error ? cause.message : "Nao foi possivel liquidar o lancamento.");
+        } finally {
+            setSettlingEntryId(null);
+        }
+    }
+
     return (
         <div className="grid gap-6">
             <FinancialFilterBar>
@@ -161,6 +190,10 @@ export function FinancialContas() {
             </article>
 
             <div className="grid gap-6 grid-cols-1 items-start">
+                {settleError ? (
+                    <p className="rounded-[24px] border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">{settleError}</p>
+                ) : null}
+
                 <FinancialAccountPanel
                     title="Contas a receber"
                     subtitle="Inclui automaticamente os veículos vendidos"
@@ -170,6 +203,8 @@ export function FinancialContas() {
                     entries={receivables}
                     loading={loading}
                     onEdit={handleEdit}
+                    onSettle={handleSettle}
+                    settlingEntryId={settlingEntryId}
                 />
 
                 <FinancialAccountPanel
@@ -181,6 +216,8 @@ export function FinancialContas() {
                     entries={payables}
                     loading={loading}
                     onEdit={handleEdit}
+                    onSettle={handleSettle}
+                    settlingEntryId={settlingEntryId}
                 />
             </div>
 

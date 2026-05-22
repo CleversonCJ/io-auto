@@ -15,6 +15,8 @@ type Props = {
     entries: FinancialEntryRecord[];
     loading: boolean;
     onEdit: (entry: FinancialEntryRecord) => void;
+    onSettle: (entry: FinancialEntryRecord) => Promise<void>;
+    settlingEntryId: string | null;
 };
 
 export function FinancialAccountPanel({
@@ -26,6 +28,8 @@ export function FinancialAccountPanel({
     entries,
     loading,
     onEdit,
+    onSettle,
+    settlingEntryId,
 }: Props) {
     return (
         <article className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
@@ -87,6 +91,20 @@ export function FinancialAccountPanel({
 
                                 <div className="flex items-center gap-3">
                                     <p className="text-lg font-bold text-io-dark">{formatMoney(entry.amountCents)}</p>
+                                    {entry.source === "MANUAL" && entry.status !== "SETTLED" ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => void onSettle(entry)}
+                                            disabled={settlingEntryId === entry.id}
+                                            className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-wait disabled:opacity-70"
+                                        >
+                                            {settlingEntryId === entry.id
+                                                ? "Baixando..."
+                                                : entry.type === "RECEIVABLE"
+                                                    ? "Marcar como recebido"
+                                                    : "Marcar como pago"}
+                                        </button>
+                                    ) : null}
                                     {entry.source === "MANUAL" ? (
                                         <button
                                             type="button"
