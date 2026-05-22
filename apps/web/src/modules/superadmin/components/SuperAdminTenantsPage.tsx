@@ -152,7 +152,7 @@ function statusClasses(status: string) {
 function statusLabel(status?: string | null) {
     const normalized = String(status ?? "").trim().toUpperCase();
     if (!normalized) return "-";
-    if (normalized === "BLOCKED") return "blocked";
+    if (normalized === "BLOCKED") return "Blocked";
     return titleCase(normalized);
 }
 
