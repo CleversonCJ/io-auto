@@ -75,6 +75,25 @@ class IoAutoBillingServicePlanChangeTest {
     }
 
     @Test
+    void previewRealignsWindowWhenStoredCurrentPeriodEndIsOneCycleAhead() {
+        TestContext ctx = newTestContext();
+        LocalDate today = LocalDate.now(BILLING_ZONE);
+        ctx.company.setSubscriptionStartedAt(today.minusDays(40).atStartOfDay(BILLING_ZONE).toInstant());
+        ctx.subscription.setCurrentPeriodEnd(today.plusMonths(2).plusDays(5).atStartOfDay(BILLING_ZONE).toInstant());
+
+        PlanChangePreviewResponse response = ctx.service.previewPlanChange(ctx.companyId, "pro", "MONTHLY");
+
+        LocalDate periodStart = LocalDate.parse(response.proration().periodStartDate());
+        LocalDate periodEndInclusive = LocalDate.parse(response.proration().periodEndDate());
+        assertThat(response.proration().adjustmentMode()).isNotEqualTo("UPCOMING_PAYMENT_UPDATE");
+        assertThat(periodStart).isBeforeOrEqualTo(today);
+        assertThat(periodEndInclusive).isAfterOrEqualTo(today);
+        assertThat(response.proration().remainingDays()).isLessThan(response.proration().totalCycleDays());
+        assertThat(response.proration().currentPlanRemainingCents()).isNotNull().isLessThan(ctx.subscription.getAmountCents());
+        assertThat(response.proration().targetPlanRemainingCents()).isNotNull().isLessThan(response.targetPlan().amountCents());
+    }
+
+    @Test
     void confirmPlanChangeSuccessCreatesImmediateProrationChargeAndUpdatesLocalSnapshot() throws Exception {
         AtomicReference<String> subscriptionBody = new AtomicReference<>("");
         AtomicReference<String> paymentBody = new AtomicReference<>("");

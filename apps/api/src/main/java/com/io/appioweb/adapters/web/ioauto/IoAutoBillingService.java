@@ -818,6 +818,16 @@ public class IoAutoBillingService {
         }
 
         LocalDate periodStartInclusive = subtractBillingInterval(periodEndExclusive, context.currentBillingInterval());
+        if (hasSubscriptionStarted(context, today)) {
+            BillingPeriodWindow alignedWindow = alignPeriodWindowWithToday(
+                    context.currentBillingInterval(),
+                    today,
+                    periodStartInclusive,
+                    periodEndExclusive
+            );
+            periodStartInclusive = alignedWindow.periodStartInclusive();
+            periodEndExclusive = alignedWindow.periodEndExclusive();
+        }
         long totalCycleDays = Math.max(1L, ChronoUnit.DAYS.between(periodStartInclusive, periodEndExclusive));
 
         if (today.isBefore(periodStartInclusive)) {
@@ -896,6 +906,46 @@ public class IoAutoBillingService {
                 true,
                 message
         );
+    }
+
+    private BillingPeriodWindow alignPeriodWindowWithToday(
+            String billingInterval,
+            LocalDate today,
+            LocalDate initialPeriodStartInclusive,
+            LocalDate initialPeriodEndExclusive
+    ) {
+        LocalDate periodStartInclusive = initialPeriodStartInclusive;
+        LocalDate periodEndExclusive = initialPeriodEndExclusive;
+        String asaasCycle = toAsaasSubscriptionCycle(billingInterval);
+
+        int guard = 0;
+        while (today.isBefore(periodStartInclusive) && guard < 36) {
+            periodEndExclusive = periodStartInclusive;
+            periodStartInclusive = subtractBillingInterval(periodEndExclusive, billingInterval);
+            guard++;
+        }
+
+        guard = 0;
+        while (!today.isBefore(periodEndExclusive) && guard < 36) {
+            periodStartInclusive = periodEndExclusive;
+            periodEndExclusive = advanceCycle(periodStartInclusive, asaasCycle);
+            guard++;
+        }
+
+        return new BillingPeriodWindow(periodStartInclusive, periodEndExclusive);
+    }
+
+    private boolean hasSubscriptionStarted(PlanChangeContext context, LocalDate today) {
+        if (context == null || context.company() == null) {
+            return false;
+        }
+
+        Instant subscriptionStartedAt = context.company().getSubscriptionStartedAt();
+        if (subscriptionStartedAt != null) {
+            LocalDate startedOn = subscriptionStartedAt.atZone(BILLING_ZONE).toLocalDate();
+            return !today.isBefore(startedOn);
+        }
+        return false;
     }
 
     private long safeDelta(Long currentAmountCents, Long targetAmountCents) {
@@ -3228,6 +3278,12 @@ record PlanChangeContext(
         Long targetAmountCents,
         String providerSubscriptionId,
         BillingChangeType changeType
+) {
+}
+
+record BillingPeriodWindow(
+        LocalDate periodStartInclusive,
+        LocalDate periodEndExclusive
 ) {
 }
 
