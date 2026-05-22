@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BadgeCent, PencilLine, Plus, Trash2 } from "lucide-react";
+import { normalizeLandingCheckoutUrl } from "@/modules/superadmin/utils/normalizeLandingCheckoutUrl";
 
 type PlanFeatures = {
     catalogBioLink: boolean;
@@ -264,7 +265,12 @@ export function SuperAdminPlansPage() {
         setError(null);
         try {
             const payload = await fetchJson<PlanRow[]>("/api/superadmin/plans", undefined, "Falha ao carregar os planos.");
-            setRows(Array.isArray(payload) ? payload : []);
+            setRows(Array.isArray(payload)
+                ? payload.map((plan) => ({
+                    ...plan,
+                    checkoutUrl: normalizeLandingCheckoutUrl(plan.checkoutUrl),
+                }))
+                : []);
         } catch (requestError) {
             setRows([]);
             setError(requestError instanceof Error ? requestError.message : "Falha ao carregar os planos.");
@@ -432,6 +438,8 @@ export function SuperAdminPlansPage() {
                                     const activeFeatureCount = Object.values(plan.features).filter(Boolean).length;
                                     const keyFeatures = FEATURE_GROUPS.filter((feature) => plan.features[feature.key]).slice(0, 3);
 
+                                    const checkoutUrl = normalizeLandingCheckoutUrl(plan.checkoutUrl);
+
                                     return (
                                         <tr key={plan.planId} className="rounded-[24px] bg-black/[0.02]">
                                             <td className="rounded-l-[22px] px-3 py-4 align-top">
@@ -443,11 +451,11 @@ export function SuperAdminPlansPage() {
                                                 </div>
                                                 <p className="mt-1 text-xs text-black/45">Chave: {plan.planKey}</p>
                                                 <p className="mt-2 max-w-[320px] text-sm text-black/55">{plan.description || "Sem descricao comercial."}</p>
-                                                {plan.checkoutUrl ? (
+                                                {checkoutUrl ? (
                                                     <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-xs text-emerald-800">
                                                         <p className="font-semibold uppercase tracking-[0.16em] text-emerald-700">Checkout salvo</p>
-                                                        <a href={plan.checkoutUrl} target="_blank" rel="noreferrer" className="mt-2 block break-all font-semibold underline">
-                                                            {plan.checkoutUrl}
+                                                        <a href={checkoutUrl} target="_blank" rel="noreferrer" className="mt-2 block break-all font-semibold underline">
+                                                            {checkoutUrl}
                                                         </a>
                                                         <p className="mt-2 text-emerald-700/80">
                                                             {toBrDateTime(plan.checkoutExpiresAt) ? `Expira em ${toBrDateTime(plan.checkoutExpiresAt)}` : "Sem expiracao informada"}

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Check, Copy, ExternalLink, LoaderCircle, X } from "lucide-react";
+import { normalizeLandingCheckoutUrl } from "@/modules/superadmin/utils/normalizeLandingCheckoutUrl";
 
 type Props = {
     onClose: () => void;
@@ -142,7 +143,10 @@ export function SuperAdminCustomPlanCheckoutModal({ onClose, onCreated }: Props)
                 "Não foi possível gerar o checkout do plano personalizado.",
             );
 
-            setResult(response);
+            setResult({
+                ...response,
+                checkoutUrl: normalizeLandingCheckoutUrl(response.checkoutUrl),
+            });
             const message = `Plano ${response.planName} cadastrado com sucesso e link de pagamento gerado.`;
             setSuccess(message);
             await onCreated(message);
