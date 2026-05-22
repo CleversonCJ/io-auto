@@ -11,7 +11,7 @@ export function FinancialDashboard() {
 
     const financialMetrics = useMemo(() => {
         const revenueCents = data?.dre.vehicleSalesRevenueCents ?? 0;
-        const salesCount = data?.entries.filter(e => e.type === "RECEIVABLE" && e.category === "VEHICLE_SALE").length ?? 0;
+        const salesCount = data?.entries.filter((entry) => entry.type === "RECEIVABLE" && entry.source === "VEHICLE_SALE").length ?? 0;
         const inventoryCents = data?.inventoryValueCents ?? 0;
         const avgTicket = salesCount > 0 ? revenueCents / salesCount : 0;
 

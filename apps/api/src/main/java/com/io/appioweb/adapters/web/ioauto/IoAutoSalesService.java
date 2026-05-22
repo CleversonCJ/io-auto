@@ -44,9 +44,11 @@ public class IoAutoSalesService {
     private static final Logger log = LoggerFactory.getLogger(IoAutoSalesService.class);
     private static final String ENTRY_TYPE_RECEIVABLE = "RECEIVABLE";
     private static final String ENTRY_CATEGORY_VEHICLE_SALE = "VEHICLE_SALE";
+    private static final String ENTRY_CATEGORY_SERVICE_REVENUE = "SERVICE_REVENUE";
     private static final String SOURCE_VEHICLE_SALE = "VEHICLE_SALE";
     private static final String INSTALLMENT_STATUS_PENDING = "PENDING";
     private static final String DRE_SUBCATEGORY_VEHICLE_SALES = "vehicle-sales";
+    private static final String DRE_SUBCATEGORY_CONSIGNED_SALE_COMMISSIONS = "consigned-sale-commissions";
     private static final ZoneId SALES_ZONE = ZoneId.of("America/Sao_Paulo");
 
     private final IoAutoVehicleRepositoryJpa vehicles;
@@ -140,6 +142,11 @@ public class IoAutoSalesService {
         LocalDate soldDate = soldAt.atZone(SALES_ZONE).toLocalDate();
         IoAutoSaleCalculationService.SaleCalculationResult saleCalculation = saleCalculationService.calculate(
                 vehicle.getPriceCents(),
+                new IoAutoSaleCalculationService.ConsignmentVehicleContext(
+                        vehicle.isConsigned(),
+                        vehicle.getConsignedOwnerName(),
+                        vehicle.getConsignmentCommissionPercentage()
+                ),
                 saleClosingCommand == null ? IoAutoSaleCalculationService.SaleClosingCommand.empty() : saleClosingCommand,
                 soldDate
         );
@@ -184,6 +191,13 @@ public class IoAutoSalesService {
         session.setSaleInstallmentSale(saleCalculation.installmentSale());
         session.setSaleInstallmentCount(saleCalculation.installmentCount());
         session.setSaleFirstDueDate(saleCalculation.firstInstallmentDueDate());
+        session.setSaleIsConsigned(saleCalculation.consigned());
+        session.setSaleConsignedOwnerName(saleCalculation.consignedOwnerName());
+        session.setSaleConsignmentCommissionType(saleCalculation.consignmentCommissionType());
+        session.setSaleConsignmentCommissionPercentage(saleCalculation.consignmentCommissionPercentage());
+        session.setSaleConsignmentBaseAmountCents(saleCalculation.consignmentBaseAmountCents());
+        session.setSaleConsignmentCommissionAmountCents(saleCalculation.consignmentCommissionAmountCents());
+        session.setSaleConsignmentOwnerTransferAmountCents(saleCalculation.consignmentOwnerTransferAmountCents());
         session.setUpdatedAt(soldAt);
         sessions.saveAndFlush(session);
 
@@ -325,17 +339,30 @@ public class IoAutoSalesService {
             Instant soldAt,
             IoAutoSaleCalculationService.SaleCalculationResult saleCalculation
     ) {
-        UUID dreSubcategoryId = resolveVehicleSalesDreSubcategoryId(companyId);
+        boolean consignedSale = saleCalculation.consigned();
+        UUID dreSubcategoryId = resolveSaleDreSubcategoryId(companyId, consignedSale);
         String vehicleTitle = firstNonBlank(safeTrim(vehicle.getTitle()), "Veiculo sem identificacao");
         List<JpaIoAutoFinancialEntryEntity> entries = new ArrayList<>();
+        List<IoAutoSaleCalculationService.SaleInstallment> financialInstallments = consignedSale
+                ? splitInstallmentsForAmount(
+                        saleCalculation.consignmentCommissionAmountCents(),
+                        saleCalculation.installmentCount(),
+                        saleCalculation.firstInstallmentDueDate()
+                )
+                : saleCalculation.installments();
 
-        for (IoAutoSaleCalculationService.SaleInstallment installment : saleCalculation.installments()) {
+        for (IoAutoSaleCalculationService.SaleInstallment installment : financialInstallments) {
             JpaIoAutoFinancialEntryEntity entry = new JpaIoAutoFinancialEntryEntity();
             entry.setId(UUID.randomUUID());
             entry.setCompanyId(companyId);
-            entry.setDescription(buildSaleDescription(vehicleTitle, installment.installmentNumber(), installment.totalInstallments()));
+            entry.setDescription(buildSaleDescription(
+                    vehicleTitle,
+                    installment.installmentNumber(),
+                    installment.totalInstallments(),
+                    consignedSale
+            ));
             entry.setEntryType(ENTRY_TYPE_RECEIVABLE);
-            entry.setCategory(ENTRY_CATEGORY_VEHICLE_SALE);
+            entry.setCategory(consignedSale ? ENTRY_CATEGORY_SERVICE_REVENUE : ENTRY_CATEGORY_VEHICLE_SALE);
             entry.setDreSubcategoryId(dreSubcategoryId);
             entry.setAmountCents(installment.amountCents());
             entry.setDueDate(installment.dueDate());
@@ -358,17 +385,22 @@ public class IoAutoSalesService {
         }
     }
 
-    private UUID resolveVehicleSalesDreSubcategoryId(UUID companyId) {
-        JpaIoAutoDreSubcategoryEntity subcategory = dreSubcategories.findByCompanyIdAndCode(companyId, DRE_SUBCATEGORY_VEHICLE_SALES)
+    private UUID resolveSaleDreSubcategoryId(UUID companyId, boolean consignedSale) {
+        String code = consignedSale ? DRE_SUBCATEGORY_CONSIGNED_SALE_COMMISSIONS : DRE_SUBCATEGORY_VEHICLE_SALES;
+        JpaIoAutoDreSubcategoryEntity subcategory = dreSubcategories.findByCompanyIdAndCode(companyId, code)
+                .or(() -> consignedSale ? dreSubcategories.findByCompanyIdAndCode(companyId, DRE_SUBCATEGORY_VEHICLE_SALES) : java.util.Optional.empty())
                 .orElse(null);
         return subcategory == null ? null : subcategory.getId();
     }
 
-    private String buildSaleDescription(String vehicleTitle, int installmentNumber, int totalInstallments) {
+    private String buildSaleDescription(String vehicleTitle, int installmentNumber, int totalInstallments, boolean consignedSale) {
+        String baseDescription = consignedSale
+                ? "Comissao sobre venda consignada - " + vehicleTitle
+                : "Venda do veiculo " + vehicleTitle;
         if (totalInstallments > 1) {
-            return "Parcela " + installmentNumber + "/" + totalInstallments + " - Venda do veiculo " + vehicleTitle;
+            return "Parcela " + installmentNumber + "/" + totalInstallments + " - " + baseDescription;
         }
-        return "Venda do veiculo " + vehicleTitle;
+        return baseDescription;
     }
 
     private String buildSaleNotes(IoAutoSaleCalculationService.SaleCalculationResult saleCalculation) {
@@ -379,7 +411,43 @@ public class IoAutoSalesService {
         notes.append(" | Valor apos desconto: ").append(saleCalculation.amountAfterDiscountCents());
         notes.append(" | Troca (cents): ").append(saleCalculation.tradeInAmountCents());
         notes.append(" | Total real: ").append(saleCalculation.totalRealAmountCents());
+        if (saleCalculation.consigned()) {
+            notes.append(" | Consignado: SIM");
+            notes.append(" | Dono/empresa: ").append(firstNonBlank(saleCalculation.consignedOwnerName(), "Nao informado"));
+            notes.append(" | Tipo comissao: ").append(firstNonBlank(saleCalculation.consignmentCommissionType(), "Nao informado"));
+            if (saleCalculation.consignmentCommissionPercentage() != null) {
+                notes.append(" | Percentual comissao: ").append(saleCalculation.consignmentCommissionPercentage());
+            }
+            notes.append(" | Base comissao (cents): ").append(saleCalculation.consignmentBaseAmountCents());
+            notes.append(" | Comissao (cents): ").append(saleCalculation.consignmentCommissionAmountCents());
+            notes.append(" | Repasse proprietario (cents): ").append(saleCalculation.consignmentOwnerTransferAmountCents());
+        } else {
+            notes.append(" | Consignado: NAO");
+        }
         return notes.toString();
+    }
+
+    private List<IoAutoSaleCalculationService.SaleInstallment> splitInstallmentsForAmount(long totalAmountCents, int installmentCount, LocalDate firstDueDate) {
+        int safeCount = Math.max(1, installmentCount);
+        long baseInstallmentAmount = safeCount <= 0 ? totalAmountCents : totalAmountCents / safeCount;
+        long remainder = safeCount <= 0 ? 0L : totalAmountCents % safeCount;
+        List<IoAutoSaleCalculationService.SaleInstallment> installments = new ArrayList<>();
+
+        for (int index = 0; index < safeCount; index++) {
+            long amount = baseInstallmentAmount;
+            if (index == safeCount - 1) {
+                amount += remainder;
+            }
+            installments.add(new IoAutoSaleCalculationService.SaleInstallment(
+                    index + 1,
+                    safeCount,
+                    amount,
+                    firstDueDate.plusMonths(index),
+                    INSTALLMENT_STATUS_PENDING
+            ));
+        }
+
+        return installments;
     }
 
     private JpaAtendimentoConversationEntity resolveInventorySaleConversation(

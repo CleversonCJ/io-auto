@@ -284,6 +284,9 @@ export type VehicleRecord = {
     zipcode: string | null;
     city: string | null;
     state: string | null;
+    consigned: boolean;
+    consignedOwnerName: string | null;
+    consignmentCommissionPercentage: number | null;
     featured: boolean;
     status: string;
     description: string | null;

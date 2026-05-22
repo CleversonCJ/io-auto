@@ -252,14 +252,28 @@ public class IoAutoController {
         long totalSalesRevenueCents = 0L;
         for (JpaAtendimentoSessionEntity session : periodSalesSessions) {
             totalSalesCount++;
+            if (session.isSaleIsConsigned()) {
+                Long commission = session.getSaleConsignmentCommissionAmountCents();
+                if (commission != null && commission > 0) {
+                    totalSalesRevenueCents += commission;
+                }
+                continue;
+            }
+
+            Long ownSaleAmount = session.getSaleAmountAfterDiscountCents();
+            if (ownSaleAmount != null && ownSaleAmount > 0) {
+                totalSalesRevenueCents += ownSaleAmount;
+                continue;
+            }
+
             if (session.getSoldVehicleId() != null) {
-                Long price = companyVehicles.stream()
+                Long fallbackPrice = companyVehicles.stream()
                         .filter(v -> v.getId().equals(session.getSoldVehicleId()))
                         .map(JpaIoAutoVehicleEntity::getPriceCents)
                         .findFirst()
                         .orElse(null);
-                if (price != null && price > 0) {
-                    totalSalesRevenueCents += price;
+                if (fallbackPrice != null && fallbackPrice > 0) {
+                    totalSalesRevenueCents += fallbackPrice;
                 }
             }
         }
@@ -1122,6 +1136,18 @@ public class IoAutoController {
         entity.setZipcode(normalizeNullableText(request.zipcode()));
         entity.setCity(normalizeNullableText(request.city()));
         entity.setState(normalizedState == null ? null : normalizedState.toUpperCase(Locale.ROOT));
+        boolean consigned = Boolean.TRUE.equals(request.consigned());
+        entity.setConsigned(consigned);
+        if (consigned) {
+            entity.setConsignedOwnerName(trimToMaxLength(requireText(
+                    request.consignedOwnerName(),
+                    "Informe o dono/empresa para veiculo consignado."
+            ), 200));
+            entity.setConsignmentCommissionPercentage(normalizeConsignmentCommissionPercentage(request.consignmentCommissionPercentage()));
+        } else {
+            entity.setConsignedOwnerName(null);
+            entity.setConsignmentCommissionPercentage(null);
+        }
         entity.setFeatured(Boolean.TRUE.equals(request.featured()));
         entity.setStatus(normalizeText(request.status(), "DRAFT"));
         entity.setDescription(normalizeNullableText(request.description()));
@@ -1280,6 +1306,9 @@ public class IoAutoController {
                 normalizeNullableText(vehicle.getZipcode()),
                 normalizeNullableText(vehicle.getCity()),
                 normalizeNullableText(vehicle.getState()),
+                vehicle.isConsigned(),
+                normalizeNullableText(vehicle.getConsignedOwnerName()),
+                vehicle.getConsignmentCommissionPercentage(),
                 vehicle.isFeatured(),
                 normalizeText(vehicle.getStatus(), "DRAFT"),
                 normalizeNullableText(vehicle.getDescription()),
@@ -2073,6 +2102,20 @@ public class IoAutoController {
         return normalizeVehiclePreset(raw, VEHICLE_COLOR_OPTIONS, "cor");
     }
 
+    private java.math.BigDecimal normalizeConsignmentCommissionPercentage(java.math.BigDecimal raw) {
+        if (raw == null) {
+            return null;
+        }
+        java.math.BigDecimal normalized = raw.setScale(4, java.math.RoundingMode.HALF_UP);
+        if (normalized.compareTo(java.math.BigDecimal.ZERO) < 0) {
+            throw new BusinessException("IOAUTO_INVALID_PAYLOAD", "O percentual de comissao da consignacao nao pode ser negativo.");
+        }
+        if (normalized.compareTo(new java.math.BigDecimal("100")) > 0) {
+            throw new BusinessException("IOAUTO_INVALID_PAYLOAD", "O percentual de comissao da consignacao nao pode ser maior que 100%.");
+        }
+        return normalized;
+    }
+
     private Integer normalizeVehicleDoors(Integer raw) {
         if (raw == null) {
             return null;
@@ -2264,6 +2307,9 @@ public class IoAutoController {
             String zipcode,
             String city,
             String state,
+            boolean consigned,
+            String consignedOwnerName,
+            java.math.BigDecimal consignmentCommissionPercentage,
             boolean featured,
             String status,
             String description,
@@ -2483,7 +2529,10 @@ public class IoAutoController {
                 request.tradeInAmountCents(),
                 request.installmentSale(),
                 request.installmentCount(),
-                request.firstInstallmentDueDate()
+                request.firstInstallmentDueDate(),
+                request.consignmentCommissionType(),
+                request.consignmentCommissionPercentage(),
+                request.consignmentCommissionAmountCents()
         );
     }
 
@@ -2510,6 +2559,9 @@ public class IoAutoController {
             String zipcode,
             String city,
             String state,
+            Boolean consigned,
+            String consignedOwnerName,
+            java.math.BigDecimal consignmentCommissionPercentage,
             Boolean featured,
             String status,
             String description,

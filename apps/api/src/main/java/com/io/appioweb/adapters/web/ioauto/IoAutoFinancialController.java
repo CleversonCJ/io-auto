@@ -60,6 +60,7 @@ public class IoAutoFinancialController {
     private static final String SECTION_OTHER_OPERATING_RESULTS = "OTHER_OPERATING_RESULTS";
 
     private static final String SUBCATEGORY_VEHICLE_SALES = "vehicle-sales";
+    private static final String SUBCATEGORY_CONSIGNED_SALE_COMMISSIONS = "consigned-sale-commissions";
     private static final String SUBCATEGORY_SERVICE_COMMISSIONS = "service-commissions";
     private static final String SUBCATEGORY_SALES_TAXES = "sales-taxes";
     private static final String SUBCATEGORY_VEHICLE_ACQUISITION = "vehicle-acquisition";
@@ -87,6 +88,7 @@ public class IoAutoFinancialController {
 
     private static final List<DreSubcategorySeed> DEFAULT_DRE_SUBCATEGORIES = List.of(
             new DreSubcategorySeed(SUBCATEGORY_VEHICLE_SALES, SECTION_GROSS_REVENUE, "Venda de Veiculos", ENTRY_TYPE_RECEIVABLE, true, true, 10),
+            new DreSubcategorySeed(SUBCATEGORY_CONSIGNED_SALE_COMMISSIONS, SECTION_GROSS_REVENUE, "Comissao sobre Venda Consignada", ENTRY_TYPE_RECEIVABLE, true, true, 15),
             new DreSubcategorySeed(SUBCATEGORY_SERVICE_COMMISSIONS, SECTION_GROSS_REVENUE, "Servicos/Comissoes", ENTRY_TYPE_RECEIVABLE, true, false, 20),
             new DreSubcategorySeed(SUBCATEGORY_SALES_TAXES, SECTION_GROSS_REVENUE_DEDUCTIONS, "Impostos e Taxas sobre Vendas", ENTRY_TYPE_PAYABLE, true, false, 10),
             new DreSubcategorySeed(SUBCATEGORY_VEHICLE_ACQUISITION, SECTION_COST_OF_SALES, "Custo de Aquisicao (Veiculos)", ENTRY_TYPE_PAYABLE, true, false, 10),
@@ -437,6 +439,7 @@ public class IoAutoFinancialController {
         }
 
         JpaIoAutoDreSubcategoryEntity vehicleSalesSubcategory = byCode.get(SUBCATEGORY_VEHICLE_SALES);
+        JpaIoAutoDreSubcategoryEntity consignedSalesCommissionSubcategory = byCode.get(SUBCATEGORY_CONSIGNED_SALE_COMMISSIONS);
         DreSectionDefinition grossRevenueSection = requireSection(SECTION_GROSS_REVENUE);
         Map<UUID, JpaAtendimentoSessionEntity> settledSalesByVehicle = new LinkedHashMap<>();
         for (JpaAtendimentoSessionEntity session : sessions.findAllByCompanyIdAndSaleCompletedIsTrueOrderBySaleCompletedAtDesc(companyId)) {
@@ -458,19 +461,41 @@ public class IoAutoFinancialController {
             JpaAtendimentoSessionEntity settledSale = settledSalesByVehicle.get(vehicle.getId());
             Instant saleCompletedAt = settledSale == null ? null : settledSale.getSaleCompletedAt();
             Instant entryUpdatedAt = saleCompletedAt != null ? saleCompletedAt : vehicle.getUpdatedAt();
+            boolean consignedSale = settledSale != null && settledSale.isSaleIsConsigned();
+
+            long fallbackAmountCents;
+            if (consignedSale) {
+                Long commissionAmount = settledSale.getSaleConsignmentCommissionAmountCents();
+                fallbackAmountCents = commissionAmount == null ? 0L : Math.max(commissionAmount, 0L);
+            } else if (settledSale != null && settledSale.getSaleAmountAfterDiscountCents() != null) {
+                fallbackAmountCents = Math.max(settledSale.getSaleAmountAfterDiscountCents(), 0L);
+            } else {
+                fallbackAmountCents = vehicle.getPriceCents() == null ? 0L : Math.max(vehicle.getPriceCents(), 0L);
+            }
+
+            String fallbackDescription = consignedSale
+                    ? "Comissao sobre venda consignada - " + normalizeText(vehicle.getTitle(), "Veiculo sem identificacao")
+                    : normalizeText(vehicle.getTitle(), "Venda de veiculo");
+            String fallbackNotes = consignedSale
+                    ? "Venda consignada sem lancamento detalhado. Receita considerada como comissao."
+                    : (saleCompletedAt == null
+                    ? "Veiculo marcado como vendido no estoque."
+                    : "Venda concluida e liquidada pelo fluxo comercial.");
+            String fallbackCategory = consignedSale ? "SERVICE_REVENUE" : "VEHICLE_SALE";
+            JpaIoAutoDreSubcategoryEntity fallbackSubcategory = consignedSale && consignedSalesCommissionSubcategory != null
+                    ? consignedSalesCommissionSubcategory
+                    : vehicleSalesSubcategory;
 
             entries.add(new FinancialEntryView(
                     vehicle.getId(),
-                    normalizeText(vehicle.getTitle(), "Venda de veiculo"),
+                    fallbackDescription,
                     ENTRY_TYPE_RECEIVABLE,
-                    "VEHICLE_SALE",
-                    vehicle.getPriceCents() == null ? 0L : Math.max(vehicle.getPriceCents(), 0L),
+                    fallbackCategory,
+                    fallbackAmountCents,
                     entryUpdatedAt == null ? null : entryUpdatedAt.atZone(FINANCIAL_ZONE).toLocalDate(),
                     saleCompletedAt,
                     null,
-                    saleCompletedAt == null
-                            ? "Veiculo marcado como vendido no estoque."
-                            : "Venda concluida e liquidada pelo fluxo comercial.",
+                    fallbackNotes,
                     SOURCE_VEHICLE_SALE,
                     vehicle.getId(),
                     vehicle.getTitle(),
@@ -478,8 +503,8 @@ public class IoAutoFinancialController {
                     entryUpdatedAt,
                     grossRevenueSection.code(),
                     grossRevenueSection.label(),
-                    vehicleSalesSubcategory == null ? null : vehicleSalesSubcategory.getId(),
-                    vehicleSalesSubcategory == null ? "Venda de Veiculos" : vehicleSalesSubcategory.getName()
+                    fallbackSubcategory == null ? null : fallbackSubcategory.getId(),
+                    fallbackSubcategory == null ? "Venda de Veiculos" : fallbackSubcategory.getName()
             ));
         }
 

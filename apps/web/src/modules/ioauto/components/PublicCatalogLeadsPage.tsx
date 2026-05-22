@@ -28,6 +28,7 @@ import {
     createDefaultSaleClosingFinancialState,
     formatCurrencyDigits,
     normalizeCurrencyDigits,
+    validateSaleClosingFinancialState,
     type SaleClosingFinancialFormState,
 } from "@/modules/ioauto/saleClosingFinancial";
 import type { PublicCatalogLeadList, VehicleRecord } from "@/modules/ioauto/types";
@@ -320,10 +321,25 @@ export function PublicCatalogLeadsPage() {
         return `${formatDate(data.fromDate)} atÃ© ${formatDate(data.toDate)}`;
     }, [data]);
 
+    const saleVehicle = useMemo(() => {
+        if (!saleLead?.vehicleId) return null;
+        return vehiclesById[saleLead.vehicleId] ?? null;
+    }, [saleLead, vehiclesById]);
+
     const saleFinancialPreview = useMemo(() => {
-        const originalAmountCents = saleLead?.vehiclePriceCents ?? 0;
-        return computeSaleClosingFinancialPreview(originalAmountCents, saleFinancial);
-    }, [saleFinancial, saleLead?.vehiclePriceCents]);
+        const originalAmountCents = saleVehicle?.priceCents ?? saleLead?.vehiclePriceCents ?? 0;
+        return computeSaleClosingFinancialPreview(
+            originalAmountCents,
+            saleFinancial,
+            saleVehicle == null
+                ? null
+                : {
+                    consigned: saleVehicle.consigned,
+                    consignedOwnerName: saleVehicle.consignedOwnerName,
+                    consignmentCommissionPercentage: saleVehicle.consignmentCommissionPercentage,
+                }
+        );
+    }, [saleFinancial, saleLead?.vehiclePriceCents, saleVehicle]);
 
     async function openVehiclePreview(lead: LeadItem) {
         if (!lead.vehicleId) return;
@@ -386,11 +402,41 @@ export function PublicCatalogLeadsPage() {
         setPreviewImage(null);
     }
 
-    function openSaleModal(lead: LeadItem) {
+    async function ensureVehiclesLoaded() {
+        const response = await fetch("/api/ioauto/vehicles", {
+            cache: "no-store",
+            credentials: "include",
+        });
+
+        if (!response.ok) {
+            const payload = await response.json().catch(() => ({ message: "Falha ao carregar os veiculos." }));
+            throw new Error(payload.message ?? "Falha ao carregar os veiculos.");
+        }
+
+        const payload = await response.json() as VehicleRecord[];
+        setVehiclesById(indexVehicles(payload));
+        return payload;
+    }
+
+    async function openSaleModal(lead: LeadItem) {
         if (!lead.vehicleId || lead.convertedToSale) return;
+
+        let vehicle: VehicleRecord | null = vehiclesById[lead.vehicleId] ?? null;
+        if (!vehicle) {
+            const loadedVehicles = await ensureVehiclesLoaded();
+            vehicle = loadedVehicles.find((item) => item.id === lead.vehicleId) ?? null;
+        }
+
+        const defaultFinancial = createDefaultSaleClosingFinancialState();
+        const hasDefaultCommission = Boolean(vehicle?.consigned && vehicle.consignmentCommissionPercentage != null && vehicle.consignmentCommissionPercentage > 0);
+        if (hasDefaultCommission) {
+            defaultFinancial.consignmentCommissionType = "PERCENTUAL";
+            defaultFinancial.consignmentCommissionPercentage = String(vehicle?.consignmentCommissionPercentage ?? "");
+        }
+
         setSaleLead(lead);
         setSaleSellerUserId(lead.sellerUserId ?? "");
-        setSaleFinancial(createDefaultSaleClosingFinancialState());
+        setSaleFinancial(defaultFinancial);
         setSaleMessage(null);
     }
 
@@ -413,17 +459,7 @@ export function PublicCatalogLeadsPage() {
             return;
         }
 
-        const validationError = (() => {
-            if (saleFinancialPreview.discountPercentage < 0) return "O percentual de desconto nao pode ser negativo.";
-            if (saleFinancialPreview.discountPercentage > 100) return "O percentual de desconto nao pode ser maior que 100%.";
-            if (saleFinancial.hasTradeInVehicle && !saleFinancial.tradeInVehicleDescription.trim()) return "Informe o veiculo recebido na troca.";
-            if (saleFinancial.hasTradeInVehicle && saleFinancialPreview.tradeInAmountCents <= 0) return "Informe o valor do veiculo recebido na troca.";
-            if (saleFinancial.hasTradeInVehicle && saleFinancialPreview.tradeInAmountCents > saleFinancialPreview.amountAfterDiscountCents) {
-                return "O valor do veiculo dado em troca nao pode ser maior que o valor da venda.";
-            }
-            if (saleFinancial.installmentSale && saleFinancialPreview.installmentCount <= 1) return "Informe uma quantidade valida de parcelas.";
-            return null;
-        })();
+        const validationError = validateSaleClosingFinancialState(saleFinancial, saleFinancialPreview);
 
         if (validationError) {
             setSaleMessage(validationError);
@@ -723,7 +759,11 @@ export function PublicCatalogLeadsPage() {
                                             {lead.vehicleId && !lead.convertedToSale ? (
                                                 <button
                                                     type="button"
-                                                    onClick={() => openSaleModal(lead)}
+                                                    onClick={() => {
+                                                        void openSaleModal(lead).catch((cause) => {
+                                                            setError(cause instanceof Error ? cause.message : "Falha ao preparar o fechamento da venda.");
+                                                        });
+                                                    }}
                                                     className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
                                                 >
                                                     <CheckCircle2 className="h-4 w-4" />
@@ -790,6 +830,11 @@ export function PublicCatalogLeadsPage() {
                             <p className="text-sm font-semibold text-io-dark">{saleLead.customerName}</p>
                             <p className="mt-1 text-sm text-black/55">{formatPhone(saleLead.customerPhone)}</p>
                             <p className="mt-2 text-sm text-black/55">{saleLead.vehicleTitle || "VeÃ­culo de interesse"}</p>
+                            {saleVehicle?.consigned ? (
+                                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+                                    Consignado • {saleVehicle.consignedOwnerName ?? "Dono nao informado"}
+                                </p>
+                            ) : null}
                         </div>
 
                         <div className="mt-5 grid gap-2">
@@ -895,6 +940,85 @@ export function PublicCatalogLeadsPage() {
                                     </label>
                                 </div>
                             ) : null}
+
+                            {saleFinancialPreview.consigned ? (
+                                <div className="grid gap-3 rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-4">
+                                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">Venda de veiculo consignado</p>
+                                    <p className="text-sm text-amber-900">
+                                        Dono/empresa: <span className="font-semibold">{saleFinancialPreview.consignedOwnerName ?? "Nao informado"}</span>
+                                    </p>
+                                    <p className="text-sm text-amber-900">
+                                        Comissao cadastrada:{" "}
+                                        <span className="font-semibold">
+                                            {saleFinancialPreview.configuredConsignmentCommissionPercentage != null
+                                                ? `${saleFinancialPreview.configuredConsignmentCommissionPercentage}%`
+                                                : "Nao informada"}
+                                        </span>
+                                    </p>
+
+                                    <label className="grid gap-2">
+                                        <span className="text-xs uppercase tracking-[0.18em] text-amber-800">Tipo de comissao</span>
+                                        <select
+                                            value={saleFinancial.consignmentCommissionType || ""}
+                                            onChange={(event) =>
+                                                setSaleFinancial((current) => ({
+                                                    ...current,
+                                                    consignmentCommissionType: event.target.value as "" | "PERCENTUAL" | "VALOR_FIXO",
+                                                }))
+                                            }
+                                            className="rounded-[18px] border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/25"
+                                        >
+                                            <option value="">Selecione</option>
+                                            <option value="PERCENTUAL">Percentual</option>
+                                            <option value="VALOR_FIXO">Valor fixo</option>
+                                        </select>
+                                    </label>
+
+                                    {(saleFinancial.consignmentCommissionType || saleFinancialPreview.consignmentCommissionType) === "PERCENTUAL" ? (
+                                        <label className="grid gap-2">
+                                            <span className="text-xs uppercase tracking-[0.18em] text-amber-800">Percentual de comissao (%)</span>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                max={100}
+                                                step="0.01"
+                                                value={saleFinancial.consignmentCommissionPercentage}
+                                                onChange={(event) =>
+                                                    setSaleFinancial((current) => ({ ...current, consignmentCommissionPercentage: event.target.value }))
+                                                }
+                                                className="rounded-[18px] border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/25"
+                                            />
+                                        </label>
+                                    ) : null}
+
+                                    {(saleFinancial.consignmentCommissionType || saleFinancialPreview.consignmentCommissionType) === "VALOR_FIXO" ? (
+                                        <label className="grid gap-2">
+                                            <span className="text-xs uppercase tracking-[0.18em] text-amber-800">Valor da comissao</span>
+                                            <input
+                                                type="text"
+                                                value={formatCurrencyDigits(saleFinancial.consignmentCommissionAmountDigits)}
+                                                onChange={(event) =>
+                                                    setSaleFinancial((current) => ({
+                                                        ...current,
+                                                        consignmentCommissionAmountDigits: normalizeCurrencyDigits(event.target.value),
+                                                    }))
+                                                }
+                                                className="rounded-[18px] border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/25"
+                                            />
+                                        </label>
+                                    ) : null}
+
+                                    <p className="text-sm text-amber-900">
+                                        Base de calculo: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentBaseAmountCents)}</span>
+                                    </p>
+                                    <p className="text-sm text-amber-900">
+                                        Valor da comissao: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentCommissionAmountCents)}</span>
+                                    </p>
+                                    <p className="text-sm text-amber-900">
+                                        Repasse estimado ao proprietario: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentOwnerTransferAmountCents)}</span>
+                                    </p>
+                                </div>
+                            ) : null}
                         </div>
 
                         <div className="mt-4 grid gap-2 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
@@ -903,6 +1027,14 @@ export function PublicCatalogLeadsPage() {
                             <p>Valor com desconto: <span className="font-semibold">{formatMoney(saleFinancialPreview.amountAfterDiscountCents)}</span></p>
                             <p>Troca: <span className="font-semibold">{formatMoney(saleFinancialPreview.tradeInAmountCents)}</span></p>
                             <p>Total real da venda: <span className="font-semibold">{formatMoney(saleFinancialPreview.totalRealAmountCents)}</span></p>
+                            <p>Consignado: <span className="font-semibold">{saleFinancialPreview.consigned ? "Sim" : "Nao"}</span></p>
+                            {saleFinancialPreview.consigned ? (
+                                <>
+                                    <p>Dono/empresa: <span className="font-semibold">{saleFinancialPreview.consignedOwnerName ?? "Nao informado"}</span></p>
+                                    <p>Comissao da empresa: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentCommissionAmountCents)}</span></p>
+                                    <p>Repasse ao proprietario: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentOwnerTransferAmountCents)}</span></p>
+                                </>
+                            ) : null}
                             <p>
                                 Pagamento:{" "}
                                 <span className="font-semibold">

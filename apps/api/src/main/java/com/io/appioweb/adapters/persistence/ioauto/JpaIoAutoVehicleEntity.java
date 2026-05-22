@@ -83,6 +83,15 @@ public class JpaIoAutoVehicleEntity {
     @Column(length = 20)
     private String state;
 
+    @Column(name = "is_consigned", nullable = false)
+    private boolean consigned;
+
+    @Column(name = "consigned_owner_name", length = 200)
+    private String consignedOwnerName;
+
+    @Column(name = "consignment_commission_percentage", precision = 7, scale = 4)
+    private java.math.BigDecimal consignmentCommissionPercentage;
+
     @Column(nullable = false)
     private boolean featured;
 
@@ -341,6 +350,30 @@ public class JpaIoAutoVehicleEntity {
 
     public void setState(String state) {
         this.state = state;
+    }
+
+    public boolean isConsigned() {
+        return consigned;
+    }
+
+    public void setConsigned(boolean consigned) {
+        this.consigned = consigned;
+    }
+
+    public String getConsignedOwnerName() {
+        return consignedOwnerName;
+    }
+
+    public void setConsignedOwnerName(String consignedOwnerName) {
+        this.consignedOwnerName = consignedOwnerName;
+    }
+
+    public java.math.BigDecimal getConsignmentCommissionPercentage() {
+        return consignmentCommissionPercentage;
+    }
+
+    public void setConsignmentCommissionPercentage(java.math.BigDecimal consignmentCommissionPercentage) {
+        this.consignmentCommissionPercentage = consignmentCommissionPercentage;
     }
 
     public boolean isFeatured() {

@@ -148,6 +148,78 @@ class IoAutoSaleCalculationServiceTest {
                 .satisfies(error -> assertThat(((BusinessException) error).code()).isEqualTo("IOAUTO_SALE_INSTALLMENT_COUNT_INVALID"));
     }
 
+    @Test
+    void usesConfiguredConsignmentPercentageWhenVehicleIsConsigned() {
+        IoAutoSaleCalculationService.SaleCalculationResult result = service.calculate(
+                100_000L,
+                new IoAutoSaleCalculationService.ConsignmentVehicleContext(true, "Loja Parceira", new BigDecimal("5")),
+                command("10", false, null, null, 0L, false, null, null),
+                LocalDate.of(2026, 5, 22)
+        );
+
+        assertThat(result.consigned()).isTrue();
+        assertThat(result.consignmentCommissionType()).isEqualTo("PERCENTUAL");
+        assertThat(result.consignmentBaseAmountCents()).isEqualTo(90_000L);
+        assertThat(result.consignmentCommissionAmountCents()).isEqualTo(4_500L);
+        assertThat(result.consignmentOwnerTransferAmountCents()).isEqualTo(85_500L);
+    }
+
+    @Test
+    void requiresConsignmentCommissionWhenVehicleIsConsignedWithoutConfiguredPercentage() {
+        assertThatThrownBy(() -> service.calculate(
+                100_000L,
+                new IoAutoSaleCalculationService.ConsignmentVehicleContext(true, "Parceiro", null),
+                command("0", false, null, null, 0L, false, null, null),
+                LocalDate.of(2026, 5, 22)
+        ))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).code()).isEqualTo("IOAUTO_SALE_CONSIGNMENT_COMMISSION_REQUIRED"));
+    }
+
+    @Test
+    void calculatesFixedConsignmentCommission() {
+        IoAutoSaleCalculationService.SaleClosingCommand command = new IoAutoSaleCalculationService.SaleClosingCommand(
+                new BigDecimal("0"),
+                false,
+                null,
+                null,
+                0L,
+                false,
+                null,
+                null,
+                "VALOR_FIXO",
+                null,
+                12_000L
+        );
+
+        IoAutoSaleCalculationService.SaleCalculationResult result = service.calculate(
+                100_000L,
+                new IoAutoSaleCalculationService.ConsignmentVehicleContext(true, "Parceiro", null),
+                command,
+                LocalDate.of(2026, 5, 22)
+        );
+
+        assertThat(result.consignmentCommissionType()).isEqualTo("VALOR_FIXO");
+        assertThat(result.consignmentCommissionPercentage()).isNull();
+        assertThat(result.consignmentCommissionAmountCents()).isEqualTo(12_000L);
+        assertThat(result.consignmentOwnerTransferAmountCents()).isEqualTo(88_000L);
+    }
+
+    @Test
+    void keepsTradeInOutOfConsignmentCommissionBase() {
+        IoAutoSaleCalculationService.SaleCalculationResult result = service.calculate(
+                100_000L,
+                new IoAutoSaleCalculationService.ConsignmentVehicleContext(true, "Parceiro", new BigDecimal("10")),
+                command("10", true, null, "Troca", 20_000L, false, null, null),
+                LocalDate.of(2026, 5, 22)
+        );
+
+        assertThat(result.amountAfterDiscountCents()).isEqualTo(90_000L);
+        assertThat(result.totalRealAmountCents()).isEqualTo(70_000L);
+        assertThat(result.consignmentBaseAmountCents()).isEqualTo(90_000L);
+        assertThat(result.consignmentCommissionAmountCents()).isEqualTo(9_000L);
+    }
+
     private IoAutoSaleCalculationService.SaleClosingCommand command(
             String discountPercentage,
             boolean hasTradeInVehicle,
@@ -166,7 +238,10 @@ class IoAutoSaleCalculationServiceTest {
                 tradeInAmountCents,
                 installmentSale,
                 installmentCount,
-                firstDueDate
+                firstDueDate,
+                null,
+                null,
+                null
         );
     }
 }

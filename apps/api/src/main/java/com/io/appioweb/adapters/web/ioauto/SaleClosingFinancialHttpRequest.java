@@ -12,6 +12,13 @@ public record SaleClosingFinancialHttpRequest(
         Long tradeInAmountCents,
         Boolean installmentSale,
         Integer installmentCount,
-        LocalDate firstInstallmentDueDate
+        LocalDate firstInstallmentDueDate,
+        Boolean consigned,
+        String consignedOwnerName,
+        String consignmentCommissionType,
+        BigDecimal consignmentCommissionPercentage,
+        Long consignmentCommissionAmountCents,
+        Long consignmentBaseAmountCents,
+        Long consignmentOwnerTransferAmountCents
 ) {
 }

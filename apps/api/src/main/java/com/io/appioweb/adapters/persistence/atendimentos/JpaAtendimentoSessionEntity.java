@@ -112,6 +112,27 @@ public class JpaAtendimentoSessionEntity {
     @Column(name = "sale_first_due_date")
     private LocalDate saleFirstDueDate;
 
+    @Column(name = "sale_is_consigned", nullable = false)
+    private boolean saleIsConsigned;
+
+    @Column(name = "sale_consigned_owner_name", length = 200)
+    private String saleConsignedOwnerName;
+
+    @Column(name = "sale_consignment_commission_type", length = 20)
+    private String saleConsignmentCommissionType;
+
+    @Column(name = "sale_consignment_commission_percentage", precision = 7, scale = 4)
+    private java.math.BigDecimal saleConsignmentCommissionPercentage;
+
+    @Column(name = "sale_consignment_commission_amount_cents")
+    private Long saleConsignmentCommissionAmountCents;
+
+    @Column(name = "sale_consignment_base_amount_cents")
+    private Long saleConsignmentBaseAmountCents;
+
+    @Column(name = "sale_consignment_owner_transfer_amount_cents")
+    private Long saleConsignmentOwnerTransferAmountCents;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private AtendimentoSessionStatus status;
@@ -217,6 +238,27 @@ public class JpaAtendimentoSessionEntity {
 
     public LocalDate getSaleFirstDueDate() { return saleFirstDueDate; }
     public void setSaleFirstDueDate(LocalDate saleFirstDueDate) { this.saleFirstDueDate = saleFirstDueDate; }
+
+    public boolean isSaleIsConsigned() { return saleIsConsigned; }
+    public void setSaleIsConsigned(boolean saleIsConsigned) { this.saleIsConsigned = saleIsConsigned; }
+
+    public String getSaleConsignedOwnerName() { return saleConsignedOwnerName; }
+    public void setSaleConsignedOwnerName(String saleConsignedOwnerName) { this.saleConsignedOwnerName = saleConsignedOwnerName; }
+
+    public String getSaleConsignmentCommissionType() { return saleConsignmentCommissionType; }
+    public void setSaleConsignmentCommissionType(String saleConsignmentCommissionType) { this.saleConsignmentCommissionType = saleConsignmentCommissionType; }
+
+    public java.math.BigDecimal getSaleConsignmentCommissionPercentage() { return saleConsignmentCommissionPercentage; }
+    public void setSaleConsignmentCommissionPercentage(java.math.BigDecimal saleConsignmentCommissionPercentage) { this.saleConsignmentCommissionPercentage = saleConsignmentCommissionPercentage; }
+
+    public Long getSaleConsignmentCommissionAmountCents() { return saleConsignmentCommissionAmountCents; }
+    public void setSaleConsignmentCommissionAmountCents(Long saleConsignmentCommissionAmountCents) { this.saleConsignmentCommissionAmountCents = saleConsignmentCommissionAmountCents; }
+
+    public Long getSaleConsignmentBaseAmountCents() { return saleConsignmentBaseAmountCents; }
+    public void setSaleConsignmentBaseAmountCents(Long saleConsignmentBaseAmountCents) { this.saleConsignmentBaseAmountCents = saleConsignmentBaseAmountCents; }
+
+    public Long getSaleConsignmentOwnerTransferAmountCents() { return saleConsignmentOwnerTransferAmountCents; }
+    public void setSaleConsignmentOwnerTransferAmountCents(Long saleConsignmentOwnerTransferAmountCents) { this.saleConsignmentOwnerTransferAmountCents = saleConsignmentOwnerTransferAmountCents; }
 
     public AtendimentoSessionStatus getStatus() { return status; }
     public void setStatus(AtendimentoSessionStatus status) { this.status = status; }

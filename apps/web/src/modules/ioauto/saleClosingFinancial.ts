@@ -1,3 +1,5 @@
+export type ConsignmentCommissionType = "PERCENTUAL" | "VALOR_FIXO";
+
 export type SaleClosingFinancialFormState = {
     discountPercentage: string;
     hasTradeInVehicle: boolean;
@@ -6,6 +8,15 @@ export type SaleClosingFinancialFormState = {
     installmentSale: boolean;
     installmentCount: string;
     firstInstallmentDueDate: string;
+    consignmentCommissionType: "" | ConsignmentCommissionType;
+    consignmentCommissionPercentage: string;
+    consignmentCommissionAmountDigits: string;
+};
+
+export type SaleClosingConsignmentContext = {
+    consigned: boolean;
+    consignedOwnerName: string | null;
+    consignmentCommissionPercentage: number | null;
 };
 
 export type SaleInstallmentPreview = {
@@ -25,6 +36,14 @@ export type SaleClosingFinancialPreview = {
     installmentSale: boolean;
     installmentCount: number;
     installments: SaleInstallmentPreview[];
+    consigned: boolean;
+    consignedOwnerName: string | null;
+    configuredConsignmentCommissionPercentage: number | null;
+    consignmentCommissionType: ConsignmentCommissionType | null;
+    consignmentCommissionPercentage: number | null;
+    consignmentCommissionAmountCents: number;
+    consignmentBaseAmountCents: number;
+    consignmentOwnerTransferAmountCents: number;
 };
 
 export type SaleClosingFinancialPayload = {
@@ -36,6 +55,13 @@ export type SaleClosingFinancialPayload = {
     installmentSale: boolean;
     installmentCount: number | null;
     firstInstallmentDueDate: string | null;
+    consigned: boolean;
+    consignedOwnerName: string | null;
+    consignmentCommissionType: ConsignmentCommissionType | null;
+    consignmentCommissionPercentage: number | null;
+    consignmentCommissionAmountCents: number | null;
+    consignmentBaseAmountCents: number | null;
+    consignmentOwnerTransferAmountCents: number | null;
 };
 
 export function createDefaultSaleClosingFinancialState(): SaleClosingFinancialFormState {
@@ -47,6 +73,9 @@ export function createDefaultSaleClosingFinancialState(): SaleClosingFinancialFo
         installmentSale: false,
         installmentCount: "2",
         firstInstallmentDueDate: "",
+        consignmentCommissionType: "",
+        consignmentCommissionPercentage: "",
+        consignmentCommissionAmountDigits: "",
     };
 }
 
@@ -64,7 +93,8 @@ export function formatCurrencyDigits(value: string) {
 
 export function computeSaleClosingFinancialPreview(
     originalAmountCents: number | null | undefined,
-    state: SaleClosingFinancialFormState
+    state: SaleClosingFinancialFormState,
+    consignmentContext?: SaleClosingConsignmentContext | null
 ): SaleClosingFinancialPreview {
     const original = normalizeNonNegativeInt(originalAmountCents ?? 0);
     const discountPercentage = normalizePercentage(state.discountPercentage);
@@ -77,6 +107,8 @@ export function computeSaleClosingFinancialPreview(
     const firstDueDate = normalizeDate(state.firstInstallmentDueDate) ?? formatDateOnly(new Date());
     const installments = buildInstallments(totalRealAmountCents, installmentCount > 0 ? installmentCount : 1, firstDueDate);
 
+    const consignment = resolveConsignmentPreview(amountAfterDiscountCents, state, consignmentContext);
+
     return {
         originalAmountCents: original,
         discountPercentage,
@@ -87,6 +119,14 @@ export function computeSaleClosingFinancialPreview(
         installmentSale,
         installmentCount,
         installments,
+        consigned: consignment.consigned,
+        consignedOwnerName: consignment.ownerName,
+        configuredConsignmentCommissionPercentage: consignment.configuredPercentage,
+        consignmentCommissionType: consignment.type,
+        consignmentCommissionPercentage: consignment.percentage,
+        consignmentCommissionAmountCents: consignment.amountCents,
+        consignmentBaseAmountCents: consignment.baseAmountCents,
+        consignmentOwnerTransferAmountCents: consignment.ownerTransferAmountCents,
     };
 }
 
@@ -118,6 +158,36 @@ export function validateSaleClosingFinancialState(
     if (state.installmentSale && preview.installmentCount <= 1) {
         return "A quantidade de parcelas deve ser maior que 1.";
     }
+
+    if (preview.consigned) {
+        if (!preview.consignedOwnerName) {
+            return "Informe o dono/empresa do veiculo consignado.";
+        }
+
+        if (!preview.consignmentCommissionType) {
+            return "Selecione como a comissao da consignacao sera definida.";
+        }
+
+        if (preview.consignmentCommissionType === "PERCENTUAL") {
+            const percentage = preview.consignmentCommissionPercentage ?? 0;
+            if (percentage <= 0) {
+                return "Informe um percentual de comissao maior que 0 para a venda consignada.";
+            }
+            if (percentage > 100) {
+                return "O percentual de comissao da consignacao nao pode ser maior que 100%.";
+            }
+        }
+
+        if (preview.consignmentCommissionType === "VALOR_FIXO") {
+            if (preview.consignmentCommissionAmountCents <= 0) {
+                return "Informe um valor de comissao maior que 0 para a venda consignada.";
+            }
+            if (preview.consignmentCommissionAmountCents > preview.amountAfterDiscountCents) {
+                return "O valor da comissao da consignacao nao pode ser maior que o valor final com desconto.";
+            }
+        }
+    }
+
     return null;
 }
 
@@ -134,12 +204,78 @@ export function buildSaleClosingFinancialPayload(
         installmentSale: state.installmentSale,
         installmentCount: state.installmentSale ? preview.installmentCount : null,
         firstInstallmentDueDate: nullableText(state.firstInstallmentDueDate),
+        consigned: preview.consigned,
+        consignedOwnerName: preview.consigned ? preview.consignedOwnerName : null,
+        consignmentCommissionType: preview.consigned ? preview.consignmentCommissionType : null,
+        consignmentCommissionPercentage: preview.consigned ? preview.consignmentCommissionPercentage : null,
+        consignmentCommissionAmountCents: preview.consigned ? preview.consignmentCommissionAmountCents : null,
+        consignmentBaseAmountCents: preview.consigned ? preview.consignmentBaseAmountCents : null,
+        consignmentOwnerTransferAmountCents: preview.consigned ? preview.consignmentOwnerTransferAmountCents : null,
     };
+}
+
+function resolveConsignmentPreview(
+    amountAfterDiscountCents: number,
+    state: SaleClosingFinancialFormState,
+    context?: SaleClosingConsignmentContext | null
+) {
+    const consigned = Boolean(context?.consigned);
+    const ownerName = nullableText(context?.consignedOwnerName ?? "") ?? null;
+    const configuredPercentage = normalizeOptionalPercentage(context?.consignmentCommissionPercentage);
+    const requestedType = normalizeConsignmentType(state.consignmentCommissionType);
+    const requestedPercentage = normalizeOptionalPercentage(state.consignmentCommissionPercentage);
+    const requestedFixedAmountCents = normalizeNonNegativeInt(Number(state.consignmentCommissionAmountDigits || "0"));
+    const baseAmountCents = Math.max(0, amountAfterDiscountCents);
+
+    if (!consigned) {
+        return {
+            consigned: false,
+            ownerName: null,
+            configuredPercentage: null,
+            type: null as ConsignmentCommissionType | null,
+            percentage: null as number | null,
+            amountCents: 0,
+            baseAmountCents: 0,
+            ownerTransferAmountCents: 0,
+        };
+    }
+
+    const type: ConsignmentCommissionType | null = requestedType || (configuredPercentage != null && configuredPercentage > 0 ? "PERCENTUAL" : null);
+    const percentage = type === "PERCENTUAL" ? (requestedPercentage ?? configuredPercentage) : null;
+    const amountCents = type === "VALOR_FIXO"
+        ? requestedFixedAmountCents
+        : (percentage != null ? Math.round(baseAmountCents * (percentage / 100)) : 0);
+    const ownerTransferAmountCents = baseAmountCents - amountCents;
+
+    return {
+        consigned: true,
+        ownerName,
+        configuredPercentage,
+        type,
+        percentage,
+        amountCents,
+        baseAmountCents,
+        ownerTransferAmountCents,
+    };
+}
+
+function normalizeConsignmentType(value: string): ConsignmentCommissionType | null {
+    if (value === "PERCENTUAL" || value === "VALOR_FIXO") {
+        return value;
+    }
+    return null;
 }
 
 function normalizePercentage(value: string) {
     const normalized = Number(String(value).replace(",", ".").trim());
     if (!Number.isFinite(normalized)) return 0;
+    return Math.round(normalized * 10000) / 10000;
+}
+
+function normalizeOptionalPercentage(value: string | number | null | undefined) {
+    if (value == null || value === "") return null;
+    const normalized = Number(String(value).replace(",", ".").trim());
+    if (!Number.isFinite(normalized)) return null;
     return Math.round(normalized * 10000) / 10000;
 }
 
