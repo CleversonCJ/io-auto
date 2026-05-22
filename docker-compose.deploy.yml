@@ -53,6 +53,7 @@ services:
       ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN}
       IOAUTO_LANDING_CHECKOUT_URL: ${IOAUTO_LANDING_CHECKOUT_URL:-https://ioauto.com.br/api/checkout/link}
       IOAUTO_LANDING_CHECKOUT_BEARER: ${IOAUTO_LANDING_CHECKOUT_BEARER:-}
+      IOAUTO_LANDING_PUBLIC_URL: ${IOAUTO_LANDING_PUBLIC_URL:-https://ioauto.com.br}
       LOGIN_URL: ${LOGIN_URL:-https://app.ioauto.com.br/login}
       SET_PASSWORD_URL: ${SET_PASSWORD_URL:-https://app.ioauto.com.br/definir-senha}
       MAIL_HOST: ${MAIL_HOST}

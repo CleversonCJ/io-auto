@@ -13,6 +13,7 @@ import tools.jackson.databind.node.ObjectNode;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -29,15 +30,18 @@ public class SuperAdminLandingCheckoutService {
     private final SubscriptionPlanRepositoryJpa plans;
     private final String checkoutEndpointUrl;
     private final String checkoutBearerToken;
+    private final String checkoutPublicBaseUrl;
 
     public SuperAdminLandingCheckoutService(
             SubscriptionPlanRepositoryJpa plans,
             @Value("${IOAUTO_LANDING_CHECKOUT_URL:https://ioauto.com.br/api/checkout/link}") String checkoutEndpointUrl,
-            @Value("${IOAUTO_LANDING_CHECKOUT_BEARER:}") String checkoutBearerToken
+            @Value("${IOAUTO_LANDING_CHECKOUT_BEARER:}") String checkoutBearerToken,
+            @Value("${IOAUTO_LANDING_PUBLIC_URL:https://ioauto.com.br}") String checkoutPublicBaseUrl
     ) {
         this.plans = plans;
         this.checkoutEndpointUrl = normalizeText(checkoutEndpointUrl);
         this.checkoutBearerToken = normalizeText(checkoutBearerToken);
+        this.checkoutPublicBaseUrl = normalizePublicBaseUrl(checkoutPublicBaseUrl, this.checkoutEndpointUrl);
     }
 
     @Transactional
@@ -84,6 +88,7 @@ public class SuperAdminLandingCheckoutService {
                 text(responseBody.path("data"), "url"),
                 text(responseBody.path("data"), "link")
         );
+        paymentUrl = normalizeCheckoutUrl(paymentUrl);
 
         if (paymentUrl.isBlank()) {
             throw new BusinessException("MANUAL_CHECKOUT_LINK_MISSING", "A landing não retornou o link de pagamento.");
@@ -215,6 +220,100 @@ public class SuperAdminLandingCheckoutService {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private String normalizeCheckoutUrl(String rawUrl) {
+        String normalized = normalizeText(rawUrl);
+        if (normalized.isBlank()) return "";
+
+        URI uri;
+        try {
+            uri = URI.create(normalized);
+        } catch (Exception ignored) {
+            return normalized;
+        }
+
+        if (uri.isAbsolute()) {
+            String host = normalizeText(uri.getHost()).toLowerCase(Locale.ROOT);
+            if (!isLocalHost(host)) {
+                return normalized;
+            }
+            return rebuildWithPublicBase(uri);
+        }
+
+        if (normalized.startsWith("/")) {
+            return checkoutPublicBaseUrl + normalized;
+        }
+        return checkoutPublicBaseUrl + "/" + normalized;
+    }
+
+    private String rebuildWithPublicBase(URI source) {
+        URI base;
+        try {
+            base = URI.create(checkoutPublicBaseUrl);
+        } catch (Exception ignored) {
+            return source.toString();
+        }
+
+        try {
+            URI rebuilt = new URI(
+                    normalizeText(base.getScheme(), "https"),
+                    base.getUserInfo(),
+                    base.getHost(),
+                    base.getPort(),
+                    source.getPath(),
+                    source.getQuery(),
+                    source.getFragment()
+            );
+            return rebuilt.toString();
+        } catch (URISyntaxException ignored) {
+            return source.toString();
+        }
+    }
+
+    private boolean isLocalHost(String host) {
+        if (host == null || host.isBlank()) return false;
+        return "localhost".equals(host)
+                || "127.0.0.1".equals(host)
+                || "0.0.0.0".equals(host)
+                || "::1".equals(host);
+    }
+
+    private String normalizePublicBaseUrl(String configuredBase, String endpointUrl) {
+        String configured = normalizeText(configuredBase);
+        if (!configured.isBlank()) {
+            String candidate = configured.startsWith("http://") || configured.startsWith("https://")
+                    ? configured
+                    : "https://" + configured;
+            URI parsed = parseUri(candidate);
+            if (parsed != null && parsed.getHost() != null) {
+                return toBaseOrigin(parsed);
+            }
+        }
+
+        URI endpoint = parseUri(endpointUrl);
+        if (endpoint != null && endpoint.getHost() != null && !isLocalHost(endpoint.getHost().toLowerCase(Locale.ROOT))) {
+            return toBaseOrigin(endpoint);
+        }
+
+        return "https://ioauto.com.br";
+    }
+
+    private URI parseUri(String raw) {
+        try {
+            return URI.create(normalizeText(raw));
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String toBaseOrigin(URI uri) {
+        String scheme = normalizeText(uri.getScheme(), "https");
+        String host = normalizeText(uri.getHost());
+        if (host.isBlank()) return "https://ioauto.com.br";
+        int port = uri.getPort();
+        if (port < 0) return scheme + "://" + host;
+        return scheme + "://" + host + ":" + port;
     }
 
     public record ManualCheckoutLinkCommand(
