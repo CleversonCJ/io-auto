@@ -19,8 +19,13 @@ export function FinancialContas() {
     const [settlingEntryId, setSettlingEntryId] = useState<string | null>(null);
     const [settleError, setSettleError] = useState<string | null>(null);
 
+    const isAutoConsignedCommission = (entry: FinancialEntryRecord) =>
+        entry.type === "RECEIVABLE" &&
+        entry.source === "VEHICLE_SALE" &&
+        entry.category === "SERVICE_REVENUE";
+
     const receivables = useMemo(
-        () => sortEntries((data?.entries ?? []).filter((entry) => entry.type === "RECEIVABLE")),
+        () => sortEntries((data?.entries ?? []).filter((entry) => entry.type === "RECEIVABLE" && !isAutoConsignedCommission(entry))),
         [data?.entries]
     );
 
@@ -28,6 +33,22 @@ export function FinancialContas() {
         () => sortEntries((data?.entries ?? []).filter((entry) => entry.type === "PAYABLE")),
         [data?.entries]
     );
+
+    const receivablesSummary = useMemo(() => {
+        const openAmountCents = receivables
+            .filter((entry) => entry.status !== "SETTLED")
+            .reduce((total, entry) => total + entry.amountCents, 0);
+        const settledAmountCents = receivables
+            .filter((entry) => entry.status === "SETTLED")
+            .reduce((total, entry) => total + entry.amountCents, 0);
+        const overdueCount = receivables.filter((entry) => entry.status === "OVERDUE").length;
+
+        return {
+            openAmountCents,
+            settledAmountCents,
+            overdueCount,
+        };
+    }, [receivables]);
 
     const chartData = useMemo(() => {
         const map = new Map<string, { monthStr: string; receivable: number; payable: number }>();
@@ -198,8 +219,8 @@ export function FinancialContas() {
                     title="Contas a receber"
                     subtitle="Inclui automaticamente os veículos vendidos"
                     icon={<ArrowUpCircle className="h-5 w-5" />}
-                    total={formatMoney(data?.accountsReceivable.openAmountCents ?? null)}
-                    secondary={`Em atraso: ${data?.accountsReceivable.overdueCount ?? 0} | Liquidadas: ${formatMoney(data?.accountsReceivable.settledAmountCents ?? 0)}`}
+                    total={formatMoney(receivablesSummary.openAmountCents)}
+                    secondary={`Em atraso: ${receivablesSummary.overdueCount} | Liquidadas: ${formatMoney(receivablesSummary.settledAmountCents)}`}
                     entries={receivables}
                     loading={loading}
                     onEdit={handleEdit}
