@@ -287,7 +287,10 @@ public class SuperAdminLandingCheckoutService {
                     : "https://" + configured;
             URI parsed = parseUri(candidate);
             if (parsed != null && parsed.getHost() != null) {
-                return toBaseOrigin(parsed);
+                String host = normalizeText(parsed.getHost()).toLowerCase(Locale.ROOT);
+                if (!isLocalHost(host)) {
+                    return toBaseOrigin(parsed);
+                }
             }
         }
 
