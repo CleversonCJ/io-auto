@@ -376,6 +376,140 @@ class IoAutoBillingServicePlanChangeTest {
         assertThat(response.targetPlan().amountCents()).isEqualTo(14990L);
     }
 
+    @Test
+    void registerSuperAdminPlanChangeNoticeStoresAdjustmentPaymentId() {
+        TestContext ctx = newTestContext();
+        PlanChangePreviewResponse preview = ctx.service.previewPlanChange(ctx.companyId, "pro", "MONTHLY");
+        PlanChangeConfirmResponse confirm = new PlanChangeConfirmResponse(
+                true,
+                "ok",
+                new PlanChangeSubscriptionSnapshot("pro", "Plano Pro", 14990L, "MONTHLY", "ACTIVE"),
+                new PlanChangeAdjustmentResult(
+                        "IMMEDIATE_CHARGE",
+                        3200L,
+                        null,
+                        0L,
+                        "pay_notice_123",
+                        "https://asaas.test/invoice/pay_notice_123",
+                        "Mensagem"
+                )
+        );
+
+        ctx.service.registerSuperAdminPlanChangeNotice(ctx.companyId, preview, confirm);
+
+        assertThat(ctx.company.getPendingPlanChangeNoticeJson()).contains("\"paymentId\":\"pay_notice_123\"");
+    }
+
+    @Test
+    void dismissPlanChangeNoticeRejectsWhenImmediateChargeIsStillPending() throws Exception {
+        HttpServer server = startServer(exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            String method = exchange.getRequestMethod();
+            if ("/v3/payments/pay_pending_notice".equals(path) && "GET".equals(method)) {
+                writeJson(exchange, 200, """
+                        {
+                          "id": "pay_pending_notice",
+                          "status": "PENDING",
+                          "invoiceUrl": "https://asaas.test/invoice/pay_pending_notice",
+                          "value": 31.90,
+                          "billingType": "CREDIT_CARD",
+                          "dueDate": "2026-05-30"
+                        }
+                        """);
+                return;
+            }
+            writeJson(exchange, 404, """
+                    { "errors": [ { "description": "not-found" } ] }
+                    """);
+        });
+
+        try {
+            TestContext ctx = newTestContext(server);
+            ctx.company.setPendingPlanChangeNoticeJson("""
+                    {
+                      "title": "Aviso",
+                      "message": "Mensagem",
+                      "currentPlanName": "Plano Basico",
+                      "targetPlanName": "Plano Pro",
+                      "targetBillingInterval": "MONTHLY",
+                      "changeType": "UPGRADE",
+                      "unlockedFeatures": [],
+                      "prorationAdjustmentMode": "IMMEDIATE_CHARGE",
+                      "immediateChargeCents": 3190,
+                      "creditNextCycleCents": null,
+                      "remainingCreditCents": 0,
+                      "invoiceUrl": "https://asaas.test/invoice/pay_pending_notice",
+                      "paymentId": "pay_pending_notice",
+                      "requiresAction": true,
+                      "createdAt": "2026-05-22T12:00:00Z"
+                    }
+                    """);
+
+            assertThatThrownBy(() -> ctx.service.dismissPlanChangeNotice(ctx.companyId))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(error -> assertThat(((BusinessException) error).code()).isEqualTo("PLAN_CHANGE_NOTICE_PAYMENT_PENDING"));
+
+            assertThat(ctx.company.getPendingPlanChangeNoticeJson()).isNotBlank();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void dismissPlanChangeNoticeClearsNoticeWhenImmediateChargeIsPaid() throws Exception {
+        HttpServer server = startServer(exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            String method = exchange.getRequestMethod();
+            if ("/v3/payments/pay_paid_notice".equals(path) && "GET".equals(method)) {
+                writeJson(exchange, 200, """
+                        {
+                          "id": "pay_paid_notice",
+                          "status": "RECEIVED",
+                          "invoiceUrl": "https://asaas.test/invoice/pay_paid_notice",
+                          "value": 31.90,
+                          "billingType": "CREDIT_CARD",
+                          "dueDate": "2026-05-30"
+                        }
+                        """);
+                return;
+            }
+            writeJson(exchange, 404, """
+                    { "errors": [ { "description": "not-found" } ] }
+                    """);
+        });
+
+        try {
+            TestContext ctx = newTestContext(server);
+            ctx.company.setPendingPlanChangeNoticeJson("""
+                    {
+                      "title": "Aviso",
+                      "message": "Mensagem",
+                      "currentPlanName": "Plano Basico",
+                      "targetPlanName": "Plano Pro",
+                      "targetBillingInterval": "MONTHLY",
+                      "changeType": "UPGRADE",
+                      "unlockedFeatures": [],
+                      "prorationAdjustmentMode": "IMMEDIATE_CHARGE",
+                      "immediateChargeCents": 3190,
+                      "creditNextCycleCents": null,
+                      "remainingCreditCents": 0,
+                      "invoiceUrl": "https://asaas.test/invoice/pay_paid_notice",
+                      "paymentId": "pay_paid_notice",
+                      "requiresAction": true,
+                      "createdAt": "2026-05-22T12:00:00Z"
+                    }
+                    """);
+            ctx.company.setPendingPlanChangeNoticeCreatedAt(Instant.parse("2026-05-22T12:00:00Z"));
+
+            ctx.service.dismissPlanChangeNotice(ctx.companyId);
+
+            assertThat(ctx.company.getPendingPlanChangeNoticeJson()).isNull();
+            assertThat(ctx.company.getPendingPlanChangeNoticeCreatedAt()).isNull();
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static TestContext newTestContext() {
         return newTestContext(null);
     }

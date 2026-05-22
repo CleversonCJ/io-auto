@@ -100,6 +100,7 @@ export type BillingSnapshot = {
         creditNextCycleCents: number | null;
         remainingCreditCents: number | null;
         invoiceUrl: string;
+        paymentId: string;
         requiresAction: boolean;
         createdAt: string | null;
     } | null;

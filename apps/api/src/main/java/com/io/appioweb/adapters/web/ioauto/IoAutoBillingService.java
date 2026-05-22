@@ -327,6 +327,13 @@ public class IoAutoBillingService {
     public void dismissPlanChangeNotice(UUID companyId) {
         JpaCompanyEntity company = companyRepo.findById(companyId)
                 .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+        StoredPlanChangeNotice storedNotice = parseStoredPlanChangeNotice(company.getPendingPlanChangeNoticeJson(), company.getId());
+        if (storedNotice != null && storedNotice.requiresAction() && !isPlanChangeNoticePaymentSettled(storedNotice)) {
+            throw new BusinessException(
+                    "PLAN_CHANGE_NOTICE_PAYMENT_PENDING",
+                    "Ainda existe uma cobranca pendente da troca de plano. Finalize o pagamento para concluir."
+            );
+        }
         company.setPendingPlanChangeNoticeJson(null);
         company.setPendingPlanChangeNoticeCreatedAt(null);
         company.setUpdatedAt(Instant.now());
@@ -1001,36 +1008,68 @@ public class IoAutoBillingService {
         if (company == null) {
             return null;
         }
-        String raw = normalizeText(company.getPendingPlanChangeNoticeJson());
+        StoredPlanChangeNotice stored = parseStoredPlanChangeNotice(company.getPendingPlanChangeNoticeJson(), company.getId());
+        if (stored == null) {
+            return null;
+        }
+
+        boolean paymentSettled = isPlanChangeNoticePaymentSettled(stored);
+        boolean active = !stored.requiresAction() || !paymentSettled;
+        return new BillingPlanChangeNotice(
+                active,
+                normalizeText(stored.title()),
+                normalizeText(stored.message()),
+                normalizeText(stored.currentPlanName()),
+                normalizeText(stored.targetPlanName()),
+                normalizeText(stored.targetBillingInterval()),
+                normalizeText(stored.changeType()),
+                stored.unlockedFeatures() == null ? List.of() : List.copyOf(stored.unlockedFeatures()),
+                normalizeText(stored.prorationAdjustmentMode()),
+                stored.immediateChargeCents(),
+                stored.creditNextCycleCents(),
+                stored.remainingCreditCents(),
+                normalizeText(stored.invoiceUrl()),
+                normalizeText(stored.paymentId()),
+                stored.requiresAction(),
+                stored.createdAt()
+        );
+    }
+
+    private StoredPlanChangeNotice parseStoredPlanChangeNotice(String rawNoticeJson, UUID companyId) {
+        String raw = normalizeText(rawNoticeJson);
         if (raw.isBlank()) {
             return null;
         }
         try {
-            StoredPlanChangeNotice stored = OBJECT_MAPPER.readValue(raw, StoredPlanChangeNotice.class);
-            return new BillingPlanChangeNotice(
-                    true,
-                    normalizeText(stored.title()),
-                    normalizeText(stored.message()),
-                    normalizeText(stored.currentPlanName()),
-                    normalizeText(stored.targetPlanName()),
-                    normalizeText(stored.targetBillingInterval()),
-                    normalizeText(stored.changeType()),
-                    stored.unlockedFeatures() == null ? List.of() : List.copyOf(stored.unlockedFeatures()),
-                    normalizeText(stored.prorationAdjustmentMode()),
-                    stored.immediateChargeCents(),
-                    stored.creditNextCycleCents(),
-                    stored.remainingCreditCents(),
-                    normalizeText(stored.invoiceUrl()),
-                    stored.requiresAction(),
-                    stored.createdAt()
-            );
+            return OBJECT_MAPPER.readValue(raw, StoredPlanChangeNotice.class);
         } catch (Exception exception) {
             log.warn(
                     "Failed to parse pending plan change notice companyId={} reason={}",
-                    company.getId(),
+                    companyId,
                     normalizeText(exception.getMessage(), exception.getClass().getSimpleName())
             );
             return null;
+        }
+    }
+
+    private boolean isPlanChangeNoticePaymentSettled(StoredPlanChangeNotice notice) {
+        if (notice == null || !notice.requiresAction()) {
+            return true;
+        }
+        String paymentId = normalizeText(notice.paymentId());
+        if (paymentId.isBlank() || asaasApiKey.isBlank()) {
+            return false;
+        }
+        try {
+            AsaasPayment payment = toAsaasPayment(callAsaas("GET", "/payments/" + urlEncode(paymentId), null));
+            return isPaidPaymentStatus(payment.status());
+        } catch (Exception exception) {
+            log.warn(
+                    "Unable to verify plan change notice payment status paymentId={} reason={}",
+                    paymentId,
+                    normalizeText(exception.getMessage(), exception.getClass().getSimpleName())
+            );
+            return false;
         }
     }
 
@@ -1064,6 +1103,7 @@ public class IoAutoBillingService {
                 adjustment == null ? null : adjustment.appliedCreditCents(),
                 adjustment == null ? null : adjustment.remainingCreditCents(),
                 adjustment == null ? "" : normalizeText(adjustment.invoiceUrl()),
+                adjustment == null ? "" : normalizeText(adjustment.paymentId()),
                 requiresAction,
                 createdAt
         );
@@ -3175,6 +3215,7 @@ record BillingPlanChangeNotice(
         Long creditNextCycleCents,
         Long remainingCreditCents,
         String invoiceUrl,
+        String paymentId,
         boolean requiresAction,
         Instant createdAt
 ) {
@@ -3193,6 +3234,7 @@ record StoredPlanChangeNotice(
         Long creditNextCycleCents,
         Long remainingCreditCents,
         String invoiceUrl,
+        String paymentId,
         boolean requiresAction,
         Instant createdAt
 ) {
