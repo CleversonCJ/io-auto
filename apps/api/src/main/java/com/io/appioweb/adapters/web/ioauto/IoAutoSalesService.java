@@ -395,7 +395,7 @@ public class IoAutoSalesService {
 
     private String buildSaleDescription(String vehicleTitle, int installmentNumber, int totalInstallments, boolean consignedSale) {
         String baseDescription = consignedSale
-                ? "Comissao sobre venda consignada - " + vehicleTitle
+                ? "Comissão sobre venda consignada - " + vehicleTitle
                 : "Venda do veiculo " + vehicleTitle;
         if (totalInstallments > 1) {
             return "Parcela " + installmentNumber + "/" + totalInstallments + " - " + baseDescription;
@@ -414,12 +414,12 @@ public class IoAutoSalesService {
         if (saleCalculation.consigned()) {
             notes.append(" | Consignado: SIM");
             notes.append(" | Dono/empresa: ").append(firstNonBlank(saleCalculation.consignedOwnerName(), "Nao informado"));
-            notes.append(" | Tipo comissao: ").append(firstNonBlank(saleCalculation.consignmentCommissionType(), "Nao informado"));
+            notes.append(" | Tipo comissão: ").append(firstNonBlank(saleCalculation.consignmentCommissionType(), "Nao informado"));
             if (saleCalculation.consignmentCommissionPercentage() != null) {
-                notes.append(" | Percentual comissao: ").append(saleCalculation.consignmentCommissionPercentage());
+                notes.append(" | Percentual comissão: ").append(saleCalculation.consignmentCommissionPercentage());
             }
-            notes.append(" | Base comissao (cents): ").append(saleCalculation.consignmentBaseAmountCents());
-            notes.append(" | Comissao (cents): ").append(saleCalculation.consignmentCommissionAmountCents());
+            notes.append(" | Base comissão (cents): ").append(saleCalculation.consignmentBaseAmountCents());
+            notes.append(" | Comissão (cents): ").append(saleCalculation.consignmentCommissionAmountCents());
             notes.append(" | Repasse proprietario (cents): ").append(saleCalculation.consignmentOwnerTransferAmountCents());
         } else {
             notes.append(" | Consignado: NAO");

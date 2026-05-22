@@ -88,7 +88,7 @@ public class IoAutoFinancialController {
 
     private static final List<DreSubcategorySeed> DEFAULT_DRE_SUBCATEGORIES = List.of(
             new DreSubcategorySeed(SUBCATEGORY_VEHICLE_SALES, SECTION_GROSS_REVENUE, "Venda de Veiculos", ENTRY_TYPE_RECEIVABLE, true, true, 10),
-            new DreSubcategorySeed(SUBCATEGORY_CONSIGNED_SALE_COMMISSIONS, SECTION_GROSS_REVENUE, "Comissao sobre Venda Consignada", ENTRY_TYPE_RECEIVABLE, true, true, 15),
+            new DreSubcategorySeed(SUBCATEGORY_CONSIGNED_SALE_COMMISSIONS, SECTION_GROSS_REVENUE, "Comissão sobre Venda Consignada", ENTRY_TYPE_RECEIVABLE, true, true, 15),
             new DreSubcategorySeed(SUBCATEGORY_SERVICE_COMMISSIONS, SECTION_GROSS_REVENUE, "Servicos/Comissoes", ENTRY_TYPE_RECEIVABLE, true, false, 20),
             new DreSubcategorySeed(SUBCATEGORY_SALES_TAXES, SECTION_GROSS_REVENUE_DEDUCTIONS, "Impostos e Taxas sobre Vendas", ENTRY_TYPE_PAYABLE, true, false, 10),
             new DreSubcategorySeed(SUBCATEGORY_VEHICLE_ACQUISITION, SECTION_COST_OF_SALES, "Custo de Aquisicao (Veiculos)", ENTRY_TYPE_PAYABLE, true, false, 10),
@@ -474,10 +474,10 @@ public class IoAutoFinancialController {
             }
 
             String fallbackDescription = consignedSale
-                    ? "Comissao sobre venda consignada - " + normalizeText(vehicle.getTitle(), "Veiculo sem identificacao")
+                    ? "Comissão sobre venda consignada - " + normalizeText(vehicle.getTitle(), "Veiculo sem identificacao")
                     : normalizeText(vehicle.getTitle(), "Venda de veiculo");
             String fallbackNotes = consignedSale
-                    ? "Venda consignada sem lancamento detalhado. Receita considerada como comissao."
+                    ? "Venda consignada sem lancamento detalhado. Receita considerada como comissão."
                     : (saleCompletedAt == null
                     ? "Veiculo marcado como vendido no estoque."
                     : "Venda concluida e liquidada pelo fluxo comercial.");
