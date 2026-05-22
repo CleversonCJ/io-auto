@@ -4,18 +4,47 @@ import { useMemo, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, CalendarClock, PencilLine, Plus, Search } from "lucide-react";
 import { formatDateTime, formatMoney } from "@/modules/ioauto/formatters";
 import { useFinancialData } from "@/modules/financeiro/contexts/FinancialContext";
-import { entryPrimaryLabel, entrySecondaryLabel, formatDate, sortEntries, statusLabel, statusTone } from "./financial-utils";
+import { entryPrimaryLabel, entrySecondaryLabel, formatDate, statusLabel, statusTone } from "./financial-utils";
 import { FinancialTransactionModal } from "./FinancialTransactionModal";
 import type { FinancialEntryRecord } from "@/modules/financeiro/types";
+
+function dateToInputValue(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function currentMonthDateRange() {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+        startDate: dateToInputValue(start),
+        endDate: dateToInputValue(end),
+    };
+}
+
+function entryReferenceDate(entry: FinancialEntryRecord) {
+    const dueDate = entry.dueDate ? new Date(`${entry.dueDate}T12:00:00`).getTime() : Number.NaN;
+    if (!Number.isNaN(dueDate)) return dueDate;
+
+    const createdAt = entry.createdAt ? new Date(entry.createdAt).getTime() : Number.NaN;
+    if (!Number.isNaN(createdAt)) return createdAt;
+
+    const updatedAt = entry.updatedAt ? new Date(entry.updatedAt).getTime() : 0;
+    return Number.isNaN(updatedAt) ? 0 : updatedAt;
+}
 
 export function FinancialCashFlow() {
     const { data, loading, error } = useFinancialData();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingEntry, setEditingEntry] = useState<FinancialEntryRecord | null>(null);
+    const [initialPeriod] = useState(() => currentMonthDateRange());
 
     const [typeFilter, setTypeFilter] = useState<"ALL" | "RECEIVABLE" | "PAYABLE">("ALL");
-    const [startDate, setStartDate] = useState("");
-    const [endDate, setEndDate] = useState("");
+    const [startDate, setStartDate] = useState(initialPeriod.startDate);
+    const [endDate, setEndDate] = useState(initialPeriod.endDate);
     const [searchQuery, setSearchQuery] = useState("");
 
     const filteredEntries = useMemo(() => {
@@ -48,7 +77,7 @@ export function FinancialCashFlow() {
             });
         }
 
-        return sortEntries(entries);
+        return [...entries].sort((left, right) => entryReferenceDate(right) - entryReferenceDate(left));
     }, [data?.entries, endDate, searchQuery, startDate, typeFilter]);
 
     const summary = useMemo(() => {
@@ -127,8 +156,8 @@ export function FinancialCashFlow() {
                         <button
                             onClick={() => {
                                 setTypeFilter("ALL");
-                                setStartDate("");
-                                setEndDate("");
+                                setStartDate(initialPeriod.startDate);
+                                setEndDate(initialPeriod.endDate);
                                 setSearchQuery("");
                             }}
                             className="ml-1 shrink-0 text-xs font-semibold text-red-600 underline transition hover:text-red-700"
@@ -198,7 +227,7 @@ export function FinancialCashFlow() {
                                             <div className="mt-3 flex flex-wrap gap-3 text-xs text-black/50">
                                                 <span className="inline-flex items-center gap-1">
                                                     <CalendarClock className="h-3.5 w-3.5" />
-                                                    <span>Data: {formatDate(entry.dueDate)}</span>
+                                                    <span>Data: {formatDate(entry.dueDate || (entry.createdAt ? entry.createdAt.substring(0, 10) : null))}</span>
                                                 </span>
                                                 {entry.counterparty ? <span>Contraparte: {entry.counterparty}</span> : null}
                                                 <span>Atualizado: {formatDateTime(entry.updatedAt)}</span>
