@@ -384,16 +384,6 @@ export function AccessManagementPanel() {
 
     useEffect(() => {
         const initialView = searchParams?.get("view");
-        if (initialView === "labels") {
-            loadLabels();
-            setView("labels");
-            return;
-        }
-        if (initialView === "classifications") {
-            loadCustomClassifications();
-            setView("classifications");
-            return;
-        }
         if (initialView === "stages") {
             loadCrmStages();
             setView("stages");
@@ -1217,14 +1207,6 @@ export function AccessManagementPanel() {
                     <section className="rounded-2xl border border-black/10 bg-white p-5 shadow-soft">
                         <h2 className="text-lg font-semibold text-io-dark">Gerenciar equipes</h2>
                         <button type="button" onClick={async () => { await loadTeams(); setView("teams"); }} className="mt-3 rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white">Abrir gerenciamento</button>
-                    </section>
-                    <section className="rounded-2xl border border-black/10 bg-white p-5 shadow-soft">
-                        <h2 className="text-lg font-semibold text-io-dark">Gerenciar etiquetas</h2>
-                        <button type="button" onClick={() => { loadLabels(); setView("labels"); }} className="mt-3 rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white">Abrir gerenciamento</button>
-                    </section>
-                    <section className="rounded-2xl border border-black/10 bg-white p-5 shadow-soft">
-                        <h2 className="text-lg font-semibold text-io-dark">Gerenciar classificações de atendimento</h2>
-                        <button type="button" onClick={() => { loadCustomClassifications(); setView("classifications"); }} className="mt-3 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Abrir gerenciamento</button>
                     </section>
                     <section className="rounded-2xl border border-black/10 bg-white p-5 shadow-soft">
                         <h2 className="text-lg font-semibold text-io-dark">Gerenciar etapas de atendimento</h2>
@@ -2456,6 +2438,3 @@ export function AccessManagementPanel() {
         </section>
     );
 }
-
-
-

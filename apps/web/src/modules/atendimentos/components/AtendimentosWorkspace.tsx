@@ -5635,7 +5635,7 @@ export function AtendimentosWorkspace() {
                                                         type="button"
                                                         onClick={() => {
                                                             setIsChatLabelsOpen(false);
-                                                            router.push("/protected/configuracoes?view=labels");
+                                                            router.push("/protected/configuracoes");
                                                         }}
                                                         className="grid h-6 w-6 place-items-center rounded-md border border-black/10 text-black/70 transition hover:bg-black/5"
                                                         aria-label="Gerenciar etiquetas"
