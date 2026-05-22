@@ -767,8 +767,8 @@ export function PublicCatalogLeadsPage() {
             </section>
 
             {saleLead ? (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2d0a52]/38 px-4 py-6 backdrop-blur-[3px]">
-                    <div className="w-full max-w-2xl rounded-[32px] border border-[#6b00e3]/10 bg-white p-6 shadow-[0_30px_80px_rgba(61,16,122,0.24)]">
+                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#2d0a52]/38 px-4 py-4 backdrop-blur-[3px] sm:items-center sm:py-6">
+                    <div className="my-2 w-full max-w-2xl overflow-y-auto rounded-[32px] border border-[#6b00e3]/10 bg-white p-6 shadow-[0_30px_80px_rgba(61,16,122,0.24)] sm:my-0 sm:max-h-[88vh]">
                         <div className="flex items-start justify-between gap-4">
                             <div>
                                 <p className="text-xs uppercase tracking-[0.28em] text-black/35">Fechamento comercial</p>
