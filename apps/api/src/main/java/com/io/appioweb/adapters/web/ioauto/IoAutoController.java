@@ -912,7 +912,7 @@ public class IoAutoController {
         planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_OWN_SITE);
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "GET_CATALOG_SETTINGS"));
         var company = companies.findById(companyId)
-                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa não encontrada."));
         return ResponseEntity.ok(toPublicCatalogSettingsResponse(company));
     }
 
@@ -925,7 +925,7 @@ public class IoAutoController {
         planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_OWN_SITE);
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "UPDATE_CATALOG_SETTINGS"));
         var company = companies.findById(companyId)
-                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa não encontrada."));
 
         String bannerMode = normalizePublicCatalogBannerMode(request.bannerMode());
         List<String> customImageUrls = sanitizePublicCatalogBannerImages(request.customImageUrls());
@@ -961,7 +961,7 @@ public class IoAutoController {
         planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_OWN_SITE);
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "CREATE_PUBLIC_LINK"));
         var company = companies.findById(companyId)
-                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa não encontrada."));
 
         String linkKind = normalizePublicLinkKind(request.linkKind());
         String scopeType = normalizePublicLinkScope(request.scopeType());
@@ -975,10 +975,10 @@ public class IoAutoController {
         JpaIoAutoVehicleEntity vehicle = null;
         if ("VEHICLE".equals(scopeType)) {
             if (vehicleId == null) {
-                throw new BusinessException("IOAUTO_PUBLIC_LINK_INVALID", "Selecione um veiculo para este link.");
+                throw new BusinessException("IOAUTO_PUBLIC_LINK_INVALID", "Selecione um veículo para este link.");
             }
             vehicle = vehicles.findByIdAndCompanyId(vehicleId, companyId)
-                    .orElseThrow(() -> new BusinessException("VEHICLE_NOT_FOUND", "Veiculo nao encontrado."));
+                    .orElseThrow(() -> new BusinessException("VEHICLE_NOT_FOUND", "Veículo não encontrado."));
         }
 
         Instant now = Instant.now();
@@ -1008,7 +1008,7 @@ public class IoAutoController {
         planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_OWN_SITE);
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "DELETE_PUBLIC_LINK"));
         JpaIoAutoPublicLinkEntity entity = publicLinks.findByIdAndCompanyId(linkId, companyId)
-                .orElseThrow(() -> new BusinessException("IOAUTO_PUBLIC_LINK_NOT_FOUND", "Link nao encontrado."));
+                .orElseThrow(() -> new BusinessException("IOAUTO_PUBLIC_LINK_NOT_FOUND", "Link não encontrado."));
         publicLinks.delete(entity);
         return ResponseEntity.noContent().build();
     }
@@ -1149,7 +1149,7 @@ public class IoAutoController {
         if (consigned) {
             entity.setConsignedOwnerName(trimToMaxLength(requireText(
                     request.consignedOwnerName(),
-                    "Informe o dono/empresa para veiculo consignado."
+                    "Informe o dono/empresa para veículo consignado."
             ), 200));
             entity.setConsignmentCommissionPercentage(normalizeConsignmentCommissionPercentage(request.consignmentCommissionPercentage()));
         } else {
@@ -1508,7 +1508,7 @@ public class IoAutoController {
         if (parts.isEmpty() && normalizeText(vehicle.getVersion()).isBlank() == false) parts.add(vehicle.getVersion().trim());
         if (normalizeText(vehicle.getFuelType()).isBlank() == false) parts.add(vehicle.getFuelType().trim());
         if (normalizeText(vehicle.getTransmission()).isBlank() == false) parts.add(vehicle.getTransmission().trim());
-        if (parts.isEmpty()) return "Veiculo disponivel no estoque";
+        if (parts.isEmpty()) return "Veículo disponível no estoque";
         return String.join(" • ", parts);
     }
 
@@ -1619,7 +1619,7 @@ public class IoAutoController {
             }
             unique.add(normalized);
             if (unique.size() > MAX_PUBLIC_CATALOG_BANNER_IMAGES) {
-                throw new BusinessException("IOAUTO_PUBLIC_CATALOG_IMAGE_LIMIT", "Voce pode salvar ate " + MAX_PUBLIC_CATALOG_BANNER_IMAGES + " imagens no banner.");
+                throw new BusinessException("IOAUTO_PUBLIC_CATALOG_IMAGE_LIMIT", "Você pode salvar até " + MAX_PUBLIC_CATALOG_BANNER_IMAGES + " imagens no banner.");
             }
         }
         return List.copyOf(unique);
@@ -1679,7 +1679,7 @@ public class IoAutoController {
             );
             return OBJECT_MAPPER.writeValueAsString(normalized);
         } catch (Exception exception) {
-            throw new BusinessException("IOAUTO_FINANCING_SERIALIZATION_FAILED", "NÃ£o foi possÃ­vel salvar as condiÃ§Ãµes de financiamento.");
+            throw new BusinessException("IOAUTO_FINANCING_SERIALIZATION_FAILED", "Não foi possível salvar as condições de financiamento.");
         }
     }
 
@@ -1863,7 +1863,7 @@ public class IoAutoController {
         try {
             return LocalDate.parse(normalized, DATE_FORMATTER);
         } catch (Exception exception) {
-            throw new BusinessException("IOAUTO_PUBLIC_CATALOG_LEADS_INVALID_DATE", "NÃ£o foi possÃ­vel interpretar uma das datas dos leads.");
+            throw new BusinessException("IOAUTO_PUBLIC_CATALOG_LEADS_INVALID_DATE", "Não foi possível interpretar uma das datas dos leads.");
         }
     }
 
@@ -2042,7 +2042,7 @@ public class IoAutoController {
     private String normalizePublicLinkSourceReference(String raw) {
         String slug = slugifyPublicPathSegment(requireText(raw, "Informe o identificador da campanha."));
         if (slug.isBlank()) {
-            throw new BusinessException("IOAUTO_PUBLIC_LINK_INVALID", "Nao foi possivel gerar o identificador do link.");
+            throw new BusinessException("IOAUTO_PUBLIC_LINK_INVALID", "Não foi possível gerar o identificador do link.");
         }
         return trimToMaxLength(slug, 160);
     }
@@ -2116,10 +2116,10 @@ public class IoAutoController {
         }
         java.math.BigDecimal normalized = raw.setScale(4, java.math.RoundingMode.HALF_UP);
         if (normalized.compareTo(java.math.BigDecimal.ZERO) < 0) {
-            throw new BusinessException("IOAUTO_INVALID_PAYLOAD", "O percentual de comissao da consignacao nao pode ser negativo.");
+            throw new BusinessException("IOAUTO_INVALID_PAYLOAD", "O percentual de comissão da consignação não pode ser negativo.");
         }
         if (normalized.compareTo(new java.math.BigDecimal("100")) > 0) {
-            throw new BusinessException("IOAUTO_INVALID_PAYLOAD", "O percentual de comissao da consignacao nao pode ser maior que 100%.");
+            throw new BusinessException("IOAUTO_INVALID_PAYLOAD", "O percentual de comissão da consignação não pode ser maior que 100%.");
         }
         return normalized;
     }

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -3756,7 +3756,7 @@ export function AtendimentosWorkspace() {
     }
 
     function openMediaViewer(message: Message, kind: "image" | "video", source: string) {
-        const sender = message.fromMe ? "VocÃª" : (selectedChat?.name ?? "Contato");
+        const sender = message.fromMe ? "Você" : (selectedChat?.name ?? "Contato");
         setMediaViewer({
             type: kind,
             source,
@@ -6869,7 +6869,7 @@ export function AtendimentosWorkspace() {
                             <button
                                 type="button"
                                 onClick={() => setMediaViewer(null)}
-                                aria-label="Fechar visualizacao"
+                                aria-label="Fechar visualização"
                                 className="grid h-10 w-10 place-items-center rounded-full bg-white/10 hover:bg-white/20"
                             >
                                 <X className="h-5 w-5" strokeWidth={2} />

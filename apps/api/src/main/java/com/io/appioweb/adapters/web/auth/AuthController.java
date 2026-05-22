@@ -124,7 +124,7 @@ public class AuthController {
         if (trimmed.startsWith("{")) {
             Matcher m = REFRESH_JSON.matcher(trimmed);
             if (m.find()) return m.group(1);
-            throw new BusinessException("INVALID_JSON", "JSON invÃ¡lido");
+            throw new BusinessException("INVALID_JSON", "JSON inválido");
         }
 
         Matcher m = REFRESH_FORM.matcher(trimmed);
@@ -133,7 +133,7 @@ public class AuthController {
         }
 
         if (trimmed.contains(".")) return trimmed; // aceita token cru
-        throw new BusinessException("INVALID_JSON", "JSON invÃ¡lido");
+        throw new BusinessException("INVALID_JSON", "JSON inválido");
     }
 
     @GetMapping("/me")
@@ -147,7 +147,7 @@ public class AuthController {
         UUID userId = currentUser.userId();
 
         User existingUser = users.findByIdAndCompanyId(userId, companyId)
-                .orElseThrow(() -> new BusinessException("AUTH_NOT_FOUND", "Usuario nao encontrado"));
+                .orElseThrow(() -> new BusinessException("AUTH_NOT_FOUND", "Usuário não encontrado"));
 
         String normalizedImageUrl = normalizeProfileImageUrl(req.profileImageUrl());
 
@@ -172,7 +172,7 @@ public class AuthController {
         boolean companyLogoUpdated = Boolean.TRUE.equals(req.syncCompanyLogo());
         if (companyLogoUpdated) {
             var existingCompany = companyRepository.findById(companyId)
-                    .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada"));
+                    .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa não encontrada"));
 
             companyRepository.save(new com.io.appioweb.domain.auth.entity.Company(
                     existingCompany.id(),
@@ -255,17 +255,17 @@ public class AuthController {
     public ResponseEntity<Void> updateUser(@PathVariable UUID userId, @Valid @RequestBody UpdateUserHttpRequest req) {
         UUID companyId = currentUser.companyId();
         User existing = users.findByIdAndCompanyId(userId, companyId)
-                .orElseThrow(() -> new BusinessException("AUTH_NOT_FOUND", "Usuario nao encontrado"));
+                .orElseThrow(() -> new BusinessException("AUTH_NOT_FOUND", "Usuário não encontrado"));
         String normalizedEmail = req.email().trim().toLowerCase();
         users.findByEmailGlobal(normalizedEmail).ifPresent(found -> {
             if (!found.id().equals(existing.id())) {
-                throw new BusinessException("USER_EMAIL_ALREADY_EXISTS", "Ja existe usuario com este e-mail");
+                throw new BusinessException("USER_EMAIL_ALREADY_EXISTS", "Já existe usuário com este e-mail");
             }
         });
 
         validateRoleAssignment(req.roles());
         teams.findByIdAndCompanyId(req.teamId(), companyId)
-                .orElseThrow(() -> new BusinessException("TEAM_NOT_FOUND", "Equipe nao encontrada"));
+                .orElseThrow(() -> new BusinessException("TEAM_NOT_FOUND", "Equipe não encontrada"));
 
         String passwordHash = (req.password() != null && !req.password().isBlank())
                 ? hasher.hash(req.password())
@@ -330,7 +330,7 @@ public class AuthController {
     public ResponseEntity<Void> updateTeam(@PathVariable UUID teamId, @Valid @RequestBody UpdateTeamHttpRequest req) {
         UUID companyId = currentUser.companyId();
         Team existing = teams.findByIdAndCompanyId(teamId, companyId)
-                .orElseThrow(() -> new BusinessException("TEAM_NOT_FOUND", "Equipe nao encontrada"));
+                .orElseThrow(() -> new BusinessException("TEAM_NOT_FOUND", "Equipe não encontrada"));
         String normalizedName = normalizeTeamName(req.name());
         validateTeamName(companyId, normalizedName, existing.id());
         teams.save(new Team(
@@ -348,13 +348,13 @@ public class AuthController {
     public ResponseEntity<Void> deleteTeam(@PathVariable UUID teamId) {
         UUID companyId = currentUser.companyId();
         Team existing = teams.findByIdAndCompanyId(teamId, companyId)
-                .orElseThrow(() -> new BusinessException("TEAM_NOT_FOUND", "Equipe nao encontrada"));
+                .orElseThrow(() -> new BusinessException("TEAM_NOT_FOUND", "Equipe não encontrada"));
 
         if (users.countByCompanyIdAndTeamId(companyId, existing.id()) > 0) {
-            throw new BusinessException("TEAM_HAS_USERS", "Nao e possivel excluir uma equipe com usuarios vinculados");
+            throw new BusinessException("TEAM_HAS_USERS", "Não é possível excluir uma equipe com usuários vinculados");
         }
         if (conversations.existsByCompanyIdAndAssignedTeamId(companyId, existing.id())) {
-            throw new BusinessException("TEAM_HAS_CONVERSATIONS", "Nao e possivel excluir uma equipe com atendimentos vinculados");
+            throw new BusinessException("TEAM_HAS_CONVERSATIONS", "Não é possível excluir uma equipe com atendimentos vinculados");
         }
 
         teams.deleteById(existing.id());
@@ -366,10 +366,10 @@ public class AuthController {
     public ResponseEntity<Void> deleteUser(@PathVariable UUID userId) {
         UUID companyId = currentUser.companyId();
         User existing = users.findByIdAndCompanyId(userId, companyId)
-                .orElseThrow(() -> new BusinessException("AUTH_NOT_FOUND", "Usuario nao encontrado"));
+                .orElseThrow(() -> new BusinessException("AUTH_NOT_FOUND", "Usuário não encontrado"));
 
         if (existing.id().equals(currentUser.userId())) {
-            throw new BusinessException("USER_DELETE_FORBIDDEN", "Voce nao pode excluir seu proprio usuario");
+            throw new BusinessException("USER_DELETE_FORBIDDEN", "Você não pode excluir seu próprio usuário");
         }
 
         users.deleteById(existing.id());
@@ -427,7 +427,7 @@ public class AuthController {
     @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<Void> updateCompany(@PathVariable UUID companyId, @Valid @RequestBody UpdateCompanyHttpRequest req) {
         var existing = companyRepository.findById(companyId)
-                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada"));
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa não encontrada"));
         String normalizedEmail = req.companyEmail().trim().toLowerCase();
         companyRepository.findByEmail(normalizedEmail).ifPresent(found -> {
             if (!found.id().equals(existing.id())) {
@@ -436,7 +436,7 @@ public class AuthController {
         });
         users.findByEmailGlobal(normalizedEmail).ifPresent(found -> {
             if (!found.companyId().equals(existing.id())) {
-                throw new BusinessException("USER_EMAIL_ALREADY_EXISTS", "Ja existe usuario com este e-mail");
+                throw new BusinessException("USER_EMAIL_ALREADY_EXISTS", "Já existe usuário com este e-mail");
             }
         });
 
@@ -477,11 +477,11 @@ public class AuthController {
     @Transactional
     public ResponseEntity<Void> deleteCompany(@PathVariable UUID companyId) {
         if (companyId.equals(currentUser.companyId())) {
-            throw new BusinessException("COMPANY_DELETE_FORBIDDEN", "Voce nao pode excluir sua propria empresa");
+            throw new BusinessException("COMPANY_DELETE_FORBIDDEN", "Você não pode excluir sua própria empresa");
         }
 
         var existing = companyRepository.findById(companyId)
-                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada"));
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa não encontrada"));
 
         users.deleteByCompanyId(existing.id());
         companyRepository.deleteById(existing.id());
@@ -560,7 +560,7 @@ public class AuthController {
         try {
             return OBJECT_MAPPER.writeValueAsString(root);
         } catch (Exception ex) {
-            throw new BusinessException("COMPANY_BUSINESS_HOURS_INVALID", "Nao foi possivel processar horarios de atendimento");
+            throw new BusinessException("COMPANY_BUSINESS_HOURS_INVALID", "Não foi possível processar horários de atendimento");
         }
     }
 
