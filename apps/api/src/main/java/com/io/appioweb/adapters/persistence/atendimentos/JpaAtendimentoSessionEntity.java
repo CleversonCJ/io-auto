@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity
@@ -74,6 +75,42 @@ public class JpaAtendimentoSessionEntity {
 
     @Column(name = "sale_origin_platform", length = 40)
     private String saleOriginPlatform;
+
+    @Column(name = "sale_original_amount_cents")
+    private Long saleOriginalAmountCents;
+
+    @Column(name = "sale_discount_percentage", precision = 7, scale = 4)
+    private java.math.BigDecimal saleDiscountPercentage;
+
+    @Column(name = "sale_discount_amount_cents")
+    private Long saleDiscountAmountCents;
+
+    @Column(name = "sale_amount_after_discount_cents")
+    private Long saleAmountAfterDiscountCents;
+
+    @Column(name = "sale_has_trade_in", nullable = false)
+    private boolean saleHasTradeIn;
+
+    @Column(name = "sale_trade_in_vehicle_id")
+    private UUID saleTradeInVehicleId;
+
+    @Column(name = "sale_trade_in_description", length = 255)
+    private String saleTradeInDescription;
+
+    @Column(name = "sale_trade_in_amount_cents")
+    private Long saleTradeInAmountCents;
+
+    @Column(name = "sale_total_real_amount_cents")
+    private Long saleTotalRealAmountCents;
+
+    @Column(name = "sale_installment_sale", nullable = false)
+    private boolean saleInstallmentSale;
+
+    @Column(name = "sale_installment_count")
+    private Integer saleInstallmentCount;
+
+    @Column(name = "sale_first_due_date")
+    private LocalDate saleFirstDueDate;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -144,6 +181,42 @@ public class JpaAtendimentoSessionEntity {
 
     public String getSaleOriginPlatform() { return saleOriginPlatform; }
     public void setSaleOriginPlatform(String saleOriginPlatform) { this.saleOriginPlatform = saleOriginPlatform; }
+
+    public Long getSaleOriginalAmountCents() { return saleOriginalAmountCents; }
+    public void setSaleOriginalAmountCents(Long saleOriginalAmountCents) { this.saleOriginalAmountCents = saleOriginalAmountCents; }
+
+    public java.math.BigDecimal getSaleDiscountPercentage() { return saleDiscountPercentage; }
+    public void setSaleDiscountPercentage(java.math.BigDecimal saleDiscountPercentage) { this.saleDiscountPercentage = saleDiscountPercentage; }
+
+    public Long getSaleDiscountAmountCents() { return saleDiscountAmountCents; }
+    public void setSaleDiscountAmountCents(Long saleDiscountAmountCents) { this.saleDiscountAmountCents = saleDiscountAmountCents; }
+
+    public Long getSaleAmountAfterDiscountCents() { return saleAmountAfterDiscountCents; }
+    public void setSaleAmountAfterDiscountCents(Long saleAmountAfterDiscountCents) { this.saleAmountAfterDiscountCents = saleAmountAfterDiscountCents; }
+
+    public boolean isSaleHasTradeIn() { return saleHasTradeIn; }
+    public void setSaleHasTradeIn(boolean saleHasTradeIn) { this.saleHasTradeIn = saleHasTradeIn; }
+
+    public UUID getSaleTradeInVehicleId() { return saleTradeInVehicleId; }
+    public void setSaleTradeInVehicleId(UUID saleTradeInVehicleId) { this.saleTradeInVehicleId = saleTradeInVehicleId; }
+
+    public String getSaleTradeInDescription() { return saleTradeInDescription; }
+    public void setSaleTradeInDescription(String saleTradeInDescription) { this.saleTradeInDescription = saleTradeInDescription; }
+
+    public Long getSaleTradeInAmountCents() { return saleTradeInAmountCents; }
+    public void setSaleTradeInAmountCents(Long saleTradeInAmountCents) { this.saleTradeInAmountCents = saleTradeInAmountCents; }
+
+    public Long getSaleTotalRealAmountCents() { return saleTotalRealAmountCents; }
+    public void setSaleTotalRealAmountCents(Long saleTotalRealAmountCents) { this.saleTotalRealAmountCents = saleTotalRealAmountCents; }
+
+    public boolean isSaleInstallmentSale() { return saleInstallmentSale; }
+    public void setSaleInstallmentSale(boolean saleInstallmentSale) { this.saleInstallmentSale = saleInstallmentSale; }
+
+    public Integer getSaleInstallmentCount() { return saleInstallmentCount; }
+    public void setSaleInstallmentCount(Integer saleInstallmentCount) { this.saleInstallmentCount = saleInstallmentCount; }
+
+    public LocalDate getSaleFirstDueDate() { return saleFirstDueDate; }
+    public void setSaleFirstDueDate(LocalDate saleFirstDueDate) { this.saleFirstDueDate = saleFirstDueDate; }
 
     public AtendimentoSessionStatus getStatus() { return status; }
     public void setStatus(AtendimentoSessionStatus status) { this.status = status; }

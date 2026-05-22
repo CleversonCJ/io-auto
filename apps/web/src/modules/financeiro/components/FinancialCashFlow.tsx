@@ -19,7 +19,7 @@ export function FinancialCashFlow() {
     const [searchQuery, setSearchQuery] = useState("");
 
     const filteredEntries = useMemo(() => {
-        let entries = (data?.entries ?? []).filter((entry) => entry.status === "SETTLED");
+        let entries = data?.entries ?? [];
 
         if (typeFilter !== "ALL") {
             entries = entries.filter((entry) => entry.type === typeFilter);

@@ -32,6 +32,7 @@ import com.io.appioweb.adapters.web.atendimentos.response.CreateConversationHttp
 import com.io.appioweb.adapters.web.atendimentos.response.ConversationLabelHttpResponse;
 import com.io.appioweb.adapters.web.atendimentos.response.MessageHttpResponse;
 import com.io.appioweb.adapters.web.atendimentos.response.SendTextHttpResponse;
+import com.io.appioweb.adapters.web.ioauto.IoAutoSaleCalculationService;
 import com.io.appioweb.adapters.web.ioauto.IoAutoSalesService;
 import com.io.appioweb.application.superadmin.FeatureUsageService;
 import com.io.appioweb.application.auth.port.out.CompanyRepositoryPort;
@@ -425,7 +426,8 @@ public class AtendimentosController {
                     saleSeller == null ? null : saleSeller.user().id(),
                     saleSeller == null ? null : saleSeller.user().fullName(),
                     saleSeller == null || saleSeller.team() == null ? null : saleSeller.team().id(),
-                    saleSeller == null || saleSeller.team() == null ? null : saleSeller.team().name()
+                    saleSeller == null || saleSeller.team() == null ? null : saleSeller.team().name(),
+                    IoAutoSaleCalculationService.SaleClosingCommand.empty()
             );
             featureUsageService.registerUsage(
                     companyId,

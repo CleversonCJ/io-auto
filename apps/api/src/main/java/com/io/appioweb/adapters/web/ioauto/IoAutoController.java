@@ -819,7 +819,13 @@ public class IoAutoController {
     ) {
         UUID companyId = currentUser.companyId();
         planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_LEAD_MANAGEMENT);
-        ioAutoSalesService.registerPublicCatalogLeadSale(companyId, leadId, request.sellerUserId(), Instant.now());
+        ioAutoSalesService.registerPublicCatalogLeadSale(
+                companyId,
+                leadId,
+                request.sellerUserId(),
+                toSaleClosingCommand(request.financial()),
+                Instant.now()
+        );
         featureUsageService.registerUsage(
                 companyId,
                 FeatureUsageService.FEATURE_SALES_MANAGEMENT,
@@ -844,6 +850,7 @@ public class IoAutoController {
                 request.buyerName(),
                 request.buyerPhone(),
                 requireBuyerLead,
+                toSaleClosingCommand(request.financial()),
                 Instant.now()
         );
         featureUsageService.registerUsage(
@@ -2464,6 +2471,22 @@ public class IoAutoController {
     ) {
     }
 
+    private IoAutoSaleCalculationService.SaleClosingCommand toSaleClosingCommand(SaleClosingFinancialHttpRequest request) {
+        if (request == null) {
+            return IoAutoSaleCalculationService.SaleClosingCommand.empty();
+        }
+        return new IoAutoSaleCalculationService.SaleClosingCommand(
+                request.discountPercentage(),
+                request.hasTradeInVehicle(),
+                request.tradeInVehicleId(),
+                request.tradeInVehicleDescription(),
+                request.tradeInAmountCents(),
+                request.installmentSale(),
+                request.installmentCount(),
+                request.firstInstallmentDueDate()
+        );
+    }
+
     public record SaveVehicleHttpRequest(
             String stockNumber,
             @NotBlank(message = "Informe um título.") String title,
@@ -2539,7 +2562,8 @@ public class IoAutoController {
     }
 
     public record ClosePublicCatalogLeadSaleHttpRequest(
-            @NotNull(message = "Informe o vendedor responsável.") UUID sellerUserId
+            @NotNull(message = "Informe o vendedor responsável.") UUID sellerUserId,
+            @Valid SaleClosingFinancialHttpRequest financial
     ) {
     }
 

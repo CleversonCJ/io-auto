@@ -31,6 +31,24 @@ public class JpaIoAutoFinancialEntryEntity {
     @Column(name = "dre_subcategory_id")
     private UUID dreSubcategoryId;
 
+    @Column(name = "source_kind", length = 40)
+    private String sourceKind;
+
+    @Column(name = "source_sale_session_id")
+    private UUID sourceSaleSessionId;
+
+    @Column(name = "source_vehicle_id")
+    private UUID sourceVehicleId;
+
+    @Column(name = "installment_number")
+    private Integer installmentNumber;
+
+    @Column(name = "installment_total")
+    private Integer installmentTotal;
+
+    @Column(name = "installment_status", length = 30)
+    private String installmentStatus;
+
     @Column(name = "amount_cents", nullable = false)
     private Long amountCents;
 
@@ -98,6 +116,54 @@ public class JpaIoAutoFinancialEntryEntity {
 
     public void setDreSubcategoryId(UUID dreSubcategoryId) {
         this.dreSubcategoryId = dreSubcategoryId;
+    }
+
+    public String getSourceKind() {
+        return sourceKind;
+    }
+
+    public void setSourceKind(String sourceKind) {
+        this.sourceKind = sourceKind;
+    }
+
+    public UUID getSourceSaleSessionId() {
+        return sourceSaleSessionId;
+    }
+
+    public void setSourceSaleSessionId(UUID sourceSaleSessionId) {
+        this.sourceSaleSessionId = sourceSaleSessionId;
+    }
+
+    public UUID getSourceVehicleId() {
+        return sourceVehicleId;
+    }
+
+    public void setSourceVehicleId(UUID sourceVehicleId) {
+        this.sourceVehicleId = sourceVehicleId;
+    }
+
+    public Integer getInstallmentNumber() {
+        return installmentNumber;
+    }
+
+    public void setInstallmentNumber(Integer installmentNumber) {
+        this.installmentNumber = installmentNumber;
+    }
+
+    public Integer getInstallmentTotal() {
+        return installmentTotal;
+    }
+
+    public void setInstallmentTotal(Integer installmentTotal) {
+        this.installmentTotal = installmentTotal;
+    }
+
+    public String getInstallmentStatus() {
+        return installmentStatus;
+    }
+
+    public void setInstallmentStatus(String installmentStatus) {
+        this.installmentStatus = installmentStatus;
     }
 
     public Long getAmountCents() {

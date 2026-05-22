@@ -5,9 +5,13 @@ import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoConversation
 import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoSessionRepositoryJpa;
 import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoConversationEntity;
 import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoSessionEntity;
+import com.io.appioweb.adapters.persistence.ioauto.IoAutoDreSubcategoryRepositoryJpa;
+import com.io.appioweb.adapters.persistence.ioauto.IoAutoFinancialEntryRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoPublicCatalogLeadRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoVehiclePublicationRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoVehicleRepositoryJpa;
+import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoDreSubcategoryEntity;
+import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoFinancialEntryEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoPublicCatalogLeadEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehicleEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehiclePublicationEntity;
@@ -27,6 +31,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -35,10 +42,18 @@ import java.util.UUID;
 public class IoAutoSalesService {
 
     private static final Logger log = LoggerFactory.getLogger(IoAutoSalesService.class);
+    private static final String ENTRY_TYPE_RECEIVABLE = "RECEIVABLE";
+    private static final String ENTRY_CATEGORY_VEHICLE_SALE = "VEHICLE_SALE";
+    private static final String SOURCE_VEHICLE_SALE = "VEHICLE_SALE";
+    private static final String INSTALLMENT_STATUS_PENDING = "PENDING";
+    private static final String DRE_SUBCATEGORY_VEHICLE_SALES = "vehicle-sales";
+    private static final ZoneId SALES_ZONE = ZoneId.of("America/Sao_Paulo");
 
     private final IoAutoVehicleRepositoryJpa vehicles;
     private final IoAutoVehiclePublicationRepositoryJpa publications;
     private final AtendimentoSessionRepositoryJpa sessions;
+    private final IoAutoFinancialEntryRepositoryJpa financialEntries;
+    private final IoAutoDreSubcategoryRepositoryJpa dreSubcategories;
     private final WebmotorsAdRepositoryJpa webmotorsAds;
     private final WebmotorsAdsService webmotorsAdsService;
     private final AtendimentoConversationRepositoryJpa conversations;
@@ -48,11 +63,14 @@ public class IoAutoSalesService {
     private final TeamRepositoryPort teams;
     private final OlxAdService olxAdService;
     private final MeliAdService meliAdService;
+    private final IoAutoSaleCalculationService saleCalculationService;
 
     public IoAutoSalesService(
             IoAutoVehicleRepositoryJpa vehicles,
             IoAutoVehiclePublicationRepositoryJpa publications,
             AtendimentoSessionRepositoryJpa sessions,
+            IoAutoFinancialEntryRepositoryJpa financialEntries,
+            IoAutoDreSubcategoryRepositoryJpa dreSubcategories,
             WebmotorsAdRepositoryJpa webmotorsAds,
             WebmotorsAdsService webmotorsAdsService,
             AtendimentoConversationRepositoryJpa conversations,
@@ -61,11 +79,14 @@ public class IoAutoSalesService {
             UserRepositoryPort users,
             TeamRepositoryPort teams,
             OlxAdService olxAdService,
-            MeliAdService meliAdService
+            MeliAdService meliAdService,
+            IoAutoSaleCalculationService saleCalculationService
     ) {
         this.vehicles = vehicles;
         this.publications = publications;
         this.sessions = sessions;
+        this.financialEntries = financialEntries;
+        this.dreSubcategories = dreSubcategories;
         this.webmotorsAds = webmotorsAds;
         this.webmotorsAdsService = webmotorsAdsService;
         this.conversations = conversations;
@@ -75,6 +96,7 @@ public class IoAutoSalesService {
         this.teams = teams;
         this.olxAdService = olxAdService;
         this.meliAdService = meliAdService;
+        this.saleCalculationService = saleCalculationService;
     }
 
     @Transactional
@@ -85,7 +107,18 @@ public class IoAutoSalesService {
             Instant soldAt,
             String saleOriginPlatform
     ) {
-        return registerCompletedSale(companyId, session, soldVehicleId, soldAt, saleOriginPlatform, null, null, null, null);
+        return registerCompletedSale(
+                companyId,
+                session,
+                soldVehicleId,
+                soldAt,
+                saleOriginPlatform,
+                null,
+                null,
+                null,
+                null,
+                IoAutoSaleCalculationService.SaleClosingCommand.empty()
+        );
     }
 
     @Transactional
@@ -98,10 +131,18 @@ public class IoAutoSalesService {
             UUID sellerUserId,
             String sellerUserName,
             UUID sellerTeamId,
-            String sellerTeamName
+            String sellerTeamName,
+            IoAutoSaleCalculationService.SaleClosingCommand saleClosingCommand
     ) {
         JpaIoAutoVehicleEntity vehicle = vehicles.findByIdAndCompanyId(soldVehicleId, companyId)
-                .orElseThrow(() -> new BusinessException("IOAUTO_SOLD_VEHICLE_NOT_FOUND", "Veículo não encontrado para concluir a venda."));
+                .orElseThrow(() -> new BusinessException("IOAUTO_SOLD_VEHICLE_NOT_FOUND", "Veiculo nao encontrado para concluir a venda."));
+
+        LocalDate soldDate = soldAt.atZone(SALES_ZONE).toLocalDate();
+        IoAutoSaleCalculationService.SaleCalculationResult saleCalculation = saleCalculationService.calculate(
+                vehicle.getPriceCents(),
+                saleClosingCommand == null ? IoAutoSaleCalculationService.SaleClosingCommand.empty() : saleClosingCommand,
+                soldDate
+        );
 
         vehicle.setStatus("SOLD");
         vehicle.setUpdatedAt(soldAt);
@@ -131,9 +172,22 @@ public class IoAutoSalesService {
         session.setSoldVehicleTitle(vehicle.getTitle());
         session.setSaleCompletedAt(soldAt);
         session.setSaleOriginPlatform(normalizeSaleOriginPlatform(saleOriginPlatform));
+        session.setSaleOriginalAmountCents(saleCalculation.originalAmountCents());
+        session.setSaleDiscountPercentage(saleCalculation.discountPercentage());
+        session.setSaleDiscountAmountCents(saleCalculation.discountAmountCents());
+        session.setSaleAmountAfterDiscountCents(saleCalculation.amountAfterDiscountCents());
+        session.setSaleHasTradeIn(saleCalculation.hasTradeInVehicle());
+        session.setSaleTradeInVehicleId(saleCalculation.tradeInVehicleId());
+        session.setSaleTradeInDescription(saleCalculation.tradeInVehicleDescription());
+        session.setSaleTradeInAmountCents(saleCalculation.tradeInAmountCents());
+        session.setSaleTotalRealAmountCents(saleCalculation.totalRealAmountCents());
+        session.setSaleInstallmentSale(saleCalculation.installmentSale());
+        session.setSaleInstallmentCount(saleCalculation.installmentCount());
+        session.setSaleFirstDueDate(saleCalculation.firstInstallmentDueDate());
         session.setUpdatedAt(soldAt);
         sessions.saveAndFlush(session);
 
+        createSaleFinancialEntries(companyId, session, vehicle, soldAt, saleCalculation);
         deactivateIntegratedAds(companyId, soldVehicleId, vehiclePublications);
 
         return new SaleVehicleSnapshot(vehicle.getId(), vehicle.getTitle(), normalizeStatus(vehicle.getStatus()));
@@ -144,16 +198,17 @@ public class IoAutoSalesService {
             UUID companyId,
             UUID leadId,
             UUID sellerUserId,
+            IoAutoSaleCalculationService.SaleClosingCommand saleClosingCommand,
             Instant soldAt
     ) {
         JpaIoAutoPublicCatalogLeadEntity lead = publicCatalogLeads.findByIdAndCompanyId(leadId, companyId)
-                .orElseThrow(() -> new BusinessException("IOAUTO_PUBLIC_CATALOG_LEAD_NOT_FOUND", "Lead do catálogo não encontrado."));
+                .orElseThrow(() -> new BusinessException("IOAUTO_PUBLIC_CATALOG_LEAD_NOT_FOUND", "Lead do catalogo nao encontrado."));
 
         if (lead.getVehicleId() == null) {
-            throw new BusinessException("IOAUTO_PUBLIC_CATALOG_LEAD_VEHICLE_REQUIRED", "Este lead não possui um veículo de interesse vinculado para fechar a venda.");
+            throw new BusinessException("IOAUTO_PUBLIC_CATALOG_LEAD_VEHICLE_REQUIRED", "Este lead nao possui um veiculo de interesse vinculado para fechar a venda.");
         }
         if (lead.isConvertedToSale()) {
-            throw new BusinessException("IOAUTO_PUBLIC_CATALOG_LEAD_ALREADY_CONVERTED", "Esta venda já foi concluída para este lead.");
+            throw new BusinessException("IOAUTO_PUBLIC_CATALOG_LEAD_ALREADY_CONVERTED", "Esta venda ja foi concluida para este lead.");
         }
 
         ResolvedSeller seller = resolveSeller(companyId, sellerUserId);
@@ -172,7 +227,7 @@ public class IoAutoSalesService {
                 companyId,
                 conversation,
                 AtendimentoClassificationResult.OBJECTIVE_ACHIEVED,
-                "Venda concluída",
+                "Venda concluida",
                 List.of(),
                 soldAt
         );
@@ -186,7 +241,8 @@ public class IoAutoSalesService {
                 seller.user().id(),
                 seller.user().fullName(),
                 seller.teamId(),
-                seller.teamName()
+                seller.teamName(),
+                saleClosingCommand
         );
 
         lead.setSellerUserId(seller.user().id());
@@ -206,15 +262,16 @@ public class IoAutoSalesService {
             String buyerName,
             String buyerPhone,
             boolean requireBuyerLead,
+            IoAutoSaleCalculationService.SaleClosingCommand saleClosingCommand,
             Instant soldAt
     ) {
         JpaIoAutoVehicleEntity vehicle = vehicles.findByIdAndCompanyId(vehicleId, companyId)
-                .orElseThrow(() -> new BusinessException("IOAUTO_SOLD_VEHICLE_NOT_FOUND", "Veículo não encontrado para concluir a venda."));
+                .orElseThrow(() -> new BusinessException("IOAUTO_SOLD_VEHICLE_NOT_FOUND", "Veiculo nao encontrado para concluir a venda."));
 
         boolean alreadyRegistered = sessions.findAllByCompanyIdAndSaleCompletedIsTrueOrderBySaleCompletedAtDesc(companyId).stream()
                 .anyMatch(session -> vehicleId.equals(session.getSoldVehicleId()));
         if (alreadyRegistered) {
-            throw new BusinessException("IOAUTO_VEHICLE_SALE_ALREADY_REGISTERED", "Este veículo já possui uma venda concluída registrada.");
+            throw new BusinessException("IOAUTO_VEHICLE_SALE_ALREADY_REGISTERED", "Este veiculo ja possui uma venda concluida registrada.");
         }
 
         ResolvedSeller seller = resolveSeller(companyId, sellerUserId);
@@ -242,7 +299,7 @@ public class IoAutoSalesService {
                 companyId,
                 conversation,
                 AtendimentoClassificationResult.OBJECTIVE_ACHIEVED,
-                "Venda concluída pelo estoque",
+                "Venda concluida pelo estoque",
                 List.of(),
                 soldAt
         );
@@ -256,8 +313,73 @@ public class IoAutoSalesService {
                 seller.user().id(),
                 seller.user().fullName(),
                 seller.teamId(),
-                seller.teamName()
+                seller.teamName(),
+                saleClosingCommand
         );
+    }
+
+    private void createSaleFinancialEntries(
+            UUID companyId,
+            JpaAtendimentoSessionEntity session,
+            JpaIoAutoVehicleEntity vehicle,
+            Instant soldAt,
+            IoAutoSaleCalculationService.SaleCalculationResult saleCalculation
+    ) {
+        UUID dreSubcategoryId = resolveVehicleSalesDreSubcategoryId(companyId);
+        String vehicleTitle = firstNonBlank(safeTrim(vehicle.getTitle()), "Veiculo sem identificacao");
+        List<JpaIoAutoFinancialEntryEntity> entries = new ArrayList<>();
+
+        for (IoAutoSaleCalculationService.SaleInstallment installment : saleCalculation.installments()) {
+            JpaIoAutoFinancialEntryEntity entry = new JpaIoAutoFinancialEntryEntity();
+            entry.setId(UUID.randomUUID());
+            entry.setCompanyId(companyId);
+            entry.setDescription(buildSaleDescription(vehicleTitle, installment.installmentNumber(), installment.totalInstallments()));
+            entry.setEntryType(ENTRY_TYPE_RECEIVABLE);
+            entry.setCategory(ENTRY_CATEGORY_VEHICLE_SALE);
+            entry.setDreSubcategoryId(dreSubcategoryId);
+            entry.setAmountCents(installment.amountCents());
+            entry.setDueDate(installment.dueDate());
+            entry.setSettledAt(null);
+            entry.setCounterparty(null);
+            entry.setNotes(buildSaleNotes(saleCalculation));
+            entry.setSourceKind(SOURCE_VEHICLE_SALE);
+            entry.setSourceSaleSessionId(session.getId());
+            entry.setSourceVehicleId(vehicle.getId());
+            entry.setInstallmentNumber(installment.installmentNumber());
+            entry.setInstallmentTotal(installment.totalInstallments());
+            entry.setInstallmentStatus(INSTALLMENT_STATUS_PENDING);
+            entry.setCreatedAt(soldAt);
+            entry.setUpdatedAt(soldAt);
+            entries.add(entry);
+        }
+
+        if (!entries.isEmpty()) {
+            financialEntries.saveAll(entries);
+        }
+    }
+
+    private UUID resolveVehicleSalesDreSubcategoryId(UUID companyId) {
+        JpaIoAutoDreSubcategoryEntity subcategory = dreSubcategories.findByCompanyIdAndCode(companyId, DRE_SUBCATEGORY_VEHICLE_SALES)
+                .orElse(null);
+        return subcategory == null ? null : subcategory.getId();
+    }
+
+    private String buildSaleDescription(String vehicleTitle, int installmentNumber, int totalInstallments) {
+        if (totalInstallments > 1) {
+            return "Parcela " + installmentNumber + "/" + totalInstallments + " - Venda do veiculo " + vehicleTitle;
+        }
+        return "Venda do veiculo " + vehicleTitle;
+    }
+
+    private String buildSaleNotes(IoAutoSaleCalculationService.SaleCalculationResult saleCalculation) {
+        StringBuilder notes = new StringBuilder();
+        notes.append("Valor original: ").append(saleCalculation.originalAmountCents());
+        notes.append(" | Desconto (%): ").append(saleCalculation.discountPercentage());
+        notes.append(" | Desconto (cents): ").append(saleCalculation.discountAmountCents());
+        notes.append(" | Valor apos desconto: ").append(saleCalculation.amountAfterDiscountCents());
+        notes.append(" | Troca (cents): ").append(saleCalculation.tradeInAmountCents());
+        notes.append(" | Total real: ").append(saleCalculation.totalRealAmountCents());
+        return notes.toString();
     }
 
     private JpaAtendimentoConversationEntity resolveInventorySaleConversation(
@@ -272,9 +394,9 @@ public class IoAutoSalesService {
     ) {
         if (buyerConversationId != null) {
             JpaAtendimentoConversationEntity conversation = conversations.findByIdAndCompanyId(buyerConversationId, companyId)
-                    .orElseThrow(() -> new BusinessException("IOAUTO_SALE_BUYER_LEAD_NOT_FOUND", "Lead selecionado não encontrado para vincular a venda."));
+                    .orElseThrow(() -> new BusinessException("IOAUTO_SALE_BUYER_LEAD_NOT_FOUND", "Lead selecionado nao encontrado para vincular a venda."));
             if ("SYSTEM_SALE".equalsIgnoreCase(safeTrim(conversation.getSourcePlatform()))) {
-                throw new BusinessException("IOAUTO_SALE_BUYER_LEAD_INVALID", "Selecione um lead válido para vincular a venda.");
+                throw new BusinessException("IOAUTO_SALE_BUYER_LEAD_INVALID", "Selecione um lead valido para vincular a venda.");
             }
             return prepareBuyerConversation(conversation, seller, vehicle, referenceAt);
         }
@@ -312,7 +434,7 @@ public class IoAutoSalesService {
     ) {
         String normalizedPhone = normalizePhone(lead.getCustomerPhone());
         if (normalizedPhone.isBlank()) {
-            throw new BusinessException("IOAUTO_PUBLIC_CATALOG_LEAD_PHONE_INVALID", "O lead precisa ter um telefone válido para fechar a venda.");
+            throw new BusinessException("IOAUTO_PUBLIC_CATALOG_LEAD_PHONE_INVALID", "O lead precisa ter um telefone valido para fechar a venda.");
         }
 
         JpaAtendimentoConversationEntity conversation = conversations.findByCompanyIdAndPhone(companyId, normalizedPhone)
@@ -375,7 +497,7 @@ public class IoAutoSalesService {
         entity.setDisplayName("Venda de estoque");
         entity.setSourcePlatform("SYSTEM_SALE");
         entity.setSourceReference(vehicle.getId().toString());
-        entity.setLastMessageText("Venda concluída pelo estoque para o veículo " + firstNonBlank(safeTrim(vehicle.getTitle()), "sem identificação") + ".");
+        entity.setLastMessageText("Venda concluida pelo estoque para o veiculo " + firstNonBlank(safeTrim(vehicle.getTitle()), "sem identificacao") + ".");
         entity.setLastMessageAt(referenceAt);
         entity.setStatus("IN_PROGRESS");
         entity.setAssignedTeamId(seller.teamId());
@@ -466,7 +588,7 @@ public class IoAutoSalesService {
             try {
                 olxAdService.unpublishVehicle(companyId, soldVehicleId);
             } catch (Exception exception) {
-                log.warn("Falha ao despublicar veículo {} na OLX para a empresa {}.", soldVehicleId, companyId, exception);
+                log.warn("Falha ao despublicar veiculo {} na OLX para a empresa {}.", soldVehicleId, companyId, exception);
             }
         }
 
@@ -474,30 +596,30 @@ public class IoAutoSalesService {
             try {
                 meliAdService.closeAd(companyId, soldVehicleId);
             } catch (Exception exception) {
-                log.warn("Falha ao encerrar veículo {} no Mercado Livre para a empresa {}.", soldVehicleId, companyId, exception);
+                log.warn("Falha ao encerrar veiculo {} no Mercado Livre para a empresa {}.", soldVehicleId, companyId, exception);
             }
         }
     }
 
     private ResolvedSeller resolveSeller(UUID companyId, UUID sellerUserId) {
         if (sellerUserId == null) {
-            throw new BusinessException("IOAUTO_SALE_SELLER_REQUIRED", "Selecione o vendedor responsável para concluir a venda.");
+            throw new BusinessException("IOAUTO_SALE_SELLER_REQUIRED", "Selecione o vendedor responsavel para concluir a venda.");
         }
 
         User user = users.findByIdAndCompanyId(sellerUserId, companyId)
                 .filter(User::isActive)
-                .orElseThrow(() -> new BusinessException("IOAUTO_SALE_SELLER_NOT_FOUND", "Vendedor não encontrado para concluir a venda."));
+                .orElseThrow(() -> new BusinessException("IOAUTO_SALE_SELLER_NOT_FOUND", "Vendedor nao encontrado para concluir a venda."));
         Team team = user.teamId() == null ? null : teams.findByIdAndCompanyId(user.teamId(), companyId).orElse(null);
         return new ResolvedSeller(user, team == null ? null : team.id(), team == null ? null : team.name());
     }
 
     private String buildCatalogLeadSummary(JpaIoAutoPublicCatalogLeadEntity lead) {
-        String vehicleName = firstNonBlank(safeTrim(lead.getVehicleInterestName()), "veículo do catálogo");
-        return "Lead do catálogo público com interesse em " + vehicleName + ".";
+        String vehicleName = firstNonBlank(safeTrim(lead.getVehicleInterestName()), "veiculo do catalogo");
+        return "Lead do catalogo publico com interesse em " + vehicleName + ".";
     }
 
     private String buildInventorySaleSummary(JpaIoAutoVehicleEntity vehicle) {
-        return "Venda concluída pelo estoque para o veículo " + firstNonBlank(safeTrim(vehicle.getTitle()), "sem identificação") + ".";
+        return "Venda concluida pelo estoque para o veiculo " + firstNonBlank(safeTrim(vehicle.getTitle()), "sem identificacao") + ".";
     }
 
     private String normalizeStatus(String value) {

@@ -30,10 +30,12 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @RestController
@@ -293,7 +295,7 @@ public class IoAutoFinancialController {
         entity.setUpdatedAt(now);
         financialEntries.save(entity);
 
-        return toHttpResponse(toView(entity, dreSubcategory));
+        return toHttpResponse(toView(entity, dreSubcategory, null));
     }
 
     private DreSubcategoryHttpResponse saveDreSubcategory(UUID subcategoryId, SaveDreSubcategoryHttpRequest request) {
@@ -418,11 +420,20 @@ public class IoAutoFinancialController {
                 .collect(LinkedHashMap::new, (map, entity) -> map.put(entity.getId(), entity), LinkedHashMap::putAll);
         Map<String, JpaIoAutoDreSubcategoryEntity> byCode = allSubcategories.stream()
                 .collect(LinkedHashMap::new, (map, entity) -> map.put(entity.getCode(), entity), LinkedHashMap::putAll);
+        List<JpaIoAutoVehicleEntity> companyVehicles = vehicles.findAllByCompanyIdOrderByUpdatedAtDesc(companyId);
+        Map<UUID, JpaIoAutoVehicleEntity> vehiclesById = companyVehicles.stream()
+                .collect(LinkedHashMap::new, (map, vehicle) -> map.put(vehicle.getId(), vehicle), LinkedHashMap::putAll);
 
         List<FinancialEntryView> entries = new ArrayList<>();
+        Set<UUID> persistedVehicleSales = new HashSet<>();
 
         for (JpaIoAutoFinancialEntryEntity entity : financialEntries.findAllByCompanyIdOrderByDueDateAscUpdatedAtDesc(companyId)) {
-            entries.add(toView(entity, resolveDreSubcategory(entity, byId, byCode)));
+            JpaIoAutoVehicleEntity sourceVehicle = entity.getSourceVehicleId() == null ? null : vehiclesById.get(entity.getSourceVehicleId());
+            FinancialEntryView view = toView(entity, resolveDreSubcategory(entity, byId, byCode), sourceVehicle);
+            entries.add(view);
+            if (SOURCE_VEHICLE_SALE.equals(view.source()) && view.vehicleId() != null) {
+                persistedVehicleSales.add(view.vehicleId());
+            }
         }
 
         JpaIoAutoDreSubcategoryEntity vehicleSalesSubcategory = byCode.get(SUBCATEGORY_VEHICLE_SALES);
@@ -435,9 +446,12 @@ public class IoAutoFinancialController {
             settledSalesByVehicle.put(session.getSoldVehicleId(), session);
         }
 
-        for (JpaIoAutoVehicleEntity vehicle : vehicles.findAllByCompanyIdOrderByUpdatedAtDesc(companyId)) {
+        for (JpaIoAutoVehicleEntity vehicle : companyVehicles) {
             String status = normalizeText(vehicle.getStatus(), "DRAFT").toUpperCase(Locale.ROOT);
             if ("SOLD".equals(status) == false) {
+                continue;
+            }
+            if (persistedVehicleSales.contains(vehicle.getId())) {
                 continue;
             }
 
@@ -472,8 +486,15 @@ public class IoAutoFinancialController {
         return entries;
     }
 
-    private FinancialEntryView toView(JpaIoAutoFinancialEntryEntity entity, JpaIoAutoDreSubcategoryEntity dreSubcategory) {
+    private FinancialEntryView toView(
+            JpaIoAutoFinancialEntryEntity entity,
+            JpaIoAutoDreSubcategoryEntity dreSubcategory,
+            JpaIoAutoVehicleEntity sourceVehicle
+    ) {
         DreSectionDefinition section = requireSection(dreSubcategory == null ? SECTION_OTHER_OPERATING_RESULTS : dreSubcategory.getSectionCode());
+        String source = normalizeFinancialEntrySource(entity.getSourceKind());
+        UUID sourceVehicleId = entity.getSourceVehicleId();
+        String sourceVehicleTitle = sourceVehicle == null ? null : normalizeNullableText(sourceVehicle.getTitle());
         return new FinancialEntryView(
                 entity.getId(),
                 normalizeText(entity.getDescription(), "Lancamento financeiro"),
@@ -484,9 +505,9 @@ public class IoAutoFinancialController {
                 entity.getSettledAt(),
                 normalizeNullableText(entity.getCounterparty()),
                 normalizeNullableText(entity.getNotes()),
-                SOURCE_MANUAL,
-                null,
-                null,
+                source,
+                sourceVehicleId,
+                sourceVehicleTitle,
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
                 section.code(),
@@ -494,6 +515,14 @@ public class IoAutoFinancialController {
                 dreSubcategory == null ? null : dreSubcategory.getId(),
                 dreSubcategory == null ? null : dreSubcategory.getName()
         );
+    }
+
+    private String normalizeFinancialEntrySource(String rawSource) {
+        String normalized = normalizeText(rawSource).toUpperCase(Locale.ROOT);
+        if (SOURCE_VEHICLE_SALE.equals(normalized)) {
+            return SOURCE_VEHICLE_SALE;
+        }
+        return SOURCE_MANUAL;
     }
 
     private FinancialEntryHttpResponse toHttpResponse(FinancialEntryView entry) {

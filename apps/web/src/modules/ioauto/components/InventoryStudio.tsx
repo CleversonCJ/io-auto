@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
@@ -33,6 +33,12 @@ import type {
     VehicleRecord,
 } from "@/modules/ioauto/types";
 import { formatDateTime, formatMoney, platformLabel, statusLabel } from "@/modules/ioauto/formatters";
+import {
+    buildSaleClosingFinancialPayload,
+    computeSaleClosingFinancialPreview,
+    createDefaultSaleClosingFinancialState,
+    type SaleClosingFinancialFormState,
+} from "@/modules/ioauto/saleClosingFinancial";
 
 type VehicleFormState = {
     id?: string;
@@ -78,10 +84,10 @@ type TeamMember = {
 };
 
 const TRANSMISSION_OPTIONS = [
-    { value: "Automatica", label: "Automático" },
+    { value: "Automatica", label: "AutomÃ¡tico" },
     { value: "Manual", label: "Manual" },
-    { value: "Semiautomatica", label: "Semiautomático" },
-    { value: "Automatica sequencial", label: "Automático sequencial" },
+    { value: "Semiautomatica", label: "SemiautomÃ¡tico" },
+    { value: "Automatica sequencial", label: "AutomÃ¡tico sequencial" },
 ];
 
 const FUEL_TYPE_OPTIONS = [
@@ -89,26 +95,26 @@ const FUEL_TYPE_OPTIONS = [
     { value: "Gasolina", label: "Gasolina" },
     { value: "Diesel", label: "Diesel" },
     { value: "Etanol", label: "Etanol" },
-    { value: "Alcool", label: "Álcool" },
-    { value: "Eletrico", label: "Elétrico" },
-    { value: "Hibrido", label: "Híbrido" },
-    { value: "Hibrido/Flex", label: "Híbrido/Flex" },
-    { value: "Hibrido/Gasolina", label: "Híbrido/Gasolina" },
-    { value: "Hibrido/Diesel", label: "Híbrido/Diesel" },
-    { value: "Gasolina e eletrico", label: "Gasolina e elétrico" },
-    { value: "Gasolina e gas natural", label: "Gasolina e gás natural" },
-    { value: "Alcool e gas natural", label: "Álcool e gás natural" },
-    { value: "Gasolina-Alcool e gas natural", label: "Gasolina-Álcool e gás natural" },
+    { value: "Alcool", label: "Ãlcool" },
+    { value: "Eletrico", label: "ElÃ©trico" },
+    { value: "Hibrido", label: "HÃ­brido" },
+    { value: "Hibrido/Flex", label: "HÃ­brido/Flex" },
+    { value: "Hibrido/Gasolina", label: "HÃ­brido/Gasolina" },
+    { value: "Hibrido/Diesel", label: "HÃ­brido/Diesel" },
+    { value: "Gasolina e eletrico", label: "Gasolina e elÃ©trico" },
+    { value: "Gasolina e gas natural", label: "Gasolina e gÃ¡s natural" },
+    { value: "Alcool e gas natural", label: "Ãlcool e gÃ¡s natural" },
+    { value: "Gasolina-Alcool e gas natural", label: "Gasolina-Ãlcool e gÃ¡s natural" },
 ];
 
 const BODY_TYPE_OPTIONS = [
     { value: "Hatch", label: "Hatch" },
-    { value: "Sedan", label: "Sedã" },
+    { value: "Sedan", label: "SedÃ£" },
     { value: "SUV", label: "SUV" },
     { value: "Crossover", label: "Crossover" },
     { value: "Picape", label: "Picape" },
-    { value: "Coupe", label: "Coupé" },
-    { value: "Conversivel", label: "Conversível" },
+    { value: "Coupe", label: "CoupÃ©" },
+    { value: "Conversivel", label: "ConversÃ­vel" },
     { value: "Perua", label: "Perua" },
     { value: "Van", label: "Van" },
     { value: "Minivan", label: "Minivan" },
@@ -236,7 +242,7 @@ function vehicleToForm(vehicle: VehicleRecord): VehicleFormState {
 }
 
 function formatMileage(value?: number | null) {
-    if (value == null || Number.isNaN(Number(value))) return "Quilometragem não informada";
+    if (value == null || Number.isNaN(Number(value))) return "Quilometragem nÃ£o informada";
     return `${new Intl.NumberFormat("pt-BR").format(value)} km`;
 }
 
@@ -246,12 +252,12 @@ function formatVehicleYears(vehicle: VehicleRecord) {
     if (vehicle.modelYear && vehicle.manufactureYear) return `${vehicle.manufactureYear}/${vehicle.modelYear}`;
     if (vehicle.modelYear) return String(vehicle.modelYear);
     if (vehicle.manufactureYear) return String(vehicle.manufactureYear);
-    return "Ano não informado";
+    return "Ano nÃ£o informado";
 }
 
 function buildVehicleSubtitle(vehicle: VehicleRecord) {
     const parts = [vehicle.engine, vehicle.version].filter(Boolean);
-    return parts.length ? parts.join(" • ") : "Cadastro pronto para publicação";
+    return parts.length ? parts.join(" â€¢ ") : "Cadastro pronto para publicaÃ§Ã£o";
 }
 
 function getVehicleImage(vehicle: VehicleRecord) {
@@ -315,9 +321,9 @@ function readFileAsDataUrl(file: File) {
                 resolve(reader.result);
                 return;
             }
-            reject(new Error(`Não foi possível ler a imagem "${file.name}".`));
+            reject(new Error(`NÃ£o foi possÃ­vel ler a imagem "${file.name}".`));
         };
-        reader.onerror = () => reject(new Error(`Não foi possível ler a imagem "${file.name}".`));
+        reader.onerror = () => reject(new Error(`NÃ£o foi possÃ­vel ler a imagem "${file.name}".`));
         reader.readAsDataURL(file);
     });
 }
@@ -346,7 +352,7 @@ function formatFinancingSummary(vehicle: VehicleRecord) {
     if (vehicle.financing.installmentCount != null && vehicle.financing.installmentValueCents != null) {
         parts.push(`${vehicle.financing.installmentCount}x de ${formatMoney(vehicle.financing.installmentValueCents)}`);
     }
-    return parts.length ? parts.join(" • ") : "Financiamento não informado";
+    return parts.length ? parts.join(" â€¢ ") : "Financiamento nÃ£o informado";
 }
 
 function getPublicationBadgeConfig(publication: VehiclePublication) {
@@ -386,6 +392,7 @@ export function InventoryStudio() {
     const [loadingMeliListingTypes, setLoadingMeliListingTypes] = useState(false);
     const [saleVehicle, setSaleVehicle] = useState<VehicleRecord | null>(null);
     const [saleSellerUserId, setSaleSellerUserId] = useState("");
+    const [saleFinancial, setSaleFinancial] = useState<SaleClosingFinancialFormState>(createDefaultSaleClosingFinancialState);
     const [saleBuyerMode, setSaleBuyerMode] = useState<"EXISTING" | "NEW">("EXISTING");
     const [saleBuyerConversationId, setSaleBuyerConversationId] = useState("");
     const [saleBuyerName, setSaleBuyerName] = useState("");
@@ -465,6 +472,10 @@ export function InventoryStudio() {
         [vehicles]
     );
     const requiresBuyerLead = Boolean(billing?.features.leadManagement);
+    const saleFinancialPreview = useMemo(
+        () => computeSaleClosingFinancialPreview(saleVehicle?.priceCents ?? 0, saleFinancial),
+        [saleFinancial, saleVehicle?.priceCents]
+    );
 
     useEffect(() => {
         void loadInventory();
@@ -562,7 +573,7 @@ export function InventoryStudio() {
         });
         const payload = (await response.json().catch(() => null)) as OlxVehicleMapping | { message?: string } | null;
         if (!response.ok) {
-            throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuração OLX do veículo.");
+            throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuraÃ§Ã£o OLX do veÃ­culo.");
         }
         hydrateOlxMapping(payload as OlxVehicleMapping);
     }
@@ -587,7 +598,7 @@ export function InventoryStudio() {
         });
         const payload = (await response.json().catch(() => null)) as MeliVehicleMapping | { message?: string } | null;
         if (!response.ok) {
-            throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuração Mercado Livre do veículo.");
+            throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuraÃ§Ã£o Mercado Livre do veÃ­culo.");
         }
         hydrateMeliMapping(payload as MeliVehicleMapping);
     }
@@ -761,7 +772,7 @@ export function InventoryStudio() {
         const response = await request;
         const payload = (await response.json().catch(() => null)) as { message?: string } | null;
         if (!response.ok) {
-            throw new Error(`${providerLabel}: ${payload?.message ?? "Falha ao publicar o veículo."}`);
+            throw new Error(`${providerLabel}: ${payload?.message ?? "Falha ao publicar o veÃ­culo."}`);
         }
     }
 
@@ -813,7 +824,7 @@ export function InventoryStudio() {
         if (!tasks.length) return [] as string[];
 
         const results = await Promise.allSettled(tasks);
-        return results.flatMap((result) => (result.status === "rejected" ? [result.reason instanceof Error ? result.reason.message : "Falha ao publicar o veículo nas integrações selecionadas."] : []));
+        return results.flatMap((result) => (result.status === "rejected" ? [result.reason instanceof Error ? result.reason.message : "Falha ao publicar o veÃ­culo nas integraÃ§Ãµes selecionadas."] : []));
     }
 
     useEffect(() => {
@@ -836,8 +847,8 @@ export function InventoryStudio() {
             ]);
             if (!usersResponse.ok) throw new Error("Falha ao listar a equipe.");
 
-            if (!vehiclesResponse.ok) throw new Error("Falha ao listar os veículos.");
-            if (!integrationsResponse.ok) throw new Error("Falha ao listar as integrações.");
+            if (!vehiclesResponse.ok) throw new Error("Falha ao listar os veÃ­culos.");
+            if (!integrationsResponse.ok) throw new Error("Falha ao listar as integraÃ§Ãµes.");
 
             if (!billingResponse.ok) throw new Error("Falha ao carregar o plano atual.");
 
@@ -907,6 +918,7 @@ export function InventoryStudio() {
     function openCloseSaleModal(vehicle: VehicleRecord) {
         setSaleVehicle(vehicle);
         setSaleSellerUserId("");
+        setSaleFinancial(createDefaultSaleClosingFinancialState());
         setSaleBuyerMode(requiresBuyerLead && !saleConversations.length ? "NEW" : "EXISTING");
         setSaleBuyerConversationId("");
         setSaleBuyerName("");
@@ -917,6 +929,7 @@ export function InventoryStudio() {
     function closeSaleModal() {
         setSaleVehicle(null);
         setSaleSellerUserId("");
+        setSaleFinancial(createDefaultSaleClosingFinancialState());
         setSaleBuyerMode("EXISTING");
         setSaleBuyerConversationId("");
         setSaleBuyerName("");
@@ -927,7 +940,7 @@ export function InventoryStudio() {
     async function handleCloseSale() {
         if (!saleVehicle) return;
         if (!saleSellerUserId) {
-            setSaleMessage("Selecione o vendedor responsável para concluir a venda.");
+            setSaleMessage("Selecione o vendedor responsÃ¡vel para concluir a venda.");
             return;
         }
 
@@ -940,7 +953,32 @@ export function InventoryStudio() {
             return;
         }
         if (requiresBuyerLead && saleBuyerMode === "NEW" && normalizeDigits(saleBuyerPhone).length < 10) {
-            setSaleMessage("Informe um telefone válido para criar o lead do comprador.");
+            setSaleMessage("Informe um telefone vÃ¡lido para criar o lead do comprador.");
+            return;
+        }
+
+        if (saleFinancialPreview.discountPercentage < 0) {
+            setSaleMessage("O percentual de desconto nao pode ser negativo.");
+            return;
+        }
+        if (saleFinancialPreview.discountPercentage > 100) {
+            setSaleMessage("O percentual de desconto nao pode ser maior que 100%.");
+            return;
+        }
+        if (saleFinancial.hasTradeInVehicle && !saleFinancial.tradeInVehicleDescription.trim()) {
+            setSaleMessage("Informe o veiculo recebido na troca.");
+            return;
+        }
+        if (saleFinancial.hasTradeInVehicle && saleFinancialPreview.tradeInAmountCents <= 0) {
+            setSaleMessage("Informe o valor do veiculo recebido na troca.");
+            return;
+        }
+        if (saleFinancial.hasTradeInVehicle && saleFinancialPreview.tradeInAmountCents > saleFinancialPreview.amountAfterDiscountCents) {
+            setSaleMessage("O valor do veiculo dado em troca nao pode ser maior que o valor da venda.");
+            return;
+        }
+        if (saleFinancial.installmentSale && saleFinancialPreview.installmentCount <= 1) {
+            setSaleMessage("Informe a quantidade de parcelas.");
             return;
         }
 
@@ -956,12 +994,13 @@ export function InventoryStudio() {
                     buyerConversationId: requiresBuyerLead && saleBuyerMode === "EXISTING" ? saleBuyerConversationId : null,
                     buyerName: requiresBuyerLead && saleBuyerMode === "NEW" ? saleBuyerName.trim() : null,
                     buyerPhone: requiresBuyerLead && saleBuyerMode === "NEW" ? normalizeDigits(saleBuyerPhone) : null,
+                    financial: buildSaleClosingFinancialPayload(saleFinancial, saleFinancialPreview),
                 }),
             });
 
             if (!response.ok) {
-                const payload = await response.json().catch(() => ({ message: "Não foi possível concluir a venda do veículo." }));
-                throw new Error(payload.message ?? "Não foi possível concluir a venda do veículo.");
+                const payload = await response.json().catch(() => ({ message: "NÃ£o foi possÃ­vel concluir a venda do veÃ­culo." }));
+                throw new Error(payload.message ?? "NÃ£o foi possÃ­vel concluir a venda do veÃ­culo.");
             }
 
             setVehicles((current) =>
@@ -978,7 +1017,7 @@ export function InventoryStudio() {
             closeSaleModal();
             await loadInventory();
         } catch (cause) {
-            setSaleMessage(cause instanceof Error ? cause.message : "Não foi possível concluir a venda do veículo.");
+            setSaleMessage(cause instanceof Error ? cause.message : "NÃ£o foi possÃ­vel concluir a venda do veÃ­culo.");
         } finally {
             setSaleSubmitting(false);
         }
@@ -1006,7 +1045,7 @@ export function InventoryStudio() {
                 imageUrls: uniqueImageList([...current.imageUrls, ...imageUrls]),
             }));
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Não foi possível adicionar as imagens.");
+            setError(cause instanceof Error ? cause.message : "NÃ£o foi possÃ­vel adicionar as imagens.");
         } finally {
             setUploadingImages(false);
             setIsImageDragActive(false);
@@ -1147,7 +1186,7 @@ export function InventoryStudio() {
             const responseBody = (await response.json().catch(() => null)) as VehicleRecord | { message?: string } | null;
 
             if (!response.ok) {
-                throw new Error((responseBody as { message?: string } | null)?.message ?? "Falha ao salvar o veículo.");
+                throw new Error((responseBody as { message?: string } | null)?.message ?? "Falha ao salvar o veÃ­culo.");
             }
 
             const savedVehicle = responseBody as VehicleRecord;
@@ -1158,13 +1197,13 @@ export function InventoryStudio() {
             setSelectedId(savedVehicle.id);
 
             if (publicationErrors.length) {
-                setError(`Veículo salvo no IO Auto, mas algumas integrações não concluíram a publicação: ${publicationErrors.join(" | ")}`);
+                setError(`VeÃ­culo salvo no IO Auto, mas algumas integraÃ§Ãµes nÃ£o concluÃ­ram a publicaÃ§Ã£o: ${publicationErrors.join(" | ")}`);
                 return;
             }
 
             setIsEditorOpen(false);
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao salvar o veículo.");
+            setError(cause instanceof Error ? cause.message : "Falha ao salvar o veÃ­culo.");
         } finally {
             setSaving(false);
         }
@@ -1176,9 +1215,9 @@ export function InventoryStudio() {
         <>
             <div className="grid gap-6">
                 <header>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">Módulo Estoque</p>
-                    <h1 className="mt-2 font-display text-[1.75rem] font-bold leading-tight text-io-dark">Estoque de veículos</h1>
-                    <p className="mt-1.5 text-sm text-black/55">Gerencie todos os veículos cadastrados, publique em plataformas e acompanhe o estoque em tempo real.</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">MÃ³dulo Estoque</p>
+                    <h1 className="mt-2 font-display text-[1.75rem] font-bold leading-tight text-io-dark">Estoque de veÃ­culos</h1>
+                    <p className="mt-1.5 text-sm text-black/55">Gerencie todos os veÃ­culos cadastrados, publique em plataformas e acompanhe o estoque em tempo real.</p>
                 </header>
 
                 <section className="overflow-hidden rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)] md:p-6">
@@ -1199,7 +1238,7 @@ export function InventoryStudio() {
                             className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-io-purple px-5 text-sm font-semibold text-white transition hover:bg-black/85"
                         >
                             <Plus className="h-4 w-4" />
-                            Novo veículo
+                            Novo veÃ­culo
                         </button>
                         <Link
                             href="/protected/links-publicos"
@@ -1211,14 +1250,14 @@ export function InventoryStudio() {
                     </div>
 
                     <div className="mt-5 grid gap-3 md:grid-cols-2">
-                        <MetricCard label="Veículos cadastrados" value={String(vehicles.length)} detail={`${visibleVehicles.length} visíveis na busca`} />
-                        <MetricCard label="Com publicação ativa" value={String(publishedVehicles)} detail={`${connectedIntegrations.length} plataformas conectadas`} />
+                        <MetricCard label="VeÃ­culos cadastrados" value={String(vehicles.length)} detail={`${visibleVehicles.length} visÃ­veis na busca`} />
+                        <MetricCard label="Com publicaÃ§Ã£o ativa" value={String(publishedVehicles)} detail={`${connectedIntegrations.length} plataformas conectadas`} />
                     </div>
                 </section>
 
                 <div className="mt-5 flex flex-wrap gap-3">
                     <StockTabButton active={stockTab === "ALL"} label="Todos" count={vehicles.length} onClick={() => setStockTab("ALL")} />
-                    <StockTabButton active={stockTab === "AVAILABLE"} label="Disponíveis" count={availableVehiclesCount} onClick={() => setStockTab("AVAILABLE")} />
+                    <StockTabButton active={stockTab === "AVAILABLE"} label="DisponÃ­veis" count={availableVehiclesCount} onClick={() => setStockTab("AVAILABLE")} />
                     <StockTabButton active={stockTab === "SOLD"} label="Vendidos" count={soldVehiclesCount} onClick={() => setStockTab("SOLD")} />
                 </div>
 
@@ -1247,8 +1286,8 @@ export function InventoryStudio() {
                         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-black/[0.04]">
                             <Search className="h-6 w-6 text-black/45" />
                         </div>
-                        <h2 className="mt-4 font-display text-2xl font-bold text-io-dark">Nenhum veículo encontrado</h2>
-                        <p className="mt-2 text-sm text-black/52">Ajuste a pesquisa ou cadastre um novo veículo para preencher essa vitrine.</p>
+                        <h2 className="mt-4 font-display text-2xl font-bold text-io-dark">Nenhum veÃ­culo encontrado</h2>
+                        <p className="mt-2 text-sm text-black/52">Ajuste a pesquisa ou cadastre um novo veÃ­culo para preencher essa vitrine.</p>
                     </section>
                 )}
             </div>
@@ -1259,9 +1298,9 @@ export function InventoryStudio() {
                         <div className="flex max-h-full w-full flex-col overflow-hidden rounded-[34px] border border-white/15 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
                             <div className="flex items-center justify-between gap-4 border-b border-black/8 px-6 py-5 md:px-8">
                                 <div>
-                                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Cadastro do veículo</p>
-                                    <h2 className="mt-1 font-display text-2xl font-bold text-io-dark">{form.id ? "Editar veículo" : "Novo veículo"}</h2>
-                                    <p className="mt-1 text-sm text-black/55">Cadastro único com os dados que alimentam as integrações selecionadas no mesmo fluxo.</p>
+                                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Cadastro do veÃ­culo</p>
+                                    <h2 className="mt-1 font-display text-2xl font-bold text-io-dark">{form.id ? "Editar veÃ­culo" : "Novo veÃ­culo"}</h2>
+                                    <p className="mt-1 text-sm text-black/55">Cadastro Ãºnico com os dados que alimentam as integraÃ§Ãµes selecionadas no mesmo fluxo.</p>
                                 </div>
 
                                 <button
@@ -1282,26 +1321,26 @@ export function InventoryStudio() {
                                         <section className="rounded-[30px] border border-black/10 bg-white p-5">
                                             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                                                 <div>
-                                                    <p className="text-sm font-semibold text-io-dark">Cadastro unificado do veículo</p>
-                                                    <p className="mt-1 text-sm text-black/52">Esses dados são reutilizados automaticamente pelas integrações conectadas para evitar retrabalho.</p>
+                                                    <p className="text-sm font-semibold text-io-dark">Cadastro unificado do veÃ­culo</p>
+                                                    <p className="mt-1 text-sm text-black/52">Esses dados sÃ£o reutilizados automaticamente pelas integraÃ§Ãµes conectadas para evitar retrabalho.</p>
                                                 </div>
                                                 <span className="rounded-full bg-black/[0.04] px-4 py-2 text-xs font-semibold text-black/52">
-                                                    {readyPublicationIntegrations.length} integrações prontas
+                                                    {readyPublicationIntegrations.length} integraÃ§Ãµes prontas
                                                 </span>
                                             </div>
 
                                             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                                                <Field label="Código interno" value={form.stockNumber} onChange={(value) => updateField("stockNumber", value)} placeholder="Opcional" />
-                                                <Field label="Nome do anúncio" value={form.title} onChange={(value) => updateField("title", value)} required />
+                                                <Field label="CÃ³digo interno" value={form.stockNumber} onChange={(value) => updateField("stockNumber", value)} placeholder="Opcional" />
+                                                <Field label="Nome do anÃºncio" value={form.title} onChange={(value) => updateField("title", value)} required />
                                                 <Field label="Marca" value={form.brand} onChange={(value) => updateField("brand", value)} required />
                                                 <Field label="Modelo" value={form.model} onChange={(value) => updateField("model", value)} required />
-                                                <Field label="Versão" value={form.version} onChange={(value) => updateField("version", value)} placeholder="Ex.: LTZ 1.0 Turbo" />
+                                                <Field label="VersÃ£o" value={form.version} onChange={(value) => updateField("version", value)} placeholder="Ex.: LTZ 1.0 Turbo" />
                                                 <Field label="Motor" value={form.engine} onChange={(value) => updateField("engine", value)} placeholder="Ex.: 1.6 Flex" />
                                                 <Field label="Ano" value={form.year} onChange={(value) => updateField("year", value.replace(/\D/g, "").slice(0, 4))} required inputMode="numeric" />
                                                 <Field label="Quilometragem (KM)" value={form.mileage} onChange={(value) => updateField("mileage", value.replace(/\D/g, ""))} inputMode="numeric" />
-                                                <MoneyField label="Preço (R$)" value={form.priceCents} onChange={(value) => updateField("priceCents", value)} required />
-                                                <SelectField label="Câmbio" value={form.transmission} options={TRANSMISSION_OPTIONS} onChange={(value) => updateField("transmission", value)} />
-                                                <SelectField label="Combustível" value={form.fuelType} options={FUEL_TYPE_OPTIONS} onChange={(value) => updateField("fuelType", value)} />
+                                                <MoneyField label="PreÃ§o (R$)" value={form.priceCents} onChange={(value) => updateField("priceCents", value)} required />
+                                                <SelectField label="CÃ¢mbio" value={form.transmission} options={TRANSMISSION_OPTIONS} onChange={(value) => updateField("transmission", value)} />
+                                                <SelectField label="CombustÃ­vel" value={form.fuelType} options={FUEL_TYPE_OPTIONS} onChange={(value) => updateField("fuelType", value)} />
                                                 <SelectField label="Carroceria" value={form.bodyType} options={BODY_TYPE_OPTIONS} onChange={(value) => updateField("bodyType", value)} />
                                                 <SelectField label="Portas" value={form.doors} options={DOORS_OPTIONS} onChange={(value) => updateField("doors", value)} />
                                                 <SelectField label="Cor" value={form.color} options={COLOR_OPTIONS} onChange={(value) => updateField("color", value)} />
@@ -1330,7 +1369,7 @@ export function InventoryStudio() {
                                                     required={requiresOlxPublication}
                                                 />
                                                 <Field
-                                                    label="CEP do anúncio"
+                                                    label="CEP do anÃºncio"
                                                     value={form.zipcode}
                                                     onChange={(value) => updateField("zipcode", formatZipcodeInput(value))}
                                                     inputMode="numeric"
@@ -1350,8 +1389,8 @@ export function InventoryStudio() {
 
                                         <section className="rounded-[30px] border border-black/10 bg-white p-5">
                                             <div>
-                                                <p className="text-sm font-semibold text-io-dark">Distribuição</p>
-                                                <p className="mt-1 text-sm text-black/52">Apenas integrações conectadas e prontas para publicação aparecem aqui.</p>
+                                                <p className="text-sm font-semibold text-io-dark">DistribuiÃ§Ã£o</p>
+                                                <p className="mt-1 text-sm text-black/52">Apenas integraÃ§Ãµes conectadas e prontas para publicaÃ§Ã£o aparecem aqui.</p>
                                             </div>
 
                                             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -1392,7 +1431,7 @@ export function InventoryStudio() {
                                                     })
                                                 ) : (
                                                     <p className="rounded-2xl bg-[#f7f7f7] px-4 py-4 text-sm text-black/55">
-                                                        Nenhuma integração de publicação conectada no momento. Conecte um canal no módulo de integrações para habilitar a distribuição.
+                                                        Nenhuma integraÃ§Ã£o de publicaÃ§Ã£o conectada no momento. Conecte um canal no mÃ³dulo de integraÃ§Ãµes para habilitar a distribuiÃ§Ã£o.
                                                     </p>
                                                 )}
                                             </div>
@@ -1400,7 +1439,7 @@ export function InventoryStudio() {
                                             {requiresMeliPublication ? (
                                                 <div className="mt-4 grid gap-4 rounded-2xl border border-[#d5c228] bg-[#fffdf0] p-4 md:grid-cols-2">
                                                     <SelectField
-                                                        label="Tipo de anúncio (ML)"
+                                                        label="Tipo de anÃºncio (ML)"
                                                         value={form.meli.listingTypeId}
                                                         options={meliListingTypes.map((item) => ({
                                                             value: item.id,
@@ -1412,7 +1451,7 @@ export function InventoryStudio() {
                                                         onChange={(next) => updateMeliField({ listingTypeId: next })}
                                                     />
                                                     <SelectField
-                                                        label="Condição (ML)"
+                                                        label="CondiÃ§Ã£o (ML)"
                                                         value={form.meli.condition || "used"}
                                                         options={[{ value: "used", label: "Usado" }, { value: "new", label: "Novo" }]}
                                                         onChange={(next) => updateMeliField({ condition: next })}
@@ -1424,8 +1463,8 @@ export function InventoryStudio() {
                                         <section className="rounded-[30px] border border-[#c8d8ff] bg-white p-5 shadow-[0_10px_30px_rgba(49,89,184,0.08)]">
                                             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                                                 <div>
-                                                    <p className="text-sm font-extrabold uppercase tracking-[0.22em] text-[#2b57d9]">Condições de financiamento</p>
-                                                    <p className="mt-1 text-sm text-[#6d8de6]">Opcional: preencha se o veículo tiver parcelas disponíveis.</p>
+                                                    <p className="text-sm font-extrabold uppercase tracking-[0.22em] text-[#2b57d9]">CondiÃ§Ãµes de financiamento</p>
+                                                    <p className="mt-1 text-sm text-[#6d8de6]">Opcional: preencha se o veÃ­culo tiver parcelas disponÃ­veis.</p>
                                                 </div>
                                                 <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[#2b57d9] text-sm font-bold text-white">R$</span>
                                             </div>
@@ -1452,7 +1491,7 @@ export function InventoryStudio() {
                                                             className="h-12 min-w-0 flex-1 rounded-2xl border border-black/10 bg-[#f7f9ff] px-4 text-lg font-semibold text-io-dark outline-none transition focus:border-[#2b57d9] focus:bg-white"
                                                         />
                                                     </div>
-                                                    <span className="text-xs font-medium text-[#6d8de6]">Qtd. parcelas × valor de cada parcela</span>
+                                                    <span className="text-xs font-medium text-[#6d8de6]">Qtd. parcelas Ã— valor de cada parcela</span>
                                                 </label>
                                             </div>
                                         </section>
@@ -1460,19 +1499,19 @@ export function InventoryStudio() {
                                         <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
                                             <section className="rounded-[30px] border border-black/10 bg-white p-5">
                                                 <TextArea
-                                                    label="Descrição do anúncio"
+                                                    label="DescriÃ§Ã£o do anÃºncio"
                                                     value={form.description}
                                                     onChange={(value) => updateField("description", value)}
-                                                    placeholder="Descreva versão, estado de conservação, histórico e destaques do carro."
+                                                    placeholder="Descreva versÃ£o, estado de conservaÃ§Ã£o, histÃ³rico e destaques do carro."
                                                 />
                                             </section>
 
                                             <section className="rounded-[30px] border border-black/10 bg-white p-5">
                                                 <TextArea
-                                                    label="Opcionais e itens do veículo"
+                                                    label="Opcionais e itens do veÃ­culo"
                                                     value={form.optionalsText}
                                                     onChange={(value) => updateField("optionalsText", value)}
-                                                    placeholder="Ex.: multimídia, bancos em couro, câmera de ré, sensor de estacionamento"
+                                                    placeholder="Ex.: multimÃ­dia, bancos em couro, cÃ¢mera de rÃ©, sensor de estacionamento"
                                                 />
                                             </section>
                                         </div>
@@ -1480,7 +1519,7 @@ export function InventoryStudio() {
                                         <section className="rounded-[30px] border border-black/10 bg-white p-5">
                                             <div className="flex items-center justify-between gap-3">
                                                 <div>
-                                                    <p className="text-sm font-semibold text-io-dark">Imagens do veículo</p>
+                                                    <p className="text-sm font-semibold text-io-dark">Imagens do veÃ­culo</p>
                                                     <p className="mt-1 text-sm text-black/50">Arraste e solte para enviar. Depois, arraste as miniaturas para organizar a ordem.</p>
                                                 </div>
                                                 <button
@@ -1528,7 +1567,7 @@ export function InventoryStudio() {
                                                             <div className="flex items-center justify-between gap-2 px-3 py-3">
                                                                 <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-black/40">
                                                                     <GripVertical className="h-4 w-4" />
-                                                                    <span>{index === 0 ? "Capa" : `Posição ${index + 1}`}</span>
+                                                                    <span>{index === 0 ? "Capa" : `PosiÃ§Ã£o ${index + 1}`}</span>
                                                                 </div>
                                                             </div>
                                                             <div className="flex items-center justify-between gap-2 border-t border-black/6 px-3 py-3">
@@ -1556,8 +1595,8 @@ export function InventoryStudio() {
                                         {selectedReadyPublicationIntegrations.length ? (
                                             <section className="grid gap-4">
                                                 <div>
-                                                    <p className="text-sm font-semibold text-io-dark">Ajustes avançados e publicação</p>
-                                                    <p className="mt-1 text-sm text-black/52">Os dados principais já abastecem os canais escolhidos. Use estes cards apenas para revisar mapeamentos ou publicar.</p>
+                                                    <p className="text-sm font-semibold text-io-dark">Ajustes avanÃ§ados e publicaÃ§Ã£o</p>
+                                                    <p className="mt-1 text-sm text-black/52">Os dados principais jÃ¡ abastecem os canais escolhidos. Use estes cards apenas para revisar mapeamentos ou publicar.</p>
                                                 </div>
 
                                                 {selectedReadyPublicationIntegrations.some((integration) => ["olx", "olx-autos"].includes(normalizeProviderKey(integration.providerKey))) ? (
@@ -1582,7 +1621,7 @@ export function InventoryStudio() {
                                 </div>
 
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/8 px-6 py-5 md:px-8">
-                                    <div className="text-xs text-black/45">{readyPublicationIntegrations.length} integrações conectadas prontas para uso na distribuição.</div>
+                                    <div className="text-xs text-black/45">{readyPublicationIntegrations.length} integraÃ§Ãµes conectadas prontas para uso na distribuiÃ§Ã£o.</div>
                                     <div className="flex items-center gap-3">
                                         <button
                                             type="button"
@@ -1609,13 +1648,13 @@ export function InventoryStudio() {
 
             {saleVehicle ? (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
-                    <div className="w-full max-w-xl rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_30px_80px_rgba(0,0,0,0.24)]">
+                    <div className="w-full max-w-2xl rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_30px_80px_rgba(0,0,0,0.24)]">
                         <div className="flex items-start justify-between gap-4">
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/38">Venda pelo estoque</p>
-                                <h3 className="mt-2 font-display text-[1.85rem] font-bold text-io-dark">Fechar venda do veículo</h3>
+                                <h3 className="mt-2 font-display text-[1.85rem] font-bold text-io-dark">Fechar venda do veÃ­culo</h3>
                                 <p className="mt-2 text-sm text-black/55">
-                                    Selecione o vendedor responsável para concluir a venda e disparar as regras automáticas do veículo vendido.
+                                    Selecione o vendedor responsÃ¡vel para concluir a venda e disparar as regras automÃ¡ticas do veÃ­culo vendido.
                                 </p>
                             </div>
                             <button
@@ -1635,7 +1674,7 @@ export function InventoryStudio() {
                         </div>
 
                         <div className="mt-5 grid gap-2">
-                            <label className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Vendedor responsável</label>
+                            <label className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Vendedor responsÃ¡vel</label>
                             <select
                                 value={saleSellerUserId}
                                 onChange={(event) => setSaleSellerUserId(event.target.value)}
@@ -1644,11 +1683,126 @@ export function InventoryStudio() {
                                 <option value="">Selecione um vendedor</option>
                                 {teamMembers.map((member) => (
                                     <option key={member.id} value={member.id}>
-                                        {member.fullName}{member.teamName ? ` • ${member.teamName}` : ""}
+                                        {member.fullName}{member.teamName ? ` â€¢ ${member.teamName}` : ""}
                                     </option>
                                 ))}
                             </select>
                             {!teamMembers.length ? <p className="text-xs text-black/45">Nenhum membro da equipe foi encontrado para vincular a venda.</p> : null}
+                        </div>
+
+                        <div className="mt-5 grid gap-4 rounded-[22px] border border-black/10 bg-[#fafafa] p-4">
+                            <div className="grid gap-2 md:grid-cols-2">
+                                <label className="grid gap-2">
+                                    <span className="text-xs uppercase tracking-[0.18em] text-black/40">Desconto (%)</span>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={100}
+                                        step="0.01"
+                                        value={saleFinancial.discountPercentage}
+                                        onChange={(event) => setSaleFinancial((current) => ({ ...current, discountPercentage: event.target.value }))}
+                                        className="rounded-[18px] border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/25"
+                                    />
+                                </label>
+                                <div className="grid gap-1 rounded-[18px] border border-black/8 bg-white px-4 py-3">
+                                    <span className="text-xs uppercase tracking-[0.18em] text-black/35">Valor do desconto</span>
+                                    <span className="text-sm font-semibold text-io-dark">{formatMoney(saleFinancialPreview.discountAmountCents)}</span>
+                                </div>
+                            </div>
+
+                            <label className="inline-flex items-center gap-2 text-sm font-medium text-black/65">
+                                <input
+                                    type="checkbox"
+                                    checked={saleFinancial.hasTradeInVehicle}
+                                    onChange={(event) => setSaleFinancial((current) => ({ ...current, hasTradeInVehicle: event.target.checked }))}
+                                />
+                                Houve troca de veiculo
+                            </label>
+
+                            {saleFinancial.hasTradeInVehicle ? (
+                                <div className="grid gap-2 md:grid-cols-2">
+                                    <label className="grid gap-2">
+                                        <span className="text-xs uppercase tracking-[0.18em] text-black/40">Veiculo recebido</span>
+                                        <input
+                                            type="text"
+                                            value={saleFinancial.tradeInVehicleDescription}
+                                            onChange={(event) => setSaleFinancial((current) => ({ ...current, tradeInVehicleDescription: event.target.value }))}
+                                            placeholder="Ex.: Gol 1.0 2012"
+                                            className="rounded-[18px] border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/25"
+                                        />
+                                    </label>
+                                    <label className="grid gap-2">
+                                        <span className="text-xs uppercase tracking-[0.18em] text-black/40">Valor da troca</span>
+                                        <input
+                                            type="text"
+                                            value={formatCurrencyInput(saleFinancial.tradeInAmountDigits)}
+                                            onChange={(event) =>
+                                                setSaleFinancial((current) => ({ ...current, tradeInAmountDigits: normalizeCurrencyDigits(event.target.value) }))
+                                            }
+                                            className="rounded-[18px] border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/25"
+                                        />
+                                    </label>
+                                </div>
+                            ) : null}
+
+                            <label className="inline-flex items-center gap-2 text-sm font-medium text-black/65">
+                                <input
+                                    type="checkbox"
+                                    checked={saleFinancial.installmentSale}
+                                    onChange={(event) => setSaleFinancial((current) => ({ ...current, installmentSale: event.target.checked }))}
+                                />
+                                Venda parcelada
+                            </label>
+
+                            {saleFinancial.installmentSale ? (
+                                <div className="grid gap-2 md:grid-cols-2">
+                                    <label className="grid gap-2">
+                                        <span className="text-xs uppercase tracking-[0.18em] text-black/40">Quantidade de parcelas</span>
+                                        <input
+                                            type="number"
+                                            min={2}
+                                            value={saleFinancial.installmentCount}
+                                            onChange={(event) => setSaleFinancial((current) => ({ ...current, installmentCount: event.target.value }))}
+                                            className="rounded-[18px] border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/25"
+                                        />
+                                    </label>
+                                    <label className="grid gap-2">
+                                        <span className="text-xs uppercase tracking-[0.18em] text-black/40">Primeiro vencimento</span>
+                                        <input
+                                            type="date"
+                                            value={saleFinancial.firstInstallmentDueDate}
+                                            onChange={(event) => setSaleFinancial((current) => ({ ...current, firstInstallmentDueDate: event.target.value }))}
+                                            className="rounded-[18px] border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/25"
+                                        />
+                                    </label>
+                                </div>
+                            ) : null}
+                        </div>
+
+                        <div className="mt-4 grid gap-2 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                            <p>Valor original: <span className="font-semibold">{formatMoney(saleFinancialPreview.originalAmountCents)}</span></p>
+                            <p>Desconto: <span className="font-semibold">{saleFinancialPreview.discountPercentage}% ({formatMoney(saleFinancialPreview.discountAmountCents)})</span></p>
+                            <p>Valor com desconto: <span className="font-semibold">{formatMoney(saleFinancialPreview.amountAfterDiscountCents)}</span></p>
+                            <p>Troca: <span className="font-semibold">{formatMoney(saleFinancialPreview.tradeInAmountCents)}</span></p>
+                            <p>Total real da venda: <span className="font-semibold">{formatMoney(saleFinancialPreview.totalRealAmountCents)}</span></p>
+                            <p>
+                                Pagamento:{" "}
+                                <span className="font-semibold">
+                                    {saleFinancial.installmentSale ? `Parcelado em ${saleFinancialPreview.installmentCount}x` : "A vista"}
+                                </span>
+                            </p>
+                            {saleFinancial.installmentSale ? (
+                                <div className="rounded-[14px] border border-emerald-200 bg-white px-3 py-2">
+                                    <p className="text-xs uppercase tracking-[0.16em] text-emerald-700">Preview de parcelas</p>
+                                    <div className="mt-2 grid gap-1 text-xs text-emerald-900">
+                                        {saleFinancialPreview.installments.slice(0, 6).map((installment) => (
+                                            <p key={`${installment.installmentNumber}-${installment.dueDate}`}>
+                                                {`Parcela ${installment.installmentNumber}/${installment.totalInstallments}: ${formatMoney(installment.amountCents)} - ${installment.dueDate}`}
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : null}
                         </div>
 
                         {requiresBuyerLead ? (
@@ -1688,12 +1842,12 @@ export function InventoryStudio() {
                                             {saleConversations.map((conversation) => (
                                                 <option key={conversation.id} value={conversation.id}>
                                                     {(conversation.displayName || "Lead sem nome")}
-                                                    {conversation.phone ? ` • ${formatPhoneInput(conversation.phone)}` : ""}
-                                                    {conversation.sourcePlatform ? ` • ${platformLabel(conversation.sourcePlatform)}` : ""}
+                                                    {conversation.phone ? ` â€¢ ${formatPhoneInput(conversation.phone)}` : ""}
+                                                    {conversation.sourcePlatform ? ` â€¢ ${platformLabel(conversation.sourcePlatform)}` : ""}
                                                 </option>
                                             ))}
                                         </select>
-                                        {!saleConversations.length ? <p className="text-xs text-black/45">Nenhum lead foi encontrado. Use a opção de criar novo lead para vincular o comprador.</p> : null}
+                                        {!saleConversations.length ? <p className="text-xs text-black/45">Nenhum lead foi encontrado. Use a opÃ§Ã£o de criar novo lead para vincular o comprador.</p> : null}
                                     </div>
                                 ) : (
                                     <div className="grid gap-3 md:grid-cols-2">
@@ -1701,7 +1855,7 @@ export function InventoryStudio() {
                                             label="Nome do comprador"
                                             value={saleBuyerName}
                                             onChange={setSaleBuyerName}
-                                            placeholder="Ex.: João da Silva"
+                                            placeholder="Ex.: JoÃ£o da Silva"
                                             required
                                         />
                                         <Field
@@ -1794,7 +1948,7 @@ function InventoryVehicleCard({
 
                 <div className="mt-auto flex flex-col gap-5 pt-6">
                     <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/36">Preço</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/36">PreÃ§o</p>
                         <p className="mt-1 text-3xl font-bold tracking-tight text-io-dark">{formatMoney(vehicle.priceCents)}</p>
                         <p className="mt-1 text-[10px] text-black/35 font-medium">Atualizado em {formatDateTime(vehicle.updatedAt)}</p>
                     </div>
@@ -1812,7 +1966,7 @@ function InventoryVehicleCard({
 
                     <button type="button" onClick={onEdit} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-black text-sm font-semibold text-white transition hover:bg-black/85 shadow-sm">
                         <PencilLine className="h-4 w-4" />
-                        Editar veículo
+                        Editar veÃ­culo
                     </button>
                 </div>
             </div>
@@ -1997,3 +2151,5 @@ function SelectField({
         </label>
     );
 }
+
+
