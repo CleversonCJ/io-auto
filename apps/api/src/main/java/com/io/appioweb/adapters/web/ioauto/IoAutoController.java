@@ -771,13 +771,21 @@ public class IoAutoController {
         String publicSlug = companies.findById(companyId)
                 .map(company -> slugifyPublicPathSegment(company.name()))
                 .orElse("catalogo");
+        boolean canViewAllLeads = currentUser.roles().stream()
+                .anyMatch(role -> "ADMIN".equalsIgnoreCase(role) || "SUPERADMIN".equalsIgnoreCase(role));
 
-        List<JpaIoAutoPublicCatalogLeadEntity> leads = publicCatalogLeads
-                .findAllByCompanyIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
-                        companyId,
-                        periodSelection.fromAt(),
-                        periodSelection.toExclusiveAt()
-                );
+        List<JpaIoAutoPublicCatalogLeadEntity> leads = canViewAllLeads
+                ? publicCatalogLeads.findAllByCompanyIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+                companyId,
+                periodSelection.fromAt(),
+                periodSelection.toExclusiveAt()
+        )
+                : publicCatalogLeads.findAllByCompanyIdAndSellerUserIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+                companyId,
+                currentUser.userId(),
+                periodSelection.fromAt(),
+                periodSelection.toExclusiveAt()
+        );
 
         Map<UUID, JpaIoAutoVehicleEntity> vehiclesById = vehicles.findAllByCompanyIdOrderByUpdatedAtDesc(companyId).stream()
                 .collect(java.util.stream.Collectors.toMap(JpaIoAutoVehicleEntity::getId, item -> item, (left, right) -> left, LinkedHashMap::new));

@@ -14,4 +14,11 @@ public interface IoAutoPublicCatalogLeadRepositoryJpa extends JpaRepository<JpaI
             Instant fromAt,
             Instant toExclusiveAt
     );
+
+    List<JpaIoAutoPublicCatalogLeadEntity> findAllByCompanyIdAndSellerUserIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+            UUID companyId,
+            UUID sellerUserId,
+            Instant fromAt,
+            Instant toExclusiveAt
+    );
 }
