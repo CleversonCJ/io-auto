@@ -17,6 +17,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -52,8 +54,8 @@ class SupportTicketServiceTest {
         companyId = UUID.randomUUID();
         userId = UUID.randomUUID();
 
-        when(currentUser.companyId()).thenReturn(companyId);
-        when(currentUser.userId()).thenReturn(userId);
+        lenient().when(currentUser.companyId()).thenReturn(companyId);
+        lenient().when(currentUser.userId()).thenReturn(userId);
         lenient().when(jdbc.queryForObject(eq("select name from companies where id = :id"), any(MapSqlParameterSource.class), eq(String.class)))
                 .thenReturn("Revenda Exemplo");
         lenient().when(jdbc.queryForObject(eq("select full_name from users where id = :id"), any(MapSqlParameterSource.class), eq(String.class)))
@@ -128,6 +130,45 @@ class SupportTicketServiceTest {
         )))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).code()).isEqualTo("SUPPORT_TICKET_GUIDED_ANSWERS_REQUIRED"));
+    }
+
+    @Test
+    void addCompanyMessageRejectsResolvedTicket() {
+        UUID ticketId = UUID.randomUUID();
+        JpaSupportTicketEntity ticket = buildTicket(ticketId, "RESOLVED");
+        when(tickets.findById(ticketId)).thenReturn(Optional.of(ticket));
+
+        assertThatThrownBy(() -> service.addCompanyMessage(ticketId, "Ainda preciso de ajuda"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).code()).isEqualTo("SUPPORT_TICKET_CONCLUDED"));
+
+        verify(messages, never()).save(any(JpaSupportTicketMessageEntity.class));
+    }
+
+    @Test
+    void addSupportMessageRejectsClosedTicket() {
+        UUID ticketId = UUID.randomUUID();
+        JpaSupportTicketEntity ticket = buildTicket(ticketId, "CLOSED");
+        when(tickets.findById(ticketId)).thenReturn(Optional.of(ticket));
+
+        assertThatThrownBy(() -> service.addSupportMessage(ticketId, "Retorno do suporte"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).code()).isEqualTo("SUPPORT_TICKET_CONCLUDED"));
+
+        verify(messages, never()).save(any(JpaSupportTicketMessageEntity.class));
+    }
+
+    private JpaSupportTicketEntity buildTicket(UUID ticketId, String status) {
+        JpaSupportTicketEntity ticket = new JpaSupportTicketEntity();
+        ticket.setId(ticketId);
+        ticket.setCompanyId(companyId);
+        ticket.setOpenedByUserId(userId);
+        ticket.setTitle("Ticket");
+        ticket.setDescription("Descricao");
+        ticket.setCategory("BUG");
+        ticket.setUrgency("MEDIUM");
+        ticket.setStatus(status);
+        return ticket;
     }
 
     private List<SupportTicketService.GuidedAnswer> guidedAnswers() {

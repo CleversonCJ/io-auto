@@ -247,6 +247,9 @@ public class SupportTicketService {
     public TicketMessage addSupportMessage(UUID ticketId, String body) {
         JpaSupportTicketEntity ticket = tickets.findById(ticketId)
                 .orElseThrow(() -> new BusinessException("SUPPORT_TICKET_NOT_FOUND", "Ticket de suporte nao encontrado."));
+        if (isTicketConcluded(ticket.getStatus())) {
+            throw new BusinessException("SUPPORT_TICKET_CONCLUDED", "Este ticket ja foi concluido e nao aceita novas mensagens.");
+        }
 
         String messageBody = requireText(body, "SUPPORT_TICKET_MESSAGE_REQUIRED", "Informe a mensagem do suporte.");
         Instant now = Instant.now();
@@ -287,8 +290,8 @@ public class SupportTicketService {
         if (!currentUser.companyId().equals(ticket.getCompanyId())) {
             throw new BusinessException("SUPPORT_TICKET_NOT_FOUND", "Ticket de suporte nao encontrado.");
         }
-        if ("CLOSED".equalsIgnoreCase(ticket.getStatus())) {
-            throw new BusinessException("SUPPORT_TICKET_CLOSED", "Este ticket ja foi encerrado e nao aceita novas mensagens.");
+        if (isTicketConcluded(ticket.getStatus())) {
+            throw new BusinessException("SUPPORT_TICKET_CONCLUDED", "Este ticket ja foi concluido e nao aceita novas mensagens.");
         }
 
         String messageBody = requireText(body, "SUPPORT_TICKET_MESSAGE_REQUIRED", "Informe a sua mensagem.");
@@ -304,7 +307,7 @@ public class SupportTicketService {
         messages.save(message);
 
         String currentStatus = normalizeNullable(ticket.getStatus());
-        if (currentStatus == null || "OPEN".equalsIgnoreCase(currentStatus) || "WAITING_CUSTOMER".equalsIgnoreCase(currentStatus) || "RESOLVED".equalsIgnoreCase(currentStatus)) {
+        if (currentStatus == null || "OPEN".equalsIgnoreCase(currentStatus) || "WAITING_CUSTOMER".equalsIgnoreCase(currentStatus)) {
             ticket.setStatus("IN_PROGRESS");
         }
         ticket.setUpdatedAt(now);
@@ -565,6 +568,12 @@ public class SupportTicketService {
 
     private String safe(String value) {
         return value == null ? "" : value;
+    }
+
+    private boolean isTicketConcluded(String status) {
+        String normalized = normalizeNullable(status);
+        if (normalized == null) return false;
+        return "RESOLVED".equalsIgnoreCase(normalized) || "CLOSED".equalsIgnoreCase(normalized);
     }
 
     public record CreateTicketCommand(

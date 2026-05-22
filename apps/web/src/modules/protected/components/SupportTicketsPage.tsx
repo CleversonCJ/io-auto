@@ -108,15 +108,15 @@ function urgencyTone(value?: string | null) {
     return "border-slate-200 bg-slate-100 text-slate-700";
 }
 
-function isTicketClosed(status?: string | null) {
-    return String(status ?? "").trim().toUpperCase() === "CLOSED";
+function isTicketConcluded(status?: string | null) {
+    const normalized = String(status ?? "").trim().toUpperCase();
+    return normalized === "RESOLVED" || normalized === "CLOSED";
 }
 
 function replyHelperText(status?: string | null) {
     const normalized = String(status ?? "").trim().toUpperCase();
     if (normalized === "WAITING_CUSTOMER") return "O suporte esta aguardando a sua resposta.";
-    if (normalized === "RESOLVED") return "Se ainda precisar de ajuda, responda abaixo para retomar o atendimento.";
-    if (normalized === "CLOSED") return "Este ticket foi encerrado e nao aceita novas mensagens.";
+    if (normalized === "RESOLVED" || normalized === "CLOSED") return "Este ticket foi concluido e nao aceita novas mensagens.";
     return "Digite sua mensagem para continuar a conversa com o suporte.";
 }
 
@@ -196,7 +196,7 @@ export function SupportTicketsPage() {
     }
 
     async function handleReplySubmit() {
-        if (!ticketDetail || !replyDraft.trim() || isTicketClosed(ticketDetail.status)) return;
+        if (!ticketDetail || !replyDraft.trim() || isTicketConcluded(ticketDetail.status)) return;
 
         setReplyLoading(true);
         setReplyFeedback(null);
@@ -477,8 +477,8 @@ export function SupportTicketsPage() {
                                             onChange={(event) => setReplyDraft(event.target.value)}
                                             onKeyDown={handleReplyKeyDown}
                                             rows={4}
-                                            disabled={replyLoading || isTicketClosed(ticketDetail.status)}
-                                            placeholder={isTicketClosed(ticketDetail.status) ? "Ticket encerrado." : "Digite sua mensagem para o suporte"}
+                                            disabled={replyLoading || isTicketConcluded(ticketDetail.status)}
+                                            placeholder={isTicketConcluded(ticketDetail.status) ? "Ticket concluido." : "Digite sua mensagem para o suporte"}
                                             className="mt-4 w-full rounded-[20px] border border-black/12 px-4 py-3 text-sm leading-6 text-io-dark outline-none transition focus:border-black/25 disabled:cursor-not-allowed disabled:bg-black/[0.03]"
                                         />
 
@@ -489,7 +489,7 @@ export function SupportTicketsPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => void handleReplySubmit()}
-                                                disabled={replyLoading || !replyDraft.trim() || isTicketClosed(ticketDetail.status)}
+                                                disabled={replyLoading || !replyDraft.trim() || isTicketConcluded(ticketDetail.status)}
                                                 className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-io-dark px-5 text-sm font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
                                             >
                                                 <SendHorizontal className="h-4 w-4" />

@@ -139,6 +139,11 @@ function isVideoEvidence(contentType?: string | null) {
     return String(contentType ?? "").trim().toLowerCase().startsWith("video/");
 }
 
+function isTicketConcluded(status?: string | null) {
+    const normalized = String(status ?? "").trim().toUpperCase();
+    return normalized === "RESOLVED" || normalized === "CLOSED";
+}
+
 function formatHealthLabel(value?: string | null) {
     const normalized = String(value ?? "").trim().toUpperCase();
     if (!normalized) return "-";
@@ -404,7 +409,7 @@ export function SuperAdminLiveSection({ section }: Props) {
     }
 
     async function handleTicketReplySubmit() {
-        if (!ticketDetail || !ticketReply.trim()) return;
+        if (!ticketDetail || !ticketReply.trim() || isTicketConcluded(ticketDetail.status)) return;
 
         setTicketActionLoading(true);
         setTicketActionFeedback(null);
@@ -891,8 +896,9 @@ export function SuperAdminLiveSection({ section }: Props) {
                                             value={ticketReply}
                                             onChange={(event) => setTicketReply(event.target.value)}
                                             rows={4}
-                                            placeholder="Responder ticket"
-                                            className="rounded-xl border border-black/12 px-3 py-3 text-sm outline-none transition focus:border-black/25"
+                                            disabled={ticketActionLoading || isTicketConcluded(ticketDetail.status)}
+                                            placeholder={isTicketConcluded(ticketDetail.status) ? "Ticket concluido." : "Responder ticket"}
+                                            className="rounded-xl border border-black/12 px-3 py-3 text-sm outline-none transition focus:border-black/25 disabled:cursor-not-allowed disabled:bg-black/[0.03]"
                                         />
                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                             {ticketActionFeedback ? <p className="text-sm text-black/60">{ticketActionFeedback}</p> : <span />}
@@ -908,7 +914,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                                                 <button
                                                     type="button"
                                                     onClick={() => void handleTicketReplySubmit()}
-                                                    disabled={ticketActionLoading || !ticketReply.trim()}
+                                                    disabled={ticketActionLoading || !ticketReply.trim() || isTicketConcluded(ticketDetail.status)}
                                                     className="h-10 rounded-full bg-io-dark px-4 text-sm font-semibold text-white disabled:opacity-60"
                                                 >
                                                     {ticketActionLoading ? "Enviando..." : "Enviar resposta"}
