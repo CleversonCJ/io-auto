@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Ban, ClipboardList, KeyRound, LockOpen, LogIn, PencilLine, Plus, X } from "lucide-react";
 import { SuperAdminCustomPlanCheckoutModal } from "@/modules/superadmin/components/SuperAdminCustomPlanCheckoutModal";
+import { SuperAdminSectionHeaderActions } from "@/modules/superadmin/components/SuperAdminSectionHeaderActions";
 import { SuperAdminTenantPlanChangeModal } from "@/modules/superadmin/components/SuperAdminTenantPlanChangeModal";
 import { SuperAdminTenantCreateModal } from "@/modules/superadmin/components/SuperAdminTenantCreateModal";
 
@@ -333,6 +334,25 @@ export function SuperAdminTenantsPage() {
 
     return (
         <div className="grid gap-6">
+            <SuperAdminSectionHeaderActions>
+                <button
+                    type="button"
+                    onClick={() => setCreateTenantOpen(true)}
+                    className="inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-semibold text-io-dark transition hover:border-black/20"
+                >
+                    <Plus className="h-4 w-4" />
+                    Novo tenant
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setCreateCustomPlanOpen(true)}
+                    className="inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-semibold text-io-dark transition hover:border-black/20"
+                >
+                    <Plus className="h-4 w-4" />
+                    Plano personalizado
+                </button>
+            </SuperAdminSectionHeaderActions>
+
             <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <article className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
                     <p className="text-xs uppercase tracking-[0.16em] text-black/45">Empresas</p>
@@ -389,22 +409,6 @@ export function SuperAdminTenantsPage() {
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                     <button type="button" onClick={() => void loadTenants()} disabled={loading} className="h-10 rounded-full bg-io-dark px-4 text-sm font-semibold text-white disabled:opacity-60">
                         {loading ? "Carregando..." : "Aplicar filtros"}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setCreateTenantOpen(true)}
-                        className="inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-semibold text-io-dark transition hover:border-black/20"
-                    >
-                        <Plus className="h-4 w-4" />
-                        Novo tenant
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setCreateCustomPlanOpen(true)}
-                        className="inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-semibold text-io-dark transition hover:border-black/20"
-                    >
-                        <Plus className="h-4 w-4" />
-                        Plano personalizado
                     </button>
                     <button
                         type="button"
