@@ -24,16 +24,14 @@ function formatVehicleSaleNotes(notes: string): string {
     let formatted = notes;
 
     for (const label of moneyLabels) {
-        const pattern = new RegExp(`(${label}:\\s*)([^|]+)`, "gi");
-        formatted = formatted.replace(pattern, (_match, prefix: string, value: string) => {
-            const normalizedValue = value.trim();
-            if (normalizedValue.startsWith("R$")) {
-                return `${prefix}${normalizedValue}`;
+        const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const pattern = new RegExp(`(${escapedLabel}:\\s*)(-?\\d+)`, "gi");
+        formatted = formatted.replace(pattern, (_match, prefix: string, centsValue: string) => {
+            const parsed = Number(centsValue);
+            if (!Number.isFinite(parsed)) {
+                return `${prefix}${centsValue}`;
             }
-            if (/^-?\\d+$/.test(normalizedValue)) {
-                return `${prefix}${formatMoney(Number(normalizedValue))}`;
-            }
-            return `${prefix}${normalizedValue}`;
+            return `${prefix}${formatMoney(parsed)}`;
         });
     }
 
