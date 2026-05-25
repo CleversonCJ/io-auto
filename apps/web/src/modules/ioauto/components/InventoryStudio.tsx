@@ -32,7 +32,7 @@ import type {
     VehiclePublication,
     VehicleRecord,
 } from "@/modules/ioauto/types";
-import { formatDateTime, formatMoney, platformLabel, statusLabel } from "@/modules/ioauto/formatters";
+import { formatDateTime, formatMoney, formatShortDate, platformLabel, statusLabel } from "@/modules/ioauto/formatters";
 import {
     buildSaleClosingFinancialPayload,
     computeSaleClosingFinancialPreview,
@@ -1949,7 +1949,7 @@ export function InventoryStudio() {
                                     <div className="mt-2 grid gap-1 text-xs text-emerald-900">
                                         {saleFinancialPreview.installments.slice(0, 6).map((installment) => (
                                             <p key={`${installment.installmentNumber}-${installment.dueDate}`}>
-                                                {`Parcela ${installment.installmentNumber}/${installment.totalInstallments}: ${formatMoney(installment.amountCents)} - ${installment.dueDate}`}
+                                                {`Parcela ${installment.installmentNumber}/${installment.totalInstallments}: ${formatMoney(installment.amountCents)} - ${formatShortDate(installment.dueDate)}`}
                                             </p>
                                         ))}
                                     </div>

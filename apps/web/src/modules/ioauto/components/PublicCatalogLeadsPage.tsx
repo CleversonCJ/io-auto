@@ -21,7 +21,7 @@ import {
     X,
 } from "lucide-react";
 import { subscribeRealtime } from "@/core/realtime/client";
-import { formatDateTime, formatMoney } from "@/modules/ioauto/formatters";
+import { formatDateTime, formatMoney, formatShortDate } from "@/modules/ioauto/formatters";
 import {
     buildSaleClosingFinancialPayload,
     computeSaleClosingFinancialPreview,
@@ -1047,7 +1047,7 @@ export function PublicCatalogLeadsPage() {
                                     <div className="mt-2 grid gap-1 text-xs text-emerald-900">
                                         {saleFinancialPreview.installments.slice(0, 6).map((installment) => (
                                             <p key={`${installment.installmentNumber}-${installment.dueDate}`}>
-                                                {`Parcela ${installment.installmentNumber}/${installment.totalInstallments}: ${formatMoney(installment.amountCents)} - ${installment.dueDate}`}
+                                                {`Parcela ${installment.installmentNumber}/${installment.totalInstallments}: ${formatMoney(installment.amountCents)} - ${formatShortDate(installment.dueDate)}`}
                                             </p>
                                         ))}
                                     </div>
