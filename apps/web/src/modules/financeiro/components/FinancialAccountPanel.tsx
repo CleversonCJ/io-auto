@@ -19,6 +19,27 @@ type Props = {
     settlingEntryId: string | null;
 };
 
+function formatVehicleSaleNotes(notes: string): string {
+    const moneyLabels = ["Valor original", "Valor apos desconto", "Total real"];
+    let formatted = notes;
+
+    for (const label of moneyLabels) {
+        const pattern = new RegExp(`(${label}:\\s*)([^|]+)`, "gi");
+        formatted = formatted.replace(pattern, (_match, prefix: string, value: string) => {
+            const normalizedValue = value.trim();
+            if (normalizedValue.startsWith("R$")) {
+                return `${prefix}${normalizedValue}`;
+            }
+            if (/^-?\\d+$/.test(normalizedValue)) {
+                return `${prefix}${formatMoney(Number(normalizedValue))}`;
+            }
+            return `${prefix}${normalizedValue}`;
+        });
+    }
+
+    return formatted;
+}
+
 export function FinancialAccountPanel({
     title,
     subtitle,
@@ -59,6 +80,10 @@ export function FinancialAccountPanel({
                         const isPersistedVehicleSaleEntry =
                             entry.source === "VEHICLE_SALE" &&
                             (entry.vehicleId == null || entry.id !== entry.vehicleId);
+                        const displayNotes =
+                            entry.source === "VEHICLE_SALE" && entry.notes
+                                ? formatVehicleSaleNotes(entry.notes)
+                                : entry.notes;
                         const canSettle = entry.status !== "SETTLED" && (entry.source === "MANUAL" || isPersistedVehicleSaleEntry);
                         const settleLabel = entry.type === "RECEIVABLE" ? "Marcar como recebido" : "Marcar como pago";
 
@@ -93,7 +118,7 @@ export function FinancialAccountPanel({
                                             <span>Atualizado: {formatDateTime(entry.updatedAt)}</span>
                                         </div>
 
-                                        {entry.notes ? <p className="mt-3 text-sm text-black/55">{entry.notes}</p> : null}
+                                        {displayNotes ? <p className="mt-3 text-sm text-black/55">{displayNotes}</p> : null}
                                     </div>
 
                                     <div className="flex items-center gap-3">

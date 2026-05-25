@@ -30,6 +30,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -405,12 +407,12 @@ public class IoAutoSalesService {
 
     private String buildSaleNotes(IoAutoSaleCalculationService.SaleCalculationResult saleCalculation) {
         StringBuilder notes = new StringBuilder();
-        notes.append("Valor original: ").append(saleCalculation.originalAmountCents());
+        notes.append("Valor original: ").append(formatMoneyText(saleCalculation.originalAmountCents()));
         notes.append(" | Desconto (%): ").append(saleCalculation.discountPercentage());
         notes.append(" | Desconto (cents): ").append(saleCalculation.discountAmountCents());
-        notes.append(" | Valor apos desconto: ").append(saleCalculation.amountAfterDiscountCents());
+        notes.append(" | Valor apos desconto: ").append(formatMoneyText(saleCalculation.amountAfterDiscountCents()));
         notes.append(" | Troca (cents): ").append(saleCalculation.tradeInAmountCents());
-        notes.append(" | Total real: ").append(saleCalculation.totalRealAmountCents());
+        notes.append(" | Total real: ").append(formatMoneyText(saleCalculation.totalRealAmountCents()));
         if (saleCalculation.consigned()) {
             notes.append(" | Consignado: SIM");
             notes.append(" | Dono/empresa: ").append(firstNonBlank(saleCalculation.consignedOwnerName(), "Nao informado"));
@@ -425,6 +427,13 @@ public class IoAutoSalesService {
             notes.append(" | Consignado: NAO");
         }
         return notes.toString();
+    }
+
+    private String formatMoneyText(long amountCents) {
+        return "R$ " + BigDecimal.valueOf(amountCents, 2)
+                .setScale(2, RoundingMode.HALF_UP)
+                .toPlainString()
+                .replace('.', ',');
     }
 
     private List<IoAutoSaleCalculationService.SaleInstallment> splitInstallmentsForAmount(long totalAmountCents, int installmentCount, LocalDate firstDueDate) {
