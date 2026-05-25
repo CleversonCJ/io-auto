@@ -8,6 +8,42 @@ import { entryPrimaryLabel, entrySecondaryLabel, formatDate, statusLabel, status
 import { FinancialTransactionModal } from "./FinancialTransactionModal";
 import type { FinancialEntryRecord } from "@/modules/financeiro/types";
 
+function formatVehicleSaleNotes(notes: string): string {
+    const moneyLabelMap: Array<{ sourceLabel: string; targetLabel: string }> = [
+        { sourceLabel: "Valor original", targetLabel: "Valor original" },
+        { sourceLabel: "Desconto", targetLabel: "Desconto" },
+        { sourceLabel: "Desconto (cents)", targetLabel: "Desconto" },
+        { sourceLabel: "Valor apos desconto", targetLabel: "Valor apos desconto" },
+        { sourceLabel: "Troca", targetLabel: "Troca" },
+        { sourceLabel: "Troca (cents)", targetLabel: "Troca" },
+        { sourceLabel: "Total real", targetLabel: "Total real" },
+    ];
+    let formatted = notes;
+
+    for (const { sourceLabel, targetLabel } of moneyLabelMap) {
+        const escapedLabel = sourceLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const pattern = new RegExp(`(${escapedLabel}:\\s*)(-?\\d+)`, "gi");
+        formatted = formatted.replace(pattern, (_match, _prefix: string, centsValue: string) => {
+            const parsed = Number(centsValue);
+            if (!Number.isFinite(parsed)) {
+                return `${targetLabel}: ${centsValue}`;
+            }
+            return `${targetLabel}: ${formatMoney(parsed)}`;
+        });
+    }
+
+    formatted = formatted.replace(/(Desconto \(%\):\s*)(-?\d+(?:[.,]\d+)?)/gi, (_match, prefix: string, rawValue: string) => {
+        const normalizedRaw = rawValue.replace(",", ".");
+        const parsed = Number(normalizedRaw);
+        if (!Number.isFinite(parsed)) {
+            return `${prefix}${rawValue}`;
+        }
+        return `${prefix}${parsed.toFixed(2).replace(".", ",")}`;
+    });
+
+    return formatted;
+}
+
 function dateToInputValue(date: Date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -203,6 +239,10 @@ export function FinancialCashFlow() {
                     ) : (
                         filteredEntries.map((entry) => {
                             const isReceivable = entry.type === "RECEIVABLE";
+                            const displayNotes =
+                                entry.source === "VEHICLE_SALE" && entry.notes
+                                    ? formatVehicleSaleNotes(entry.notes)
+                                    : entry.notes;
 
                             return (
                                 <div key={`${entry.source}-${entry.id}`} className="rounded-[24px] border border-black/10 bg-[#fbfbfb] px-5 py-4 transition hover:bg-[#f5f5f5]">
@@ -233,7 +273,7 @@ export function FinancialCashFlow() {
                                                 <span>Atualizado: {formatDateTime(entry.updatedAt)}</span>
                                             </div>
 
-                                            {entry.notes ? <p className="mt-3 text-sm text-black/55">{entry.notes}</p> : null}
+                                            {displayNotes ? <p className="mt-3 text-sm text-black/55">{displayNotes}</p> : null}
                                         </div>
 
                                         <div className="flex items-center gap-3">
