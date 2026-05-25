@@ -20,20 +20,37 @@ type Props = {
 };
 
 function formatVehicleSaleNotes(notes: string): string {
-    const moneyLabels = ["Valor original", "Valor apos desconto", "Total real"];
+    const moneyLabelMap: Array<{ sourceLabel: string; targetLabel: string }> = [
+        { sourceLabel: "Valor original", targetLabel: "Valor original" },
+        { sourceLabel: "Desconto", targetLabel: "Desconto" },
+        { sourceLabel: "Desconto (cents)", targetLabel: "Desconto" },
+        { sourceLabel: "Valor apos desconto", targetLabel: "Valor apos desconto" },
+        { sourceLabel: "Troca", targetLabel: "Troca" },
+        { sourceLabel: "Troca (cents)", targetLabel: "Troca" },
+        { sourceLabel: "Total real", targetLabel: "Total real" },
+    ];
     let formatted = notes;
 
-    for (const label of moneyLabels) {
-        const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    for (const { sourceLabel, targetLabel } of moneyLabelMap) {
+        const escapedLabel = sourceLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const pattern = new RegExp(`(${escapedLabel}:\\s*)(-?\\d+)`, "gi");
-        formatted = formatted.replace(pattern, (_match, prefix: string, centsValue: string) => {
+        formatted = formatted.replace(pattern, (_match, _prefix: string, centsValue: string) => {
             const parsed = Number(centsValue);
             if (!Number.isFinite(parsed)) {
-                return `${prefix}${centsValue}`;
+                return `${targetLabel}: ${centsValue}`;
             }
-            return `${prefix}${formatMoney(parsed)}`;
+            return `${targetLabel}: ${formatMoney(parsed)}`;
         });
     }
+
+    formatted = formatted.replace(/(Desconto \(%\):\s*)(-?\d+(?:[.,]\d+)?)/gi, (_match, prefix: string, rawValue: string) => {
+        const normalizedRaw = rawValue.replace(",", ".");
+        const parsed = Number(normalizedRaw);
+        if (!Number.isFinite(parsed)) {
+            return `${prefix}${rawValue}`;
+        }
+        return `${prefix}${parsed.toFixed(2).replace(".", ",")}`;
+    });
 
     return formatted;
 }

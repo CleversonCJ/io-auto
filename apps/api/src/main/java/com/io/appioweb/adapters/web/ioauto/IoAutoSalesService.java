@@ -408,10 +408,10 @@ public class IoAutoSalesService {
     private String buildSaleNotes(IoAutoSaleCalculationService.SaleCalculationResult saleCalculation) {
         StringBuilder notes = new StringBuilder();
         notes.append("Valor original: ").append(formatMoneyText(saleCalculation.originalAmountCents()));
-        notes.append(" | Desconto (%): ").append(saleCalculation.discountPercentage());
-        notes.append(" | Desconto (cents): ").append(saleCalculation.discountAmountCents());
+        notes.append(" | Desconto (%): ").append(formatPercentageText(saleCalculation.discountPercentage()));
+        notes.append(" | Desconto: ").append(formatMoneyText(saleCalculation.discountAmountCents()));
         notes.append(" | Valor apos desconto: ").append(formatMoneyText(saleCalculation.amountAfterDiscountCents()));
-        notes.append(" | Troca (cents): ").append(saleCalculation.tradeInAmountCents());
+        notes.append(" | Troca: ").append(formatMoneyText(saleCalculation.tradeInAmountCents()));
         notes.append(" | Total real: ").append(formatMoneyText(saleCalculation.totalRealAmountCents()));
         if (saleCalculation.consigned()) {
             notes.append(" | Consignado: SIM");
@@ -432,6 +432,13 @@ public class IoAutoSalesService {
     private String formatMoneyText(long amountCents) {
         return "R$ " + BigDecimal.valueOf(amountCents, 2)
                 .setScale(2, RoundingMode.HALF_UP)
+                .toPlainString()
+                .replace('.', ',');
+    }
+
+    private String formatPercentageText(BigDecimal value) {
+        BigDecimal normalized = value == null ? BigDecimal.ZERO : value;
+        return normalized.setScale(2, RoundingMode.HALF_UP)
                 .toPlainString()
                 .replace('.', ',');
     }
