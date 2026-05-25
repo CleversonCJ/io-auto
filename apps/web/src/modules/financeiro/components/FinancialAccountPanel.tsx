@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { CalendarClock, PencilLine } from "lucide-react";
+import { CalendarClock, Check, Loader2, PencilLine } from "lucide-react";
 import { formatDateTime, formatMoney } from "@/modules/ioauto/formatters";
 import type { FinancialEntryRecord } from "@/modules/financeiro/types";
 import { entryPrimaryLabel, entrySecondaryLabel, formatDate, statusLabel, statusTone } from "./financial-utils";
@@ -60,6 +60,7 @@ export function FinancialAccountPanel({
                             entry.source === "VEHICLE_SALE" &&
                             (entry.vehicleId == null || entry.id !== entry.vehicleId);
                         const canSettle = entry.status !== "SETTLED" && (entry.source === "MANUAL" || isPersistedVehicleSaleEntry);
+                        const settleLabel = entry.type === "RECEIVABLE" ? "Marcar como recebido" : "Marcar como pago";
 
                         return (
                             <div key={`${entry.source}-${entry.id}`} className="rounded-[24px] border border-black/10 bg-[#fbfbfb] px-5 py-4 transition hover:bg-[#f5f5f5]">
@@ -102,13 +103,15 @@ export function FinancialAccountPanel({
                                                 type="button"
                                                 onClick={() => void onSettle(entry)}
                                                 disabled={settlingEntryId === entry.id}
+                                                aria-label={settleLabel}
+                                                title={settleLabel}
                                                 className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-wait disabled:opacity-70"
                                             >
-                                                {settlingEntryId === entry.id
-                                                    ? "Baixando..."
-                                                    : entry.type === "RECEIVABLE"
-                                                        ? "Marcar como recebido"
-                                                        : "Marcar como pago"}
+                                                {settlingEntryId === entry.id ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <Check className="h-4 w-4" />
+                                                )}
                                             </button>
                                         ) : null}
                                         {entry.source === "MANUAL" ? (
