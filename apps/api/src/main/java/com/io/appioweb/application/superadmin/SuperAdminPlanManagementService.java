@@ -283,6 +283,29 @@ public class SuperAdminPlanManagementService {
     }
 
     @Transactional(readOnly = true)
+    public void assertTenantFitsPlanForSuperAdmin(
+            UUID companyId,
+            PlanSnapshot targetPlan,
+            String targetBillingRecurrence,
+            Long targetAmountCentsOverride
+    ) {
+        PlanCompatibility compatibility = evaluateTenantPlanCompatibilityForSuperAdmin(
+                companyId,
+                targetPlan,
+                targetBillingRecurrence,
+                targetAmountCentsOverride
+        );
+        if (compatibility.eligible()) {
+            return;
+        }
+
+        String message = compatibility.blockingReasons().isEmpty()
+                ? "A conta nao cabe no plano " + targetPlan.planName() + "."
+                : compatibility.blockingReasons().get(0);
+        throw new BusinessException("PLAN_ASSIGNMENT_INVALID", message);
+    }
+
+    @Transactional(readOnly = true)
     public TenantPlanUsage getTenantPlanUsage(UUID companyId) {
         ensureTenantExists(companyId);
 
@@ -398,6 +421,92 @@ public class SuperAdminPlanManagementService {
     }
 
     @Transactional(readOnly = true)
+    public PlanCompatibility evaluateTenantPlanCompatibilityForSuperAdmin(
+            UUID companyId,
+            PlanSnapshot targetPlan,
+            String targetBillingRecurrence,
+            Long targetAmountCentsOverride
+    ) {
+        JpaCompanyEntity company = companies.findById(companyId)
+                .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa nao encontrada."));
+        PlanSnapshot currentPlan = resolvePlanForCompany(companyId);
+        TenantPlanUsage usage = getTenantPlanUsage(companyId);
+
+        String currentBillingRecurrence = normalizeRecurrence(company.getBillingRecurrence());
+        if (currentBillingRecurrence == null) {
+            currentBillingRecurrence = normalizeRecurrence(currentPlan.billingRecurrence());
+        }
+        if (currentBillingRecurrence == null) {
+            currentBillingRecurrence = "MONTHLY";
+        }
+
+        Long currentAmountCents = company.getSubscriptionAmountCents();
+        if (currentAmountCents == null) {
+            currentAmountCents = resolveAmountForRecurrence(currentPlan, currentBillingRecurrence);
+        }
+
+        String resolvedTargetRecurrence = normalizeRecurrence(targetBillingRecurrence);
+        if (resolvedTargetRecurrence == null) {
+            resolvedTargetRecurrence = currentBillingRecurrence;
+        }
+
+        Long targetAmountCents = targetAmountCentsOverride != null
+                ? targetAmountCentsOverride
+                : resolveAmountForRecurrence(targetPlan, resolvedTargetRecurrence);
+
+        return evaluateTenantPlanCompatibilityForSuperAdmin(
+                usage,
+                currentPlan,
+                currentBillingRecurrence,
+                currentAmountCents,
+                targetPlan,
+                resolvedTargetRecurrence,
+                targetAmountCents
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public PlanCompatibility evaluateTenantPlanCompatibilityForSuperAdmin(
+            TenantPlanUsage usage,
+            PlanSnapshot currentPlan,
+            String currentBillingRecurrence,
+            Long currentAmountCents,
+            PlanSnapshot targetPlan,
+            String targetBillingRecurrence,
+            Long targetAmountCentsOverride
+    ) {
+        String resolvedCurrentRecurrence = normalizeRecurrence(currentBillingRecurrence);
+        if (resolvedCurrentRecurrence == null) {
+            resolvedCurrentRecurrence = normalizeRecurrence(currentPlan.billingRecurrence());
+        }
+        if (resolvedCurrentRecurrence == null) {
+            resolvedCurrentRecurrence = "MONTHLY";
+        }
+
+        String resolvedTargetRecurrence = normalizeRecurrence(targetBillingRecurrence);
+        if (resolvedTargetRecurrence == null) {
+            resolvedTargetRecurrence = normalizeRecurrence(targetPlan.billingRecurrence());
+        }
+        if (resolvedTargetRecurrence == null) {
+            resolvedTargetRecurrence = resolvedCurrentRecurrence;
+        }
+
+        long safeCurrentAmount = currentAmountCents != null
+                ? currentAmountCents
+                : safeAmount(resolveAmountForRecurrence(currentPlan, resolvedCurrentRecurrence));
+        long safeTargetAmount = targetAmountCentsOverride != null
+                ? targetAmountCentsOverride
+                : safeAmount(resolveAmountForRecurrence(targetPlan, resolvedTargetRecurrence));
+
+        boolean isDowngrade = safeTargetAmount < safeCurrentAmount;
+        if (!isDowngrade) {
+            return new PlanCompatibility(true, List.of(), usage);
+        }
+
+        return evaluateTenantPlanUsageLimitsOnly(usage, targetPlan);
+    }
+
+    @Transactional(readOnly = true)
     public PlanCompatibility evaluateTenantPlanCompatibility(TenantPlanUsage usage, PlanSnapshot plan) {
         List<String> blockingReasons = new java.util.ArrayList<>();
 
@@ -441,6 +550,34 @@ public class SuperAdminPlanManagementService {
         }
 
         return new PlanCompatibility(blockingReasons.isEmpty(), blockingReasons, usage);
+    }
+
+    private PlanCompatibility evaluateTenantPlanUsageLimitsOnly(TenantPlanUsage usage, PlanSnapshot plan) {
+        List<String> blockingReasons = new ArrayList<>();
+
+        if (plan.usersLimit() != null && usage.activeUsers() > plan.usersLimit()) {
+            blockingReasons.add("A conta ja possui " + usage.activeUsers() + " usuarios ativos e o plano " + plan.planName() + " suporta ate " + plan.usersLimit() + ".");
+        }
+        if (plan.vehiclesLimit() != null && usage.activeVehicles() > plan.vehiclesLimit()) {
+            blockingReasons.add("A conta ja possui " + usage.activeVehicles() + " veiculos ativos e o plano " + plan.planName() + " suporta ate " + plan.vehiclesLimit() + ".");
+        }
+        if (plan.activeAdsLimit() != null && usage.activeAds() > plan.activeAdsLimit()) {
+            blockingReasons.add("A conta ja possui " + usage.activeAds() + " anuncios ativos e o plano " + plan.planName() + " suporta ate " + plan.activeAdsLimit() + ".");
+        }
+
+        return new PlanCompatibility(blockingReasons.isEmpty(), blockingReasons, usage);
+    }
+
+    private Long resolveAmountForRecurrence(PlanSnapshot plan, String recurrence) {
+        Long amount = plan.priceForRecurrence(recurrence);
+        if (amount != null) return amount;
+        if (plan.priceCents() != null) return plan.priceCents();
+        if (plan.monthlyPriceCents() != null) return plan.monthlyPriceCents();
+        return plan.annualPriceCents();
+    }
+
+    private long safeAmount(Long value) {
+        return value == null ? 0L : value;
     }
 
     private boolean isFeatureEnabled(PlanSnapshot plan, String featureKey) {
@@ -936,7 +1073,10 @@ public class SuperAdminPlanManagementService {
     }
 
     private Long normalizePrice(Long value) {
-        if (value == null || value <= 0L) return null;
+        if (value == null) return null;
+        if (value < 0L) {
+            throw new BusinessException("PLAN_PRICE_INVALID", "O valor do plano nao pode ser negativo.");
+        }
         return value;
     }
 

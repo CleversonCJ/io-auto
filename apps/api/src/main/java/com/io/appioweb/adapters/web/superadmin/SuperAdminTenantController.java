@@ -139,7 +139,7 @@ public class SuperAdminTenantController {
     @GetMapping("/api/superadmin/tenants/{tenantId}/billing")
     @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<Object> getTenantBilling(@PathVariable UUID tenantId) {
-        return ResponseEntity.ok(billingService.getBillingSnapshot(tenantId));
+        return ResponseEntity.ok(billingService.getBillingSnapshotForSuperAdmin(tenantId));
     }
 
     @PostMapping("/api/superadmin/tenants/{tenantId}/billing/plan-change/preview")
@@ -149,7 +149,7 @@ public class SuperAdminTenantController {
             @Valid @RequestBody PlanChangePreviewHttpRequest request
     ) {
         return ResponseEntity.ok(
-                billingService.previewPlanChange(
+                billingService.previewPlanChangeForSuperAdmin(
                         tenantId,
                         request.targetPlanKey(),
                         request.targetBillingInterval()

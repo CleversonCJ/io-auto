@@ -325,7 +325,12 @@ public class SuperAdminTenantManagementService {
         if (hasPlanReference && resolvedPlan.isEmpty()) {
             throw new BusinessException("PLAN_NOT_FOUND", "Selecione um plano valido para a conta.");
         }
-        resolvedPlan.ifPresent(plan -> planManagementService.assertTenantFitsPlan(tenantId, plan));
+        resolvedPlan.ifPresent(plan -> planManagementService.assertTenantFitsPlanForSuperAdmin(
+                tenantId,
+                plan,
+                command.billingRecurrence() != null ? command.billingRecurrence() : plan.billingRecurrence(),
+                command.subscriptionAmountCents()
+        ));
 
         UUID resolvedPlanId = resolvedPlan.map(SuperAdminPlanManagementService.PlanSnapshot::planId).orElse(null);
         String resolvedPlanName = resolvedPlan.map(SuperAdminPlanManagementService.PlanSnapshot::planName).orElse(normalizeNullable(command.planName()));
