@@ -952,8 +952,7 @@ export function CrmKanban() {
         <section className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden bg-io-light pt-4 md:pt-6">
             <div className="mb-4 w-full max-w-full shrink-0 px-4 md:px-6">
                 <div className="mb-6">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">Módulo CRM</p>
-                    <h2 className="mt-2 font-display text-[1.75rem] font-bold leading-tight text-io-dark">Kanban de atendimentos</h2>
+                    <h2 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">Kanban de atendimentos</h2>
                     <p className="mt-1.5 text-sm text-black/55">Visualize seus atendimentos em tempo real, com etapas personalizáveis, filtros e movimentação dos leads entre colunas.</p>
                 </div>
                 <div className="min-w-0 overflow-hidden rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)] md:p-6">

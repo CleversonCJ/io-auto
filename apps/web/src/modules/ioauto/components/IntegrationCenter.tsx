@@ -312,8 +312,7 @@ export function IntegrationCenter() {
     return (
         <div className="grid gap-6">
             <header>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">Modulo Integracoes</p>
-                <h1 className="mt-2 font-display text-[1.75rem] font-bold leading-tight text-io-dark">Integracoes</h1>
+                <h1 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">Integracoes</h1>
                 <p className="mt-1.5 text-sm text-black/55">Conecte marketplaces, acompanhe status da conta e gerencie a distribuicao do estoque em um unico lugar.</p>
             </header>
 

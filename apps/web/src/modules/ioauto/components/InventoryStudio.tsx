@@ -1284,8 +1284,7 @@ export function InventoryStudio() {
         <>
             <div className="grid gap-6">
                 <header>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">Módulo Estoque</p>
-                    <h1 className="mt-2 font-display text-[1.75rem] font-bold leading-tight text-io-dark">Estoque de veículos</h1>
+                    <h1 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">Estoque de veículos</h1>
                     <p className="mt-1.5 text-sm text-black/55">Gerencie todos os veículos cadastrados, publique em plataformas e acompanhe o estoque em tempo real.</p>
                 </header>
 

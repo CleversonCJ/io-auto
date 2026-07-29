@@ -514,22 +514,14 @@ export function PublicCatalogLeadsPage() {
 
     return (
         <div className="grid gap-6">
-            <section className="overflow-hidden rounded-[34px] border border-[#6b00e3]/10 bg-[radial-gradient(circle_at_top_left,_rgba(154,92,255,0.18),_transparent_46%),linear-gradient(180deg,_#ffffff_0%,_#fbf7ff_100%)] px-6 py-6 shadow-[0_24px_60px_rgba(107,0,227,0.08)]">
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="max-w-3xl">
-                        <span className="inline-flex items-center gap-2 rounded-full border border-[#6b00e3]/12 bg-white/75 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-io-purple">
-                            <Sparkles className="h-3.5 w-3.5" />
-                            {"Leads do catálogo"}
-                        </span>
-                        <h1 className="mt-4 font-display text-[1.95rem] font-bold leading-tight text-io-dark md:text-[2.35rem]">
-                            {"Leads captados antes do WhatsApp"}
-                        </h1>
-                        <p className="mt-3 max-w-2xl text-sm leading-7 text-black/58">
-                            {"Acompanhe quem preencheu o formulário do catálogo público, veja o veículo de interesse e filtre o resultado pelo período que fizer mais sentido para a operação."}
-                        </p>
-                    </div>
-                </div>
-            </section>
+            <header>
+                <h1 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">
+                    {"Leads do catálogo"}
+                </h1>
+                <p className="mt-1.5 max-w-3xl text-sm text-black/55">
+                    {"Acompanhe quem preencheu o formulário do catálogo público, veja o veículo de interesse e filtre o resultado pelo período que fizer mais sentido para a operação."}
+                </p>
+            </header>
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <LeadMetricCard

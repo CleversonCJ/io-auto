@@ -278,8 +278,7 @@ export function DashboardOverview() {
     return (
         <div className="grid gap-6">
             <header>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">Módulo Principal</p>
-                <h1 className="mt-2 font-display text-[1.75rem] font-bold leading-tight text-io-dark">Dashboard</h1>
+                <h1 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">Dashboard</h1>
                 <p className="mt-1.5 text-sm text-black/55">Visão geral do seu negócio — estoque, publicações, leads e desempenho de vendas.</p>
             </header>
 
