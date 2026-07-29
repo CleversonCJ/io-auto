@@ -926,11 +926,8 @@ export function CrmKanban() {
         return (
             <section className="flex h-full w-full flex-col bg-io-light pt-4 md:pt-6">
                 <div className="px-4 md:px-6">
-                    <div className="rounded-[32px] border border-black/10 bg-white px-6 py-6 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
-                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/42">CRM</p>
-                        <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-io-dark">Kanban de atendimentos</h1>
-                        <p className="mt-2 text-sm text-black/58">Estruture suas etapas comerciais e acompanhe os leads por coluna.</p>
-                    </div>
+                    <h1 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">Kanban de atendimentos</h1>
+                    <p className="mt-1.5 text-sm text-black/55">Estruture suas etapas comerciais e acompanhe os leads por coluna.</p>
                 </div>
                 <div className="mx-4 mt-4 grid flex-1 place-items-center rounded-[32px] border border-dashed border-black/15 bg-white p-8 text-center shadow-[0_18px_45px_rgba(15,23,42,0.04)] md:mx-6">
                     <div>
