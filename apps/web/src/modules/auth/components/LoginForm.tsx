@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Eye, EyeOff } from "lucide-react";
 import { loginSchema, type LoginForm } from "@/modules/auth/schemas/loginSchema";
 
 type LoginFormProps = {
@@ -41,6 +42,7 @@ export function LoginForm({ embedded = false }: LoginFormProps) {
     const [error, setError] = useState<LoginErrorState | null>(null);
     const [supportContact, setSupportContact] = useState<SupportContactState | null>(null);
     const [supportLoading, setSupportLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const form = useForm<LoginForm>({
         resolver: zodResolver(loginSchema),
@@ -156,11 +158,36 @@ export function LoginForm({ embedded = false }: LoginFormProps) {
 
                 <div>
                     <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Senha</label>
-                    <input
-                        type="password"
-                        {...form.register("password")}
-                        style={{ width: "100%", height: 48, padding: "0 16px", borderRadius: 18, border: "1px solid rgba(0,0,0,0.08)", background: "#f5f5f5", outline: "none" }}
-                    />
+                    <div style={{ position: "relative" }}>
+                        <input
+                            type={showPassword ? "text" : "password"}
+                            {...form.register("password")}
+                            style={{ width: "100%", height: 48, padding: "0 52px 0 16px", borderRadius: 18, border: "1px solid rgba(0,0,0,0.08)", background: "#f5f5f5", outline: "none" }}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword((visible) => !visible)}
+                            aria-label={showPassword ? "Ocultar senha" : "Visualizar senha"}
+                            aria-pressed={showPassword}
+                            title={showPassword ? "Ocultar senha" : "Visualizar senha"}
+                            style={{
+                                position: "absolute",
+                                top: 0,
+                                right: 4,
+                                display: "inline-flex",
+                                width: 44,
+                                height: 48,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                border: "none",
+                                background: "transparent",
+                                color: "rgba(0,0,0,0.55)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            {showPassword ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}
+                        </button>
+                    </div>
                     {form.formState.errors.password && (
                         <p style={{ color: "#c00", marginTop: 6, fontSize: 12 }}>{form.formState.errors.password.message}</p>
                     )}
