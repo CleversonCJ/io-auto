@@ -3160,7 +3160,7 @@ export function AtendimentosWorkspace() {
     async function handleStartConversation() {
         const phone = buildPhoneFromFooter();
         if (!phone) {
-            setSendError("Informe um telefone valido para iniciar.");
+            setSendError("Informe um telefone válido para iniciar.");
             return;
         }
         const existing = chats.find((chat) => canonicalPhone(chat.phone) === canonicalPhone(phone));
@@ -3459,7 +3459,7 @@ export function AtendimentosWorkspace() {
     function getOutgoingPhone() {
         const phone = selectedChat?.phone ?? (pendingPhone || buildPhoneFromFooter());
         if (!phone) {
-            setSendError("Informe um telefone valido para iniciar.");
+            setSendError("Informe um telefone válido para iniciar.");
             return null;
         }
         return phone;
@@ -4420,7 +4420,7 @@ export function AtendimentosWorkspace() {
         }
         const estimatedSize = estimateDataUrlBytes(videoDataUrl);
         if (estimatedSize > MAX_VIDEO_BYTES) {
-            setSendError(`Video muito pesado (${formatBytes(estimatedSize)}). Limite: 16 MB.`);
+            setSendError(`Vídeo muito pesado (${formatBytes(estimatedSize)}). Limite: 16 MB.`);
             if (existingPendingId) removePendingMessage(existingPendingId);
             return;
         }
@@ -4836,7 +4836,7 @@ export function AtendimentosWorkspace() {
             return;
         }
         if (file.size > MAX_VIDEO_BYTES) {
-            setSendError(`Video muito pesado (${formatBytes(file.size)}). Limite: 16 MB.`);
+            setSendError(`Vídeo muito pesado (${formatBytes(file.size)}). Limite: 16 MB.`);
             return;
         }
 
@@ -5522,7 +5522,7 @@ export function AtendimentosWorkspace() {
                                             <input
                                                 value={ddiQuery}
                                                 onChange={(event) => setDdiQuery(event.target.value)}
-                                                placeholder="Buscar pais ou DDI"
+                                                placeholder="Buscar país ou DDI"
                                                 className="h-9 w-full rounded-lg border border-black/10 px-2 text-sm outline-none"
                                             />
                                         </div>
@@ -6878,7 +6878,7 @@ export function AtendimentosWorkspace() {
                     </div>
                     <div className="grid h-[calc(100%-64px)] place-items-center px-3 pb-3">
                         {mediaViewer.type === "image" ? (
-                            <img src={mediaViewer.source} alt="Midia" className="max-h-[80vh] max-w-[80vw] rounded-lg object-contain" />
+                            <img src={mediaViewer.source} alt="Mídia" className="max-h-[80vh] max-w-[80vw] rounded-lg object-contain" />
                         ) : (
                             <video src={mediaViewer.source} controls autoPlay className="max-h-[70vh] max-w-[820px] rounded-lg object-contain" />
                         )}
@@ -6890,7 +6890,7 @@ export function AtendimentosWorkspace() {
                     className="fixed inset-0 z-[60] grid place-items-center bg-black/40 px-4 py-6 -[2px]"
                     role="dialog"
                     aria-modal="true"
-                    aria-label="Confirmar exclusao da conversa"
+                    aria-label="Confirmar exclusão da conversa"
                     onClick={closeDeleteConversationModal}
                 >
                     <div

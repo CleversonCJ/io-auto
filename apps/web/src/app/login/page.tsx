@@ -22,17 +22,17 @@ export default async function LoginPage() {
                                 Entre no painel operacional do seu ecossistema automotivo.
                             </h1>
                             <p className="mt-5 max-w-xl text-base leading-8 text-black/60">
-                                Estoque, leads, publicacoes e assinatura em uma experiencia mais limpa, moderna e pronta para crescer em multi-tenant.
+                                Estoque, leads, publicações e assinatura em uma experiência mais limpa, moderna e pronta para crescer em multi-tenant.
                             </p>
                         </div>
 
                         <div className="grid gap-3">
                             <div className="rounded-[28px] bg-io-purple p-5 text-white">
-                                <p className="text-xs uppercase tracking-[0.28em] text-white/45">Operacao</p>
-                                <p className="mt-3 text-lg font-semibold">Atendimento 100% humano com origem do lead visivel</p>
+                                <p className="text-xs uppercase tracking-[0.28em] text-white/45">Operação</p>
+                                <p className="mt-3 text-lg font-semibold">Atendimento 100% humano com origem do lead visível</p>
                             </div>
                             <div className="rounded-[28px] border border-black/10 bg-[#f6f6f6] p-5">
-                                <p className="text-sm text-black/55">Use o mesmo e-mail e senha configurados na ativacao da assinatura para entrar.</p>
+                                <p className="text-sm text-black/55">Use o mesmo e-mail e senha configurados na ativação da assinatura para entrar.</p>
                             </div>
                         </div>
                     </section>

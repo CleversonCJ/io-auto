@@ -389,13 +389,13 @@ export function SubscriptionCenter({
 
                                                         <div className="mt-3 flex flex-wrap gap-2">
                                                             <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
-                                                                {limitLabel(plan.usersLimit, "usuarios")}
+                                                                {limitLabel(plan.usersLimit, "usuários")}
                                                             </span>
                                                             <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
-                                                                {limitLabel(plan.vehiclesLimit, "veiculos")}
+                                                                {limitLabel(plan.vehiclesLimit, "veículos")}
                                                             </span>
                                                             <span className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-black/65">
-                                                                {limitLabel(plan.activeAdsLimit, "anuncios")}
+                                                                {limitLabel(plan.activeAdsLimit, "anúncios")}
                                                             </span>
                                                         </div>
 

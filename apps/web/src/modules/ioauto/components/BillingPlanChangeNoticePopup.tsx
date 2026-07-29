@@ -6,10 +6,10 @@ import type { BillingSnapshot } from "@/modules/ioauto/types";
 
 function adjustmentModeLabel(mode?: string | null) {
     const normalized = String(mode ?? "").trim().toUpperCase();
-    if (normalized === "IMMEDIATE_CHARGE") return "Cobranca proporcional imediata";
-    if (normalized === "NEXT_CYCLE_CREDIT") return "Credito programado";
-    if (normalized === "UPCOMING_PAYMENT_UPDATE") return "Cobranca pendente substituida";
-    return "Atualizacao do plano";
+    if (normalized === "IMMEDIATE_CHARGE") return "Cobrança proporcional imediata";
+    if (normalized === "NEXT_CYCLE_CREDIT") return "Crédito programado";
+    if (normalized === "UPCOMING_PAYMENT_UPDATE") return "Cobrança pendente substituida";
+    return "Atualização do plano";
 }
 
 export function BillingPlanChangeNoticePopup() {
@@ -111,7 +111,7 @@ export function BillingPlanChangeNoticePopup() {
                 };
             });
         } catch {
-            window.alert("Nao foi possivel confirmar a leitura do aviso agora. Tente novamente em instantes.");
+            window.alert("Não foi possível confirmar a leitura do aviso agora. Tente novamente em instantes.");
         } finally {
             setDismissing(false);
         }
@@ -148,9 +148,9 @@ export function BillingPlanChangeNoticePopup() {
 
                 {(notice.immediateChargeCents || notice.creditNextCycleCents || notice.remainingCreditCents) ? (
                     <div className="mt-5 grid gap-3 md:grid-cols-3">
-                        <PopupInfoCard label="Cobranca agora" value={formatMoney(notice.immediateChargeCents, "BRL")} />
-                        <PopupInfoCard label="Credito aplicado" value={formatMoney(notice.creditNextCycleCents, "BRL")} />
-                        <PopupInfoCard label="Credito restante" value={formatMoney(notice.remainingCreditCents, "BRL")} />
+                        <PopupInfoCard label="Cobrança agora" value={formatMoney(notice.immediateChargeCents, "BRL")} />
+                        <PopupInfoCard label="Crédito aplicado" value={formatMoney(notice.creditNextCycleCents, "BRL")} />
+                        <PopupInfoCard label="Crédito restante" value={formatMoney(notice.remainingCreditCents, "BRL")} />
                     </div>
                 ) : null}
 
@@ -164,7 +164,7 @@ export function BillingPlanChangeNoticePopup() {
                                     rel="noreferrer"
                                     className="rounded-full bg-io-purple px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5800bb]"
                                 >
-                                    Abrir cobranca proporcional
+                                    Abrir cobrança proporcional
                                 </a>
                             ) : null}
                             <a

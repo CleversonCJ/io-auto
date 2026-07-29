@@ -52,7 +52,7 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
                 setAds([]);
             }
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao carregar a integracao Mercado Livre.");
+            setError(cause instanceof Error ? cause.message : "Falha ao carregar a integração Mercado Livre.");
         } finally {
             setLoading(false);
         }
@@ -65,11 +65,11 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
             const response = await fetch("/api/integrations/mercadolivre/connect-url", { cache: "no-store" });
             const payload = (await response.json().catch(() => null)) as { url?: string; message?: string } | null;
             if (!response.ok || !payload?.url) {
-                throw new Error(payload?.message ?? "Falha ao iniciar a conexao com o Mercado Livre.");
+                throw new Error(payload?.message ?? "Falha ao iniciar a conexão com o Mercado Livre.");
             }
             window.location.assign(payload.url);
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao iniciar a conexao com o Mercado Livre.");
+            setError(cause instanceof Error ? cause.message : "Falha ao iniciar a conexão com o Mercado Livre.");
             setWorking(null);
         }
     }
@@ -103,10 +103,10 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
             const response = await fetch("/api/integrations/mercadolivre/ads/sync-all", { method: "POST" });
             const payload = (await response.json().catch(() => null)) as MeliSyncSummary | { message?: string } | null;
             if (!response.ok) {
-                throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao sincronizar os anuncios do Mercado Livre.");
+                throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao sincronizar os anúncios do Mercado Livre.");
             }
             const summary = payload as MeliSyncSummary;
-            setMessage(`Sincronizacao concluida: ${summary.total} anuncios consultados no Mercado Livre.`);
+            setMessage(`Sincronização concluída: ${summary.total} anúncios consultados no Mercado Livre.`);
             await loadAll();
             onRefreshParent?.();
         });
@@ -119,14 +119,14 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
         try {
             await callback();
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao processar a acao.");
+            setError(cause instanceof Error ? cause.message : "Falha ao processar a ação.");
         } finally {
             setWorking(null);
         }
     }
 
     const activeAds = ads.filter((item) => item.status?.toUpperCase() === "ACTIVE").length;
-    const connectedDisplayName = status?.fullName || status?.nickname || "Conta ainda nao conectada";
+    const connectedDisplayName = status?.fullName || status?.nickname || "Conta ainda não conectada";
     const lastSync = ads
         .map((item) => item.lastSyncedAt)
         .filter((item): item is string => Boolean(item))
@@ -137,7 +137,7 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
             <article className="rounded-[34px] border border-black/10 bg-white p-8 shadow-[0_22px_55px_rgba(0,0,0,0.07)]">
                 <div className="flex items-center gap-3 text-black/52">
                     <LoaderCircle className="h-5 w-5 animate-spin" />
-                    <span className="text-sm font-medium">Carregando integracao Mercado Livre...</span>
+                    <span className="text-sm font-medium">Carregando integração Mercado Livre...</span>
                 </div>
             </article>
         );
@@ -198,12 +198,12 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
                 />
                 <StatCard
                     icon={<ExternalLink className="h-5 w-5" />}
-                    label="Anuncios ativos"
+                    label="Anúncios ativos"
                     value={String(activeAds)}
                 />
                 <StatCard
                     icon={<RefreshCw className="h-5 w-5" />}
-                    label="Ultima sincronizacao"
+                    label="última sincronização"
                     value={formatDateTime(lastSync)}
                 />
             </div>
@@ -241,7 +241,7 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
                 </section>
 
                 <section className="rounded-[28px] border border-black/8 bg-white p-5">
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-black/35">Acoes</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-black/35">Ações</p>
                     <div className="mt-4 grid gap-3">
                         <ActionButton
                             label="Sincronizar categorias MLB"
@@ -250,7 +250,7 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
                             disabled={!status?.connected || working != null}
                         />
                         <ActionButton
-                            label="Sincronizar meus anuncios"
+                            label="Sincronizar meus anúncios"
                             loading={working === "ads"}
                             onClick={() => void handleSyncAds()}
                             disabled={!status?.connected || working != null}

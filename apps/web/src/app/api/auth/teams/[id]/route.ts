@@ -19,7 +19,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     const { id } = await ctx.params;
     const body = (await req.json().catch(() => null)) as TeamBody | null;
     if (!body?.name?.trim()) {
-        return NextResponse.json({ message: "Dados invalidos" }, { status: 400 });
+        return NextResponse.json({ message: "Dados inválidos" }, { status: 400 });
     }
 
     const res = await fetch(`${apiBase}/teams/${id}`, {

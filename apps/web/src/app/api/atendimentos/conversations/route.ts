@@ -78,7 +78,7 @@ export async function GET(request: Request) {
         const newAccess = await refreshAccessToken(apiBase);
         if (!newAccess) {
             await logAuthState("refresh-failed-after-upstream-401", request);
-            return NextResponse.json({ message: "Sessao expirada" }, { status: 401 });
+            return NextResponse.json({ message: "Sessão expirada" }, { status: 401 });
         }
 
         access = newAccess;

@@ -5,6 +5,6 @@ export async function POST(request: Request, context: { params: Promise<{ vehicl
     return jsonFromAuthedUpstream(
         `/ioauto/webmotors/ads/${vehicleId}/publish${new URL(request.url).search}`,
         { method: "POST" },
-        "Falha ao publicar o veiculo na Webmotors.",
+        "Falha ao publicar o veículo na Webmotors.",
     );
 }

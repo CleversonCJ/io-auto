@@ -222,7 +222,7 @@ function getSeedAgents(): DistributionAgentOption[] {
         },
         {
             id: "agent_retencao",
-            name: "Agente Retencao",
+            name: "Agente Retenção",
             providerId: "openai",
             reasoningModel: "retention-router",
             modelVersion: "gpt-5-mini",
@@ -236,7 +236,7 @@ function getSeedSupervisors(): AiSupervisor[] {
     return [
         {
             id: "supervisor_default",
-            name: "Supervisor Padrao",
+            name: "Supervisor Padrão",
             communicationStyle: "Neutro e Equilibrado",
             profile: "Recepcionista",
             objective: "Identificar rapidamente o motivo do contato e encaminhar para o agente mais adequado.",
@@ -581,7 +581,7 @@ function simulateMockRouting(
                 targetAgentName: winner.rule.agentName,
                 messageToSend: null,
                 confidence: clamp(0.55 + winner.score / 10, 0.55, 0.96),
-                reason: "Melhor aderencia entre a mensagem e o texto de triagem.",
+                reason: "Melhor aderência entre a mensagem e o texto de triagem.",
                 humanQueue: null,
                 evidence: tokens.filter((token) => normalizeSearchText(`${winner.rule.agentName} ${winner.rule.triageText}`).includes(token)).slice(0, 3),
             },

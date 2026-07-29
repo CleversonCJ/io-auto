@@ -124,7 +124,7 @@ function signedPercent(value: number, digits = 2) {
 }
 
 function monthLabelFromCount(value: number) {
-    return value === 1 ? "mes" : "meses";
+    return value === 1 ? "mês" : "meses";
 }
 
 function dayLabel(value: number) {
@@ -176,7 +176,7 @@ function changeRate(current: number, previous: number) {
 }
 
 function monthLabel(value?: string | null) {
-    if (!value) return "Periodo";
+    if (!value) return "Período";
 
     const isoMonth = /^(\d{4})-(\d{2})$/;
     const match = value.match(isoMonth);
@@ -211,10 +211,10 @@ function planLabel(row: { planName?: string | null; planKey?: string | null }) {
 
 function featureLabel(featureKey?: string | null) {
     const normalized = (featureKey || "").toUpperCase();
-    if (normalized.includes("MARKET")) return "Integracao com marketplaces";
-    if (normalized.includes("SITE") || normalized.includes("WEBSITE")) return "Site proprio";
+    if (normalized.includes("MARKET")) return "Integração com marketplaces";
+    if (normalized.includes("SITE") || normalized.includes("WEBSITE")) return "Site próprio";
     if (normalized.includes("FINANC")) return "Financeiro";
-    if (normalized.includes("REPORT")) return "Relatorios";
+    if (normalized.includes("REPORT")) return "Relatórios";
     if (normalized.includes("LEAD")) return "Leads";
     if (normalized.includes("STOCK") || normalized.includes("INVENT")) return "Estoque";
     return titleCase(normalized);
@@ -222,17 +222,17 @@ function featureLabel(featureKey?: string | null) {
 
 function platformLabel(value?: string | null) {
     const normalized = (value || "").trim();
-    if (!normalized) return "Nao informado";
+    if (!normalized) return "Não informado";
     if (normalized.toUpperCase() === "MERCADO_LIVRE") return "Mercado Livre";
     return titleCase(normalized);
 }
 
 function originLabel(value?: string | null) {
     const normalized = (value || "").trim().toLowerCase();
-    if (!normalized) return "Nao informado";
-    if (normalized.includes("indic")) return "Indicacao";
-    if (normalized.includes("pago") || normalized.includes("ads") || normalized.includes("meta") || normalized.includes("google")) return "Trafego pago";
-    if (normalized.includes("organ")) return "Organico";
+    if (!normalized) return "Não informado";
+    if (normalized.includes("indic")) return "Indicação";
+    if (normalized.includes("pago") || normalized.includes("ads") || normalized.includes("meta") || normalized.includes("google")) return "Tráfego pago";
+    if (normalized.includes("organ")) return "Orgânico";
     if (normalized.includes("parce")) return "Parceiros";
     if (normalized.includes("seller")) return "Link do vendedor";
     return titleCase(normalized.replace(/[-_]+/g, " "));
@@ -240,7 +240,7 @@ function originLabel(value?: string | null) {
 
 function stockBucket(count?: number | null) {
     const total = toNumber(count);
-    if (total <= 20) return "Ate 20";
+    if (total <= 20) return "Até 20";
     if (total <= 50) return "20 a 50";
     return "50+";
 }
@@ -364,7 +364,7 @@ function buildFinanceSection(args: BuildArgs): SuperAdminSection {
     const overdueCustomers = toNumber(billingCards.overdueCustomers);
     const overdueRatio = currentMrr > 0 ? (overdueRevenue / currentMrr) * 100 : 0;
     const revenueByPlan = topPairs(revenueRows, (row) => planLabel(row), (row) => toCurrencyUnitsFromCents(toNumber(row.mrrCents)));
-    const revenueByRegion = topPairs(revenueRows, (row) => row.region || "Nao informado", (row) => toCurrencyUnitsFromCents(toNumber(row.mrrCents)));
+    const revenueByRegion = topPairs(revenueRows, (row) => row.region || "Não informado", (row) => toCurrencyUnitsFromCents(toNumber(row.mrrCents)));
     const revenueByStock = topPairs(revenueRows, (row) => stockBucket(row.stockCount), (row) => toCurrencyUnitsFromCents(toNumber(row.mrrCents)));
     const annualCustomers = revenueRows.filter((row) => (row.billingRecurrence || "").toUpperCase() === "ANNUAL");
     const totalLostMrr = total(chartRows.map((row: Record<string, any>) => toNumber(row.lostMrrCents)));
@@ -375,25 +375,25 @@ function buildFinanceSection(args: BuildArgs): SuperAdminSection {
         metrics: [
             metric("MRR", currency(currentMrr), "Receita recorrente mensal consolidada.", signedPercent(mrrDelta), "emerald"),
             metric("ARR", currency(toNumber(cards.arrCents)), "Receita anual projetada da carteira.", undefined, "sky"),
-            metric("Ticket medio", currency(toNumber(cards.averageTicketCents)), "Media mensal por cliente pagante.", undefined, "violet"),
-            metric("LTV", currency(toNumber(cards.ltvCents)), "Valor de vida calculado pela permanencia media.", undefined, "amber"),
-            metric("Churn financeiro", percent(toNumber(cards.financialChurnRate)), "Receita perdida por cancelamentos no periodo.", undefined, "rose"),
+            metric("Ticket médio", currency(toNumber(cards.averageTicketCents)), "Média mensal por cliente pagante.", undefined, "violet"),
+            metric("LTV", currency(toNumber(cards.ltvCents)), "Valor de vida calculado pela permanência média.", undefined, "amber"),
+            metric("Churn financeiro", percent(toNumber(cards.financialChurnRate)), "Receita perdida por cancelamentos no período.", undefined, "rose"),
         ],
         alerts: [
             alert(
-                mrrDelta < 0 ? "Queda de MRR detectada" : "MRR em trajetoria positiva",
+                mrrDelta < 0 ? "Queda de MRR detectada" : "MRR em trajetória positiva",
                 mrrDelta < 0
                     ? `O MRR atual recuou ${percent(Math.abs(mrrDelta), 2)} frente ao fechamento anterior.`
                     : `O MRR atual cresceu ${percent(mrrDelta, 2)} frente ao fechamento anterior.`,
                 mrrDelta < 0 ? "critical" : mrrDelta < 5 ? "attention" : "stable",
             ),
             alert(
-                overdueRatio >= 8 ? "Inadimplencia pressionando caixa" : "Inadimplencia monitorada",
-                `Ha ${integer(overdueCustomers)} clientes com ${currency(overdueRevenue)} em atraso, equivalente a ${percent(overdueRatio, 2)} do MRR atual.`,
+                overdueRatio >= 8 ? "Inadimplência pressionando caixa" : "Inadimplência monitorada",
+                `Há ${integer(overdueCustomers)} clientes com ${currency(overdueRevenue)} em atraso, equivalente a ${percent(overdueRatio, 2)} do MRR atual.`,
                 overdueRatio >= 8 ? "critical" : overdueRatio >= 4 ? "attention" : "stable",
             ),
             alert(
-                currentChurn >= 3 ? "Cancelamentos do mes acima do ideal" : "Cancelamentos dentro da faixa",
+                currentChurn >= 3 ? "Cancelamentos do mês acima do ideal" : "Cancelamentos dentro da faixa",
                 `No fechamento mais recente, o sistema registrou ${currency(currentLostMrr)} de MRR perdido e churn de ${percent(currentChurn, 2)}.`,
                 currentChurn >= 3 ? "critical" : currentChurn >= 1.5 ? "attention" : "stable",
             ),
@@ -434,7 +434,7 @@ function buildFinanceSection(args: BuildArgs): SuperAdminSection {
                 valueFormat: "currency",
                 valueDecimals: 2,
             }),
-            chartFromPairs("Receita por regiao", "Concentracao geografica da carteira.", "bar", revenueByRegion, {
+            chartFromPairs("Receita por região", "Concentração geográfica da carteira.", "bar", revenueByRegion, {
                 name: "Receita",
                 color: "#14b8a6",
                 valueFormat: "currency",
@@ -448,20 +448,20 @@ function buildFinanceSection(args: BuildArgs): SuperAdminSection {
             }),
         ],
         statCards: [
-            statCard("Receita em atraso", currency(overdueRevenue), `${integer(overdueCustomers)} clientes com cobranca pendente.`),
-            statCard("MRR perdido no ano", currency(totalLostMrr), `Churn medio de ${percent(averageChurn, 2)} no recorte anual.`),
-            statCard("Assinaturas anuais", integer(annualCustomers.length), `${percent(revenueRows.length ? (annualCustomers.length / revenueRows.length) * 100 : 0, 1)} da carteira com recorrencia anual.`),
+            statCard("Receita em atraso", currency(overdueRevenue), `${integer(overdueCustomers)} clientes com cobrança pendente.`),
+            statCard("MRR perdido no ano", currency(totalLostMrr), `Churn médio de ${percent(averageChurn, 2)} no recorte anual.`),
+            statCard("Assinaturas anuais", integer(annualCustomers.length), `${percent(revenueRows.length ? (annualCustomers.length / revenueRows.length) * 100 : 0, 1)} da carteira com recorrência anual.`),
         ],
         leaderboardTitle: "Blocos com maior retorno",
         leaderboard: [
-            ...(revenueByPlan[0] ? [{ name: revenueByPlan[0].label, detail: "Plano com maior MRR", value: revenueByPlan[0].value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 2 }), badge: "Plano lider" }] : []),
-            ...(revenueByRegion[0] ? [{ name: revenueByRegion[0].label, detail: "Regiao que mais concentra receita", value: revenueByRegion[0].value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 2 }), badge: "Maior concentracao" }] : []),
+            ...(revenueByPlan[0] ? [{ name: revenueByPlan[0].label, detail: "Plano com maior MRR", value: revenueByPlan[0].value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 2 }), badge: "Plano líder" }] : []),
+            ...(revenueByRegion[0] ? [{ name: revenueByRegion[0].label, detail: "Região que mais concentra receita", value: revenueByRegion[0].value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 2 }), badge: "Maior concentração" }] : []),
             ...(revenueByStock[0] ? [{ name: revenueByStock[0].label, detail: "Faixa de estoque dominante", value: revenueByStock[0].value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 2 }), badge: "Base de pricing" }] : []),
         ],
         insights: [
             insight("Pricing guiado por porte", `A faixa ${revenueByStock[0]?.label || "principal"} concentra a maior parte do MRR e deve liderar ajustes de valor e limites.`, "positive"),
-            insight("Cobranca impacta visao de caixa", `A carteira em atraso ja equivale a ${percent(overdueRatio, 2)} do MRR atual.`, overdueRatio >= 4 ? "warning" : "positive"),
-            insight("Churn deixou rastro mensuravel", `O painel financeiro agora mostra mes a mes quanto de receita se perde com cancelamentos, sem precisar de consolidacao manual.`, "positive"),
+            insight("Cobrança impacta visão de caixa", `A carteira em atraso já equivale a ${percent(overdueRatio, 2)} do MRR atual.`, overdueRatio >= 4 ? "warning" : "positive"),
+            insight("Churn deixou rastro mensurável", `O painel financeiro agora mostra mês a mês quanto de receita se perde com cancelamentos, sem precisar de consolidação manual.`, "positive"),
         ],
     };
 }
@@ -473,10 +473,10 @@ function buildCustomersSection(args: BuildArgs): SuperAdminSection {
     const inactiveRows = args.healthRows.filter((row) => (daysSince(row.lastAccessAt) ?? 0) >= 7);
     const criticalRows = args.healthRows.filter((row) => row.score < 40);
     const healthAverage = average(args.healthRows.map((row) => row.score));
-    const regionPairs = topPairs(activeRows, (row) => row.region || "Nao informado", () => 1);
+    const regionPairs = topPairs(activeRows, (row) => row.region || "Não informado", () => 1);
     const stockPairs = topPairs(activeRows, (row) => stockBucket(row.stockCount), () => 1);
     const planPairs = topPairs(activeRows, (row) => planLabel(row), () => 1);
-    const healthPairs = topPairs(args.healthRows, (row) => row.classification || "Sem classificacao", () => 1);
+    const healthPairs = topPairs(args.healthRows, (row) => row.classification || "Sem classificação", () => 1);
     const planHealth = topPairs(
         args.healthRows,
         (row) => row.planName || "Sem plano",
@@ -487,7 +487,7 @@ function buildCustomersSection(args: BuildArgs): SuperAdminSection {
     }));
     const weakestPlan = [...planHealth].sort((left, right) => left.value - right.value)[0];
     const healthiestRegion = [...args.healthRows].reduce<Map<string, number[]>>((map, row) => {
-        const key = row.region || "Nao informado";
+        const key = row.region || "Não informado";
         map.set(key, [...(map.get(key) ?? []), row.score]);
         return map;
     }, new Map<string, number[]>());
@@ -500,35 +500,35 @@ function buildCustomersSection(args: BuildArgs): SuperAdminSection {
     return {
         ...meta,
         metrics: [
-            metric("Clientes ativos", integer(toNumber(args.dashboardData?.totalActiveCustomers)), "Revendas pagantes em operacao.", `${integer(inactiveRows.length)} com baixo acesso`, "emerald"),
-            metric("Novos clientes", integer(toNumber(args.dashboardData?.newCustomersInPeriod)), "Entradas registradas no periodo.", undefined, "sky"),
+            metric("Clientes ativos", integer(toNumber(args.dashboardData?.totalActiveCustomers)), "Revendas pagantes em operação.", `${integer(inactiveRows.length)} com baixo acesso`, "emerald"),
+            metric("Novos clientes", integer(toNumber(args.dashboardData?.newCustomersInPeriod)), "Entradas registradas no período.", undefined, "sky"),
             metric("Cancelados", integer(toNumber(args.dashboardData?.canceledCustomersInPeriod)), "Saidas confirmadas da base.", undefined, "rose"),
             metric("Taxa de churn", percent(toNumber(args.dashboardData?.churnRate)), "Churn de clientes no recorte filtrado.", undefined, "violet"),
-            metric("Permanencia media", formatMonthsDuration(toNumber(args.dashboardData?.averageLifetimeMonths)), "Tempo medio de contrato ativo.", undefined, "amber"),
+            metric("Permanência média", formatMonthsDuration(toNumber(args.dashboardData?.averageLifetimeMonths)), "Tempo médio de contrato ativo.", undefined, "amber"),
         ],
         alerts: [
             alert(
                 "Clientes com risco de cancelamento",
-                `${integer(criticalRows.length)} contas estao em faixas mais sensiveis de health score e pedem acompanhamento imediato.`,
+                `${integer(criticalRows.length)} contas estão em faixas mais sensíveis de health score e pedem acompanhamento imediato.`,
                 criticalRows.length >= 10 ? "critical" : criticalRows.length >= 4 ? "attention" : "stable",
             ),
             alert(
                 "Clientes sem login recente",
-                `${integer(inactiveRows.length)} contas nao acessam a plataforma ha pelo menos 7 dias.`,
+                `${integer(inactiveRows.length)} contas não acessam a plataforma há pelo menos 7 dias.`,
                 inactiveRows.length >= 15 ? "critical" : inactiveRows.length >= 6 ? "attention" : "stable",
             ),
             alert(
-                weakestPlanScore < 40 ? "Plano com saude critica" : weakestPlanScore < 55 ? "Plano com saude em atencao" : "Plano com saude sustentavel",
-                `${weakestPlanLabel} hoje carrega health score medio de ${preciseDecimal(weakestPlanScore, 2)} entre os planos filtrados.`,
+                weakestPlanScore < 40 ? "Plano com saúde crítica" : weakestPlanScore < 55 ? "Plano com saúde em atenção" : "Plano com saúde sustentável",
+                `${weakestPlanLabel} hoje carrega health score médio de ${preciseDecimal(weakestPlanScore, 2)} entre os planos filtrados.`,
                 weakestPlanScore < 40 ? "critical" : weakestPlanScore < 55 ? "attention" : "stable",
             ),
         ],
         charts: [
-            chartFromPairs("Clientes por regiao", "Distribuicao geografica da base ativa.", "bar", regionPairs, {
+            chartFromPairs("Clientes por região", "Distribuição geográfica da base ativa.", "bar", regionPairs, {
                 name: "Clientes",
                 color: "#0f172a",
             }),
-            chartFromPairs("Distribuicao por estoque", "Segmentacao por tamanho de operacao.", "column", stockPairs, {
+            chartFromPairs("Distribuição por estoque", "Segmentação por tamanho de operação.", "column", stockPairs, {
                 name: "Clientes",
                 color: "#f59e0b",
             }),
@@ -536,27 +536,27 @@ function buildCustomersSection(args: BuildArgs): SuperAdminSection {
                 name: "Clientes",
                 pieColors: PIE_COLORS,
             }),
-            chartFromPairs("Health score por faixa", "Classificacao atual dos clientes acompanhados.", "bar", healthPairs, {
+            chartFromPairs("Health score por faixa", "Classificação atual dos clientes acompanhados.", "bar", healthPairs, {
                 name: "Clientes",
                 color: "#14b8a6",
             }),
         ],
         statCards: [
-            statCard("Sem acesso ha 7 dias", integer(inactiveRows.length), "Fila ideal para reativacao e CS preventivo."),
-            statCard("Health medio", preciseDecimal(healthAverage, 2), "Media consolidada do Customer Health Score."),
-            statCard("Clientes criticos", integer(criticalRows.length), "Contas nas faixas mais proximas de cancelamento."),
+            statCard("Sem acesso há 7 dias", integer(inactiveRows.length), "Fila ideal para reativação e CS preventivo."),
+            statCard("Health médio", preciseDecimal(healthAverage, 2), "Média consolidada do Customer Health Score."),
+            statCard("Clientes críticos", integer(criticalRows.length), "Contas nas faixas mais próximas de cancelamento."),
         ],
-        leaderboardTitle: "Clientes que pedem acao",
+        leaderboardTitle: "Clientes que pedem ação",
         leaderboard: formatTopRows(riskyRows, (row) => ({
             name: row.companyName,
-            detail: `${row.planName || "Sem plano"} | ${row.region || row.city || "Sem regiao"}`,
+            detail: `${row.planName || "Sem plano"} | ${row.region || row.city || "Sem região"}`,
             value: `Score ${integer(row.score)}`,
             badge: row.riskLevel || row.classification,
         })),
         insights: [
-            insight("Health score virou radar real", "A tela de clientes agora combina score, ultimo acesso e filtros operacionais em tempo real para retenção.", "positive"),
-            insight("Reativacao pode ser direcionada", `${integer(inactiveRows.length)} contas ja aparecem destacadas pela falta de login recente.`, inactiveRows.length >= 6 ? "warning" : "positive"),
-            insight("Existe benchmark interno por regiao", `${topHealthyRegion?.label || "A base"} lidera saude media hoje e pode servir de referencia para onboarding e CS.`, "positive"),
+            insight("Health score virou radar real", "A tela de clientes agora combina score, último acesso e filtros operacionais em tempo real para retenção.", "positive"),
+            insight("Reativação pode ser direcionada", `${integer(inactiveRows.length)} contas já aparecem destacadas pela falta de login recente.`, inactiveRows.length >= 6 ? "warning" : "positive"),
+            insight("Existe benchmark interno por região", `${topHealthyRegion?.label || "A base"} lidera saúde média hoje e pode servir de referência para onboarding e CS.`, "positive"),
         ],
     };
 }
@@ -585,64 +585,64 @@ function buildProductSection(args: BuildArgs): SuperAdminSection {
     return {
         ...meta,
         metrics: [
-            metric("Veiculos cadastrados", integer(toNumber(args.dashboardData?.totalVehicles)), "Total de veiculos cadastrados no sistema.", undefined, "emerald"),
-            metric("Media por cliente", preciseDecimal(toNumber(args.dashboardData?.averageVehiclesPerCustomer), 2), "Media de veiculos nas contas ativas.", undefined, "sky"),
-            metric("Anuncios ativos", integer(toNumber(args.dashboardData?.activeMarketplaceAds)), "Anuncios ativos nas plataformas integradas.", undefined, "violet"),
-            metric("Integracoes ativas", integer(toNumber(args.dashboardData?.activeIntegrations)), "Integracoes funcionando no recorte atual.", undefined, "amber"),
+            metric("Veículos cadastrados", integer(toNumber(args.dashboardData?.totalVehicles)), "Total de veículos cadastrados no sistema.", undefined, "emerald"),
+            metric("Média por cliente", preciseDecimal(toNumber(args.dashboardData?.averageVehiclesPerCustomer), 2), "Média de veículos nas contas ativas.", undefined, "sky"),
+            metric("Anúncios ativos", integer(toNumber(args.dashboardData?.activeMarketplaceAds)), "Anúncios ativos nas plataformas integradas.", undefined, "violet"),
+            metric("Integrações ativas", integer(toNumber(args.dashboardData?.activeIntegrations)), "Integrações funcionando no recorte atual.", undefined, "amber"),
         ],
         alerts: [
             alert(
-                underused.length >= 4 ? "Features com adocao critica" : underused.length >= 2 ? "Features subutilizadas em atencao" : "Features com adocao saudavel",
-                `${integer(underused.length)} funcionalidades ainda operam com adocao abaixo de 25% da base acompanhada.`,
+                underused.length >= 4 ? "Features com adoção crítica" : underused.length >= 2 ? "Features subutilizadas em atenção" : "Features com adoção saudável",
+                `${integer(underused.length)} funcionalidades ainda operam com adoção abaixo de 25% da base acompanhada.`,
                 underused.length >= 4 ? "critical" : underused.length >= 2 ? "attention" : "stable",
             ),
             alert(
-                topFeatureAdoption < 25 ? "Feature lider ainda com pouca penetracao" : topFeatureAdoption < 45 ? "Feature lider ganhando tracao" : "Feature lider consolidada",
-                `${topFeature?.label || "Nenhuma feature"} hoje lidera com ${integer(topFeature?.value || 0)} clientes unicos e ${percent(topFeatureAdoption, 2)} de adocao.`,
+                topFeatureAdoption < 25 ? "Feature líder ainda com pouca penetração" : topFeatureAdoption < 45 ? "Feature líder ganhando tração" : "Feature líder consolidada",
+                `${topFeature?.label || "Nenhuma feature"} hoje lidera com ${integer(topFeature?.value || 0)} clientes únicos e ${percent(topFeatureAdoption, 2)} de adoção.`,
                 topFeatureAdoption < 25 ? "critical" : topFeatureAdoption < 45 ? "attention" : "stable",
             ),
             alert(
-                averageAdoption < 20 ? "Adocao media do produto abaixo do ideal" : averageAdoption < 35 ? "Adocao media do produto em evolucao" : "Adocao media do produto saudavel",
-                `A adocao media das features monitoradas esta em ${percent(averageAdoption, 2)} no periodo analisado.`,
+                averageAdoption < 20 ? "Adoção média do produto abaixo do ideal" : averageAdoption < 35 ? "Adoção média do produto em evolução" : "Adoção média do produto saudável",
+                `A adoção média das features monitoradas está em ${percent(averageAdoption, 2)} no período analisado.`,
                 averageAdoption < 20 ? "critical" : averageAdoption < 35 ? "attention" : "stable",
             ),
         ],
         charts: [
-            chartFromPairs("Clientes unicos por feature", "Aderencia por funcionalidade no periodo.", "bar", uniquePairs, {
+            chartFromPairs("Clientes únicos por feature", "Aderência por funcionalidade no período.", "bar", uniquePairs, {
                 name: "Clientes",
                 color: "#6b00e3",
             }),
-            chartFromPairs("Adocao por feature", "Percentual de clientes ativos que usam cada funcionalidade.", "column", adoptionPairs, {
-                name: "Adocao",
+            chartFromPairs("Adoção por feature", "Percentual de clientes ativos que usam cada funcionalidade.", "column", adoptionPairs, {
+                name: "Adoção",
                 color: "#14b8a6",
                 valueFormat: "percent",
                 valueDecimals: 2,
             }),
-            chartFromPairs("Uso total por feature", "Volume bruto de interacoes registradas.", "column", totalUsagePairs, {
+            chartFromPairs("Uso total por feature", "Volume bruto de interações registradas.", "column", totalUsagePairs, {
                 name: "Eventos",
                 color: "#0f172a",
             }),
-            chartFromPairs("Participacao por feature", "Share relativo das funcionalidades mais usadas.", "pie", uniquePairs.slice(0, 6), {
+            chartFromPairs("Participação por feature", "Share relativo das funcionalidades mais usadas.", "pie", uniquePairs.slice(0, 6), {
                 name: "Clientes",
                 pieColors: PIE_COLORS,
             }),
         ],
         statCards: [
-            statCard("Periodo analisado", `${formatDate(args.dashboardData?.fromDate)} ate ${formatDate(args.dashboardData?.toDate)}`, "Recorte usado para medir adocao e uso real."),
-            statCard("Feature lider", topFeature?.label || "Sem dados", `${integer(topFeature?.value || 0)} clientes unicos no periodo.`),
-            statCard("Interacoes registradas", integer(totalUsage), "Soma bruta dos eventos de uso considerados pelo painel."),
+            statCard("Período analisado", `${formatDate(args.dashboardData?.fromDate)} até ${formatDate(args.dashboardData?.toDate)}`, "Recorte usado para medir adoção e uso real."),
+            statCard("Feature líder", topFeature?.label || "Sem dados", `${integer(topFeature?.value || 0)} clientes únicos no período.`),
+            statCard("Interações registradas", integer(totalUsage), "Soma bruta dos eventos de uso considerados pelo painel."),
         ],
         leaderboardTitle: "Funcionalidades que puxam valor",
         leaderboard: formatTopRows(totalUsagePairs, (row) => ({
             name: row.label,
-            detail: `${integer(uniquePairs.find((item) => item.label === row.label)?.value || 0)} clientes unicos`,
+            detail: `${integer(uniquePairs.find((item) => item.label === row.label)?.value || 0)} clientes únicos`,
             value: integer(row.value),
-            badge: `${percent(adoptionPairs.find((item) => item.label === row.label)?.value || 0, 1)} de adocao`,
+            badge: `${percent(adoptionPairs.find((item) => item.label === row.label)?.value || 0, 1)} de adoção`,
         })),
         insights: [
-            insight("Produto orientado por uso real", "O dashboard deixa claro quais features movimentam a base e quais ainda pedem educacao de produto.", "positive"),
-            insight("Adocao baixa vira backlog acionavel", `${integer(underused.length)} features ja aparecem destacadas para onboarding, nudges e revisao de UX.`, underused.length ? "warning" : "positive"),
-            insight("Integracoes puxam recorrencia de uso", "Quando marketplaces e site proprio aparecem no topo, a leitura de valor do produto fica muito mais objetiva.", "positive"),
+            insight("Produto orientado por uso real", "O dashboard deixa claro quais features movimentam a base e quais ainda pedem educação de produto.", "positive"),
+            insight("Adoção baixa vira backlog acionável", `${integer(underused.length)} features já aparecem destacadas para onboarding, nudges e revisão de UX.`, underused.length ? "warning" : "positive"),
+            insight("Integrações puxam recorrência de uso", "Quando marketplaces e site próprio aparecem no topo, a leitura de valor do produto fica muito mais objetiva.", "positive"),
         ],
     };
 }
@@ -670,47 +670,47 @@ function buildMarketplaceSection(args: BuildArgs): SuperAdminSection {
     return {
         ...meta,
         metrics: [
-            metric("Anuncios ativos", integer(totalAds), "Volume total de anuncios ativos nas plataformas.", undefined, "emerald"),
+            metric("Anúncios ativos", integer(totalAds), "Volume total de anúncios ativos nas plataformas.", undefined, "emerald"),
             metric("Leads nas plataformas", integer(totalLeads), "Leads atribuidos aos canais com performance.", undefined, "sky"),
             metric("Vendas por canal", integer(totalSales), "Vendas fechadas com origem de plataforma informada.", undefined, "violet"),
-            metric("Conversao media", percent(weightedConversion), "Conversao ponderada entre leads e vendas.", undefined, "amber"),
+            metric("Conversão média", percent(weightedConversion), "Conversão ponderada entre leads e vendas.", undefined, "amber"),
             metric("Valor vendido", currency(totalValue), "Receita total vendida pelos canais listados.", undefined, "rose"),
         ],
         alerts: [
             alert(
-                topAdsShare >= 75 ? "Dependencia critica de um unico canal" : topAdsShare >= 60 ? "Dependencia alta de um unico canal" : "Mix de canais equilibrado",
-                `${topAds?.label || "A principal plataforma"} concentra ${percent(topAdsShare, 2)} dos anuncios ativos monitorados.`,
+                topAdsShare >= 75 ? "Dependência crítica de um único canal" : topAdsShare >= 60 ? "Dependência alta de um único canal" : "Mix de canais equilibrado",
+                `${topAds?.label || "A principal plataforma"} concentra ${percent(topAdsShare, 2)} dos anúncios ativos monitorados.`,
                 topAdsShare >= 75 ? "critical" : topAdsShare >= 60 ? "attention" : "stable",
             ),
             alert(
-                weakPlatforms.length >= 2 ? "Plataformas com conversao critica" : weakPlatforms.length ? "Plataformas com baixa conversao" : "Conversao sem gargalos graves",
+                weakPlatforms.length >= 2 ? "Plataformas com conversão crítica" : weakPlatforms.length ? "Plataformas com baixa conversão" : "Conversão sem gargalos graves",
                 weakPlatforms.length
-                    ? `${weakPlatforms.map((row) => row.label).join(", ")} hoje operam abaixo de 5% de conversao.`
-                    : "Nao ha plataformas com conversao critica entre as que possuem leads registrados.",
+                    ? `${weakPlatforms.map((row) => row.label).join(", ")} hoje operam abaixo de 5% de conversão.`
+                    : "Não há plataformas com conversão crítica entre as que possuem leads registrados.",
                 weakPlatforms.length >= 2 ? "critical" : weakPlatforms.length ? "attention" : "stable",
             ),
             alert(
-                weightedConversion < 5 ? "Conversao media dos canais pressionada" : weightedConversion < 10 ? "Conversao media dos canais em atencao" : "Conversao media dos canais saudavel",
-                `Os canais somam ${integer(totalSales)} vendas sobre ${integer(totalLeads)} leads, com conversao consolidada de ${percent(weightedConversion, 2)}.`,
+                weightedConversion < 5 ? "Conversão média dos canais pressionada" : weightedConversion < 10 ? "Conversão média dos canais em atenção" : "Conversão média dos canais saudável",
+                `Os canais somam ${integer(totalSales)} vendas sobre ${integer(totalLeads)} leads, com conversão consolidada de ${percent(weightedConversion, 2)}.`,
                 weightedConversion < 5 ? "critical" : weightedConversion < 10 ? "attention" : "stable",
             ),
         ],
         charts: [
-            chartFromPairs("Anuncios por plataforma", "Base ativa de anuncios por canal.", "column", adsPairs, {
-                name: "Anuncios",
+            chartFromPairs("Anúncios por plataforma", "Base ativa de anúncios por canal.", "column", adsPairs, {
+                name: "Anúncios",
                 color: "#6b00e3",
             }),
-            chartFromPairs("Vendas por plataforma", "Volume de negocios fechados por canal.", "column", salesPairs, {
+            chartFromPairs("Vendas por plataforma", "Volume de negócios fechados por canal.", "column", salesPairs, {
                 name: "Vendas",
                 color: "#14b8a6",
             }),
-            chartFromPairs("Conversao por plataforma", "Leads convertidos em venda por canal.", "bar", conversionPairs, {
-                name: "Conversao",
+            chartFromPairs("Conversão por plataforma", "Leads convertidos em venda por canal.", "bar", conversionPairs, {
+                name: "Conversão",
                 color: "#f59e0b",
                 valueFormat: "percent",
                 valueDecimals: 2,
             }),
-            chartFromPairs("Valor vendido por plataforma", "Receita vendida por canal no periodo.", "bar", soldValuePairs, {
+            chartFromPairs("Valor vendido por plataforma", "Receita vendida por canal no período.", "bar", soldValuePairs, {
                 name: "Valor vendido",
                 color: "#0f172a",
                 valueFormat: "currency",
@@ -718,8 +718,8 @@ function buildMarketplaceSection(args: BuildArgs): SuperAdminSection {
             }),
         ],
         statCards: [
-            statCard("Canal com mais anuncios", topAds?.label || "Sem dados", `${integer(topAds?.value || 0)} anuncios ativos no recorte.`),
-            statCard("Melhor conversao", topConversion?.label || "Sem dados", `${percent(topConversion?.value || 0, 2)} de conversao.`),
+            statCard("Canal com mais anúncios", topAds?.label || "Sem dados", `${integer(topAds?.value || 0)} anúncios ativos no recorte.`),
+            statCard("Melhor conversão", topConversion?.label || "Sem dados", `${percent(topConversion?.value || 0, 2)} de conversão.`),
             statCard("Maior valor vendido", topValue?.label || "Sem dados", `${(topValue?.value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 2 })} vendidos.`),
         ],
         leaderboardTitle: "Plataformas de maior impacto",
@@ -733,9 +733,9 @@ function buildMarketplaceSection(args: BuildArgs): SuperAdminSection {
             }),
         ),
         insights: [
-            insight("Marketplaces viraram vantagem mensuravel", "O painel diferencia claramente volume, eficiencia e valor vendido por canal.", "positive"),
-            insight("Concentracao de anuncios precisa ser saudavel", `${topAds?.label || "O principal canal"} hoje lidera a distribuicao e merece monitoramento de dependencia.`, topAdsShare >= 60 ? "warning" : "positive"),
-            insight("ROI por canal esta mais proximo", "Com leads, vendas e valor vendido por plataforma, a base para evoluir para ROI ja esta montada.", "positive"),
+            insight("Marketplaces viraram vantagem mensurável", "O painel diferencia claramente volume, eficiência e valor vendido por canal.", "positive"),
+            insight("Concentração de anúncios precisa ser saudável", `${topAds?.label || "O principal canal"} hoje lidera a distribuição e merece monitoramento de dependência.`, topAdsShare >= 60 ? "warning" : "positive"),
+            insight("ROI por canal está mais próximo", "Com leads, vendas e valor vendido por plataforma, a base para evoluir para ROI já está montada.", "positive"),
         ],
     };
 }
@@ -759,24 +759,24 @@ function buildGrowthSection(args: BuildArgs): SuperAdminSection {
     return {
         ...meta,
         metrics: [
-            metric("Leads gerados", integer(leadsGenerated), "Leads vindos da pagina de catalogo.", undefined, "emerald"),
+            metric("Leads gerados", integer(leadsGenerated), "Leads vindos da página de catálogo.", undefined, "emerald"),
             metric("Vendas fechadas", integer(closedSales), "Vendas atribuidas ao recorte atual.", undefined, "sky"),
-            metric("Taxa de conversao", percent(conversionRate), "Relacao entre leads e vendas fechadas.", undefined, "violet"),
+            metric("Taxa de conversão", percent(conversionRate), "Relação entre leads e vendas fechadas.", undefined, "violet"),
         ],
         alerts: [
             alert(
-                conversionRate < 5 ? "Conversao abaixo do ideal" : conversionRate < 8 ? "Conversao em atencao" : "Conversao em faixa saudavel",
-                `A taxa atual esta em ${percent(conversionRate, 2)} para ${integer(leadsGenerated)} leads gerados no recorte.`,
+                conversionRate < 5 ? "Conversão abaixo do ideal" : conversionRate < 8 ? "Conversão em atenção" : "Conversão em faixa saudável",
+                `A taxa atual está em ${percent(conversionRate, 2)} para ${integer(leadsGenerated)} leads gerados no recorte.`,
                 conversionRate < 5 ? "critical" : conversionRate < 8 ? "attention" : "stable",
             ),
             alert(
-                topLeadOriginShare >= 75 ? "Origem excessivamente dominante" : topLeadOriginShare >= 60 ? "Origem dominante na aquisicao" : "Mix de origem bem distribuido",
+                topLeadOriginShare >= 75 ? "Origem excessivamente dominante" : topLeadOriginShare >= 60 ? "Origem dominante na aquisição" : "Mix de origem bem distribuído",
                 `${topLeadOrigin?.label || "A principal origem"} responde por ${percent(topLeadOriginShare, 2)} dos leads gerados.`,
                 topLeadOriginShare >= 75 ? "critical" : topLeadOriginShare >= 60 ? "attention" : "stable",
             ),
             alert(
-                openLeadBacklogRate >= 70 ? "Backlog comercial alto" : openLeadBacklogRate >= 45 ? "Backlog comercial em atencao" : "Backlog comercial controlado",
-                `${integer(openLeadBacklog)} leads ainda nao viraram venda, o equivalente a ${percent(openLeadBacklogRate, 2)} da captacao do periodo.`,
+                openLeadBacklogRate >= 70 ? "Backlog comercial alto" : openLeadBacklogRate >= 45 ? "Backlog comercial em atenção" : "Backlog comercial controlado",
+                `${integer(openLeadBacklog)} leads ainda não viraram venda, o equivalente a ${percent(openLeadBacklogRate, 2)} da captação do período.`,
                 openLeadBacklogRate >= 70 ? "critical" : openLeadBacklogRate >= 45 ? "attention" : "stable",
             ),
         ],
@@ -789,7 +789,7 @@ function buildGrowthSection(args: BuildArgs): SuperAdminSection {
                 name: "Clientes",
                 pieColors: PIE_COLORS,
             }),
-            chartFromPairs("Funil resumido", "Comparativo entre captacao e fechamento.", "column", [
+            chartFromPairs("Funil resumido", "Comparativo entre captação e fechamento.", "column", [
                 { label: "Leads", value: leadsGenerated },
                 { label: "Vendas", value: closedSales },
             ], {
@@ -798,7 +798,7 @@ function buildGrowthSection(args: BuildArgs): SuperAdminSection {
             }),
             {
                 title: "Leads vs clientes por origem",
-                subtitle: "Comparacao direta entre atracao e assinatura.",
+                subtitle: "Comparação direta entre atração e assinatura.",
                 type: "column",
                 categories: groupedOriginLabels.length ? groupedOriginLabels : ["Sem dados"],
                 series: [
@@ -816,11 +816,11 @@ function buildGrowthSection(args: BuildArgs): SuperAdminSection {
             },
         ],
         statCards: [
-            statCard("Leads em aberto", integer(openLeadBacklog), "Volume que ainda nao virou venda dentro do recorte atual."),
-            statCard("Origens ativas", integer(leadPairs.length), "Quantidade de canais aparecendo na aquisicao."),
+            statCard("Leads em aberto", integer(openLeadBacklog), "Volume que ainda não virou venda dentro do recorte atual."),
+            statCard("Origens ativas", integer(leadPairs.length), "Quantidade de canais aparecendo na aquisição."),
             statCard("Leads com vendedor", integer(sellerLinkedLeads), "Demandas capturadas por links de vendedor."),
         ],
-        leaderboardTitle: "Origens com mais tracao",
+        leaderboardTitle: "Origens com mais tração",
         leaderboard: formatTopRows(leadPairs, (row) => ({
             name: row.label,
             detail: `${integer(customerPairs.find((item) => item.label === row.label)?.value || 0)} clientes originados`,
@@ -828,9 +828,9 @@ function buildGrowthSection(args: BuildArgs): SuperAdminSection {
             badge: percent(leadsGenerated ? (row.value / leadsGenerated) * 100 : 0, 1),
         })),
         insights: [
-            insight("Aquisicao e retencao passam a conversar", "Leads, vendas e origem de cliente agora ficam no mesmo painel executivo.", "positive"),
-            insight("Mix de origem influencia escala", `${topLeadOrigin?.label || "A principal origem"} lidera a captacao e pode orientar investimento e parcerias.`, topLeadOriginShare >= 60 ? "warning" : "positive"),
-            insight("Leitura de crescimento ficou mais objetiva", "A tela foca no que ja esta medido hoje: leads, vendas, conversao e origem da aquisicao.", "positive"),
+            insight("Aquisição e retenção passam a conversar", "Leads, vendas e origem de cliente agora ficam no mesmo painel executivo.", "positive"),
+            insight("Mix de origem influencia escala", `${topLeadOrigin?.label || "A principal origem"} lidera a captação e pode orientar investimento e parcerias.`, topLeadOriginShare >= 60 ? "warning" : "positive"),
+            insight("Leitura de crescimento ficou mais objetiva", "A tela foca no que já está medido hoje: leads, vendas, conversão e origem da aquisição.", "positive"),
         ],
     };
 }
@@ -847,9 +847,9 @@ function buildBillingSection(args: BuildArgs): SuperAdminSection {
         .sort((left: Pair, right: Pair) => right.value - left.value)
         .slice(0, 6);
     const planPairs = topPairs(overdueCustomers, (row: Record<string, any>) => row.planName || "Sem plano", (row: Record<string, any>) => toCurrencyUnitsFromCents(toNumber(row.overdueAmountCents)));
-    const statusPairs = topPairs(overdueCustomers, (row: Record<string, any>) => titleCase(row.billingStatus) || "Nao informado", () => 1);
+    const statusPairs = topPairs(overdueCustomers, (row: Record<string, any>) => titleCase(row.billingStatus) || "Não informado", () => 1);
     const agingPairs = [
-        { label: "Ate 7 dias", value: overdueCustomers.filter((row: Record<string, any>) => toNumber(row.delayDays) <= 7).length },
+        { label: "Até 7 dias", value: overdueCustomers.filter((row: Record<string, any>) => toNumber(row.delayDays) <= 7).length },
         { label: "8 a 15 dias", value: overdueCustomers.filter((row: Record<string, any>) => toNumber(row.delayDays) > 7 && toNumber(row.delayDays) <= 15).length },
         { label: "16 a 30 dias", value: overdueCustomers.filter((row: Record<string, any>) => toNumber(row.delayDays) > 15 && toNumber(row.delayDays) <= 30).length },
         { label: "30+ dias", value: overdueCustomers.filter((row: Record<string, any>) => toNumber(row.delayDays) > 30).length },
@@ -864,40 +864,40 @@ function buildBillingSection(args: BuildArgs): SuperAdminSection {
     return {
         ...meta,
         metrics: [
-            metric("Clientes inadimplentes", integer(toNumber(cards.overdueCustomers)), "Clientes com cobranca em atraso.", undefined, "emerald"),
+            metric("Clientes inadimplentes", integer(toNumber(cards.overdueCustomers)), "Clientes com cobrança em atraso.", undefined, "emerald"),
             metric("Receita em atraso", currency(toNumber(cards.overdueRevenueCents)), "Valor total vencido no recorte filtrado.", undefined, "rose"),
-            metric("Atraso medio", `${preciseDecimal(averageDelay, 2)} dias`, "Tempo medio de atraso das cobrancas vencidas.", undefined, "amber"),
-            metric("Falha de pagamento", percent(paymentFailureRate), "Taxa consolidada de falha em cobranca.", undefined, "violet"),
+            metric("Atraso médio", `${preciseDecimal(averageDelay, 2)} dias`, "Tempo médio de atraso das cobranças vencidas.", undefined, "amber"),
+            metric("Falha de pagamento", percent(paymentFailureRate), "Taxa consolidada de falha em cobrança.", undefined, "violet"),
         ],
         alerts: [
             alert(
-                paymentFailureRate >= 8 ? "Cartoes recusados acima do ideal" : "Falhas de pagamento em controle",
-                `A taxa atual de falha esta em ${percent(paymentFailureRate, 2)}.`,
+                paymentFailureRate >= 8 ? "Cartões recusados acima do ideal" : "Falhas de pagamento em controle",
+                `A taxa atual de falha está em ${percent(paymentFailureRate, 2)}.`,
                 paymentFailureRate >= 8 ? "critical" : paymentFailureRate >= 4 ? "attention" : "stable",
             ),
             alert(
-                averageDelay >= 10 ? "Boletos vencidos em excesso" : "Atraso medio sob monitoramento",
-                `O atraso medio atual esta em ${preciseDecimal(averageDelay, 2)} dias na carteira filtrada.`,
+                averageDelay >= 10 ? "Boletos vencidos em excesso" : "Atraso médio sob monitoramento",
+                `O atraso médio atual está em ${preciseDecimal(averageDelay, 2)} dias na carteira filtrada.`,
                 averageDelay >= 10 ? "critical" : averageDelay >= 6 ? "attention" : "stable",
             ),
             alert(
-                criticalDelayShare >= 40 ? "Carteira critica concentrada em atrasos longos" : criticalDelayShare >= 20 ? "Carteira critica em observacao" : "Carteira critica sob controle",
-                `${integer(criticalDelay.length)} clientes ja passaram de 10 dias de atraso, representando ${percent(criticalDelayShare, 2)} da carteira inadimplente.`,
+                criticalDelayShare >= 40 ? "Carteira crítica concentrada em atrasos longos" : criticalDelayShare >= 20 ? "Carteira crítica em observação" : "Carteira crítica sob controle",
+                `${integer(criticalDelay.length)} clientes já passaram de 10 dias de atraso, representando ${percent(criticalDelayShare, 2)} da carteira inadimplente.`,
                 criticalDelayShare >= 40 ? "critical" : criticalDelayShare >= 20 ? "attention" : "stable",
             ),
         ],
         charts: [
-            chartFromPairs("Aging da carteira", "Distribuicao da inadimplencia por faixa de atraso.", "column", agingPairs, {
+            chartFromPairs("Aging da carteira", "Distribuição da inadimplência por faixa de atraso.", "column", agingPairs, {
                 name: "Clientes",
                 color: "#f59e0b",
             }),
-            chartFromPairs("Receita em atraso por plano", "Peso da inadimplencia em cada assinatura.", "bar", planPairs, {
+            chartFromPairs("Receita em atraso por plano", "Peso da inadimplência em cada assinatura.", "bar", planPairs, {
                 name: "Receita em atraso",
                 color: "#6b00e3",
                 valueFormat: "currency",
                 valueDecimals: 2,
             }),
-            chartFromPairs("Status de cobranca", "Carteira agrupada por billing status.", "pie", statusPairs, {
+            chartFromPairs("Status de cobrança", "Carteira agrupada por billing status.", "pie", statusPairs, {
                 name: "Clientes",
                 pieColors: PIE_COLORS,
             }),
@@ -910,10 +910,10 @@ function buildBillingSection(args: BuildArgs): SuperAdminSection {
         ],
         statCards: [
             statCard("Maior conta em atraso", largestDebt?.companyName || "Sem dados", largestDebt ? currency(toNumber(largestDebt.overdueAmountCents)) : "R$ 0,00"),
-            statCard("Carteira critica", integer(criticalDelay.length), "Clientes com mais de 10 dias de atraso."),
-            statCard("Receita recuperavel em 7 dias", currency(recoverableRevenue), "Valor em atraso concentrado nas cobrancas mais recentes."),
+            statCard("Carteira crítica", integer(criticalDelay.length), "Clientes com mais de 10 dias de atraso."),
+            statCard("Receita recuperável em 7 dias", currency(recoverableRevenue), "Valor em atraso concentrado nas cobranças mais recentes."),
         ],
-        leaderboardTitle: "Contas que exigem acao",
+        leaderboardTitle: "Contas que exigem ação",
         leaderboard: formatTopRows(
             [...overdueCustomers].sort((left: Record<string, any>, right: Record<string, any>) => toNumber(right.overdueAmountCents) - toNumber(left.overdueAmountCents)),
             (row: Record<string, any>) => ({
@@ -924,9 +924,9 @@ function buildBillingSection(args: BuildArgs): SuperAdminSection {
             }),
         ),
         insights: [
-            insight("Cobranca ficou operacional", "Os alertas agora mostram atraso, falha de pagamento e concentracao da carteira usando dados reais.", "positive"),
-            insight("Recuperacao pode ser priorizada", `${integer(criticalDelay.length)} contas ja entram automaticamente na faixa de maior pressao.`, criticalDelay.length ? "warning" : "positive"),
-            insight("Planos mais sensiveis ficam visiveis", "O grafico por plano ajuda a entender onde a inadimplencia esta pesando mais na base.", "positive"),
+            insight("Cobrança ficou operacional", "Os alertas agora mostram atraso, falha de pagamento e concentração da carteira usando dados reais.", "positive"),
+            insight("Recuperação pode ser priorizada", `${integer(criticalDelay.length)} contas já entram automaticamente na faixa de maior pressão.`, criticalDelay.length ? "warning" : "positive"),
+            insight("Planos mais sensíveis ficam visíveis", "O gráfico por plano ajuda a entender onde a inadimplência está pesando mais na base.", "positive"),
         ],
     };
 }
@@ -936,7 +936,7 @@ function buildOperationsSection(args: BuildArgs): SuperAdminSection {
     const cards = args.dashboardData?.cards ?? {};
     const bugsByArea = Array.isArray(args.dashboardData?.bugsByArea) ? args.dashboardData.bugsByArea : [];
     const bugPairs = bugsByArea.map((row: Record<string, any>) => ({
-        label: row.bugArea || "Nao informado",
+        label: row.bugArea || "Não informado",
         value: toNumber(row.total),
     })).sort((left: Pair, right: Pair) => right.value - left.value);
     const statusPairs = topPairs(args.supportTickets, (row) => titleCase(row.status), () => 1);
@@ -955,37 +955,37 @@ function buildOperationsSection(args: BuildArgs): SuperAdminSection {
         ...meta,
         metrics: [
             metric("Tickets abertos", integer(toNumber(cards.openTickets)), "Fila aberta de suporte no momento.", undefined, "emerald"),
-            metric("Resposta media", formatMinutesDuration(responseMinutes), "Tempo medio ate a primeira resposta.", undefined, "sky"),
-            metric("Resolucao media", formatHoursDuration(resolutionHours), "Tempo medio ate a conclusao do ticket.", undefined, "amber"),
+            metric("Resposta média", formatMinutesDuration(responseMinutes), "Tempo médio até a primeira resposta.", undefined, "sky"),
+            metric("Resolução média", formatHoursDuration(resolutionHours), "Tempo médio até a conclusão do ticket.", undefined, "amber"),
             metric("Bugs reportados", integer(toNumber(cards.bugsReported)), "Tickets categorizados como bug.", undefined, "rose"),
         ],
         alerts: [
             alert(
-                toNumber(cards.bugsReported) >= 8 ? "Bugs reportados acima do normal" : "Fila de bugs administravel",
+                toNumber(cards.bugsReported) >= 8 ? "Bugs reportados acima do normal" : "Fila de bugs administrável",
                 `${integer(toNumber(cards.bugsReported))} bugs foram reportados no recorte atual.`,
                 toNumber(cards.bugsReported) >= 8 ? "critical" : toNumber(cards.bugsReported) >= 4 ? "attention" : "stable",
             ),
             alert(
-                responseMinutes > 30 ? "Tempo de primeira resposta lento" : "Primeira resposta em faixa saudavel",
-                `O tempo medio atual esta em ${formatMinutesDuration(responseMinutes)}.`,
+                responseMinutes > 30 ? "Tempo de primeira resposta lento" : "Primeira resposta em faixa saudável",
+                `O tempo médio atual está em ${formatMinutesDuration(responseMinutes)}.`,
                 responseMinutes > 30 ? "critical" : responseMinutes > 20 ? "attention" : "stable",
             ),
             alert(
-                resolutionHours > 8 || highUrgency >= 4 ? "Resolucao do suporte pressionada" : resolutionHours > 6 || highUrgency >= 2 ? "Resolucao do suporte em atencao" : "Resolucao do suporte saudavel",
-                `A resolucao media esta em ${formatHoursDuration(resolutionHours)} e ha ${integer(highUrgency)} tickets de alta urgencia na fila.`,
+                resolutionHours > 8 || highUrgency >= 4 ? "Resolução do suporte pressionada" : resolutionHours > 6 || highUrgency >= 2 ? "Resolução do suporte em atenção" : "Resolução do suporte saudável",
+                `A resolução média está em ${formatHoursDuration(resolutionHours)} e há ${integer(highUrgency)} tickets de alta urgência na fila.`,
                 resolutionHours > 8 || highUrgency >= 4 ? "critical" : resolutionHours > 6 || highUrgency >= 2 ? "attention" : "stable",
             ),
         ],
         charts: [
-            chartFromPairs("Bugs por categoria", "Areas onde os bugs estao concentrados.", "bar", bugPairs, {
+            chartFromPairs("Bugs por categoria", "áreas onde os bugs estão concentrados.", "bar", bugPairs, {
                 name: "Bugs",
                 color: "#ef4444",
             }),
-            chartFromPairs("Tickets por status", "Distribuicao da fila operacional.", "pie", statusPairs, {
+            chartFromPairs("Tickets por status", "Distribuição da fila operacional.", "pie", statusPairs, {
                 name: "Tickets",
                 pieColors: PIE_COLORS,
             }),
-            chartFromPairs("Urgencia dos tickets", "Peso de severidade na fila atual.", "column", urgencyPairs, {
+            chartFromPairs("Urgência dos tickets", "Peso de severidade na fila atual.", "column", urgencyPairs, {
                 name: "Tickets",
                 color: "#f59e0b",
             }),
@@ -996,7 +996,7 @@ function buildOperationsSection(args: BuildArgs): SuperAdminSection {
         ],
         statCards: [
             statCard("Aguardando cliente", integer(waitingCustomer), "Tickets pendentes de retorno da conta atendida."),
-            statCard("Alta urgencia", integer(highUrgency), "Chamados classificados como high ou critical."),
+            statCard("Alta urgência", integer(highUrgency), "Chamados classificados como high ou critical."),
             statCard("Backlog aberto", integer(openBacklog), oldestOpen ? `Ticket mais antigo aberto em ${new Date(oldestOpen.createdAt).toLocaleDateString("pt-BR")}.` : "Nenhum ticket em aberto."),
         ],
         leaderboardTitle: "Contas mais ativas no suporte",
@@ -1007,9 +1007,9 @@ function buildOperationsSection(args: BuildArgs): SuperAdminSection {
             badge: row.value >= 3 ? "Acompanhar" : "Normal",
         })),
         insights: [
-            insight("Operacao e suporte falam a mesma lingua", "Os mesmos tickets alimentam os cards executivos, os graficos e a mesa operacional detalhada.", "positive"),
-            insight("Urgencia nao fica escondida", `${integer(highUrgency)} tickets de alta urgencia ja aparecem resumidos antes mesmo da leitura individual.`, highUrgency ? "warning" : "positive"),
-            insight("Bugs por area viram prioridade objetiva", "Quando a categoria de bug se repete, a equipe ja consegue enxergar a concentracao direto no topo da tela.", "positive"),
+            insight("Operação e suporte falam a mesma língua", "Os mesmos tickets alimentam os cards executivos, os gráficos e a mesa operacional detalhada.", "positive"),
+            insight("Urgência não fica escondida", `${integer(highUrgency)} tickets de alta urgência já aparecem resumidos antes mesmo da leitura individual.`, highUrgency ? "warning" : "positive"),
+            insight("Bugs por área viram prioridade objetiva", "Quando a categoria de bug se repete, a equipe já consegue enxergar a concentração direto no topo da tela.", "positive"),
         ],
     };
 }
@@ -1041,29 +1041,29 @@ function buildInsightsSection(args: BuildArgs): SuperAdminSection {
     return {
         ...meta,
         metrics: [
-            metric("Risco alto de churn", integer(riskCustomers.length), "Contas mais proximas de cancelamento.", undefined, "rose"),
+            metric("Risco alto de churn", integer(riskCustomers.length), "Contas mais próximas de cancelamento.", undefined, "rose"),
             metric("Prontas para upgrade", integer(upgradeCustomers.length), "Contas perto do limite atual do plano.", undefined, "emerald"),
             metric("Alto potencial", integer(potentialCustomers.length), "Clientes com maior chance de expandir faturamento.", undefined, "sky"),
-            metric("Features subutilizadas", integer(underusedFeatures.length), "Funcionalidades com baixa adocao na base.", undefined, "amber"),
+            metric("Features subutilizadas", integer(underusedFeatures.length), "Funcionalidades com baixa adoção na base.", undefined, "amber"),
         ],
         alerts: [
             alert(
-                riskCustomers.length >= 10 ? "Fila relevante de churn previsivel" : "Churn previsivel em controle",
+                riskCustomers.length >= 10 ? "Fila relevante de churn previsível" : "Churn previsível em controle",
                 `${integer(riskCustomers.length)} contas aparecem no radar de cancelamento com base em health score e comportamento.`,
                 riskCustomers.length >= 10 ? "critical" : riskCustomers.length >= 5 ? "attention" : "stable",
             ),
             alert(
-                upgradeCustomers.length ? "Oportunidade clara de expansao" : "Poucas contas prontas para upgrade",
-                `${integer(upgradeCustomers.length)} contas ja estao proximas dos limites do plano atual.`,
+                upgradeCustomers.length ? "Oportunidade clara de expansão" : "Poucas contas prontas para upgrade",
+                `${integer(upgradeCustomers.length)} contas já estão próximas dos limites do plano atual.`,
                 upgradeCustomers.length >= 5 ? "stable" : "attention",
             ),
             alert(
                 underusedFeatures.length >= 4 || weakestFeatureAdoption < 10
-                    ? "Subutilizacao de features ja afeta expansao"
+                    ? "Subutilização de features já afeta expansão"
                     : underusedFeatures.length >= 2 || weakestFeatureAdoption < 20
-                        ? "Subutilizacao de features em atencao"
-                        : "Subutilizacao de features controlada",
-                `${integer(underusedFeatures.length)} funcionalidades aparecem com baixa adocao, e a menor taxa atual esta em ${percent(weakestFeatureAdoption, 2)}.`,
+                        ? "Subutilização de features em atenção"
+                        : "Subutilização de features controlada",
+                `${integer(underusedFeatures.length)} funcionalidades aparecem com baixa adoção, e a menor taxa atual está em ${percent(weakestFeatureAdoption, 2)}.`,
                 underusedFeatures.length >= 4 || weakestFeatureAdoption < 10
                     ? "critical"
                     : underusedFeatures.length >= 2 || weakestFeatureAdoption < 20
@@ -1072,12 +1072,12 @@ function buildInsightsSection(args: BuildArgs): SuperAdminSection {
             ),
         ],
         charts: [
-            chartFromPairs("Distribuicao de risco", "Como a base se reparte entre as faixas de risco.", "pie", riskPairs, {
+            chartFromPairs("Distribuição de risco", "Como a base se reparte entre as faixas de risco.", "pie", riskPairs, {
                 name: "Clientes",
                 pieColors: PIE_COLORS,
             }),
-            chartFromPairs("Clientes prontos para upgrade", "Pressao de uso das contas mais proximas de expansao.", "bar", upgradePairs, {
-                name: "Pressao",
+            chartFromPairs("Clientes prontos para upgrade", "Pressão de uso das contas mais próximas de expansão.", "bar", upgradePairs, {
+                name: "Pressão",
                 color: "#14b8a6",
                 valueFormat: "percent",
                 valueDecimals: 2,
@@ -1086,16 +1086,16 @@ function buildInsightsSection(args: BuildArgs): SuperAdminSection {
                 name: "Score",
                 color: "#6b00e3",
             }),
-            chartFromPairs("Features subutilizadas", "Adocao percentual das funcionalidades com menor uso.", "column", underusedPairs, {
-                name: "Adocao",
+            chartFromPairs("Features subutilizadas", "Adoção percentual das funcionalidades com menor uso.", "column", underusedPairs, {
+                name: "Adoção",
                 color: "#f59e0b",
                 valueFormat: "percent",
                 valueDecimals: 2,
             }),
         ],
         statCards: [
-            statCard("Score medio de risco", preciseDecimal(averageRiskScore, 2), "Media dos clientes presentes no radar de churn."),
-            statCard("Pressao media de upgrade", percent(averagePressure, 2), "Quanto as contas prontas ja pressionam o plano atual."),
+            statCard("Score médio de risco", preciseDecimal(averageRiskScore, 2), "Média dos clientes presentes no radar de churn."),
+            statCard("Pressão média de upgrade", percent(averagePressure, 2), "Quanto as contas prontas já pressionam o plano atual."),
             statCard("Valor vendido das top oportunidades", currency(topPotentialSoldValue), "Soma das vendas 90d das cinco contas com maior potencial."),
         ],
         leaderboardTitle: "Clientes que merecem prioridade",
@@ -1109,9 +1109,9 @@ function buildInsightsSection(args: BuildArgs): SuperAdminSection {
             }),
         ),
         insights: [
-            insight("Churn previsivel ganhou contexto", `${integer(overdueRisk)} contas de risco tambem estao em situacao de atraso, ligando saude e cobranca.`, overdueRisk ? "warning" : "positive"),
-            insight("Upgrade vira fila comercial", "As contas com maior pressao de uso ja aparecem prontas para outreach de expansao.", "positive"),
-            insight("Subutilizacao deixa de ser invisivel", "As funcionalidades menos adotadas agora aparecem com taxa percentual real para orientar onboarding e produto.", "positive"),
+            insight("Churn previsível ganhou contexto", `${integer(overdueRisk)} contas de risco também estão em situação de atraso, ligando saúde e cobrança.`, overdueRisk ? "warning" : "positive"),
+            insight("Upgrade vira fila comercial", "As contas com maior pressão de uso já aparecem prontas para outreach de expansão.", "positive"),
+            insight("Subutilização deixa de ser invisível", "As funcionalidades menos adotadas agora aparecem com taxa percentual real para orientar onboarding e produto.", "positive"),
         ],
     };
 }

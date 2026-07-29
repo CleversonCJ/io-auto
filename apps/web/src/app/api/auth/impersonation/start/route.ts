@@ -21,7 +21,7 @@ type ImpersonationPayload = {
 export async function POST(request: Request) {
     const body = (await request.json().catch(() => null)) as StartBody | null;
     if (!body?.tenantId) {
-        return NextResponse.json({ message: "tenantId obrigatorio" }, { status: 400 });
+        return NextResponse.json({ message: "tenantId obrigatório" }, { status: 400 });
     }
 
     const result = await fetchAuthedUpstream(`/api/superadmin/tenants/${encodeURIComponent(body.tenantId)}/impersonate`, {
@@ -32,11 +32,11 @@ export async function POST(request: Request) {
 
     const payload = await readJsonSafely<ImpersonationPayload>(result.upstream!);
     if (!result.upstream!.ok) {
-        return NextResponse.json({ message: payload?.message ?? "Falha ao iniciar impersonacao." }, { status: result.upstream!.status });
+        return NextResponse.json({ message: payload?.message ?? "Falha ao iniciar impersonação." }, { status: result.upstream!.status });
     }
 
     if (!payload?.accessToken || !payload?.refreshToken) {
-        return NextResponse.json({ message: "Resposta invalida ao iniciar impersonacao." }, { status: 502 });
+        return NextResponse.json({ message: "Resposta inválida ao iniciar impersonação." }, { status: 502 });
     }
 
     await setAuthCookies(payload.accessToken, payload.refreshToken);

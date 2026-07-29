@@ -20,7 +20,7 @@ export default async function SuperAdminSectionLayout({ children, params }: Supe
                         {currentSection?.title ?? "Super Admin"}
                     </h1>
                     <p className="mt-2 max-w-3xl text-sm text-black/56">
-                        {currentSection?.description ?? "Paginas exclusivas para a operacao do sistema."}
+                        {currentSection?.description ?? "Páginas exclusivas para a operação do sistema."}
                     </p>
                 </div>
                 <HeaderActionsSlot />

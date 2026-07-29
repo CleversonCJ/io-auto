@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { jsonFromAuthedUpstream } from "@/app/api/_utils/upstreamAuth";
 
 export async function GET(request: NextRequest) {
-    return jsonFromAuthedUpstream(`/ioauto/webmotors/settings${request.nextUrl.search}`, {}, "Falha ao carregar as configuracoes da Webmotors.");
+    return jsonFromAuthedUpstream(`/ioauto/webmotors/settings${request.nextUrl.search}`, {}, "Falha ao carregar as configurações da Webmotors.");
 }
 
 export async function PUT(request: NextRequest) {
@@ -11,5 +11,5 @@ export async function PUT(request: NextRequest) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body,
-    }, "Falha ao salvar as configuracoes da Webmotors.");
+    }, "Falha ao salvar as configurações da Webmotors.");
 }

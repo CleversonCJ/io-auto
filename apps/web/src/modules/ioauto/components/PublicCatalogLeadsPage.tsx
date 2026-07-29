@@ -940,7 +940,7 @@ export function PublicCatalogLeadsPage() {
                                         Dono/empresa: <span className="font-semibold">{saleFinancialPreview.consignedOwnerName ?? "Não informado"}</span>
                                     </p>
                                     <p className="text-sm text-amber-900">
-                                        Comissao cadastrada:{" "}
+                                        Comissão cadastrada:{" "}
                                         <span className="font-semibold">
                                             {saleFinancialPreview.configuredConsignmentCommissionPercentage != null
                                                 ? `${saleFinancialPreview.configuredConsignmentCommissionPercentage}%`
@@ -1001,13 +1001,13 @@ export function PublicCatalogLeadsPage() {
                                     ) : null}
 
                                     <p className="text-sm text-amber-900">
-                                        Base de calculo: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentBaseAmountCents)}</span>
+                                        Base de cálculo: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentBaseAmountCents)}</span>
                                     </p>
                                     <p className="text-sm text-amber-900">
                                         Valor da comissão: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentCommissionAmountCents)}</span>
                                     </p>
                                     <p className="text-sm text-amber-900">
-                                        Repasse estimado ao proprietario: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentOwnerTransferAmountCents)}</span>
+                                        Repasse estimado ao proprietário: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentOwnerTransferAmountCents)}</span>
                                     </p>
                                 </div>
                             ) : null}
@@ -1023,8 +1023,8 @@ export function PublicCatalogLeadsPage() {
                             {saleFinancialPreview.consigned ? (
                                 <>
                                     <p>Dono/empresa: <span className="font-semibold">{saleFinancialPreview.consignedOwnerName ?? "Não informado"}</span></p>
-                                    <p>Comissao da empresa: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentCommissionAmountCents)}</span></p>
-                                    <p>Repasse ao proprietario: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentOwnerTransferAmountCents)}</span></p>
+                                    <p>Comissão da empresa: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentCommissionAmountCents)}</span></p>
+                                    <p>Repasse ao proprietário: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentOwnerTransferAmountCents)}</span></p>
                                 </>
                             ) : null}
                             <p>

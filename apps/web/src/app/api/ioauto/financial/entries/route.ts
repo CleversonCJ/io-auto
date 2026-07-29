@@ -6,5 +6,5 @@ export async function POST(request: Request) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body,
-    }, "Falha ao salvar o lancamento financeiro.");
+    }, "Falha ao salvar o lançamento financeiro.");
 }

@@ -64,7 +64,7 @@ export function WebmotorsSetupCard({ connected = false, onConnectionStateChange,
         const payload = await response.json().catch(() => null);
 
         if (!response.ok) {
-            throw new Error(readMessage(payload, "Falha ao carregar as configuracoes da Webmotors."));
+            throw new Error(readMessage(payload, "Falha ao carregar as configurações da Webmotors."));
         }
 
         setDraft(normalizeSettings(payload));
@@ -85,13 +85,13 @@ export function WebmotorsSetupCard({ connected = false, onConnectionStateChange,
         const payload = await response.json().catch(() => null);
 
         if (!response.ok) {
-            setError(readMessage(payload, "Falha ao salvar as configuracoes da Webmotors."));
+            setError(readMessage(payload, "Falha ao salvar as configurações da Webmotors."));
             setSaving(false);
             return;
         }
 
         setDraft(normalizeSettings(payload));
-        setSuccess("Configuracoes salvas. O sistema ja monta o Basic auth, faz o login e usa o access_token automaticamente.");
+        setSuccess("Configurações salvas. O sistema já monta o Basic auth, faz o login e usa o access_token automaticamente.");
         setSaving(false);
         onRefreshParent?.();
     }
@@ -109,7 +109,7 @@ export function WebmotorsSetupCard({ connected = false, onConnectionStateChange,
         const savePayload = await saveResponse.json().catch(() => null);
 
         if (!saveResponse.ok) {
-            setError(readMessage(savePayload, "Nao foi possivel salvar as configuracoes antes da validacao."));
+            setError(readMessage(savePayload, "Não foi possível salvar as configurações antes da validação."));
             setValidating(false);
             return;
         }
@@ -153,7 +153,7 @@ export function WebmotorsSetupCard({ connected = false, onConnectionStateChange,
 
         setDraft(DEFAULT_SETTINGS);
         setValidation(null);
-        setSuccess("Integracao Webmotors desconectada. Agora ela pode ser excluida.");
+        setSuccess("Integração Webmotors desconectada. Agora ela pode ser excluída.");
         setDisconnecting(false);
         onConnectionStateChange?.(false);
         onRefreshParent?.();
@@ -164,11 +164,11 @@ export function WebmotorsSetupCard({ connected = false, onConnectionStateChange,
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="max-w-3xl">
                     <p className="text-xs uppercase tracking-[0.28em] text-black/40">WebMotors REST</p>
-                    <h1 className="mt-2 font-display text-3xl font-bold text-io-dark">Autenticacao da API WebMotors</h1>
+                    <h1 className="mt-2 font-display text-3xl font-bold text-io-dark">Autenticação da API WebMotors</h1>
                     <p className="mt-2 text-sm text-black/55">
-                        Preencha as credenciais do painel da WebMotors. O sistema cuida dos passos tecnicos: gera
+                        Preencha as credenciais do painel da WebMotors. O sistema cuida dos passos técnicos: gera
                         <code className="mx-1 rounded bg-black/5 px-1.5 py-0.5 text-xs">Authorization: Basic base64(clientId:clientSecret)</code>,
-                        faz o <code className="mx-1 rounded bg-black/5 px-1.5 py-0.5 text-xs">POST /login</code> com usuario e senha,
+                        faz o <code className="mx-1 rounded bg-black/5 px-1.5 py-0.5 text-xs">POST /login</code> com usuário e senha,
                         recebe o <code className="mx-1 rounded bg-black/5 px-1.5 py-0.5 text-xs">access_token</code>
                         e consulta o <code className="mx-1 rounded bg-black/5 px-1.5 py-0.5 text-xs">GET /estoque</code> com
                         <code className="mx-1 rounded bg-black/5 px-1.5 py-0.5 text-xs">client_id</code> e
@@ -183,7 +183,7 @@ export function WebmotorsSetupCard({ connected = false, onConnectionStateChange,
 
             <div className="mt-5 grid gap-3 rounded-[28px] bg-[#f7f7f7] p-4 text-sm text-black/65">
                 <p>1. Client ID + Client Secret entram no header Basic do login.</p>
-                <p>2. Usuario + senha da integracao vao no POST /login.</p>
+                <p>2. Usuário + senha da integração vão no POST /login.</p>
                 <p>3. O estoque vem do GET /estoque com client_id e access_token.</p>
             </div>
 
@@ -200,7 +200,7 @@ export function WebmotorsSetupCard({ connected = false, onConnectionStateChange,
             {loadState === "loading" ? (
                 <div className="mt-8 flex items-center gap-3 text-sm text-black/55">
                     <LoaderCircle className="h-4 w-4 animate-spin" />
-                    Carregando configuracoes da WebMotors...
+                    Carregando configurações da WebMotors...
                 </div>
             ) : (
                 <>
@@ -219,7 +219,7 @@ export function WebmotorsSetupCard({ connected = false, onConnectionStateChange,
                         <Field label="Site API base URL" value={draft.restApiBaseUrl} onChange={(value) => setDraft((current) => ({ ...current, restApiBaseUrl: value }))} className="xl:col-span-2" />
                         <Field label="Client ID" value={draft.restClientId} onChange={(value) => setDraft((current) => ({ ...current, restClientId: value }))} />
                         <Field label="Client Secret" value={draft.restClientSecret} onChange={(value) => setDraft((current) => ({ ...current, restClientSecret: value }))} type="password" />
-                        <Field label="Usuario da API" value={draft.restUsername} onChange={(value) => setDraft((current) => ({ ...current, restUsername: value }))} />
+                        <Field label="Usuário da API" value={draft.restUsername} onChange={(value) => setDraft((current) => ({ ...current, restUsername: value }))} />
                         <Field label="Senha da API" value={draft.restPassword} onChange={(value) => setDraft((current) => ({ ...current, restPassword: value }))} type="password" />
                         <ToggleField
                             label="Pull de leads ativo"
@@ -268,7 +268,7 @@ export function WebmotorsSetupCard({ connected = false, onConnectionStateChange,
                             className="inline-flex items-center gap-2 rounded-full bg-io-purple px-5 py-3 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:bg-black/20"
                         >
                             {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                            Salvar configuracoes
+                            Salvar configurações
                         </button>
                     </div>
                 </>

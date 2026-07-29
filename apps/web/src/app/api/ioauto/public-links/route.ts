@@ -1,7 +1,7 @@
 import { jsonFromAuthedUpstream } from "@/app/api/_utils/upstreamAuth";
 
 export async function GET() {
-    return jsonFromAuthedUpstream("/ioauto/public-links", {}, "Falha ao carregar os links publicos.");
+    return jsonFromAuthedUpstream("/ioauto/public-links", {}, "Falha ao carregar os links públicos.");
 }
 
 export async function POST(request: Request) {
@@ -11,5 +11,5 @@ export async function POST(request: Request) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body,
-    }, "Falha ao criar o link publico.");
+    }, "Falha ao criar o link público.");
 }

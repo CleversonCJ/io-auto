@@ -13,7 +13,7 @@ function formatVehicleSaleNotes(notes: string): string {
         { sourceLabel: "Valor original", targetLabel: "Valor original" },
         { sourceLabel: "Desconto", targetLabel: "Desconto" },
         { sourceLabel: "Desconto (cents)", targetLabel: "Desconto" },
-        { sourceLabel: "Valor apos desconto", targetLabel: "Valor apos desconto" },
+        { sourceLabel: "Valor após desconto", targetLabel: "Valor após desconto" },
         { sourceLabel: "Troca", targetLabel: "Troca" },
         { sourceLabel: "Troca (cents)", targetLabel: "Troca" },
         { sourceLabel: "Total real", targetLabel: "Total real" },

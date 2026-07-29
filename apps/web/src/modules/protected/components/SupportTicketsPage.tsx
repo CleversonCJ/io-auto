@@ -72,9 +72,9 @@ function categoryLabel(value?: string | null) {
     const normalized = String(value ?? "").trim().toUpperCase();
     const labels: Record<string, string> = {
         BUG: "Bug",
-        QUESTION: "Duvida",
-        BILLING: "Cobranca",
-        INTEGRATION: "Integracao",
+        QUESTION: "Dúvida",
+        BILLING: "Cobrança",
+        INTEGRATION: "Integração",
         FEATURE_REQUEST: "Sugestao",
         OTHER: "Outro",
     };
@@ -85,9 +85,9 @@ function urgencyLabel(value?: string | null) {
     const normalized = String(value ?? "").trim().toUpperCase();
     const labels: Record<string, string> = {
         LOW: "Baixa",
-        MEDIUM: "Media",
+        MEDIUM: "Média",
         HIGH: "Alta",
-        CRITICAL: "Critica",
+        CRITICAL: "Crítica",
     };
     return labels[normalized] ?? (normalized ? normalized.replaceAll("_", " ") : "-");
 }
@@ -115,8 +115,8 @@ function isTicketConcluded(status?: string | null) {
 
 function replyHelperText(status?: string | null) {
     const normalized = String(status ?? "").trim().toUpperCase();
-    if (normalized === "WAITING_CUSTOMER") return "O suporte esta aguardando a sua resposta.";
-    if (normalized === "RESOLVED" || normalized === "CLOSED") return "Este ticket foi concluido e nao aceita novas mensagens.";
+    if (normalized === "WAITING_CUSTOMER") return "O suporte está aguardando a sua resposta.";
+    if (normalized === "RESOLVED" || normalized === "CLOSED") return "Este ticket foi concluído e não aceita novas mensagens.";
     return "Digite sua mensagem para continuar a conversa com o suporte.";
 }
 
@@ -276,7 +276,7 @@ export function SupportTicketsPage() {
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">Suporte</p>
                         <h1 className="mt-2 text-3xl font-black tracking-[-0.03em] text-io-dark">Chamados da empresa</h1>
                         <p className="mt-3 text-sm leading-6 text-black/60">
-                            Acompanhe todos os chamados da sua empresa, veja o status atual e converse com o time de suporte em uma unica tela.
+                            Acompanhe todos os chamados da sua empresa, veja o status atual e converse com o time de suporte em uma única tela.
                         </p>
                     </div>
 
@@ -291,10 +291,10 @@ export function SupportTicketsPage() {
                 </div>
 
                 <div className="mt-6 grid gap-3 md:grid-cols-4">
-                    <SummaryCard label="Total de chamados" value={String(metrics.total)} detail="Historico completo da empresa." icon={<LifeBuoy className="h-4 w-4" />} tone="violet" />
+                    <SummaryCard label="Total de chamados" value={String(metrics.total)} detail="Histórico completo da empresa." icon={<LifeBuoy className="h-4 w-4" />} tone="violet" />
                     <SummaryCard label="Em aberto" value={String(metrics.openCount)} detail="Chamados ainda em andamento." icon={<Clock3 className="h-4 w-4" />} tone="sky" />
                     <SummaryCard label="Aguardando retorno" value={String(metrics.waitingCount)} detail="Tickets esperando resposta da empresa." icon={<AlertCircle className="h-4 w-4" />} tone="amber" />
-                    <SummaryCard label="Resolvidos" value={String(metrics.resolvedCount)} detail="Chamados ja finalizados." icon={<CheckCircle2 className="h-4 w-4" />} tone="emerald" />
+                    <SummaryCard label="Resolvidos" value={String(metrics.resolvedCount)} detail="Chamados já finalizados." icon={<CheckCircle2 className="h-4 w-4" />} tone="emerald" />
                 </div>
             </div>
 
@@ -332,7 +332,7 @@ export function SupportTicketsPage() {
                                             <div className="flex flex-wrap items-start justify-between gap-2">
                                                 <div className="min-w-0">
                                                     <p className="truncate text-sm font-bold text-io-dark">{ticket.title}</p>
-                                                    <p className="mt-1 text-xs text-black/55">{ticket.bugArea || "Area nao informada"}</p>
+                                                    <p className="mt-1 text-xs text-black/55">{ticket.bugArea || "área não informada"}</p>
                                                 </div>
                                                 <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusTone(ticket.status)}`}>
                                                     {statusLabel(ticket.status)}
@@ -346,7 +346,7 @@ export function SupportTicketsPage() {
 
                                             <div className="mt-3 text-xs text-black/45">
                                                 <p>Abertura: {formatDateTime(ticket.createdAt)}</p>
-                                                <p>Ultima etapa: {formatDateTime(ticket.closedAt || ticket.resolvedAt || ticket.firstResponseAt || ticket.createdAt)}</p>
+                                                <p>última etapa: {formatDateTime(ticket.closedAt || ticket.resolvedAt || ticket.firstResponseAt || ticket.createdAt)}</p>
                                             </div>
                                         </button>
                                     );
@@ -356,7 +356,7 @@ export function SupportTicketsPage() {
                             <div className="rounded-[28px] border border-dashed border-black/10 bg-black/[0.02] px-5 py-10 text-center">
                                 <p className="text-base font-semibold text-io-dark">Nenhum chamado encontrado</p>
                                 <p className="mt-2 text-sm leading-6 text-black/55">
-                                    Quando sua empresa abrir tickets de suporte, eles aparecerao aqui com status e historico de respostas.
+                                    Quando sua empresa abrir tickets de suporte, eles aparecerão aqui com status e histórico de respostas.
                                 </p>
                             </div>
                         )}
@@ -395,9 +395,9 @@ export function SupportTicketsPage() {
                                     </div>
 
                                     <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                                        <InfoCard label="Aberto por" value={ticketDetail.openedByName || "Usuario da empresa"} />
+                                        <InfoCard label="Aberto por" value={ticketDetail.openedByName || "Usuário da empresa"} />
                                         <InfoCard label="Abertura" value={formatDateTime(ticketDetail.createdAt)} />
-                                        <InfoCard label="Area" value={ticketDetail.bugArea || "-"} />
+                                        <InfoCard label="área" value={ticketDetail.bugArea || "-"} />
                                         <InfoCard label="Primeira resposta" value={formatDateTime(ticketDetail.firstResponseAt)} />
                                     </div>
                                 </div>
@@ -406,7 +406,7 @@ export function SupportTicketsPage() {
                                     <div className="rounded-[28px] border border-black/8 bg-white p-5">
                                         <div className="flex items-center justify-between gap-3">
                                             <div>
-                                                <h3 className="text-base font-bold text-io-dark">Evidencia anexada</h3>
+                                                <h3 className="text-base font-bold text-io-dark">Evidência anexada</h3>
                                                 <p className="mt-1 text-sm text-black/55">{ticketDetail.evidenceFileName || "Arquivo enviado no ticket"}</p>
                                             </div>
                                         </div>
@@ -416,7 +416,7 @@ export function SupportTicketsPage() {
                                                 <video src={ticketDetail.evidenceDataUrl} controls className="max-h-[420px] w-full rounded-[20px] bg-black" />
                                             ) : (
                                                 // eslint-disable-next-line @next/next/no-img-element
-                                                <img src={ticketDetail.evidenceDataUrl} alt="Evidencia do ticket" className="max-h-[420px] w-full rounded-[20px] object-contain" />
+                                                <img src={ticketDetail.evidenceDataUrl} alt="Evidência do ticket" className="max-h-[420px] w-full rounded-[20px] object-contain" />
                                             )}
                                         </div>
                                     </div>
@@ -478,7 +478,7 @@ export function SupportTicketsPage() {
                                             onKeyDown={handleReplyKeyDown}
                                             rows={4}
                                             disabled={replyLoading || isTicketConcluded(ticketDetail.status)}
-                                            placeholder={isTicketConcluded(ticketDetail.status) ? "Ticket concluido." : "Digite sua mensagem para o suporte"}
+                                            placeholder={isTicketConcluded(ticketDetail.status) ? "Ticket concluído." : "Digite sua mensagem para o suporte"}
                                             className="mt-4 w-full rounded-[20px] border border-black/12 px-4 py-3 text-sm leading-6 text-io-dark outline-none transition focus:border-black/25 disabled:cursor-not-allowed disabled:bg-black/[0.03]"
                                         />
 
@@ -503,7 +503,7 @@ export function SupportTicketsPage() {
                             <div className="rounded-[28px] border border-dashed border-black/10 bg-black/[0.02] px-5 py-12 text-center">
                                 <p className="text-base font-semibold text-io-dark">Selecione um chamado</p>
                                 <p className="mt-2 text-sm leading-6 text-black/55">
-                                    Escolha um ticket na coluna ao lado para visualizar o status atual, a evidencia enviada e as respostas do suporte.
+                                    Escolha um ticket na coluna ao lado para visualizar o status atual, a evidência enviada e as respostas do suporte.
                                 </p>
                             </div>
                         )}

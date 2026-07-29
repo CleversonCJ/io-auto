@@ -16,12 +16,12 @@ type EvidenceAttachment = {
 };
 
 const GUIDED_QUESTIONS: string[] = [
-    "O problema impede voce de usar o sistema?",
-    "Isso acontece sempre ou as vezes?",
+    "O problema impede você de usar o sistema?",
+    "Isso acontece sempre ou às vezes?",
     "Em qual tela ou funcionalidade aconteceu?",
     "Houve alguma mensagem de erro?",
-    "Voce ja tentou atualizar a pagina ou sair e entrar novamente?",
-    "Quantos usuarios ou atendimentos estao impactados?",
+    "Você já tentou atualizar a página ou sair e entrar novamente?",
+    "Quantos usuários ou atendimentos estão impactados?",
 ];
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -67,7 +67,7 @@ export function ProtectedNotificationsRail() {
         return new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(String(reader.result ?? ""));
-            reader.onerror = () => reject(new Error("Nao foi possivel processar o arquivo anexado."));
+            reader.onerror = () => reject(new Error("Não foi possível processar o arquivo anexado."));
             reader.readAsDataURL(file);
         });
     }
@@ -87,7 +87,7 @@ export function ProtectedNotificationsRail() {
         if (!isImage && !isVideo) {
             setAttachment(null);
             setAttachmentInputKey((current) => current + 1);
-            setError("Anexe uma imagem ou um video valido para abrir o ticket.");
+            setError("Anexe uma imagem ou um vídeo válido para abrir o ticket.");
             return;
         }
 
@@ -110,7 +110,7 @@ export function ProtectedNotificationsRail() {
         } catch (attachmentError) {
             setAttachment(null);
             setAttachmentInputKey((current) => current + 1);
-            setError(attachmentError instanceof Error ? attachmentError.message : "Nao foi possivel processar o arquivo anexado.");
+            setError(attachmentError instanceof Error ? attachmentError.message : "Não foi possível processar o arquivo anexado.");
         }
     }
 
@@ -118,7 +118,7 @@ export function ProtectedNotificationsRail() {
         event.preventDefault();
         if (loading) return;
         if (!attachment) {
-            setError("Anexe uma imagem ou um video do bug antes de abrir o ticket.");
+            setError("Anexe uma imagem ou um vídeo do bug antes de abrir o ticket.");
             return;
         }
 
@@ -147,13 +147,13 @@ export function ProtectedNotificationsRail() {
 
             if (!response.ok) {
                 const payload = await response.json().catch(() => null);
-                throw new Error(payload?.message ?? "Nao foi possivel abrir o ticket.");
+                throw new Error(payload?.message ?? "Não foi possível abrir o ticket.");
             }
 
-            setSuccess("Ticket aberto com sucesso. Nosso time ja recebeu a solicitacao.");
+            setSuccess("Ticket aberto com sucesso. Nosso time já recebeu a solicitação.");
             resetForm();
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Nao foi possivel abrir o ticket.");
+            setError(err instanceof Error ? err.message : "Não foi possível abrir o ticket.");
         } finally {
             setLoading(false);
         }
@@ -165,7 +165,7 @@ export function ProtectedNotificationsRail() {
                 <div className="grid gap-3">
                     <button
                         type="button"
-                        aria-label="Notificacoes"
+                        aria-label="Notificações"
                         className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:border-white/20 hover:bg-io-purple hover:text-white"
                     >
                         <BellRing className="h-5 w-5" strokeWidth={2} />
@@ -217,7 +217,7 @@ export function ProtectedNotificationsRail() {
                                 <input
                                     value={title}
                                     onChange={(event) => setTitle(event.target.value)}
-                                    placeholder="Titulo do ticket"
+                                    placeholder="Título do ticket"
                                     maxLength={220}
                                     required
                                     className="h-11 rounded-xl border border-black/12 px-3 text-sm"
@@ -237,20 +237,20 @@ export function ProtectedNotificationsRail() {
                                         Categoria
                                         <select value={category} onChange={(event) => setCategory(event.target.value)} required className="h-11 rounded-xl border border-black/12 px-3 text-sm text-io-dark">
                                             <option value="BUG">Bug</option>
-                                            <option value="QUESTION">Duvida</option>
-                                            <option value="BILLING">Cobranca</option>
-                                            <option value="INTEGRATION">Integracao</option>
-                                            <option value="FEATURE_REQUEST">Solicitacao de feature</option>
+                                            <option value="QUESTION">Dúvida</option>
+                                            <option value="BILLING">Cobrança</option>
+                                            <option value="INTEGRATION">Integração</option>
+                                            <option value="FEATURE_REQUEST">Solicitação de feature</option>
                                             <option value="OTHER">Outro</option>
                                         </select>
                                     </label>
 
                                     <label className="grid gap-1 text-xs text-black/55">
-                                        Area do bug
+                                        área do bug
                                         <input
                                             value={bugArea}
                                             onChange={(event) => setBugArea(event.target.value)}
-                                            placeholder="Ex.: Publicacoes / Financeiro"
+                                            placeholder="Ex.: Publicações / Financeiro"
                                             maxLength={120}
                                             required
                                             className="h-11 rounded-xl border border-black/12 px-3 text-sm"
@@ -261,8 +261,8 @@ export function ProtectedNotificationsRail() {
                                 <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-4">
                                     <div className="flex flex-wrap items-start justify-between gap-3">
                                         <div>
-                                            <p className="text-sm font-semibold text-io-dark">Imagem ou video do bug</p>
-                                            <p className="mt-1 text-xs text-black/55">Obrigatorio. Aceita imagem ate {formatBytes(MAX_IMAGE_BYTES)} ou video ate {formatBytes(MAX_VIDEO_BYTES)}.</p>
+                                            <p className="text-sm font-semibold text-io-dark">Imagem ou vídeo do bug</p>
+                                            <p className="mt-1 text-xs text-black/55">Obrigatório. Aceita imagem até {formatBytes(MAX_IMAGE_BYTES)} ou vídeo até {formatBytes(MAX_VIDEO_BYTES)}.</p>
                                         </div>
                                         {attachment ? (
                                             <button
@@ -291,12 +291,12 @@ export function ProtectedNotificationsRail() {
                                         <div className="mt-3 grid gap-3 rounded-2xl border border-black/10 bg-white p-3">
                                             <div className="text-xs text-black/55">
                                                 <p className="font-semibold text-io-dark">{attachment.fileName}</p>
-                                                <p className="mt-1">{attachment.kind === "video" ? "Video anexado" : "Imagem anexada"}</p>
+                                                <p className="mt-1">{attachment.kind === "video" ? "Vídeo anexado" : "Imagem anexada"}</p>
                                             </div>
                                             {attachment.kind === "video" ? (
                                                 <video src={attachment.dataUrl} controls className="max-h-72 w-full rounded-xl bg-black" />
                                             ) : (
-                                                <img src={attachment.dataUrl} alt="Evidencia do bug" className="max-h-72 w-full rounded-xl object-contain bg-black/[0.03]" />
+                                                <img src={attachment.dataUrl} alt="Evidência do bug" className="max-h-72 w-full rounded-xl object-contain bg-black/[0.03]" />
                                             )}
                                         </div>
                                     ) : null}

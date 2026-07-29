@@ -171,7 +171,7 @@ function validateForm(form: FormState) {
     if (!form.password.trim()) {
         errors.password = "Informe a senha inicial da conta.";
     } else if (form.password.length < 8) {
-        errors.password = "A senha inicial deve conter no minimo 8 caracteres.";
+        errors.password = "A senha inicial deve conter no mínimo 8 caracteres.";
     }
     if (!form.businessHoursStart) errors.businessHoursStart = "Informe o horário inicial.";
     if (!form.businessHoursEnd) errors.businessHoursEnd = "Informe o horário final.";

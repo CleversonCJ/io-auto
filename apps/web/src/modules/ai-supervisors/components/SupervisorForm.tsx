@@ -433,7 +433,7 @@ export function SupervisorForm({ supervisorId }: { supervisorId?: string }) {
                             </div>
 
                             <div>
-                                <FieldLabel label="Forma de comunicacao" required description="Tom e estilo usados quando o supervisor precisar perguntar algo ao lead." />
+                                <FieldLabel label="Forma de comunicação" required description="Tom e estilo usados quando o supervisor precisar perguntar algo ao lead." />
                                 <div className="grid gap-2">
                                     <div className="flex flex-wrap gap-2">
                                         {COMMUNICATION_STYLE_OPTIONS.map((item) => {
@@ -609,7 +609,7 @@ export function SupervisorForm({ supervisorId }: { supervisorId?: string }) {
                                     className="mt-1 h-4 w-4 rounded border-black/25 text-io-purple focus:ring-io-purple"
                                 />
                                 <span className="text-sm text-io-dark">
-                                    <span className="block font-medium">Notificar o contato quando houver troca do agente responsavel pelo atendimento</span>
+                                    <span className="block font-medium">Notificar o contato quando houver troca do agente responsável pelo atendimento</span>
                                     <span className="mt-1 block text-xs text-black/55">
                                         Exemplo: Parece que sua dúvida é com outra equipe. Estou transferindo seu atendimento agora.
                                     </span>

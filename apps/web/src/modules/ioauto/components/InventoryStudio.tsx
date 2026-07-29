@@ -1890,7 +1890,7 @@ export function InventoryStudio() {
                                         Dono/empresa: <span className="font-semibold">{saleFinancialPreview.consignedOwnerName ?? "Não informado"}</span>
                                     </p>
                                     <p className="text-sm text-amber-900">
-                                        Comissao cadastrada:{" "}
+                                        Comissão cadastrada:{" "}
                                         <span className="font-semibold">
                                             {saleFinancialPreview.configuredConsignmentCommissionPercentage != null
                                                 ? `${saleFinancialPreview.configuredConsignmentCommissionPercentage}%`
@@ -1951,13 +1951,13 @@ export function InventoryStudio() {
                                     ) : null}
 
                                     <p className="text-sm text-amber-900">
-                                        Base de calculo: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentBaseAmountCents)}</span>
+                                        Base de cálculo: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentBaseAmountCents)}</span>
                                     </p>
                                     <p className="text-sm text-amber-900">
                                         Valor da comissão: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentCommissionAmountCents)}</span>
                                     </p>
                                     <p className="text-sm text-amber-900">
-                                        Repasse estimado ao proprietario: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentOwnerTransferAmountCents)}</span>
+                                        Repasse estimado ao proprietário: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentOwnerTransferAmountCents)}</span>
                                     </p>
                                 </div>
                             ) : null}
@@ -1973,8 +1973,8 @@ export function InventoryStudio() {
                             {saleFinancialPreview.consigned ? (
                                 <>
                                     <p>Dono/empresa: <span className="font-semibold">{saleFinancialPreview.consignedOwnerName ?? "Não informado"}</span></p>
-                                    <p>Comissao da empresa: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentCommissionAmountCents)}</span></p>
-                                    <p>Repasse ao proprietario: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentOwnerTransferAmountCents)}</span></p>
+                                    <p>Comissão da empresa: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentCommissionAmountCents)}</span></p>
+                                    <p>Repasse ao proprietário: <span className="font-semibold">{formatMoney(saleFinancialPreview.consignmentOwnerTransferAmountCents)}</span></p>
                                 </>
                             ) : null}
                             <p>
@@ -2192,7 +2192,7 @@ function InventoryVehicleCard({
                     <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                         <p>Dono/empresa: <span className="font-semibold">{vehicle.consignedOwnerName ?? "Não informado"}</span></p>
                         {vehicle.consignmentCommissionPercentage != null ? (
-                            <p className="mt-1">Comissao: <span className="font-semibold">{vehicle.consignmentCommissionPercentage}%</span></p>
+                            <p className="mt-1">Comissão: <span className="font-semibold">{vehicle.consignmentCommissionPercentage}%</span></p>
                         ) : null}
                     </div>
                 ) : null}

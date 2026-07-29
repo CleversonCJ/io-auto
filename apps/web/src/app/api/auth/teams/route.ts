@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
     const body = (await req.json().catch(() => null)) as TeamBody | null;
     if (!body?.name?.trim()) {
-        return NextResponse.json({ message: "Dados invalidos" }, { status: 400 });
+        return NextResponse.json({ message: "Dados inválidos" }, { status: 400 });
     }
 
     const res = await fetch(`${apiBase}/teams`, {

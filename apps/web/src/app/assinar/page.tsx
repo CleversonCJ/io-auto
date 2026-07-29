@@ -9,16 +9,16 @@ export default function AssinarPage() {
                     <section className="rounded-[40px] bg-[#180a2d] p-8 text-white shadow-[0_30px_80px_rgba(31,4,64,0.20)]">
                         <p className="text-xs uppercase tracking-[0.28em] text-white/45">Onboarding via LP</p>
                         <h1 className="mt-5 font-display text-5xl font-bold leading-[1.04]">
-                            O cadastro inicial e ativacao agora acontecem via LP + webhook de pagamento.
+                            O cadastro inicial e ativação agora acontecem via LP + webhook de pagamento.
                         </h1>
                         <p className="mt-5 text-sm leading-8 text-white/72">
-                            Este ambiente nao cria mais checkout publico. A LP externa envia o pre-cadastro para o backend (INACTIVE) e, apos pagamento confirmado, ativa a conta e dispara o e-mail para definir senha.
+                            Este ambiente não cria mais checkout público. A LP externa envia o pre-cadastro para o backend (INACTIVE) e, após pagamento confirmado, ativa a conta e dispara o e-mail para definir senha.
                         </p>
 
                         <div className="mt-8 grid gap-3">
-                            <StepCard step="01" title="Register" body="A LP envia dados do cliente para /v1/onboarding/first-user/register e cria usuario/empresa INACTIVE." />
+                            <StepCard step="01" title="Register" body="A LP envia dados do cliente para /v1/onboarding/first-user/register e cria usuário/empresa INACTIVE." />
                             <StepCard step="02" title="Activate" body="Ao confirmar pagamento, a LP chama /v1/onboarding/first-user/activate." />
-                            <StepCard step="03" title="Send Access Email" body="Com a conta ativa, o backend gera token e envia e-mail de definicao de senha." />
+                            <StepCard step="03" title="Send Access Email" body="Com a conta ativa, o backend gera token e envia e-mail de definição de senha." />
                         </div>
                     </section>
 
@@ -32,7 +32,7 @@ export default function AssinarPage() {
                         <div className="rounded-[34px] border border-[#6b00e3]/12 bg-white p-6 shadow-[0_18px_45px_rgba(90,10,160,0.10)]">
                             <p className="text-xs uppercase tracking-[0.28em] text-[#6b00e3]/75">Seguranca</p>
                             <p className="mt-3 text-sm leading-7 text-black/58">
-                                As chamadas de onboarding devem usar Authorization Bearer com token interno e idempotencyKey unica por evento.
+                                As chamadas de onboarding devem usar Authorization Bearer com token interno e idempotencyKey única por evento.
                             </p>
                         </div>
                     </div>

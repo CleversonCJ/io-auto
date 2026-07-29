@@ -18,7 +18,7 @@ async function proxyToMercadoLivre(
             headers: body && contentType ? { "Content-Type": contentType } : undefined,
             body,
         },
-        "Falha ao processar a integracao com o Mercado Livre.",
+        "Falha ao processar a integração com o Mercado Livre.",
     );
 }
 

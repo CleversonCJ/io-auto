@@ -1,24 +1,24 @@
 import type { BillingPlanFeatures } from "@/modules/ioauto/types";
 
 export const BILLING_FEATURE_LABELS: Array<{ key: keyof BillingPlanFeatures; label: string }> = [
-    { key: "catalogBioLink", label: "Catalogo publico" },
+    { key: "catalogBioLink", label: "Catálogo público" },
     { key: "whatsappSharing", label: "WhatsApp" },
-    { key: "storefrontPage", label: "Pagina da loja" },
+    { key: "storefrontPage", label: "Página da loja" },
     { key: "webmotors", label: "Webmotors" },
     { key: "olx", label: "OLX" },
     { key: "icarros", label: "iCarros" },
     { key: "crmKanban", label: "CRM Kanban" },
-    { key: "leadManagement", label: "Gestao de leads" },
+    { key: "leadManagement", label: "Gestão de leads" },
     { key: "finance", label: "Financeiro" },
-    { key: "reports", label: "Relatorios" },
-    { key: "trackableLinks", label: "Links rastreaveis" },
+    { key: "reports", label: "Relatórios" },
+    { key: "trackableLinks", label: "Links rastreáveis" },
     { key: "multiunits", label: "Multiunidades" },
-    { key: "advancedMultiuser", label: "Multiusuario avancado" },
+    { key: "advancedMultiuser", label: "Multiusuário avancado" },
     { key: "executiveDashboard", label: "Dashboard executivo" },
-    { key: "integrationsApi", label: "API de integracoes" },
-    { key: "assistedOnboarding", label: "Implantacao assistida" },
-    { key: "prioritySupport", label: "Suporte prioritario" },
-    { key: "customizations", label: "Personalizacoes" },
+    { key: "integrationsApi", label: "API de integrações" },
+    { key: "assistedOnboarding", label: "Implantação assistida" },
+    { key: "prioritySupport", label: "Suporte prioritário" },
+    { key: "customizations", label: "Personalizações" },
 ];
 
 export function listEnabledFeatureLabels(features?: BillingPlanFeatures | null) {

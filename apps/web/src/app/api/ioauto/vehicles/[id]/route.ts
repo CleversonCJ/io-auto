@@ -7,5 +7,5 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body,
-    }, "Falha ao atualizar o veiculo.");
+    }, "Falha ao atualizar o veículo.");
 }

@@ -243,13 +243,13 @@ export function SuperAdminTenantsPage() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ tenantId: tenant.tenantId }),
                 },
-                "Falha ao iniciar a impersonacao.",
+                "Falha ao iniciar a impersonação.",
             );
-            setFeedback(`Sessao trocada para ${tenant.companyName}. Redirecionando para a conta...`);
+            setFeedback(`Sessão trocada para ${tenant.companyName}. Redirecionando para a conta...`);
             router.push("/protected");
             router.refresh();
         } catch (requestError) {
-            setFeedback(requestError instanceof Error ? requestError.message : "Falha ao iniciar a impersonacao.");
+            setFeedback(requestError instanceof Error ? requestError.message : "Falha ao iniciar a impersonação.");
         } finally {
             setBusyAction(null);
         }
@@ -367,12 +367,12 @@ export function SuperAdminTenantsPage() {
                 <article className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
                     <p className="text-xs uppercase tracking-[0.16em] text-black/45">Acesso recente</p>
                     <p className="mt-2 text-2xl font-bold text-io-dark">{summary.recentAccessRate.toFixed(2)}%</p>
-                    <p className="mt-1 text-xs text-black/55">Logins em ate 72 horas</p>
+                    <p className="mt-1 text-xs text-black/55">Logins em até 72 horas</p>
                 </article>
                 <article className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
                     <p className="text-xs uppercase tracking-[0.16em] text-black/45">Bloqueadas / canceladas</p>
                     <p className="mt-2 text-2xl font-bold text-io-dark">{toNumber(summary.blockedCount + summary.canceledCount)}</p>
-                    <p className="mt-1 text-xs text-black/55">Contas que pedem acao operacional</p>
+                    <p className="mt-1 text-xs text-black/55">Contas que pedem ação operacional</p>
                 </article>
             </section>
 
@@ -402,7 +402,7 @@ export function SuperAdminTenantsPage() {
                     </label>
                     <label className="grid gap-1 text-xs text-black/55">
                         Origem
-                        <input value={filters.origin} onChange={(event) => setFilter("origin", event.target.value)} placeholder="utm, parceria, indicacao..." className="h-10 rounded-lg border border-black/12 px-3 text-sm" />
+                        <input value={filters.origin} onChange={(event) => setFilter("origin", event.target.value)} placeholder="utm, parceria, indicação..." className="h-10 rounded-lg border border-black/12 px-3 text-sm" />
                     </label>
                 </div>
 
@@ -435,10 +435,10 @@ export function SuperAdminTenantsPage() {
                                 <th className="px-3 py-2">Plano</th>
                                 <th className="px-3 py-2">Status</th>
                                 <th className="px-3 py-2">Entrada</th>
-                                <th className="px-3 py-2">Ultimo acesso</th>
+                                <th className="px-3 py-2">último acesso</th>
                                 <th className="px-3 py-2">MRR</th>
-                                <th className="px-3 py-2">Saude</th>
-                                <th className="px-3 py-2">Acoes</th>
+                                <th className="px-3 py-2">Saúde</th>
+                                <th className="px-3 py-2">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -474,7 +474,7 @@ export function SuperAdminTenantsPage() {
                                             <td className="px-3 py-4 align-top text-sm text-black/60">{toBrDateTime(row.lastAccessAt)}</td>
                                             <td className="px-3 py-4 align-top">
                                                 <p className="text-sm font-bold text-io-dark">{toCurrency(row.mrrCents)}</p>
-                                                <p className="mt-1 text-xs text-black/45">{toNumber(row.stockCount)} veiculos | {toNumber(row.activeAdsCount)} anuncios</p>
+                                                <p className="mt-1 text-xs text-black/45">{toNumber(row.stockCount)} veículos | {toNumber(row.activeAdsCount)} anúncios</p>
                                             </td>
                                             <td className="px-3 py-4 align-top">
                                                 <p className="text-sm font-semibold text-io-dark">{toNumber(row.healthScore)}/100</p>
@@ -586,7 +586,7 @@ export function SuperAdminTenantsPage() {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
                                 <p className="text-sm font-semibold text-io-dark">Logs de {logsTenant.companyName}</p>
-                                <p className="text-xs text-black/55">Historico operacional real do tenant.</p>
+                                <p className="text-xs text-black/55">Histórico operacional real do tenant.</p>
                             </div>
                             <button type="button" onClick={closeAllOverlays} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 text-black/55">
                                 <X className="h-4 w-4" />
@@ -600,8 +600,8 @@ export function SuperAdminTenantsPage() {
                                     <thead className="text-left text-black/55">
                                         <tr>
                                             <th className="py-2">Quando</th>
-                                            <th>Acao</th>
-                                            <th>Descricao</th>
+                                            <th>Ação</th>
+                                            <th>Descrição</th>
                                             <th>Metadata</th>
                                         </tr>
                                     </thead>
@@ -634,10 +634,10 @@ export function SuperAdminTenantsPage() {
                                 <X className="h-4 w-4" />
                             </button>
                         </div>
-                        <p className="mt-4">Usuario: {resetResult.userEmail || resetResult.userId}</p>
-                        <p className="mt-2">O e-mail de redefinicao de senha foi enfileirado para envio automatico.</p>
+                        <p className="mt-4">Usuário: {resetResult.userEmail || resetResult.userId}</p>
+                        <p className="mt-2">O e-mail de redefinição de senha foi enfileirado para envio automático.</p>
                         <p className="mt-2">Expira em: {toBrDateTime(resetResult.expiresAt)}</p>
-                        <p className="mt-2 text-xs text-amber-900/80">Token tecnico gerado: {resetResult.token}</p>
+                        <p className="mt-2 text-xs text-amber-900/80">Token técnico gerado: {resetResult.token}</p>
                     </section>
                 </div>
             ) : null}
@@ -669,7 +669,7 @@ export function SuperAdminTenantsPage() {
                         <div className="mt-6 flex justify-end gap-2">
                             {actionModal.type === "block" ? (
                                 <div className="mr-auto inline-flex items-center rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-black/45">
-                                    {actionModal.tenant.status?.toUpperCase() === "BLOCKED" ? "Acao: desbloquear" : "Acao: bloquear"}
+                                    {actionModal.tenant.status?.toUpperCase() === "BLOCKED" ? "Ação: desbloquear" : "Ação: bloquear"}
                                 </div>
                             ) : null}
                             <button type="button" onClick={closeAllOverlays} className="h-10 rounded-full border border-black/10 px-4 text-sm font-semibold text-io-dark">

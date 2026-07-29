@@ -37,7 +37,7 @@ export async function POST(req: Request, { params }: Params) {
     const { id } = await params;
     const payload = await req.json().catch(() => null);
     if (!payload?.teamId && !payload?.targetUserId) {
-        return NextResponse.json({ message: "Equipe de destino obrigatoria" }, { status: 400 });
+        return NextResponse.json({ message: "Equipe de destino obrigatória" }, { status: 400 });
     }
 
     const apiBase = getServerApiBase();
@@ -52,7 +52,7 @@ export async function POST(req: Request, { params }: Params) {
 
     if (res.status === 401) {
         const newAccess = await refreshAccessToken(apiBase);
-        if (!newAccess) return NextResponse.json({ message: "Sessao expirada" }, { status: 401 });
+        if (!newAccess) return NextResponse.json({ message: "Sessão expirada" }, { status: 401 });
         access = newAccess;
         res = await fetch(`${apiBase}/atendimentos/conversations/${id}/transfer`, {
             method: "POST",

@@ -9,7 +9,7 @@ export async function POST(request: Request) {
             headers: { "Content-Type": "application/json" },
             body,
         },
-        "Falha ao gerar a previa da troca de plano.",
+        "Falha ao gerar a prévia da troca de plano.",
         { label: "ioautoBillingPlanChangePreview", request },
     );
 }

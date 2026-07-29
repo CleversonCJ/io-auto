@@ -78,11 +78,11 @@ export function OlxSetupCard({ onConnectionStateChange, onRefreshParent }: Props
             const response = await fetch("/api/integrations/olx/connect-url", { cache: "no-store" });
             const payload = (await response.json().catch(() => null)) as { url?: string; message?: string } | null;
             if (!response.ok || !payload?.url) {
-                throw new Error(payload?.message ?? "Falha ao iniciar a conexao com a OLX.");
+                throw new Error(payload?.message ?? "Falha ao iniciar a conexão com a OLX.");
             }
             window.location.assign(payload.url);
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao iniciar a conexao com a OLX.");
+            setError(cause instanceof Error ? cause.message : "Falha ao iniciar a conexão com a OLX.");
             setWorking(null);
         }
     }
@@ -105,10 +105,10 @@ export function OlxSetupCard({ onConnectionStateChange, onRefreshParent }: Props
             const response = await fetch("/api/integrations/olx/catalog/sync", { method: "POST" });
             const payload = (await response.json().catch(() => null)) as CatalogSyncSummary | { message?: string } | null;
             if (!response.ok) {
-                throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao sincronizar o catalogo da OLX.");
+                throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao sincronizar o catálogo da OLX.");
             }
             const summary = payload as CatalogSyncSummary;
-            setMessage(`Catalogo OLX sincronizado: ${summary.brands} marcas, ${summary.models} modelos e ${summary.versions} versoes.`);
+            setMessage(`Catálogo OLX sincronizado: ${summary.brands} marcas, ${summary.models} modelos e ${summary.versions} versões.`);
             onRefreshParent?.();
         });
     }
@@ -134,7 +134,7 @@ export function OlxSetupCard({ onConnectionStateChange, onRefreshParent }: Props
         try {
             await callback();
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao processar a acao.");
+            setError(cause instanceof Error ? cause.message : "Falha ao processar a ação.");
         } finally {
             setWorking(null);
         }
@@ -145,7 +145,7 @@ export function OlxSetupCard({ onConnectionStateChange, onRefreshParent }: Props
             <article className="rounded-[34px] border border-black/10 bg-white p-8 shadow-[0_22px_55px_rgba(0,0,0,0.07)]">
                 <div className="flex items-center gap-3 text-black/52">
                     <LoaderCircle className="h-5 w-5 animate-spin" />
-                    <span className="text-sm font-medium">Carregando integracao OLX...</span>
+                    <span className="text-sm font-medium">Carregando integração OLX...</span>
                 </div>
             </article>
         );
@@ -156,11 +156,11 @@ export function OlxSetupCard({ onConnectionStateChange, onRefreshParent }: Props
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                     <p className="inline-flex items-center rounded-full bg-[#fff3e8] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-[#d56700]">
-                        Integracao OLX
+                        Integração OLX
                     </p>
                     <h2 className="mt-4 font-display text-3xl font-bold text-io-dark">OLX</h2>
                     <p className="mt-3 max-w-2xl text-sm leading-6 text-black/56">
-                        Conecte a conta da loja via OAuth, sincronize o catalogo da OLX e acompanhe o saldo de anuncios sem expor credenciais no frontend.
+                        Conecte a conta da loja via OAuth, sincronize o catálogo da OLX e acompanhe o saldo de anúncios sem expor credenciais no frontend.
                     </p>
                 </div>
 
@@ -210,19 +210,19 @@ export function OlxSetupCard({ onConnectionStateChange, onRefreshParent }: Props
                 />
                 <StatCard
                     icon={<Wallet className="h-5 w-5" />}
-                    label="Saldo de anuncios"
+                    label="Saldo de anúncios"
                     value={balance?.ads?.available != null ? String(balance.ads.available) : "-"}
                     detail={balance?.available ? `Total do plano: ${balance.ads?.total ?? "-"}` : balance?.message ?? "Conecte a conta para consultar"}
                 />
                 <StatCard
                     icon={<RefreshCw className="h-5 w-5" />}
                     label="Webhook"
-                    value={webhook?.configured ? "Ativo" : "Nao configurado"}
+                    value={webhook?.configured ? "Ativo" : "Não configurado"}
                     detail={webhook?.id ?? "Sem identificador salvo"}
                 />
                 <StatCard
                     icon={<ExternalLink className="h-5 w-5" />}
-                    label="Ultima atualizacao"
+                    label="última atualização"
                     value={formatDateTime(status?.updatedAt)}
                     detail={status?.userEmail ?? status?.userName ?? "Conta sem dados do anunciante"}
                 />
@@ -240,10 +240,10 @@ export function OlxSetupCard({ onConnectionStateChange, onRefreshParent }: Props
                 </section>
 
                 <section className="rounded-[28px] border border-black/8 bg-white p-5">
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-black/35">Acoes</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-black/35">Ações</p>
                     <div className="mt-4 grid gap-3">
                         <ActionButton
-                            label="Sincronizar catalogo OLX"
+                            label="Sincronizar catálogo OLX"
                             loading={working === "catalog"}
                             onClick={() => void handleSyncCatalog()}
                             disabled={!status?.connected || working != null}

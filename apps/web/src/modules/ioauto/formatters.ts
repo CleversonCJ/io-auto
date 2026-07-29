@@ -89,14 +89,14 @@ export function statusLabel(status?: string | null) {
         CONFIRMED: "Confirmado",
         FAILED: "Falhou",
         PAYMENT_FAILED: "Falha no pagamento",
-        UNPAID: "Nao pago",
+        UNPAID: "Não pago",
         READY_TO_SYNC: "Pronto para publicar",
         WAITING_CONFIGURATION: "Aguardando integração",
         ERROR: "Com erro",
         IMPORT_PENDING: "Importando",
         QUEUED: "Na fila",
         ACCEPTED: "Aceito",
-        PENDING_REVIEW: "Em revisao",
+        PENDING_REVIEW: "Em revisão",
         REFUSED: "Recusado",
         DELETE_PENDING: "Removendo",
         DELETED: "Removido",
@@ -111,9 +111,9 @@ export function statusLabel(status?: string | null) {
         SOLD: "Vendido",
         PAUSED: "Pausado",
         CLOSED: "Finalizado",
-        UNDER_REVIEW: "Em revisao",
+        UNDER_REVIEW: "Em revisão",
         PAYMENT_REQUIRED: "Pagamento pendente",
-        NOT_YET_ACTIVE: "Ainda nao ativo",
+        NOT_YET_ACTIVE: "Ainda não ativo",
         INACTIVE: "Inativo",
     };
     return labels[normalized] ?? (normalized ? normalized.replaceAll("_", " ") : "-");
@@ -123,9 +123,9 @@ export function billingTypeLabel(value?: string | null) {
     const normalized = String(value ?? "").trim().toUpperCase();
     const labels: Record<string, string> = {
         PIX: "Pix",
-        CREDIT_CARD: "Cartao de credito",
+        CREDIT_CARD: "Cartão de crédito",
         BOLETO: "Boleto",
-        UNDEFINED: "Nao informado",
+        UNDEFINED: "Não informado",
     };
 
     return labels[normalized] ?? (normalized ? normalized.replaceAll("_", " ") : "-");

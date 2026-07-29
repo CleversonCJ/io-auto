@@ -946,7 +946,7 @@ export function AccessManagementPanel() {
         }
         if (!isUserCreateStepTwoValid()) {
             setUserCreateStep(2);
-            setUserCreateModalMsg("Selecione pelo menos uma permissao no modo Personalizado.");
+            setUserCreateModalMsg("Selecione pelo menos uma permissão no modo Personalizado.");
             return;
         }
 
@@ -989,7 +989,7 @@ export function AccessManagementPanel() {
         }
         if (!isUserEditStepTwoValid()) {
             setUserEditStep(2);
-            setUserEditModalMsg("Selecione pelo menos uma permissao no modo Personalizado.");
+            setUserEditModalMsg("Selecione pelo menos uma permissão no modo Personalizado.");
             return;
         }
 
@@ -1025,7 +1025,7 @@ export function AccessManagementPanel() {
         const data = await res.json().catch(() => ({ message: "Falha ao excluir colaborador" }));
         if (!res.ok) { pushToast(data.message ?? "Falha ao excluir colaborador", "error"); setSubmitting(false); return; }
         await loadUsers();
-        pushToast("Colaborador excluido com sucesso.", "success");
+        pushToast("Colaborador excluído com sucesso.", "success");
         closeModal();
     }
 
@@ -1087,7 +1087,7 @@ export function AccessManagementPanel() {
         }
         await loadTeams();
         await loadUsers();
-        pushToast("Equipe excluida com sucesso.", "success");
+        pushToast("Equipe excluída com sucesso.", "success");
         closeModal();
     }
 
@@ -1186,7 +1186,7 @@ export function AccessManagementPanel() {
     }
 
     if (loading) return <section className="rounded-2xl border border-black/10 bg-white p-6 shadow-soft">Carregando...</section>;
-    if (!canManageUsers) return <section className="rounded-2xl border border-black/10 bg-white p-6 shadow-soft">Sem permissao.</section>;
+    if (!canManageUsers) return <section className="rounded-2xl border border-black/10 bg-white p-6 shadow-soft">Sem permissão.</section>;
 
     return (
         <section className="rounded-2xl border border-black/10 bg-white p-6 shadow-soft">
@@ -1585,7 +1585,7 @@ export function AccessManagementPanel() {
                                 </div>
                                 <div className={`h-8 w-8 rounded-full text-center text-sm leading-8 ${userCreateStep === 2 ? "bg-io-purple text-white" : "bg-black/10 text-black/60"}`}>2</div>
                             </div>
-                            <p className="text-xs text-black/60">{userCreateStep === 1 ? "Etapa 1: Dados do colaborador" : "Etapa 2: Permissoes"}</p>
+                            <p className="text-xs text-black/60">{userCreateStep === 1 ? "Etapa 1: Dados do colaborador" : "Etapa 2: Permissões"}</p>
                         </div>
 
                         {userCreateStep === 1 && (
@@ -1678,7 +1678,7 @@ export function AccessManagementPanel() {
                                     }}
                                     className="h-10 flex-1 rounded-xl bg-io-purple px-4 text-sm font-semibold text-white"
                                 >
-                                    Proxima etapa
+                                    Próxima etapa
                                 </button>
                             ) : (
                                 <button type="button" onClick={() => submitUserCreate()} disabled={submitting} className="h-10 flex-1 rounded-xl bg-io-purple px-4 text-sm font-semibold text-white">
@@ -1701,7 +1701,7 @@ export function AccessManagementPanel() {
                                 </div>
                                 <div className={`h-8 w-8 rounded-full text-center text-sm leading-8 ${userEditStep === 2 ? "bg-io-purple text-white" : "bg-black/10 text-black/60"}`}>2</div>
                             </div>
-                            <p className="text-xs text-black/60">{userEditStep === 1 ? "Etapa 1: Dados do colaborador" : "Etapa 2: Permissoes"}</p>
+                            <p className="text-xs text-black/60">{userEditStep === 1 ? "Etapa 1: Dados do colaborador" : "Etapa 2: Permissões"}</p>
                         </div>
 
                         {userEditStep === 1 && (
@@ -1794,7 +1794,7 @@ export function AccessManagementPanel() {
                                     }}
                                     className="h-10 flex-1 rounded-xl bg-io-purple px-4 text-sm font-semibold text-white"
                                 >
-                                    Proxima etapa
+                                    Próxima etapa
                                 </button>
                             ) : (
                                 <button type="button" onClick={() => submitUserEdit(modal.item.id)} disabled={submitting} className="h-10 flex-1 rounded-xl bg-io-purple px-4 text-sm font-semibold text-white">
@@ -1863,7 +1863,7 @@ export function AccessManagementPanel() {
             {modal.type === "delete-team" && (
                 <ModalWrap title="Excluir equipe" onClose={closeModal}>
                     <p className="text-sm">Excluir a equipe {modal.item.name}?</p>
-                    <p className="mt-1 text-xs text-black/60">A exclusao so sera permitida quando nao houver colaboradores nem atendimentos vinculados.</p>
+                    <p className="mt-1 text-xs text-black/60">A exclusão só será permitida quando não houver colaboradores nem atendimentos vinculados.</p>
                     <div className="mt-3 flex gap-2">
                         <button type="button" onClick={closeModal} className="rounded-xl border px-3 py-2 text-sm">Cancelar</button>
                         <button type="button" onClick={() => removeTeam(modal.item.id)} disabled={submitting} className="rounded-xl bg-red-600 px-3 py-2 text-sm font-semibold text-white">
@@ -1883,7 +1883,7 @@ export function AccessManagementPanel() {
                                 <div className={`h-8 w-8 rounded-full text-center text-sm leading-8 ${companyCreateStep === 2 ? "bg-io-purple2 text-white" : "bg-black/10 text-black/60"}`}>2</div>
                                 
                             </div>
-                            <p className="text-xs text-black/60">{companyCreateStep === 1 ? "Etapa 1: Dados da empresa" : "Etapa 2: Hor?rio de atendimento"}</p>
+                            <p className="text-xs text-black/60">{companyCreateStep === 1 ? "Etapa 1: Dados da empresa" : "Etapa 2: Horário de atendimento"}</p>
                         </div>
 
                         {companyCreateStep === 1 && (
@@ -1947,7 +1947,7 @@ export function AccessManagementPanel() {
                                         </tbody>
                                     </table>
                                 </div>
-                                <p className="text-xs text-black/60">Para dias ativos: inicio &lt; inicio almoco &lt; final almoco &lt; fim.</p>
+                                <p className="text-xs text-black/60">Para dias ativos: início &lt; início almoço &lt; final almoço &lt; fim.</p>
                             </div>
                         )}
 
@@ -1979,7 +1979,7 @@ export function AccessManagementPanel() {
                                     }}
                                     className="h-10 flex-1 rounded-xl bg-io-purple2 px-4 text-sm font-semibold text-white"
                                 >
-                                    Proxima etapa
+                                    Próxima etapa
                                 </button>
                             ) : (
                                 <button type="button" onClick={submitCompanyCreate} disabled={submitting} className="h-10 flex-1 rounded-xl bg-io-purple2 px-4 text-sm font-semibold text-white">
@@ -2001,7 +2001,7 @@ export function AccessManagementPanel() {
                                 <div className={`h-8 w-8 rounded-full text-center text-sm leading-8 ${companyEditStep === 2 ? "bg-io-purple2 text-white" : "bg-black/10 text-black/60"}`}>2</div>
                                 
                             </div>
-                            <p className="text-xs text-black/60">{companyEditStep === 1 ? "Etapa 1: Dados da empresa" : "Etapa 2: Hor?rio de atendimento"}</p>
+                            <p className="text-xs text-black/60">{companyEditStep === 1 ? "Etapa 1: Dados da empresa" : "Etapa 2: Horário de atendimento"}</p>
                         </div>
 
                         {companyEditStep === 1 && (
@@ -2065,7 +2065,7 @@ export function AccessManagementPanel() {
                                         </tbody>
                                     </table>
                                 </div>
-                                <p className="text-xs text-black/60">Para dias ativos: inicio &lt; inicio almoco &lt; final almoco &lt; fim.</p>
+                                <p className="text-xs text-black/60">Para dias ativos: início &lt; início almoço &lt; final almoço &lt; fim.</p>
                             </div>
                         )}
 
@@ -2097,7 +2097,7 @@ export function AccessManagementPanel() {
                                     }}
                                     className="h-10 flex-1 rounded-xl bg-io-purple2 px-4 text-sm font-semibold text-white"
                                 >
-                                    Proxima etapa
+                                    Próxima etapa
                                 </button>
                             ) : (
                                 <button type="button" onClick={() => submitCompanyEdit(modal.item.id)} disabled={submitting} className="h-10 flex-1 rounded-xl bg-io-purple2 px-4 text-sm font-semibold text-white">

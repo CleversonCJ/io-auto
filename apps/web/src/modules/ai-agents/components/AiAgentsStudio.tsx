@@ -241,9 +241,9 @@ function formatMultiline(value: string[]) {
 
 function getTemperatureHint(value: number) {
     if (Math.abs(value - 1) < 0.001) return "Equilibrio entre criatividade e treinamento.";
-    if (value < 1) return "Mais restrito: respostas mais previsiveis e consistentes.";
-    if (value <= 1.3) return "Mais criativo: variacao controlada de respostas.";
-    return "Alta criatividade, com maior variacao de respostas.";
+    if (value < 1) return "Mais restrito: respostas mais previsíveis e consistentes.";
+    if (value <= 1.3) return "Mais criativo: variação controlada de respostas.";
+    return "Alta criatividade, com maior variação de respostas.";
 }
 
 function normalizeUploadStatus(status: string): KnowledgeAsset["processingStatus"] {
@@ -948,7 +948,7 @@ export function AiAgentsStudio() {
                                 <span className="text-xs">/api/integrations/google/oauth/callback</span>
                             </p>
                             <p className="text-xs text-black/55">
-                                Configure esse caminho no Google Cloud Console dentro de Authorized redirect URIs, usando o dominio do frontend.
+                                Configure esse caminho no Google Cloud Console dentro de Authorized redirect URIs, usando o domínio do frontend.
                             </p>
                         </div>
                     </section>
@@ -1084,7 +1084,7 @@ export function AiAgentsStudio() {
                                         <input
                                             value={selectedAgent.communicationStyle}
                                             onChange={(e) => upsertAgent({ communicationStyle: e.target.value })}
-                                            placeholder="Digite a forma de comunicacao personalizada"
+                                            placeholder="Digite a forma de comunicação personalizada"
                                             className="h-10 rounded-xl border px-3 text-sm"
                                         />
                                     )}
@@ -1454,7 +1454,7 @@ export function AiAgentsStudio() {
                             <div>
                                 <p className="text-lg font-semibold text-io-dark">Configurar habilidade: Atualizar dados do contato no CRM</p>
                                 <p className="text-sm text-black/60">
-                                    Selecione quais campos do card o agente deve preencher ate o fim da conversa.
+                                    Selecione quais campos do card o agente deve preencher até o fim da conversa.
                                 </p>
                             </div>
                             <button

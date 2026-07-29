@@ -19,7 +19,7 @@ export async function PUT(req: Request) {
 
     const body = (await req.json().catch(() => null)) as UpdateProfileImageBody | null;
     if (!body?.profileImageUrl) {
-        return NextResponse.json({ message: "Imagem de perfil invalida." }, { status: 400 });
+        return NextResponse.json({ message: "Imagem de perfil inválida." }, { status: 400 });
     }
 
     const response = await fetch(`${apiBase}/users/me/profile-image`, {

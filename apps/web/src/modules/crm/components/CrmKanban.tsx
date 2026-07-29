@@ -82,7 +82,7 @@ type ConfigFieldDraft = {
 const FIELD_TYPE_OPTIONS: Array<{ value: CrmCustomFieldType; label: string }> = [
     { value: "text", label: "Texto curto" },
     { value: "textarea", label: "Texto longo" },
-    { value: "number", label: "Numero" },
+    { value: "number", label: "Número" },
     { value: "date", label: "Data" },
 ];
 const CURRENCY_FORMATTER = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -126,7 +126,7 @@ function parseCurrencyAmount(value?: string | null) {
 
     const sanitized = input
         .replace(/\s/g, "")
-        .replace(/^R\$\s?/i, "")
+        .replace(/^R\$\só/i, "")
         .replace(/[^\d,.-]/g, "");
     if (!sanitized) return 0;
 
@@ -1395,7 +1395,7 @@ export function CrmKanban() {
                                             className={`h-10 w-full rounded-xl border border-black/15 px-3 text-sm ${field.customId === CRM_VALUE_FIELD_ID ? "bg-black/5 text-black/55" : ""}`}
                                         />
                                         {field.customId === CRM_VALUE_FIELD_ID && (
-                                            <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">Padrao</span>
+                                            <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">Padrão</span>
                                         )}
                                     </div>
                                     <button

@@ -27,15 +27,15 @@ function resolveLoginErrorMessage(code?: string | null, fallback?: string | null
         return "E-mail ou senha incorretos. Confira os dados e tente novamente.";
     }
     if (code === "AUTH_INACTIVE") {
-        return "Seu acesso esta inativo no momento. Entre em contato com o administrador da empresa.";
+        return "Seu acesso está inativo no momento. Entre em contato com o administrador da empresa.";
     }
     if (code === "TENANT_BLOCKED") {
-        return "A conta da sua empresa esta bloqueada no momento. Fale com o suporte para regularizar o acesso.";
+        return "A conta da sua empresa está bloqueada no momento. Fale com o suporte para regularizar o acesso.";
     }
     if (code === "VALIDATION_ERROR") {
         return fallback || "Revise os dados informados e tente novamente.";
     }
-    return fallback || "Nao foi possivel concluir o login no momento.";
+    return fallback || "Não foi possível concluir o login no momento.";
 }
 
 export function LoginForm({ embedded = false }: LoginFormProps) {

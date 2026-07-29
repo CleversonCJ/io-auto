@@ -186,8 +186,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         });
 
         if (!response.ok) {
-            const result = await response.json().catch(() => ({ message: "Nao foi possivel salvar o lancamento." }));
-            throw new Error(result.message ?? "Nao foi possivel salvar o lancamento.");
+            const result = await response.json().catch(() => ({ message: "Não foi possível salvar o lançamento." }));
+            throw new Error(result.message ?? "Não foi possível salvar o lançamento.");
         }
 
         refreshData();
@@ -199,8 +199,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         });
 
         if (!response.ok) {
-            const result = await response.json().catch(() => ({ message: "Nao foi possivel excluir o lancamento." }));
-            throw new Error(result.message ?? "Nao foi possivel excluir o lancamento.");
+            const result = await response.json().catch(() => ({ message: "Não foi possível excluir o lançamento." }));
+            throw new Error(result.message ?? "Não foi possível excluir o lançamento.");
         }
 
         refreshData();
@@ -214,8 +214,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         });
 
         if (!response.ok) {
-            const result = await response.json().catch(() => ({ message: "Nao foi possivel salvar a subcategoria do DRE." }));
-            throw new Error(result.message ?? "Nao foi possivel salvar a subcategoria do DRE.");
+            const result = await response.json().catch(() => ({ message: "Não foi possível salvar a subcategoria do DRE." }));
+            throw new Error(result.message ?? "Não foi possível salvar a subcategoria do DRE.");
         }
 
         refreshData();
@@ -227,8 +227,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         });
 
         if (!response.ok) {
-            const result = await response.json().catch(() => ({ message: "Nao foi possivel excluir a subcategoria do DRE." }));
-            throw new Error(result.message ?? "Nao foi possivel excluir a subcategoria do DRE.");
+            const result = await response.json().catch(() => ({ message: "Não foi possível excluir a subcategoria do DRE." }));
+            throw new Error(result.message ?? "Não foi possível excluir a subcategoria do DRE.");
         }
 
         refreshData();

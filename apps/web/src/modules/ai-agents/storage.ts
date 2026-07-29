@@ -436,7 +436,7 @@ export function buildMegaPrompt(agent: AiAgent, provider: AiProvider | null, kno
     lines.push(`Temperatura (treinamento/criatividade): ${agent.temperature}`);
     lines.push(`Limite de tokens por mensagem: ${agent.maxTokensPerMessage}`);
     lines.push(`Delay para agrupar mensagens do contato (segundos): ${agent.delayMessageSeconds}`);
-    lines.push(`Tempo de digitacao antes de enviar (segundos): ${agent.delayTypingSeconds}`);
+    lines.push(`Tempo de digitação antes de enviar (segundos): ${agent.delayTypingSeconds}`);
 
     lines.push("\n# HABILIDADES");
     if (agent.skills.length === 0) {

@@ -79,9 +79,9 @@ async function refreshAccessToken(apiBase: string): Promise<RefreshAccessResult>
 
 function refreshFailureResponse(result: Exclude<RefreshAccessResult, { status: "refreshed" }>) {
     if (result.status === "unavailable") {
-        return NextResponse.json({ message: "Servidor de autenticacao indisponivel no momento." }, { status: 503 });
+        return NextResponse.json({ message: "Servidor de autenticação indisponível no momento." }, { status: 503 });
     }
-    return NextResponse.json({ message: "Sessao expirada" }, { status: 401 });
+    return NextResponse.json({ message: "Sessão expirada" }, { status: 401 });
 }
 
 export async function fetchAuthedUpstream(path: string, init: RequestInit = {}, context?: DebugContext) {
@@ -135,7 +135,7 @@ export async function fetchAuthedUpstream(path: string, init: RequestInit = {}, 
 export async function jsonFromAuthedUpstream(
     path: string,
     init: RequestInit = {},
-    fallbackMessage = "Falha ao processar a requisicao.",
+    fallbackMessage = "Falha ao processar a requisição.",
     context?: DebugContext,
 ) {
     const result = await fetchAuthedUpstream(path, init, context);
@@ -155,7 +155,7 @@ export async function jsonFromAuthedUpstream(
     return NextResponse.json(payload);
 }
 
-export async function jsonFromPublicUpstream(path: string, init: RequestInit = {}, fallbackMessage = "Falha ao processar a requisicao.") {
+export async function jsonFromPublicUpstream(path: string, init: RequestInit = {}, fallbackMessage = "Falha ao processar a requisição.") {
     const apiBase = getServerApiBase();
     const upstream = await fetchUpstream(`${apiBase}${path}`, {
         ...init,

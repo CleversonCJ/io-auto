@@ -86,24 +86,24 @@ const FEATURE_GROUPS: Array<{
     label: string;
     description: string;
 }> = [
-    { key: "catalogBioLink", label: "Catalogo com link na bio", description: "Permite usar o catalogo publico da loja." },
+    { key: "catalogBioLink", label: "Catálogo com link na bio", description: "Permite usar o catálogo público da loja." },
     { key: "whatsappSharing", label: "Compartilhar no WhatsApp", description: "Libera o compartilhamento do estoque por WhatsApp." },
-    { key: "storefrontPage", label: "Pagina da loja", description: "Libera a pagina personalizada da revenda." },
-    { key: "webmotors", label: "Integracao Webmotors", description: "Permite configurar e publicar na Webmotors." },
-    { key: "olx", label: "Integracao OLX", description: "Permite configurar e publicar na OLX." },
-    { key: "icarros", label: "Integracao iCarros", description: "Permite configurar publicacoes do iCarros." },
+    { key: "storefrontPage", label: "Página da loja", description: "Libera a página personalizada da revenda." },
+    { key: "webmotors", label: "Integração Webmotors", description: "Permite configurar e publicar na Webmotors." },
+    { key: "olx", label: "Integração OLX", description: "Permite configurar e publicar na OLX." },
+    { key: "icarros", label: "Integração iCarros", description: "Permite configurar publicações do iCarros." },
     { key: "crmKanban", label: "CRM Kanban", description: "Libera a estrutura completa do CRM." },
-    { key: "leadManagement", label: "Gestao de leads", description: "Libera listagem e operacao dos leads do catalogo." },
-    { key: "finance", label: "Financeiro", description: "Libera contas, DRE e operacao financeira." },
-    { key: "reports", label: "Relatorios", description: "Libera os relatorios operacionais." },
-    { key: "trackableLinks", label: "Links rastreaveis", description: "Libera links de influencer e rastreamento." },
+    { key: "leadManagement", label: "Gestão de leads", description: "Libera listagem e operação dos leads do catálogo." },
+    { key: "finance", label: "Financeiro", description: "Libera contas, DRE e operação financeira." },
+    { key: "reports", label: "Relatórios", description: "Libera os relatórios operacionais." },
+    { key: "trackableLinks", label: "Links rastreáveis", description: "Libera links de influencer e rastreamento." },
     { key: "multiunits", label: "Multiunidades", description: "Marca o plano como apto para multiunidades." },
-    { key: "advancedMultiuser", label: "Multiusuario avancado", description: "Habilita configuracoes avancadas de usuarios." },
+    { key: "advancedMultiuser", label: "Multiusuário avancado", description: "Habilita configurações avancadas de usuários." },
     { key: "executiveDashboard", label: "Dashboard executivo", description: "Libera os paines executivos da conta." },
-    { key: "integrationsApi", label: "API de integracoes", description: "Libera integrações por API." },
-    { key: "assistedOnboarding", label: "Implantacao assistida", description: "Marca o plano com onboarding assistido." },
-    { key: "prioritySupport", label: "Suporte prioritario", description: "Marca o plano com suporte prioritario." },
-    { key: "customizations", label: "Personalizacoes", description: "Marca o plano como apto a customizacoes." },
+    { key: "integrationsApi", label: "API de integrações", description: "Libera integrações por API." },
+    { key: "assistedOnboarding", label: "Implantação assistida", description: "Marca o plano com onboarding assistido." },
+    { key: "prioritySupport", label: "Suporte prioritário", description: "Marca o plano com suporte prioritário." },
+    { key: "customizations", label: "Personalizações", description: "Marca o plano como apto a customizações." },
 ];
 
 const EMPTY_FEATURES: PlanFeatures = {
@@ -166,7 +166,7 @@ function toNumber(value?: number | null) {
 
 function toLimit(value: number | null | undefined, suffix: string) {
     if (value == null || value <= 0) return `Sem limite de ${suffix}`;
-    return `Ate ${toNumber(value)} ${suffix}`;
+    return `Até ${toNumber(value)} ${suffix}`;
 }
 
 function formatCurrencyInput(raw: string) {
@@ -398,7 +398,7 @@ export function SuperAdminPlansPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 className="text-2xl font-bold text-io-dark">Planos</h2>
-                    <p className="mt-1 text-sm text-black/55">Listagem enxuta com nome, precos, limites, recursos e empresas vinculadas.</p>
+                    <p className="mt-1 text-sm text-black/55">Listagem enxuta com nome, preços, limites, recursos e empresas vinculadas.</p>
                 </div>
                 <button
                     type="button"
@@ -419,11 +419,11 @@ export function SuperAdminPlansPage() {
                         <thead>
                             <tr className="text-left text-xs uppercase tracking-[0.18em] text-black/40">
                                 <th className="px-3 py-2">Plano</th>
-                                <th className="px-3 py-2">Precos</th>
+                                <th className="px-3 py-2">Preços</th>
                                 <th className="px-3 py-2">Limites</th>
                                 <th className="px-3 py-2">Recursos</th>
                                 <th className="px-3 py-2">Empresas</th>
-                                <th className="px-3 py-2">Acoes</th>
+                                <th className="px-3 py-2">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -450,7 +450,7 @@ export function SuperAdminPlansPage() {
                                                     {!plan.active ? <span className="rounded-full bg-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700">Inativo</span> : null}
                                                 </div>
                                                 <p className="mt-1 text-xs text-black/45">Chave: {plan.planKey}</p>
-                                                <p className="mt-2 max-w-[320px] text-sm text-black/55">{plan.description || "Sem descricao comercial."}</p>
+                                                <p className="mt-2 max-w-[320px] text-sm text-black/55">{plan.description || "Sem descrição comercial."}</p>
                                                 {checkoutUrl ? (
                                                     <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-xs text-emerald-800">
                                                         <p className="font-semibold uppercase tracking-[0.16em] text-emerald-700">Checkout salvo</p>
@@ -458,7 +458,7 @@ export function SuperAdminPlansPage() {
                                                             {checkoutUrl}
                                                         </a>
                                                         <p className="mt-2 text-emerald-700/80">
-                                                            {toBrDateTime(plan.checkoutExpiresAt) ? `Expira em ${toBrDateTime(plan.checkoutExpiresAt)}` : "Sem expiracao informada"}
+                                                            {toBrDateTime(plan.checkoutExpiresAt) ? `Expira em ${toBrDateTime(plan.checkoutExpiresAt)}` : "Sem expiração informada"}
                                                         </p>
                                                     </div>
                                                 ) : null}
@@ -468,9 +468,9 @@ export function SuperAdminPlansPage() {
                                                 <p className="mt-1 text-sm font-semibold text-io-dark">Anual: {toCurrency(plan.annualPriceCents)}</p>
                                             </td>
                                             <td className="px-3 py-4 align-top text-sm text-black/60">
-                                                <p>{toLimit(plan.usersLimit, "usuarios")}</p>
-                                                <p className="mt-1">{toLimit(plan.vehiclesLimit, "veiculos")}</p>
-                                                <p className="mt-1">{toLimit(plan.activeAdsLimit, "anuncios")}</p>
+                                                <p>{toLimit(plan.usersLimit, "usuários")}</p>
+                                                <p className="mt-1">{toLimit(plan.vehiclesLimit, "veículos")}</p>
+                                                <p className="mt-1">{toLimit(plan.activeAdsLimit, "anúncios")}</p>
                                             </td>
                                             <td className="px-3 py-4 align-top">
                                                 <p className="text-sm font-semibold text-io-dark">{toNumber(activeFeatureCount)} recursos ativos</p>
@@ -531,7 +531,7 @@ export function SuperAdminPlansPage() {
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <p className="text-sm font-semibold text-io-dark">{form.planId ? "Editar plano" : "Criar novo plano"}</p>
-                                <p className="text-xs text-black/55">Defina precos, limites e recursos que serao aplicados no backend.</p>
+                                <p className="text-xs text-black/55">Defina preços, limites e recursos que serão aplicados no backend.</p>
                             </div>
                             <button type="button" onClick={closeModal} className="text-sm font-semibold text-black/55">
                                 Fechar
@@ -550,7 +550,7 @@ export function SuperAdminPlansPage() {
                                 {formErrors.planName ? <span className="text-xs text-red-700">{formErrors.planName}</span> : null}
                             </label>
                             <label className="grid gap-1 text-xs text-black/55">
-                                Chave tecnica
+                                Chave técnica
                                 <input
                                     value={form.planKey}
                                     onChange={(event) => setForm((current) => ({ ...current, planKey: event.target.value }))}
@@ -560,7 +560,7 @@ export function SuperAdminPlansPage() {
                                 {formErrors.planKey ? <span className="text-xs text-red-700">{formErrors.planKey}</span> : null}
                             </label>
                             <label className="grid gap-1 text-xs text-black/55 md:col-span-2">
-                                Descricao
+                                Descrição
                                 <textarea
                                     value={form.description}
                                     onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
@@ -588,7 +588,7 @@ export function SuperAdminPlansPage() {
                                 {formErrors.annualPrice ? <span className="text-xs text-red-700">{formErrors.annualPrice}</span> : null}
                             </label>
                             <label className="grid gap-1 text-xs text-black/55">
-                                Limite de usuarios
+                                Limite de usuários
                                 <input
                                     value={form.usersLimit}
                                     onChange={(event) => setForm((current) => ({ ...current, usersLimit: event.target.value }))}
@@ -600,7 +600,7 @@ export function SuperAdminPlansPage() {
                                 {formErrors.usersLimit ? <span className="text-xs text-red-700">{formErrors.usersLimit}</span> : null}
                             </label>
                             <label className="grid gap-1 text-xs text-black/55">
-                                Limite de veiculos ativos
+                                Limite de veículos ativos
                                 <input
                                     value={form.vehiclesLimit}
                                     onChange={(event) => setForm((current) => ({ ...current, vehiclesLimit: event.target.value }))}
@@ -612,7 +612,7 @@ export function SuperAdminPlansPage() {
                                 {formErrors.vehiclesLimit ? <span className="text-xs text-red-700">{formErrors.vehiclesLimit}</span> : null}
                             </label>
                             <label className="grid gap-1 text-xs text-black/55">
-                                Limite de anuncios ativos
+                                Limite de anúncios ativos
                                 <input
                                     value={form.activeAdsLimit}
                                     onChange={(event) => setForm((current) => ({ ...current, activeAdsLimit: event.target.value }))}

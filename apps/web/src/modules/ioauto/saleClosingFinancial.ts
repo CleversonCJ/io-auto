@@ -135,22 +135,22 @@ export function validateSaleClosingFinancialState(
     preview: SaleClosingFinancialPreview
 ): string | null {
     if (preview.discountPercentage < 0) {
-        return "O percentual de desconto nao pode ser negativo.";
+        return "O percentual de desconto não pode ser negativo.";
     }
     if (preview.discountPercentage > 100) {
-        return "O percentual de desconto nao pode ser maior que 100%.";
+        return "O percentual de desconto não pode ser maior que 100%.";
     }
     if (preview.originalAmountCents <= 0) {
-        return "Informe o valor do veiculo antes de fechar a venda.";
+        return "Informe o valor do veículo antes de fechar a venda.";
     }
     if (state.hasTradeInVehicle && !state.tradeInVehicleDescription.trim()) {
-        return "Informe o veiculo recebido na troca.";
+        return "Informe o veículo recebido na troca.";
     }
     if (state.hasTradeInVehicle && preview.tradeInAmountCents <= 0) {
-        return "Informe o valor do veiculo recebido na troca.";
+        return "Informe o valor do veículo recebido na troca.";
     }
     if (state.hasTradeInVehicle && preview.tradeInAmountCents > preview.amountAfterDiscountCents) {
-        return "O valor do veiculo dado em troca nao pode ser maior que o valor da venda.";
+        return "O valor do veículo dado em troca não pode ser maior que o valor da venda.";
     }
     if (state.installmentSale && !state.installmentCount.trim()) {
         return "Informe a quantidade de parcelas.";
@@ -161,29 +161,29 @@ export function validateSaleClosingFinancialState(
 
     if (preview.consigned) {
         if (!preview.consignedOwnerName) {
-            return "Informe o dono/empresa do veiculo consignado.";
+            return "Informe o dono/empresa do veículo consignado.";
         }
 
         if (!preview.consignmentCommissionType) {
-            return "Selecione como a comissao da consignacao sera definida.";
+            return "Selecione como a comissão da consignação será definida.";
         }
 
         if (preview.consignmentCommissionType === "PERCENTUAL") {
             const percentage = preview.consignmentCommissionPercentage ?? 0;
             if (percentage <= 0) {
-                return "Informe um percentual de comissao maior que 0 para a venda consignada.";
+                return "Informe um percentual de comissão maior que 0 para a venda consignada.";
             }
             if (percentage > 100) {
-                return "O percentual de comissao da consignacao nao pode ser maior que 100%.";
+                return "O percentual de comissão da consignação não pode ser maior que 100%.";
             }
         }
 
         if (preview.consignmentCommissionType === "VALOR_FIXO") {
             if (preview.consignmentCommissionAmountCents <= 0) {
-                return "Informe um valor de comissao maior que 0 para a venda consignada.";
+                return "Informe um valor de comissão maior que 0 para a venda consignada.";
             }
             if (preview.consignmentCommissionAmountCents > preview.amountAfterDiscountCents) {
-                return "O valor da comissao da consignacao nao pode ser maior que o valor final com desconto.";
+                return "O valor da comissão da consignação não pode ser maior que o valor final com desconto.";
             }
         }
     }

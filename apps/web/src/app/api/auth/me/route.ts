@@ -84,7 +84,7 @@ export async function GET(request: Request) {
             console.error("[auth/me] io_access cookie is MISSING! Attempting to refresh using refresh token...");
             const refreshOutcome = await refreshAccessToken(apiBase);
             if (refreshOutcome.status === "unavailable") {
-                return NextResponse.json({ message: "Servidor de autenticacao indisponivel no momento." }, { status: 503 });
+                return NextResponse.json({ message: "Servidor de autenticação indisponível no momento." }, { status: 503 });
             }
             token = refreshOutcome.accessToken;
             refreshed = refreshOutcome.status === "refreshed";
@@ -93,7 +93,7 @@ export async function GET(request: Request) {
         if (!token) {
             await logAuthState("missing-access-and-refresh-after-refresh-attempt", request);
             console.error("[auth/me] Both access and refresh failed/missing. Returning 401.");
-            return NextResponse.json({ message: "Sessao expirada" }, { status: 401 });
+            return NextResponse.json({ message: "Sessão expirada" }, { status: 401 });
         }
 
         const requestMe = (accessToken: string) =>
@@ -114,8 +114,8 @@ export async function GET(request: Request) {
                 return NextResponse.json(
                     {
                         message: refreshOutcome.status === "unavailable"
-                            ? "Servidor de autenticacao indisponivel no momento."
-                            : "Sessao expirada",
+                            ? "Servidor de autenticação indisponível no momento."
+                            : "Sessão expirada",
                     },
                     { status: refreshOutcome.status === "unavailable" ? 503 : 401 },
                 );
@@ -130,11 +130,11 @@ export async function GET(request: Request) {
 
         if (res.status === 401) {
             await clearAuthCookies();
-            return NextResponse.json({ message: "Sessao expirada" }, { status: 401 });
+            return NextResponse.json({ message: "Sessão expirada" }, { status: 401 });
         }
 
         if (!res.ok) {
-            return NextResponse.json({ message: data?.message ?? "Falha ao obter usuario" }, { status: res.status });
+            return NextResponse.json({ message: data?.message ?? "Falha ao obter usuário" }, { status: res.status });
         }
 
         const response = NextResponse.json(data);
@@ -144,6 +144,6 @@ export async function GET(request: Request) {
         return response;
     } catch (error) {
         console.error("[auth/me] Unable to reach authentication backend.", error);
-        return NextResponse.json({ message: "Servidor de autenticacao indisponivel no momento." }, { status: 503 });
+        return NextResponse.json({ message: "Servidor de autenticação indisponível no momento." }, { status: 503 });
     }
 }

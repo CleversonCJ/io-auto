@@ -8,6 +8,6 @@ export async function GET(
     return jsonFromAuthedUpstream(
         `/api/integrations/olx/catalog/brands/${brandId}/models/${modelId}/versions`,
         {},
-        "Falha ao carregar as versoes OLX."
+        "Falha ao carregar as versões OLX."
     );
 }

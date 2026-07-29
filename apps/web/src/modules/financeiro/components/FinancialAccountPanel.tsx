@@ -24,7 +24,7 @@ function formatVehicleSaleNotes(notes: string): string {
         { sourceLabel: "Valor original", targetLabel: "Valor original" },
         { sourceLabel: "Desconto", targetLabel: "Desconto" },
         { sourceLabel: "Desconto (cents)", targetLabel: "Desconto" },
-        { sourceLabel: "Valor apos desconto", targetLabel: "Valor apos desconto" },
+        { sourceLabel: "Valor após desconto", targetLabel: "Valor após desconto" },
         { sourceLabel: "Troca", targetLabel: "Troca" },
         { sourceLabel: "Troca (cents)", targetLabel: "Troca" },
         { sourceLabel: "Total real", targetLabel: "Total real" },
@@ -88,7 +88,7 @@ export function FinancialAccountPanel({
             <div className="mt-6 grid gap-3">
                 {loading ? (
                     <div className="rounded-[24px] border border-dashed border-black/10 px-5 py-10 text-center text-sm text-black/45">
-                        Carregando lancamentos...
+                        Carregando lançamentos...
                     </div>
                 ) : entries.length ? (
                     entries.map((entry) => {
@@ -160,7 +160,7 @@ export function FinancialAccountPanel({
                                                 onClick={() => onEdit(entry)}
                                                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-black/60 transition hover:border-black/20 hover:text-black"
                                                 aria-label={`Editar ${entry.description}`}
-                                                title="Editar lancamento"
+                                                title="Editar lançamento"
                                             >
                                                 <PencilLine className="h-4 w-4" />
                                             </button>
@@ -172,7 +172,7 @@ export function FinancialAccountPanel({
                     })
                 ) : (
                     <div className="rounded-[24px] border border-dashed border-black/10 px-5 py-10 text-center text-sm text-black/45">
-                        Nenhum lancamento encontrado.
+                        Nenhum lançamento encontrado.
                     </div>
                 )}
             </div>

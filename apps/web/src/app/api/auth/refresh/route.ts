@@ -25,17 +25,17 @@ export async function POST() {
             if ([400, 401, 403].includes(res.status)) {
                 await clearAuthCookies();
             }
-            return NextResponse.json({ message: data?.message ?? "Sessao expirada" }, { status: res.status });
+            return NextResponse.json({ message: data?.message ?? "Sessão expirada" }, { status: res.status });
         }
 
         if (!data?.accessToken || !data?.refreshToken) {
-            return NextResponse.json({ message: "Resposta invalida do servidor de autenticacao." }, { status: 502 });
+            return NextResponse.json({ message: "Resposta inválida do servidor de autenticação." }, { status: 502 });
         }
 
         await setAuthCookies(data.accessToken, data.refreshToken);
         return NextResponse.json(data);
     } catch (error) {
         console.error("[auth/refresh] Unable to reach authentication backend.", error);
-        return NextResponse.json({ message: "Servidor de autenticacao indisponivel no momento." }, { status: 503 });
+        return NextResponse.json({ message: "Servidor de autenticação indisponível no momento." }, { status: 503 });
     }
 }

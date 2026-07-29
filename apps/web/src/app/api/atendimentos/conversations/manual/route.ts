@@ -34,7 +34,7 @@ async function refreshAccessToken(apiBase: string) {
 export async function POST(req: Request) {
     const payload = await req.json().catch(() => null);
     if (!payload?.phone || (!payload?.teamId && !payload?.assignedUserId)) {
-        return NextResponse.json({ message: "Telefone e equipe sao obrigatorios" }, { status: 400 });
+        return NextResponse.json({ message: "Telefone e equipe são obrigatórios" }, { status: 400 });
     }
 
     const apiBase = getServerApiBase();
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
     if (res.status === 401) {
         const newAccess = await refreshAccessToken(apiBase);
-        if (!newAccess) return NextResponse.json({ message: "Sessao expirada" }, { status: 401 });
+        if (!newAccess) return NextResponse.json({ message: "Sessão expirada" }, { status: 401 });
         access = newAccess;
         res = await fetch(`${apiBase}/atendimentos/conversations/manual`, {
             method: "POST",

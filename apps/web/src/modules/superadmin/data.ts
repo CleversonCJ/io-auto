@@ -101,7 +101,7 @@ export const superAdminNavItems: SuperAdminNavItem[] = [
     { href: "/protected/superadmin/operacional", label: "Operacional", summary: "Suporte e bugs" },
     { href: "/protected/superadmin/insights", label: "Insights", summary: "Risco, upgrade e upsell" },
     { href: "/protected/superadmin/tenants", label: "Tenants", summary: "Gestão operacional das contas" },
-    { href: "/protected/superadmin/planos", label: "Planos", summary: "Catalogo, limites e recursos" },
+    { href: "/protected/superadmin/planos", label: "Planos", summary: "Catálogo, limites e recursos" },
     { href: "/protected/superadmin/configuracoes", label: "Configurações", summary: "Suporte e ajustes globais" },
 ];
 
@@ -716,10 +716,10 @@ export const superAdminSections: Record<SuperAdminSectionKey, SuperAdminSection>
     planos: {
         key: "planos",
         label: "Planos",
-        eyebrow: "Catalogo comercial",
-        title: "Gestao de planos",
+        eyebrow: "Catálogo comercial",
+        title: "Gestão de planos",
         description: "Configure os planos oficiais do IO Auto com limites, recursos e regras reais aplicadas no backend.",
-        spotlight: "Tudo o que for salvo aqui passa a governar o acesso das empresas aos modulos e limites contratados.",
+        spotlight: "Tudo o que for salvo aqui passa a governar o acesso das empresas aos módulos e limites contratados.",
         metrics: [],
         alerts: [],
         charts: [],

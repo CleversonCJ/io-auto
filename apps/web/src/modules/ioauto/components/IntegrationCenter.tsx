@@ -31,13 +31,13 @@ const SUPPORTED_INTEGRATIONS: SupportedIntegration[] = [
     {
         providerKey: "mercadolivre",
         displayName: "Mercado Livre",
-        description: "Conecte a conta da loja via OAuth para publicar, pausar, finalizar e sincronizar anuncios da MLB.",
+        description: "Conecte a conta da loja via OAuth para publicar, pausar, finalizar e sincronizar anúncios da MLB.",
         nextStepLabel: "Conectar via OAuth",
     },
     {
         providerKey: "olx",
         displayName: "OLX",
-        description: "Conecte a conta da loja via OAuth para publicar, atualizar e acompanhar anuncios.",
+        description: "Conecte a conta da loja via OAuth para publicar, atualizar e acompanhar anúncios.",
         nextStepLabel: "Conectar via OAuth",
     },
     {
@@ -74,7 +74,7 @@ function defaultIntegrationLabel(providerKey: string) {
     if (normalized === "mercadolivre") return "Mercado Livre";
     if (normalized === "olx") return "OLX";
     if (normalized === "webmotors") return "Webmotors / Estoque e Leads";
-    if (!normalized) return "Integracao";
+    if (!normalized) return "Integração";
     return normalized.substring(0, 1).toUpperCase() + normalized.substring(1);
 }
 
@@ -132,8 +132,8 @@ function readPlatformDetails(providerKey: string) {
         SUPPORTED_INTEGRATIONS.find((item) => normalizeProviderKey(item.providerKey) === normalizeProviderKey(providerKey)) ?? {
             providerKey,
             displayName: defaultIntegrationLabel(providerKey),
-            description: "Configure os dados da integracao e acompanhe o estado da conexao por aqui.",
-            nextStepLabel: "Abrir configuracao",
+            description: "Configure os dados da integração e acompanhe o estado da conexão por aqui.",
+            nextStepLabel: "Abrir configuração",
         }
     );
 }
@@ -216,15 +216,15 @@ export function IntegrationCenter() {
         try {
             const response = await fetch("/api/ioauto/integrations", { cache: "no-store" });
             if (!response.ok) {
-                const payload = await response.json().catch(() => ({ message: "Falha ao carregar as integracoes." }));
-                throw new Error(payload.message ?? "Falha ao carregar as integracoes.");
+                const payload = await response.json().catch(() => ({ message: "Falha ao carregar as integrações." }));
+                throw new Error(payload.message ?? "Falha ao carregar as integrações.");
             }
             const payload = (await response.json()) as IntegrationRecord[];
             const merged = mergeIntegrationCatalog(payload);
             setIntegrations(merged);
             setDrafts(Object.fromEntries(merged.map((integration) => [normalizeProviderKey(integration.providerKey), toDraft(integration)])));
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao carregar as integracoes.");
+            setError(cause instanceof Error ? cause.message : "Falha ao carregar as integrações.");
         } finally {
             setLoading(false);
         }
@@ -287,13 +287,13 @@ export function IntegrationCenter() {
                 }),
             });
             if (!response.ok) {
-                const payload = await response.json().catch(() => ({ message: "Falha ao atualizar a integracao." }));
-                throw new Error(payload.message ?? "Falha ao atualizar a integracao.");
+                const payload = await response.json().catch(() => ({ message: "Falha ao atualizar a integração." }));
+                throw new Error(payload.message ?? "Falha ao atualizar a integração.");
             }
             await loadIntegrations();
-            setNotice("Integracao atualizada com sucesso.");
+            setNotice("Integração atualizada com sucesso.");
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao atualizar a integracao.");
+            setError(cause instanceof Error ? cause.message : "Falha ao atualizar a integração.");
         } finally {
             setSavingProvider(null);
         }
@@ -309,7 +309,7 @@ export function IntegrationCenter() {
             return;
         }
 
-        if (!window.confirm(`Excluir a integracao ${defaultIntegrationLabel(normalized)} deste tenant?`)) {
+        if (!window.confirm(`Excluir a integração ${defaultIntegrationLabel(normalized)} deste tenant?`)) {
             return;
         }
 
@@ -325,7 +325,7 @@ export function IntegrationCenter() {
                     setDeleteBlockedProvider(normalized);
                     return;
                 }
-                throw new Error(payload?.message ?? "Falha ao excluir a integracao.");
+                throw new Error(payload?.message ?? "Falha ao excluir a integração.");
             }
 
             setOpenedProviderKeys((current) => current.filter((item) => item !== normalized));
@@ -333,9 +333,9 @@ export function IntegrationCenter() {
                 Object.entries(current).filter(([provider]) => provider !== normalized),
             ));
             await loadIntegrations();
-            setNotice(`Integracao ${defaultIntegrationLabel(normalized)} excluida com sucesso.`);
+            setNotice(`Integração ${defaultIntegrationLabel(normalized)} excluída com sucesso.`);
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao excluir a integracao.");
+            setError(cause instanceof Error ? cause.message : "Falha ao excluir a integração.");
         } finally {
             setDeletingProvider(null);
         }
@@ -353,20 +353,20 @@ export function IntegrationCenter() {
     return (
         <div className="grid gap-6">
             <header>
-                <h1 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">Integracoes</h1>
-                <p className="mt-1.5 text-sm text-black/55">Conecte marketplaces, acompanhe status da conta e gerencie a distribuicao do estoque em um unico lugar.</p>
+                <h1 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">Integrações</h1>
+                <p className="mt-1.5 text-sm text-black/55">Conecte marketplaces, acompanhe status da conta e gerencie a distribuição do estoque em um único lugar.</p>
             </header>
 
             <section className="rounded-[34px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)] md:p-8">
                 <div className="flex items-center gap-2">
                     <div className="h-2 w-2 rounded-full bg-io-purple animate-pulse" />
-                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-black/35">Ecossistema de conexoes</p>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-black/35">Ecossistema de conexões</p>
                 </div>
                 <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                     <div>
-                        <h2 className="font-display text-2xl font-bold text-io-dark">Integracoes conectadas</h2>
+                        <h2 className="font-display text-2xl font-bold text-io-dark">Integrações conectadas</h2>
                         <p className="mt-2 text-sm text-black/56">
-                            {connectedCount} integracoes conectadas no momento. Use o seletor para abrir uma plataforma e concluir a conexao quando precisar.
+                            {connectedCount} integrações conectadas no momento. Use o seletor para abrir uma plataforma e concluir a conexão quando precisar.
                         </p>
                     </div>
 
@@ -376,7 +376,7 @@ export function IntegrationCenter() {
                         className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-io-dark px-6 text-sm font-bold text-white transition hover:bg-black/85"
                     >
                         <Plus className="h-4 w-4" />
-                        Conectar integracao
+                        Conectar integração
                     </button>
                 </div>
 
@@ -393,7 +393,7 @@ export function IntegrationCenter() {
                                     {supportedOptions.map((platform) => (
                                         <option key={platform.providerKey} value={platform.providerKey}>
                                             {platform.displayName}
-                                            {platform.alreadyVisible ? " - card ja exibido" : ""}
+                                            {platform.alreadyVisible ? " - card já exibido" : ""}
                                         </option>
                                     ))}
                                 </select>
@@ -438,14 +438,14 @@ export function IntegrationCenter() {
 
                                     <section className="flex flex-col gap-4 rounded-[24px] border border-red-100 bg-red-50/55 px-5 py-4 md:flex-row md:items-center md:justify-between">
                                         <div>
-                                            <p className="text-sm font-bold text-red-800">Excluir integracao</p>
+                                            <p className="text-sm font-bold text-red-800">Excluir integração</p>
                                             <p className="mt-1 text-xs leading-5 text-red-700/75">
-                                                Remove as configuracoes salvas deste tenant. A integracao precisa estar desconectada.
+                                                Remove as configurações salvas deste tenant. A integração precisa estar desconectada.
                                             </p>
                                             {deleteBlockedProvider === normalized ? (
                                                 <p className="mt-3 inline-flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
                                                     <AlertTriangle className="h-4 w-4 shrink-0" />
-                                                    Esta integracao esta conectada. Desconecte-a antes de excluir.
+                                                    Esta integração está conectada. Desconecte-a antes de excluir.
                                                 </p>
                                             ) : null}
                                         </div>
@@ -456,7 +456,7 @@ export function IntegrationCenter() {
                                             className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full border border-red-200 bg-white px-5 text-sm font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                             {deletingProvider === normalized ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                            Excluir integracao
+                                            Excluir integração
                                         </button>
                                     </section>
                                 </div>
@@ -468,9 +468,9 @@ export function IntegrationCenter() {
                         <div className="grid h-16 w-16 place-items-center rounded-full bg-white shadow-sm text-black/20">
                             <Cable className="h-8 w-8" />
                         </div>
-                        <h3 className="mt-6 font-display text-2xl font-bold text-io-dark">Nenhuma integracao em exibicao</h3>
+                        <h3 className="mt-6 font-display text-2xl font-bold text-io-dark">Nenhuma integração em exibição</h3>
                         <p className="mt-2 max-w-md text-sm leading-6 text-black/56">
-                            Abra uma plataforma pelo seletor acima para conectar uma nova integracao. As contas conectadas ficam visiveis automaticamente neste painel.
+                            Abra uma plataforma pelo seletor acima para conectar uma nova integração. As contas conectadas ficam visíveis automaticamente neste painel.
                         </p>
                     </div>
                 )}
@@ -532,7 +532,7 @@ function renderIntegrationPanel({
                     </div>
                 </div>
                 <span className="rounded-full bg-black/5 px-4 py-2 text-xs font-bold text-black/45">
-                    Ultima sincronizacao: {formatDateTime(integration.lastSyncAt)}
+                    última sincronização: {formatDateTime(integration.lastSyncAt)}
                 </span>
             </div>
 
@@ -540,7 +540,7 @@ function renderIntegrationPanel({
                 <div className="grid gap-6 md:grid-cols-2">
                     <Field label="Nome exibido na plataforma" value={draft.displayName} onChange={(value) => onDraftChange({ displayName: value })} />
                     <SelectField
-                        label="Status da Integracao"
+                        label="Status da Integração"
                         value={draft.status}
                         onChange={(value) => onDraftChange({ status: value })}
                         options={[
@@ -552,7 +552,7 @@ function renderIntegrationPanel({
                     />
                     <Field label="URL do Endpoint / API" value={draft.endpointUrl} onChange={(value) => onDraftChange({ endpointUrl: value })} className="md:col-span-2" />
                     <Field label="ID da Conta ou Dealer" value={draft.accountName} onChange={(value) => onDraftChange({ accountName: value })} />
-                    <Field label="Usuario de acesso" value={draft.username} onChange={(value) => onDraftChange({ username: value })} />
+                    <Field label="Usuário de acesso" value={draft.username} onChange={(value) => onDraftChange({ username: value })} />
                     <Field
                         label={integration.hasApiToken ? "Atualizar Token API (opcional)" : "Token API / Chave de Acesso"}
                         value={draft.apiToken}
@@ -563,14 +563,14 @@ function renderIntegrationPanel({
                         value={draft.webhookSecret}
                         onChange={(value) => onDraftChange({ webhookSecret: value })}
                     />
-                    <Field label="Historico de erros" value={draft.lastError} onChange={(value) => onDraftChange({ lastError: value })} className="md:col-span-2" />
+                    <Field label="Histórico de erros" value={draft.lastError} onChange={(value) => onDraftChange({ lastError: value })} className="md:col-span-2" />
                 </div>
 
                 <div className="mt-10 flex flex-col items-center justify-between gap-6 rounded-[28px] bg-black/5 p-6 md:flex-row">
                     <p className="max-w-md text-sm leading-6 text-black/56">
                         {integration.supportsPublication
-                            ? "Esta integracao permite publicar e atualizar veiculos na plataforma selecionada."
-                            : "Esta integracao e usada apenas para sincronizar dados auxiliares do ecossistema."}
+                            ? "Esta integração permite publicar e atualizar veículos na plataforma selecionada."
+                            : "Esta integração é usada apenas para sincronizar dados auxiliares do ecossistema."}
                     </p>
 
                     <button
@@ -580,7 +580,7 @@ function renderIntegrationPanel({
                         className="inline-flex h-14 items-center gap-2 rounded-full bg-io-dark px-8 text-sm font-bold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:bg-black/10"
                     >
                         {saving ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
-                        Salvar alteracoes
+                        Salvar alterações
                     </button>
                 </div>
             </div>

@@ -447,14 +447,14 @@ export function SuperAdminPartnersPage() {
             await navigator.clipboard.writeText(link);
             setFeedback(`Link do parceiro ${partner.partnerName} copiado.`);
         } catch {
-            setError("Nao foi possivel copiar o link do parceiro.");
+            setError("Não foi possível copiar o link do parceiro.");
         }
     }
 
     if (loading) {
         return (
             <div className="rounded-[30px] border border-black/10 bg-white p-10 text-center text-black/56 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
-                Carregando modulo de parceiros...
+                Carregando módulo de parceiros...
             </div>
         );
     }
@@ -462,7 +462,7 @@ export function SuperAdminPartnersPage() {
     if (!dashboard) {
         return (
             <div className="rounded-[30px] border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
-                {error ?? "Nao foi possivel carregar o modulo de parceiros."}
+                {error ?? "Não foi possível carregar o módulo de parceiros."}
             </div>
         );
     }
@@ -486,12 +486,12 @@ export function SuperAdminPartnersPage() {
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <MetricCard label="Parceiros ativos" value={String(dashboard.summary.activePartners)} helper="Parceiros aptos a gerar links e leads." />
                 <MetricCard label="Leads gerados" value={String(dashboard.summary.leadsGenerated)} helper="Todos os leads recebidos via programa." />
-                <MetricCard label="Leads convertidos" value={String(dashboard.summary.leadsConverted)} helper={`Conversao geral de ${formatPercent(dashboard.summary.conversionRate)}.`} />
+                <MetricCard label="Leads convertidos" value={String(dashboard.summary.leadsConverted)} helper={`Conversão geral de ${formatPercent(dashboard.summary.conversionRate)}.`} />
                 <MetricCard label="Receita por parceiros" value={toCurrency(dashboard.summary.revenueGeneratedCents)} helper="Primeira mensalidade somada das vendas fechadas." />
-                <MetricCard label="Comissao total" value={toCurrency(dashboard.summary.commissionTotalCents)} helper="Comissoes geradas e validas." />
-                <MetricCard label="Comissao paga" value={toCurrency(dashboard.summary.commissionPaidCents)} helper="Comissoes liquidadas para os parceiros." />
-                <MetricCard label="Comissao pendente" value={toCurrency(dashboard.summary.commissionPendingCents)} helper="Valor ainda em aberto para pagamento." />
-                <MetricCard label="Taxa de conversao" value={formatPercent(dashboard.summary.conversionRate)} helper="Proporcao entre leads recebidos e vendas fechadas." />
+                <MetricCard label="Comissão total" value={toCurrency(dashboard.summary.commissionTotalCents)} helper="Comissões geradas e válidas." />
+                <MetricCard label="Comissão paga" value={toCurrency(dashboard.summary.commissionPaidCents)} helper="Comissões liquidadas para os parceiros." />
+                <MetricCard label="Comissão pendente" value={toCurrency(dashboard.summary.commissionPendingCents)} helper="Valor ainda em aberto para pagamento." />
+                <MetricCard label="Taxa de conversão" value={formatPercent(dashboard.summary.conversionRate)} helper="Proporção entre leads recebidos e vendas fechadas." />
             </section>
 
             <section className="grid gap-6">
@@ -515,11 +515,11 @@ export function SuperAdminPartnersPage() {
                             <div key={partner.partnerId} className="flex items-center justify-between gap-4 rounded-[24px] border border-black/8 bg-black/[0.02] px-4 py-4">
                                 <div className="min-w-0">
                                     <p className="text-sm font-semibold text-io-dark">{index + 1}. {partner.partnerName}</p>
-                                    <p className="mt-1 truncate text-sm text-black/54">{partner.leadsSent} leads, {partner.salesClosed} vendas e {formatPercent(partner.conversionRate)} de conversao.</p>
+                                    <p className="mt-1 truncate text-sm text-black/54">{partner.leadsSent} leads, {partner.salesClosed} vendas e {formatPercent(partner.conversionRate)} de conversão.</p>
                                 </div>
                                 <div className="text-right">
                                     <p className="text-sm font-semibold text-io-dark">{toCurrency(partner.revenueGeneratedCents)}</p>
-                                    <p className="mt-1 text-xs text-black/45">Comissao {toCurrency(partner.commissionGeneratedCents)}</p>
+                                    <p className="mt-1 text-xs text-black/45">Comissão {toCurrency(partner.commissionGeneratedCents)}</p>
                                 </div>
                             </div>
                         ))}
@@ -529,11 +529,11 @@ export function SuperAdminPartnersPage() {
 
             <section className="grid gap-4 xl:grid-cols-3">
                 <MiniChart title="Leads por parceiro" subtitle="Volume de origem" points={dashboard.charts.leadsByPartner} valueFormatter={(value) => String(value)} />
-                <MiniChart title="Conversoes por parceiro" subtitle="Fechamentos" points={dashboard.charts.conversionsByPartner} valueFormatter={(value) => String(value)} />
-                <MiniChart title="Comissao por mes" subtitle="Evolucao financeira" points={dashboard.charts.commissionByMonth} valueFormatter={(value) => toCurrency(value)} />
+                <MiniChart title="Conversões por parceiro" subtitle="Fechamentos" points={dashboard.charts.conversionsByPartner} valueFormatter={(value) => String(value)} />
+                <MiniChart title="Comissão por mês" subtitle="Evolução financeira" points={dashboard.charts.commissionByMonth} valueFormatter={(value) => toCurrency(value)} />
                 <MiniChart title="Receita gerada" subtitle="Primeira mensalidade" points={dashboard.charts.revenueByPartner} valueFormatter={(value) => toCurrency(value)} />
-                <MiniChart title="Taxa de conversao" subtitle="Efetividade por parceiro" points={dashboard.charts.conversionRateByPartner} valueFormatter={(value) => formatPercent(value)} />
-                <MiniChart title="Evolucao de leads" subtitle="Entradas ao longo do tempo" points={dashboard.charts.leadsOverTime} valueFormatter={(value) => String(value)} />
+                <MiniChart title="Taxa de conversão" subtitle="Efetividade por parceiro" points={dashboard.charts.conversionRateByPartner} valueFormatter={(value) => formatPercent(value)} />
+                <MiniChart title="Evolução de leads" subtitle="Entradas ao longo do tempo" points={dashboard.charts.leadsOverTime} valueFormatter={(value) => String(value)} />
             </section>
 
             <section className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
@@ -556,11 +556,11 @@ export function SuperAdminPartnersPage() {
                                 <th className="px-3 py-3 font-semibold">Link</th>
                                 <th className="px-3 py-3 font-semibold">Leads</th>
                                 <th className="px-3 py-3 font-semibold">Vendas</th>
-                                <th className="px-3 py-3 font-semibold">Conversao</th>
+                                <th className="px-3 py-3 font-semibold">Conversão</th>
                                 <th className="px-3 py-3 font-semibold">Receita</th>
-                                <th className="px-3 py-3 font-semibold">Comissao</th>
+                                <th className="px-3 py-3 font-semibold">Comissão</th>
                                 <th className="px-3 py-3 font-semibold">Status</th>
-                                <th className="px-3 py-3 font-semibold text-right">Acoes</th>
+                                <th className="px-3 py-3 font-semibold text-right">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -636,8 +636,8 @@ export function SuperAdminPartnersPage() {
                                 <th className="px-3 py-3 font-semibold">Parceiro</th>
                                 <th className="px-3 py-3 font-semibold">Status</th>
                                 <th className="px-3 py-3 font-semibold">Comercial</th>
-                                <th className="px-3 py-3 font-semibold">Observacoes</th>
-                                <th className="px-3 py-3 font-semibold text-right">Acao</th>
+                                <th className="px-3 py-3 font-semibold">Observações</th>
+                                <th className="px-3 py-3 font-semibold text-right">Ação</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -686,7 +686,7 @@ export function SuperAdminPartnersPage() {
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Cadastro do parceiro</p>
                                 <h3 className="mt-2 text-2xl font-bold text-io-dark">{partnerForm.partnerId ? "Editar parceiro" : "Novo parceiro"}</h3>
-                                <p className="mt-2 text-sm text-black/56">Preencha os dados principais para gerar o link exclusivo e ativar o acompanhamento das indicacoes.</p>
+                                <p className="mt-2 text-sm text-black/56">Preencha os dados principais para gerar o link exclusivo e ativar o acompanhamento das indicações.</p>
                             </div>
                             <button
                                 type="button"
@@ -740,7 +740,7 @@ export function SuperAdminPartnersPage() {
                                     value={partnerForm.city}
                                     onChange={(event) => setPartnerForm((current) => ({ ...current, city: event.target.value }))}
                                     className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
-                                    placeholder="Sao Paulo"
+                                    placeholder="São Paulo"
                                 />
                             </label>
                             <label className="grid gap-2 text-sm text-black/62">
@@ -759,11 +759,11 @@ export function SuperAdminPartnersPage() {
                                     value={partnerForm.partnerType}
                                     onChange={(event) => setPartnerForm((current) => ({ ...current, partnerType: event.target.value }))}
                                     className="rounded-2xl border border-black/10 px-4 py-3 outline-none transition focus:border-io-purple-2"
-                                    placeholder="Consultor, agencia, influenciador..."
+                                    placeholder="Consultor, agência, influenciador..."
                                 />
                             </label>
                             <label className="grid gap-2 text-sm text-black/62">
-                                Comissao padrao (%)
+                                Comissão padrão (%)
                                 <input
                                     value={partnerForm.defaultCommissionPercent}
                                     onChange={(event) => setPartnerForm((current) => ({ ...current, defaultCommissionPercent: event.target.value }))}
@@ -783,7 +783,7 @@ export function SuperAdminPartnersPage() {
                                 </select>
                             </label>
                             <div className="flex items-end md:justify-end">
-                                <p className="text-sm text-black/50">Links sao gerados automaticamente no primeiro cadastro.</p>
+                                <p className="text-sm text-black/50">Links são gerados automaticamente no primeiro cadastro.</p>
                             </div>
                             <div className="md:col-span-2 flex flex-wrap items-center gap-3">
                                 <button
@@ -812,8 +812,8 @@ export function SuperAdminPartnersPage() {
                     <div className="w-full max-w-2xl rounded-[32px] border border-black/10 bg-white p-6 shadow-2xl">
                         <div className="flex items-start justify-between gap-3">
                             <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Atualizacao de lead</p>
-                                <h3 className="mt-2 text-2xl font-bold text-io-dark">Editar conversao e comissao</h3>
+                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Atualização de lead</p>
+                                <h3 className="mt-2 text-2xl font-bold text-io-dark">Editar conversão e comissão</h3>
                             </div>
                             <button
                                 type="button"
@@ -847,7 +847,7 @@ export function SuperAdminPartnersPage() {
                                 {leadFieldErrors.leadStatus ? <span className="text-xs text-rose-600">{leadFieldErrors.leadStatus}</span> : null}
                             </label>
                             <label className="grid gap-2 text-sm text-black/62">
-                                Responsavel comercial *
+                                Responsável comercial *
                                 <input
                                     value={leadModal.salesOwner}
                                     onChange={(event) => updateLeadModal((current) => ({ ...current, salesOwner: event.target.value }))}
@@ -871,7 +871,7 @@ export function SuperAdminPartnersPage() {
                                 {leadFieldErrors.closedPlan ? <span className="text-xs text-rose-600">{leadFieldErrors.closedPlan}</span> : null}
                             </label>
                             <label className="grid gap-2 text-sm text-black/62">
-                                Recorrencia do pagamento *
+                                Recorrência do pagamento *
                                 <select
                                     value={leadModal.closedBillingRecurrence}
                                     onChange={(event) => updateLeadModal((current) => ({ ...current, closedBillingRecurrence: event.target.value as "MONTHLY" | "ANNUAL" }))}
@@ -904,7 +904,7 @@ export function SuperAdminPartnersPage() {
                                 {leadFieldErrors.closedAt ? <span className="text-xs text-rose-600">{leadFieldErrors.closedAt}</span> : null}
                             </label>
                             <label className="grid gap-2 text-sm text-black/62">
-                                Status da comissao *
+                                Status da comissão *
                                 <select
                                     value={leadModal.commissionStatus}
                                     onChange={(event) => updateLeadModal((current) => ({ ...current, commissionStatus: event.target.value }))}
@@ -917,7 +917,7 @@ export function SuperAdminPartnersPage() {
                                 {leadFieldErrors.commissionStatus ? <span className="text-xs text-rose-600">{leadFieldErrors.commissionStatus}</span> : null}
                             </label>
                             <label className="grid gap-2 text-sm text-black/62 md:col-span-2">
-                                Observacoes *
+                                Observações *
                                 <textarea
                                     value={leadModal.notes}
                                     onChange={(event) => updateLeadModal((current) => ({ ...current, notes: event.target.value }))}

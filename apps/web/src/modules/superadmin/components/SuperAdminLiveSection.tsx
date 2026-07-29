@@ -322,13 +322,13 @@ export function SuperAdminLiveSection({ section }: Props) {
                     ? fetchJson<TenantSnapshot[]>(`/api/superadmin/tenants?${sharedQuery}`, undefined, "Falha ao carregar os tenants.")
                     : Promise.resolve<TenantSnapshot[] | null>(null),
                 shouldLoadBillingSnapshot
-                    ? fetchJson<DashboardPayload>(`/api/superadmin/dashboard/billing?${sharedQuery}`, undefined, "Falha ao carregar o resumo de cobranca.")
+                    ? fetchJson<DashboardPayload>(`/api/superadmin/dashboard/billing?${sharedQuery}`, undefined, "Falha ao carregar o resumo de cobrança.")
                     : Promise.resolve<DashboardPayload | null>(null),
                 section === "clientes"
                     ? fetchJson<CustomerHealthRow[]>(`/api/superadmin/customers/health-score?${sharedQuery}`, undefined, "Falha ao carregar o health score.")
                     : Promise.resolve<CustomerHealthRow[] | null>(null),
                 section === "crescimento"
-                    ? fetchJson<CatalogLeadsPage>(`/api/superadmin/catalog-leads?${sharedQuery}`, undefined, "Falha ao carregar os leads do catalogo.")
+                    ? fetchJson<CatalogLeadsPage>(`/api/superadmin/catalog-leads?${sharedQuery}`, undefined, "Falha ao carregar os leads do catálogo.")
                     : Promise.resolve<CatalogLeadsPage | null>(null),
                 section === "operacional"
                     ? fetchJson<SupportTicketSummary[]>(`/api/superadmin/support/tickets?${supportQuery}`, undefined, "Falha ao carregar os tickets de suporte.")
@@ -462,12 +462,12 @@ export function SuperAdminLiveSection({ section }: Props) {
                 <SuperAdminDashboardSection section={visualSection} resolveAlerts={false} />
 
                 <section className="rounded-2xl border border-black/10 bg-white p-4">
-                    <p className="text-sm font-semibold text-io-dark">Churn financeiro por mes</p>
+                    <p className="text-sm font-semibold text-io-dark">Churn financeiro por mês</p>
                     <div className="mt-3 overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead className="text-left text-black/55">
                                 <tr>
-                                    <th className="py-2">Mes</th>
+                                    <th className="py-2">Mês</th>
                                     <th>Total MRR</th>
                                     <th>MRR perdido</th>
                                     <th>Churn</th>
@@ -505,9 +505,9 @@ export function SuperAdminLiveSection({ section }: Props) {
                                     <th>Plano</th>
                                     <th>Cidade</th>
                                     <th>Score</th>
-                                    <th>Classificacao</th>
+                                    <th>Classificação</th>
                                     <th>Risco</th>
-                                    <th>Ultimo acesso</th>
+                                    <th>último acesso</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -542,7 +542,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                         <BarRows rows={usage.map((item: Record<string, any>) => ({
                             label: titleCase(item.featureKey),
                             value: item.uniqueCustomersCount ?? 0,
-                            detail: `Uso total: ${toNumber(item.usageCount)} | Adocao: ${toPercent(item.adoptionRate)}`,
+                            detail: `Uso total: ${toNumber(item.usageCount)} | Adoção: ${toPercent(item.adoptionRate)}`,
                         }))} />
                     </div>
                 </section>
@@ -561,7 +561,7 @@ export function SuperAdminLiveSection({ section }: Props) {
 
                 <div className="grid gap-5 xl:grid-cols-2">
                     <section className="rounded-2xl border border-black/10 bg-white p-4">
-                        <p className="text-sm font-semibold text-io-dark">Anuncios por plataforma</p>
+                        <p className="text-sm font-semibold text-io-dark">Anúncios por plataforma</p>
                         <div className="mt-3">
                             <BarRows rows={adsByPlatform.map((row: Record<string, any>) => ({
                                 label: row.platform,
@@ -604,7 +604,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                                     <th className="py-2">Plataforma</th>
                                     <th>Leads</th>
                                     <th>Vendas</th>
-                                    <th>Conversao</th>
+                                    <th>Conversão</th>
                                     <th>Valor vendido</th>
                                 </tr>
                             </thead>
@@ -634,8 +634,8 @@ export function SuperAdminLiveSection({ section }: Props) {
                 <section className="rounded-2xl border border-black/10 bg-white p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <p className="text-sm font-semibold text-io-dark">Leads do catalogo</p>
-                            <p className="text-xs text-black/55">Nome, WhatsApp, veiculo, vendedor e origem em tempo real.</p>
+                            <p className="text-sm font-semibold text-io-dark">Leads do catálogo</p>
+                            <p className="text-xs text-black/55">Nome, WhatsApp, veículo, vendedor e origem em tempo real.</p>
                         </div>
                         <p className="text-xs text-black/55">{toNumber(catalogLeads.length)} leads listados</p>
                     </div>
@@ -646,7 +646,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                                     <th className="py-2">Empresa</th>
                                     <th>Lead</th>
                                     <th>WhatsApp</th>
-                                    <th>Veiculo</th>
+                                    <th>Veículo</th>
                                     <th>Vendedor</th>
                                     <th>Origem</th>
                                     <th>Criado em</th>
@@ -692,7 +692,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                                     <th>Status</th>
                                     <th>Atraso</th>
                                     <th>Valor em atraso</th>
-                                    <th>Periodo atual</th>
+                                    <th>Período atual</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -763,7 +763,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                                     <th className="px-3 py-3">Ticket</th>
                                     <th className="px-3 py-3">Categoria</th>
                                     <th className="px-3 py-3">Status</th>
-                                    <th className="px-3 py-3">Urgencia</th>
+                                    <th className="px-3 py-3">Urgência</th>
                                     <th className="px-3 py-3">Criado em</th>
                                 </tr>
                             </thead>
@@ -832,10 +832,10 @@ export function SuperAdminLiveSection({ section }: Props) {
                                     <div className="grid gap-3 md:grid-cols-2">
                                         <div className="rounded-xl border border-black/8 bg-white p-4 text-sm text-black/65">
                                             <p><span className="font-semibold text-io-dark">Categoria:</span> {titleCase(ticketDetail.category)}</p>
-                                            <p className="mt-1"><span className="font-semibold text-io-dark">Urgencia:</span> {titleCase(ticketDetail.urgency)}</p>
+                                            <p className="mt-1"><span className="font-semibold text-io-dark">Urgência:</span> {titleCase(ticketDetail.urgency)}</p>
                                             <p className="mt-1"><span className="font-semibold text-io-dark">Status:</span> {titleCase(ticketDetail.status)}</p>
                                             <p className="mt-1"><span className="font-semibold text-io-dark">Aberto por:</span> {ticketDetail.openedByName || "-"}</p>
-                                            <p className="mt-1"><span className="font-semibold text-io-dark">Area do bug:</span> {ticketDetail.bugArea ? titleCase(ticketDetail.bugArea) : "-"}</p>
+                                            <p className="mt-1"><span className="font-semibold text-io-dark">área do bug:</span> {ticketDetail.bugArea ? titleCase(ticketDetail.bugArea) : "-"}</p>
                                             <p className="mt-1"><span className="font-semibold text-io-dark">Arquivo anexado:</span> {ticketDetail.evidenceFileName || "-"}</p>
                                         </div>
                                         <div className="rounded-xl border border-black/8 bg-white p-4 text-sm text-black/65">
@@ -848,7 +848,7 @@ export function SuperAdminLiveSection({ section }: Props) {
 
                                     <div className="rounded-xl border border-black/8 bg-white p-4">
                                         <div className="flex flex-wrap items-center justify-between gap-3">
-                                            <p className="text-sm font-semibold text-io-dark">Evidencia anexada</p>
+                                            <p className="text-sm font-semibold text-io-dark">Evidência anexada</p>
                                             {ticketDetail.evidenceDataUrl ? (
                                                 <a
                                                     href={ticketDetail.evidenceDataUrl}
@@ -863,20 +863,20 @@ export function SuperAdminLiveSection({ section }: Props) {
                                         </div>
                                         {ticketDetail.evidenceDataUrl ? (
                                             <div className="mt-3 grid gap-3">
-                                                <p className="text-xs text-black/55">{ticketDetail.evidenceContentType || "Arquivo de evidencia"}</p>
+                                                <p className="text-xs text-black/55">{ticketDetail.evidenceContentType || "Arquivo de evidência"}</p>
                                                 {isVideoEvidence(ticketDetail.evidenceContentType) ? (
                                                     <video src={ticketDetail.evidenceDataUrl} controls className="max-h-[420px] w-full rounded-xl bg-black" />
                                                 ) : (
-                                                    <img src={ticketDetail.evidenceDataUrl} alt="Evidencia do ticket" className="max-h-[420px] w-full rounded-xl object-contain bg-black/[0.03]" />
+                                                    <img src={ticketDetail.evidenceDataUrl} alt="Evidência do ticket" className="max-h-[420px] w-full rounded-xl object-contain bg-black/[0.03]" />
                                                 )}
                                             </div>
                                         ) : (
-                                            <p className="mt-3 text-sm text-black/55">Este ticket nao possui evidencia anexada. Isso pode acontecer em chamados antigos.</p>
+                                            <p className="mt-3 text-sm text-black/55">Este ticket não possui evidência anexada. Isso pode acontecer em chamados antigos.</p>
                                         )}
                                     </div>
 
                                     <div className="rounded-xl border border-black/8 bg-white p-4">
-                                        <p className="text-sm font-semibold text-io-dark">Historico de mensagens</p>
+                                        <p className="text-sm font-semibold text-io-dark">Histórico de mensagens</p>
                                         <div className="mt-3 grid gap-3">
                                             {ticketDetail.messages.map((message) => (
                                                 <div key={message.id} className="rounded-lg bg-black/[0.03] p-3">
@@ -897,7 +897,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                                             onChange={(event) => setTicketReply(event.target.value)}
                                             rows={4}
                                             disabled={ticketActionLoading || isTicketConcluded(ticketDetail.status)}
-                                            placeholder={isTicketConcluded(ticketDetail.status) ? "Ticket concluido." : "Responder ticket"}
+                                            placeholder={isTicketConcluded(ticketDetail.status) ? "Ticket concluído." : "Responder ticket"}
                                             className="rounded-xl border border-black/12 px-3 py-3 text-sm outline-none transition focus:border-black/25 disabled:cursor-not-allowed disabled:bg-black/[0.03]"
                                         />
                                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -905,7 +905,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                                             <div className="flex flex-wrap gap-2">
                                                 <button
                                                     type="button"
-                                                    onClick={() => void handleTicketStatusUpdate("CLOSED", "Ticket concluido com sucesso.")}
+                                                    onClick={() => void handleTicketStatusUpdate("CLOSED", "Ticket concluído com sucesso.")}
                                                     disabled={ticketActionLoading || ticketDetail.status === "CLOSED"}
                                                     className="h-10 rounded-full border border-black/12 px-4 text-sm font-semibold text-black/70 disabled:opacity-60"
                                                 >
@@ -950,7 +950,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                                     <tr>
                                         <th className="py-2">Empresa</th>
                                         <th>Score</th>
-                                        <th>Classificacao</th>
+                                        <th>Classificação</th>
                                         <th>Risco</th>
                                     </tr>
                                 </thead>
@@ -976,7 +976,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                                     <tr>
                                         <th className="py-2">Empresa</th>
                                         <th>Plano</th>
-                                        <th>Pressao</th>
+                                        <th>Pressão</th>
                                         <th>Leads 30d</th>
                                     </tr>
                                 </thead>
@@ -1028,7 +1028,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                             <BarRows rows={underusedFeatures.map((row: Record<string, any>) => ({
                                 label: titleCase(row.featureKey),
                                 value: row.uniqueCustomersCount ?? 0,
-                                detail: `Adocao: ${toPercent(row.adoptionRate)}`,
+                                detail: `Adoção: ${toPercent(row.adoptionRate)}`,
                             }))} />
                         </div>
                     </section>
@@ -1074,14 +1074,14 @@ export function SuperAdminLiveSection({ section }: Props) {
                         <input value={filters.city} onChange={(event) => updateFilter("city", event.target.value)} placeholder="Cidade" className="h-10 rounded-lg border border-black/12 px-3 text-sm" />
                     </label>
                     <label className="grid gap-1 text-xs text-black/55">
-                        Regiao
-                        <input value={filters.region} onChange={(event) => updateFilter("region", event.target.value)} placeholder="UF ou regiao" className="h-10 rounded-lg border border-black/12 px-3 text-sm" />
+                        Região
+                        <input value={filters.region} onChange={(event) => updateFilter("region", event.target.value)} placeholder="UF ou região" className="h-10 rounded-lg border border-black/12 px-3 text-sm" />
                     </label>
                 </div>
 
                 <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                     <label className="grid gap-1 text-xs text-black/55">
-                        Recorrencia
+                        Recorrência
                         <select value={filters.recurrence} onChange={(event) => updateFilter("recurrence", event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
                             <option value="">Todas</option>
                             <option value="MONTHLY">Mensal</option>
@@ -1100,13 +1100,13 @@ export function SuperAdminLiveSection({ section }: Props) {
                     </label>
                     <label className="grid gap-1 text-xs text-black/55">
                         Origem
-                        <input value={filters.origin} onChange={(event) => updateFilter("origin", event.target.value)} placeholder="utm, parceria, indicacao..." className="h-10 rounded-lg border border-black/12 px-3 text-sm" />
+                        <input value={filters.origin} onChange={(event) => updateFilter("origin", event.target.value)} placeholder="utm, parceria, indicação..." className="h-10 rounded-lg border border-black/12 px-3 text-sm" />
                     </label>
                     <label className="grid gap-1 text-xs text-black/55">
                         Tamanho do estoque
                         <select value={filters.stockSize} onChange={(event) => updateFilter("stockSize", event.target.value)} className="h-10 rounded-lg border border-black/12 px-3 text-sm">
                             <option value="">Todos</option>
-                            <option value="UP_TO_20">Ate 20</option>
+                            <option value="UP_TO_20">Até 20</option>
                             <option value="FROM_20_TO_50">20 a 50</option>
                             <option value="OVER_50">50+</option>
                         </select>
@@ -1141,7 +1141,7 @@ export function SuperAdminLiveSection({ section }: Props) {
             </section>
 
             {loading && !dashboardData ? <div className="rounded-2xl border border-black/10 bg-white p-8 text-center text-sm text-black/55">Carregando dados...</div> : null}
-            {!loading && !error && !dashboardData ? <div className="rounded-2xl border border-black/10 bg-white p-8 text-center text-sm text-black/55">Sem dados para o periodo selecionado.</div> : null}
+            {!loading && !error && !dashboardData ? <div className="rounded-2xl border border-black/10 bg-white p-8 text-center text-sm text-black/55">Sem dados para o período selecionado.</div> : null}
             {!error && dashboardData ? content : null}
         </div>
     );

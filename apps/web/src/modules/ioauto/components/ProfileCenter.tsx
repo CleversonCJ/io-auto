@@ -119,7 +119,7 @@ async function loadProfileImage(file: File): Promise<LoadedProfileImage> {
         const image = await new Promise<HTMLImageElement>((resolve, reject) => {
             const nextImage = new Image();
             nextImage.onload = () => resolve(nextImage);
-            nextImage.onerror = () => reject(new Error("Nao foi possivel processar a imagem selecionada."));
+            nextImage.onerror = () => reject(new Error("Não foi possível processar a imagem selecionada."));
             nextImage.src = objectUrl;
         });
 
@@ -142,7 +142,7 @@ function exportAdjustedProfileImage(editor: ProfileImageEditorState) {
     canvas.height = PROFILE_IMAGE_OUTPUT_SIZE;
 
     const context = canvas.getContext("2d");
-    if (!context) throw new Error("Nao foi possivel preparar a imagem para upload.");
+    if (!context) throw new Error("Não foi possível preparar a imagem para upload.");
 
     const layout = resolveCoverLayout(
         editor.source.naturalWidth,
@@ -269,7 +269,7 @@ export function ProfileCenter() {
                 };
             });
         } catch (cause) {
-            setProfileImageFeedback(cause instanceof Error ? cause.message : "Nao foi possivel carregar a imagem selecionada.");
+            setProfileImageFeedback(cause instanceof Error ? cause.message : "Não foi possível carregar a imagem selecionada.");
         }
     }
 
@@ -301,16 +301,16 @@ export function ProfileCenter() {
 
             const payload = await response.json().catch(() => null);
             if (!response.ok) {
-                throw new Error(payload?.message ?? "Nao foi possivel atualizar a foto de perfil.");
+                throw new Error(payload?.message ?? "Não foi possível atualizar a foto de perfil.");
             }
 
             setUser((previous) => (previous ? { ...previous, profileImageUrl } : previous));
             setProfileImageFeedback(canSyncCompanyLogo
-                ? "Foto atualizada com sucesso. A logo da empresa tambem foi atualizada."
+                ? "Foto atualizada com sucesso. A logo da empresa também foi atualizada."
                 : "Foto atualizada com sucesso.");
             closeProfileImageEditor();
         } catch (cause) {
-            setProfileImageFeedback(cause instanceof Error ? cause.message : "Nao foi possivel atualizar a foto de perfil.");
+            setProfileImageFeedback(cause instanceof Error ? cause.message : "Não foi possível atualizar a foto de perfil.");
         } finally {
             setProfileImageSaving(false);
         }
@@ -615,7 +615,7 @@ export function ProfileCenter() {
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                     src={profileImageEditor.source.objectUrl}
-                                    alt="Previa da foto de perfil"
+                                    alt="Prévia da foto de perfil"
                                     className="pointer-events-none absolute max-w-none select-none"
                                     style={{
                                         width: editorPreviewLayout.scaledWidth,
@@ -626,7 +626,7 @@ export function ProfileCenter() {
                                 />
                             </div>
                             <p className="mt-4 text-center text-xs text-black/45">
-                                Esta previa mostra exatamente como a foto ficara no perfil.
+                                Esta prévia mostra exatamente como a foto ficará no perfil.
                             </p>
                         </div>
 
@@ -645,7 +645,7 @@ export function ProfileCenter() {
                             </label>
 
                             <label className="grid gap-2">
-                                <span className="text-sm font-semibold text-io-dark">Posicao horizontal</span>
+                                <span className="text-sm font-semibold text-io-dark">Posição horizontal</span>
                                 <input
                                     type="range"
                                     min={-1}
@@ -657,7 +657,7 @@ export function ProfileCenter() {
                             </label>
 
                             <label className="grid gap-2">
-                                <span className="text-sm font-semibold text-io-dark">Posicao vertical</span>
+                                <span className="text-sm font-semibold text-io-dark">Posição vertical</span>
                                 <input
                                     type="range"
                                     min={-1}

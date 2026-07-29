@@ -100,7 +100,7 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
             const response = await fetch(`/api/integrations/mercadolivre/vehicles/${currentVehicleId}/mapping`, { cache: "no-store" });
             const payload = (await response.json().catch(() => null)) as MeliVehicleMapping | { message?: string } | null;
             if (!response.ok) {
-                throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao carregar os dados Mercado Livre do veiculo.");
+                throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao carregar os dados Mercado Livre do veículo.");
             }
             const mapping = payload as MeliVehicleMapping;
             onHydrate(mapping);
@@ -112,7 +112,7 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
                 setListingTypes([]);
             }
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao carregar os dados Mercado Livre do veiculo.");
+            setError(cause instanceof Error ? cause.message : "Falha ao carregar os dados Mercado Livre do veículo.");
         } finally {
             setLoadingMapping(false);
         }
@@ -136,7 +136,7 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
         });
         const payload = (await response.json().catch(() => null)) as MeliVehicleMapping | { message?: string } | null;
         if (!response.ok) {
-            throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuracao Mercado Livre do veiculo.");
+            throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuração Mercado Livre do veículo.");
         }
         onHydrate(payload as MeliVehicleMapping);
     }
@@ -162,7 +162,7 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
     async function suggestCategory() {
         const title = value.title.trim();
         if (!title) {
-            setError("Preencha o titulo do anuncio para sugerir uma categoria.");
+            setError("Preencha o título do anúncio para sugerir uma categoria.");
             return;
         }
         setAction("suggest-category");
@@ -178,7 +178,7 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
             if ((payload as MeliCategorySuggestion | null)?.categoryId) {
                 setMessage(`Categoria sugerida: ${(payload as MeliCategorySuggestion).categoryName}. Confirme antes de publicar.`);
             } else {
-                setMessage("Nenhuma categoria sugerida pelo Mercado Livre para este titulo.");
+                setMessage("Nenhuma categoria sugerida pelo Mercado Livre para este título.");
             }
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : "Falha ao sugerir uma categoria do Mercado Livre.");
@@ -220,7 +220,7 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
             }
             await loadCategories(normalized);
             await loadCategoryResources(normalized);
-            setMessage("Categoria e atributos do Mercado Livre sincronizados para este veiculo.");
+            setMessage("Categoria e atributos do Mercado Livre sincronizados para este veículo.");
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : "Falha ao sincronizar a categoria Mercado Livre.");
         } finally {
@@ -279,13 +279,13 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
             const response = await requestFactory();
             const payload = (await response.json().catch(() => null)) as MeliAdRecord | { message?: string } | null;
             if (!response.ok) {
-                throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao processar o anuncio do Mercado Livre.");
+                throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao processar o anúncio do Mercado Livre.");
             }
             const ad = payload as MeliAdRecord;
             onChange({ ad });
             setMessage(options?.successMessage ?? `Status Mercado Livre atualizado: ${statusLabel(ad.status)}`);
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao processar o anuncio do Mercado Livre.");
+            setError(cause instanceof Error ? cause.message : "Falha ao processar o anúncio do Mercado Livre.");
         } finally {
             setAction(null);
         }
@@ -324,13 +324,13 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
         <section className="rounded-[30px] border border-black/10 bg-white p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
-                    <p className="text-sm font-semibold text-io-dark">Anuncio Mercado Livre</p>
+                    <p className="text-sm font-semibold text-io-dark">Anúncio Mercado Livre</p>
                     <p className="mt-1 text-sm text-black/52">
-                        Categoria, tipo de anuncio, descricao e atributos especificos ficam aqui. Marca, modelo, ano, quilometragem e imagens saem do cadastro principal.
+                        Categoria, tipo de anúncio, descrição e atributos específicos ficam aqui. Marca, modelo, ano, quilometragem e imagens saem do cadastro principal.
                     </p>
                 </div>
                 <div className="rounded-full bg-black/5 px-4 py-2 text-xs font-bold text-black/50">
-                    {value.ad?.status ? statusLabel(value.ad.status) : "Nao publicado"}
+                    {value.ad?.status ? statusLabel(value.ad.status) : "Não publicado"}
                 </div>
             </div>
 
@@ -341,7 +341,7 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
                 <SummaryBox label="Marca / modelo" value={[mainSummary.brand, mainSummary.model].filter(Boolean).join(" ") || "-"} />
                 <SummaryBox label="Ano" value={mainSummary.year || "-"} />
                 <SummaryBox label="Quilometragem" value={mainSummary.mileage ? `${mainSummary.mileage} km` : "-"} />
-                <SummaryBox label="Imagens publicas" value={String(mainSummary.imageCount)} />
+                <SummaryBox label="Imagens públicas" value={String(mainSummary.imageCount)} />
             </div>
 
             <div className="mt-6 rounded-[24px] border border-black/8 bg-[#faf8f4] p-4">
@@ -412,7 +412,7 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
             <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <Field label="Categoria Mercado Livre" value={value.categoryId} onChange={(next) => onChange({ categoryId: next })} />
                 <SelectField
-                    label="Tipo de anuncio"
+                    label="Tipo de anúncio"
                     value={value.listingTypeId}
                     options={listingTypes.map((item) => ({
                         value: item.id,
@@ -422,7 +422,7 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
                     onChange={(next) => onChange({ listingTypeId: next })}
                 />
                 <SelectField
-                    label="Condicao"
+                    label="Condição"
                     value={value.condition || "used"}
                     options={[
                         { value: "used", label: "Usado" },
@@ -431,16 +431,16 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
                     onChange={(next) => onChange({ condition: next })}
                 />
                 <Field label="SKU interno" value={value.sellerSku} onChange={(next) => onChange({ sellerSku: next.toUpperCase() })} />
-                <Field label="Titulo do anuncio" value={value.title} onChange={(next) => onChange({ title: next })} placeholder="Ex.: Chevrolet Onix 1.0 LT 2020" />
-                <MoneyField label="Preco Mercado Livre" value={value.priceCents} onChange={(next) => onChange({ priceCents: next })} />
+                <Field label="Título do anúncio" value={value.title} onChange={(next) => onChange({ title: next })} placeholder="Ex.: Chevrolet Onix 1.0 LT 2020" />
+                <MoneyField label="Preço Mercado Livre" value={value.priceCents} onChange={(next) => onChange({ priceCents: next })} />
             </div>
 
             <div className="mt-4">
                 <TextArea
-                    label="Descricao do anuncio"
+                    label="Descrição do anúncio"
                     value={value.description}
                     onChange={(next) => onChange({ description: next })}
-                    placeholder={mainSummary.description || "Descricao usada no Mercado Livre"}
+                    placeholder={mainSummary.description || "Descrição usada no Mercado Livre"}
                 />
             </div>
 
@@ -448,7 +448,7 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
                 <div className="flex items-center justify-between gap-3">
                     <div>
                         <p className="text-sm font-semibold text-io-dark">Atributos da categoria</p>
-                        <p className="mt-1 text-sm text-black/52">Os campos obrigatorios dependem da categoria escolhida. Atributos base como marca, modelo e ano continuam vindo do cadastro principal.</p>
+                        <p className="mt-1 text-sm text-black/52">Os campos obrigatórios dependem da categoria escolhida. Atributos base como marca, modelo e ano continuam vindo do cadastro principal.</p>
                     </div>
                     <div className="text-xs font-bold uppercase tracking-[0.16em] text-black/35">
                         {loadingAttributes ? "Carregando..." : `${categoryAttributes.length} atributos`}
@@ -470,7 +470,7 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
                                         </div>
                                         <div className="flex gap-2">
                                             {attribute.required || attribute.catalogRequired ? (
-                                                <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-red-700">Obrigatorio</span>
+                                                <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-red-700">Obrigatório</span>
                                             ) : null}
                                             {isAuto ? (
                                                 <span className="rounded-full bg-black/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-black/55">Herdado</span>
@@ -519,7 +519,7 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
                     </div>
                 ) : (
                     <p className="mt-4 rounded-2xl bg-white px-4 py-4 text-sm text-black/55">
-                        Escolha uma categoria e sincronize os atributos para validar o payload antes da publicacao.
+                        Escolha uma categoria e sincronize os atributos para validar o payload antes da publicação.
                     </p>
                 )}
             </div>
@@ -534,7 +534,7 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
                         void runAction(
                             "publish",
                             () => fetch(`/api/integrations/mercadolivre/vehicles/${vehicleId}/publish`, { method: "POST" }),
-                            { persistMapping: true, successMessage: "Veiculo publicado no Mercado Livre." },
+                            { persistMapping: true, successMessage: "Veículo publicado no Mercado Livre." },
                         )
                     }
                 />
@@ -547,7 +547,7 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
                         void runAction(
                             "update",
                             () => fetch(`/api/integrations/mercadolivre/vehicles/${vehicleId}/ad`, { method: "PUT" }),
-                            { persistMapping: true, successMessage: "Anuncio Mercado Livre atualizado." },
+                            { persistMapping: true, successMessage: "Anúncio Mercado Livre atualizado." },
                         )
                     }
                 />
@@ -591,21 +591,21 @@ export function MeliVehiclePanel({ vehicleId, value, mainSummary, onHydrate, onC
                     }`}
                 >
                     <ExternalLink className="h-4 w-4" />
-                    Abrir anuncio no Mercado Livre
+                    Abrir anúncio no Mercado Livre
                 </a>
                 <div className="text-xs text-black/45">
-                    Ultima sincronizacao: {formatDateTime(value.ad?.lastSyncedAt)}
+                    última sincronização: {formatDateTime(value.ad?.lastSyncedAt)}
                 </div>
             </div>
 
             {!vehicleId ? (
-                <p className="mt-4 text-xs text-black/42">Salve o cadastro do veiculo para persistir o mapeamento Mercado Livre e habilitar a publicacao.</p>
+                <p className="mt-4 text-xs text-black/42">Salve o cadastro do veículo para persistir o mapeamento Mercado Livre e habilitar a publicação.</p>
             ) : null}
 
             {loadingMapping ? (
                 <div className="mt-4 inline-flex items-center gap-2 text-sm text-black/48">
                     <LoaderCircle className="h-4 w-4 animate-spin" />
-                    Carregando configuracao Mercado Livre do veiculo...
+                    Carregando configuração Mercado Livre do veículo...
                 </div>
             ) : null}
         </section>

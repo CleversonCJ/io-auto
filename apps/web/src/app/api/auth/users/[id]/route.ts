@@ -28,7 +28,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     const { id } = await ctx.params;
     const body = (await req.json().catch(() => null)) as UpdateUserBody | null;
     if (!body?.email || !body?.fullName || !body?.teamId || !Array.isArray(body.roles) || body.roles.length === 0) {
-        return NextResponse.json({ message: "Dados invalidos" }, { status: 400 });
+        return NextResponse.json({ message: "Dados inválidos" }, { status: 400 });
     }
 
     const payload = {

@@ -7,12 +7,12 @@ export async function PUT(request: Request, context: { params: Promise<{ provide
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body,
-    }, "Falha ao atualizar a integracao.");
+    }, "Falha ao atualizar a integração.");
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ provider: string }> }) {
     const { provider } = await context.params;
     return jsonFromAuthedUpstream(`/ioauto/integrations/${provider}`, {
         method: "DELETE",
-    }, "Falha ao excluir a integracao.");
+    }, "Falha ao excluir a integração.");
 }

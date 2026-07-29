@@ -19,7 +19,7 @@ async function proxy(
             headers: body && contentType ? { "Content-Type": contentType } : undefined,
             body,
         },
-        "Falha ao processar a requisicao de superadmin.",
+        "Falha ao processar a requisição de superadmin.",
     );
 }
 

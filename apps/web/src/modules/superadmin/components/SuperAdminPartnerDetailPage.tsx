@@ -116,7 +116,7 @@ export function SuperAdminPartnerDetailPage({ partnerId }: { partnerId: string }
     }
 
     if (!data) {
-        return <div className="rounded-[30px] border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">{error ?? "Nao foi possivel carregar o parceiro."}</div>;
+        return <div className="rounded-[30px] border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">{error ?? "Não foi possível carregar o parceiro."}</div>;
     }
 
     return (
@@ -150,33 +150,33 @@ export function SuperAdminPartnerDetailPage({ partnerId }: { partnerId: string }
                         <p className="mt-2 text-2xl font-bold text-io-dark">{data.partner.salesClosed}</p>
                     </div>
                     <div className="rounded-[24px] bg-black/[0.02] px-4 py-4">
-                        <p className="text-xs uppercase tracking-[0.2em] text-black/42">Taxa de conversao</p>
+                        <p className="text-xs uppercase tracking-[0.2em] text-black/42">Taxa de conversão</p>
                         <p className="mt-2 text-2xl font-bold text-io-dark">{formatPercent(data.partner.conversionRate)}</p>
                     </div>
                     <div className="rounded-[24px] bg-black/[0.02] px-4 py-4">
-                        <p className="text-xs uppercase tracking-[0.2em] text-black/42">Comissao gerada</p>
+                        <p className="text-xs uppercase tracking-[0.2em] text-black/42">Comissão gerada</p>
                         <p className="mt-2 text-2xl font-bold text-io-dark">{toCurrency(data.partner.commissionGeneratedCents)}</p>
                     </div>
                     <div className="rounded-[24px] bg-black/[0.02] px-4 py-4">
-                        <p className="text-xs uppercase tracking-[0.2em] text-black/42">Comissao paga</p>
+                        <p className="text-xs uppercase tracking-[0.2em] text-black/42">Comissão paga</p>
                         <p className="mt-2 text-2xl font-bold text-io-dark">{toCurrency(data.partner.commissionPaidCents)}</p>
                     </div>
                     <div className="rounded-[24px] bg-black/[0.02] px-4 py-4">
-                        <p className="text-xs uppercase tracking-[0.2em] text-black/42">Comissao pendente</p>
+                        <p className="text-xs uppercase tracking-[0.2em] text-black/42">Comissão pendente</p>
                         <p className="mt-2 text-2xl font-bold text-io-dark">{toCurrency(data.partner.commissionPendingCents)}</p>
                     </div>
                 </div>
             </section>
 
             <section className="grid gap-4 xl:grid-cols-3">
-                <MiniChart title="Leads por mes" points={data.charts.leadsByMonth} formatter={(value) => String(value)} />
-                <MiniChart title="Conversoes por mes" points={data.charts.conversionsByMonth} formatter={(value) => String(value)} />
-                <MiniChart title="Comissao por mes" points={data.charts.commissionByMonth} formatter={(value) => toCurrency(value)} />
+                <MiniChart title="Leads por mês" points={data.charts.leadsByMonth} formatter={(value) => String(value)} />
+                <MiniChart title="Conversões por mês" points={data.charts.conversionsByMonth} formatter={(value) => String(value)} />
+                <MiniChart title="Comissão por mês" points={data.charts.commissionByMonth} formatter={(value) => toCurrency(value)} />
             </section>
 
             <section className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                 <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Historico de leads</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Histórico de leads</p>
                     <h2 className="mt-2 text-2xl font-bold text-io-dark">Todos os leads indicados</h2>
                 </div>
                 <div className="mt-5 overflow-x-auto">
@@ -217,7 +217,7 @@ export function SuperAdminPartnerDetailPage({ partnerId }: { partnerId: string }
 
             <section className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                 <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Historico de comissoes</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/40">Histórico de comissões</p>
                     <h2 className="mt-2 text-2xl font-bold text-io-dark">Vendas fechadas e pagamento</h2>
                 </div>
                 <div className="mt-5 overflow-x-auto">
@@ -227,7 +227,7 @@ export function SuperAdminPartnerDetailPage({ partnerId }: { partnerId: string }
                                 <th className="px-3 py-3 font-semibold">Cliente fechado</th>
                                 <th className="px-3 py-3 font-semibold">Plano</th>
                                 <th className="px-3 py-3 font-semibold">Mensalidade</th>
-                                <th className="px-3 py-3 font-semibold">Comissao</th>
+                                <th className="px-3 py-3 font-semibold">Comissão</th>
                                 <th className="px-3 py-3 font-semibold">Status</th>
                                 <th className="px-3 py-3 font-semibold">Pagamento previsto</th>
                                 <th className="px-3 py-3 font-semibold">Fechamento</th>

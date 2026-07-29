@@ -110,7 +110,7 @@ async function readImageBytes(response: Response) {
 export async function POST(req: Request) {
     const access = await ensureAuthenticatedSession();
     if (!access) {
-        return NextResponse.json({ message: "Sessao expirada." }, { status: 401 });
+        return NextResponse.json({ message: "Sessão expirada." }, { status: 401 });
     }
 
     const body = (await req.json().catch(() => null)) as DroppedImageBody | null;
@@ -123,11 +123,11 @@ export async function POST(req: Request) {
     try {
         parsedUrl = new URL(rawUrl);
     } catch {
-        return NextResponse.json({ message: "A origem arrastada nao possui uma URL valida." }, { status: 400 });
+        return NextResponse.json({ message: "A origem arrastada não possui uma URL válida." }, { status: 400 });
     }
 
     if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-        return NextResponse.json({ message: "So e possivel buscar imagens remotas via http ou https." }, { status: 400 });
+        return NextResponse.json({ message: "Só e possível buscar imagens remotas via http ou https." }, { status: 400 });
     }
 
     let upstream: Response;
@@ -140,7 +140,7 @@ export async function POST(req: Request) {
         return NextResponse.json(
             {
                 message:
-                    "Nao foi possivel acessar essa imagem arrastada. Se a origem estiver protegida, salve a imagem no computador ou copie e cole no campo da mensagem.",
+                    "Não foi possível acessar essa imagem arrastada. Se a origem estiver protegida, salve a imagem no computador ou copie e cole no campo da mensagem.",
             },
             { status: 502 }
         );
@@ -150,7 +150,7 @@ export async function POST(req: Request) {
         return NextResponse.json(
             {
                 message:
-                    "Nao foi possivel acessar essa imagem arrastada. Se a origem estiver protegida, salve a imagem no computador ou copie e cole no campo da mensagem.",
+                    "Não foi possível acessar essa imagem arrastada. Se a origem estiver protegida, salve a imagem no computador ou copie e cole no campo da mensagem.",
             },
             { status: 502 }
         );
@@ -159,7 +159,7 @@ export async function POST(req: Request) {
     const contentType = upstream.headers.get("Content-Type");
     if (!contentType?.toLowerCase().startsWith("image/")) {
         return NextResponse.json(
-            { message: "Conteudos remotos arrastados do navegador sao aceitos automaticamente apenas para imagens. Para videos e documentos, arraste o arquivo do computador." },
+            { message: "Conteúdos remotos arrastados do navegador são aceitos automaticamente apenas para imagens. Para vídeos e documentos, arraste o arquivo do computador." },
             { status: 415 }
         );
     }
@@ -177,7 +177,7 @@ export async function POST(req: Request) {
             },
         });
     } catch (error) {
-        const message = error instanceof Error ? error.message : "Nao foi possivel processar a imagem arrastada.";
+        const message = error instanceof Error ? error.message : "Não foi possível processar a imagem arrastada.";
         const status = message.includes("Limite: 5 MB") ? 413 : 500;
         return NextResponse.json({ message }, { status });
     }

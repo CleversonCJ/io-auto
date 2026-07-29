@@ -160,7 +160,7 @@ export function FinancialContas() {
     async function handleSettle(entry: FinancialEntryRecord) {
         if (entry.status === "SETTLED") return;
         if (!entry.dreSubcategoryId) {
-            setSettleError("Nao foi possivel liquidar este lancamento porque ele nao possui subcategoria do DRE.");
+            setSettleError("Não foi possível liquidar este lançamento porque ele não possui subcategoria do DRE.");
             return;
         }
 
@@ -178,7 +178,7 @@ export function FinancialContas() {
                 settled: true,
             });
         } catch (cause) {
-            setSettleError(cause instanceof Error ? cause.message : "Nao foi possivel liquidar o lancamento.");
+            setSettleError(cause instanceof Error ? cause.message : "Não foi possível liquidar o lançamento.");
         } finally {
             setSettlingEntryId(null);
         }

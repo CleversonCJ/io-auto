@@ -30,7 +30,7 @@ function getVehicleImages(vehicle: PublicInventoryVehicle) {
 }
 
 function formatMileage(value?: number | null) {
-    if (value == null || Number.isNaN(Number(value))) return "Quilometragem nao informada";
+    if (value == null || Number.isNaN(Number(value))) return "Quilometragem não informada";
     return `${new Intl.NumberFormat("pt-BR").format(value)} km`;
 }
 
@@ -38,17 +38,17 @@ function formatVehicleYears(vehicle: Pick<PublicInventoryVehicle, "modelYear" | 
     if (vehicle.manufactureYear && vehicle.modelYear) return `${vehicle.manufactureYear}/${vehicle.modelYear}`;
     if (vehicle.modelYear) return String(vehicle.modelYear);
     if (vehicle.manufactureYear) return String(vehicle.manufactureYear);
-    return "Ano nao informado";
+    return "Ano não informado";
 }
 
 function buildVehicleSubtitle(vehicle: Pick<PublicInventoryVehicle, "version" | "fuelType" | "transmission">) {
     const parts = [vehicle.version, vehicle.fuelType, vehicle.transmission].filter(Boolean);
-    return parts.length ? parts.join(" • ") : "Veiculo disponivel para negociacao";
+    return parts.length ? parts.join(" • ") : "Veículo disponível para negociação";
 }
 
 function buildVehicleLocation(vehicle: Pick<PublicInventoryVehicle, "city" | "state">) {
     const parts = [vehicle.city, vehicle.state].filter(Boolean);
-    return parts.length ? parts.join(" / ") : "Localizacao nao informada";
+    return parts.length ? parts.join(" / ") : "Localização não informada";
 }
 
 function getInitials(name?: string | null) {
@@ -81,7 +81,7 @@ function CatalogBanner({
                     <img src={banner.imageUrl} alt={banner.title} className="absolute inset-0 h-full w-full object-cover" />
                 ) : (
                     <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-sm text-black/32">Imagem do banner indisponivel</span>
+                        <span className="text-sm text-black/32">Imagem do banner indisponível</span>
                     </div>
                 )}
             </div>
@@ -95,13 +95,13 @@ function CatalogBanner({
                     <img src={banner.imageUrl} alt={banner.title} className="h-full w-full object-cover" />
                 ) : (
                     <div className="flex h-full min-h-[240px] items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.16),_transparent_45%),linear-gradient(135deg,_#212121,_#454545)]">
-                        <span className="text-sm text-white/65">Imagem do banner indisponivel</span>
+                        <span className="text-sm text-white/65">Imagem do banner indisponível</span>
                     </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-5">
                     <p className="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/90">
-                        {banner.featured ? "Em destaque" : "Veiculo disponivel"}
+                        {banner.featured ? "Em destaque" : "Veículo disponível"}
                     </p>
                     <h2 className="mt-3 max-w-2xl font-display text-3xl font-bold md:text-4xl">{banner.title}</h2>
                     <p className="mt-2 max-w-xl text-sm text-white/78 md:text-base">{banner.subtitle}</p>
@@ -112,22 +112,22 @@ function CatalogBanner({
                 <div>
                     <p className="inline-flex items-center gap-2 rounded-full bg-io-purple/5 border border-io-purple/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-io-purple">
                         <Sparkles className="h-3.5 w-3.5" />
-                        Banner do catalogo
+                        Banner do catálogo
                     </p>
                     <h3 className="mt-4 font-display text-3xl font-bold">{banner.modelYear ?? "Sem ano definido"}</h3>
                     <div className="mt-4 grid gap-3 text-sm text-black/62">
                         <span className="inline-flex items-center gap-2 rounded-full bg-black/[0.04] px-3 py-2 font-medium">
                             <CalendarDays className="h-4 w-4 text-io-purple" />
-                            {banner.modelYear ? `${banner.modelYear}` : "Ano nao informado"}
+                            {banner.modelYear ? `${banner.modelYear}` : "Ano não informado"}
                         </span>
                         <span className="inline-flex items-center gap-2 rounded-full bg-black/[0.04] px-3 py-2 font-medium">
                             <MapPin className="h-4 w-4 text-io-purple" />
-                            {[banner.city, banner.state].filter(Boolean).join(" / ") || "Localizacao nao informada"}
+                            {[banner.city, banner.state].filter(Boolean).join(" / ") || "Localização não informada"}
                         </span>
                     </div>
 
                     <div className="mt-6 rounded-[24px] border border-black/10 bg-black/5 px-4 py-4">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-black/40">Preco sugerido</p>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-black/40">Preço sugerido</p>
                         <p className="mt-2 text-3xl font-bold text-io-dark tracking-tight">{formatMoney(banner.priceCents)}</p>
                     </div>
                 </div>
@@ -185,7 +185,7 @@ function VehicleCard({
                 )}
                 <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-3 p-4">
                     <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-black/68">
-                        {vehicle.featured ? "Destaque" : "Disponivel"}
+                        {vehicle.featured ? "Destaque" : "Disponível"}
                     </span>
                 </div>
             </div>
@@ -346,7 +346,7 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
     const currentBanner = banners[currentBannerIndex] ?? null;
     const companyContactHref = buildTrackedWhatsappHref(
         data.company.whatsappNumber,
-        "Ola! Vim pelo catalogo publico e gostaria de mais informacoes.",
+        "Olá! Vim pelo catálogo público e gostaria de mais informações.",
         tracking
     );
 
@@ -388,7 +388,7 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                             disabled={!companyContactHref}
                         >
                             <MessageCircle className="h-4 w-4" />
-                            {companyContactHref ? "Contato via WhatsApp" : "Contato indisponivel"}
+                            {companyContactHref ? "Contato via WhatsApp" : "Contato indisponível"}
                         </button>
                     </div>
                 </header>
@@ -409,8 +409,8 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                                         redirectUrl: buildTrackedWhatsappHref(
                                             data.company.whatsappNumber,
                                             currentBanner.kind === "VEHICLE"
-                                                ? `Ola! Tenho interesse no veiculo ${currentBanner.title}.`
-                                                : "Ola! Vim pelo catalogo publico e gostaria de mais informacoes sobre os carros disponiveis.",
+                                                ? `Olá! Tenho interesse no veículo ${currentBanner.title}.`
+                                                : "Olá! Vim pelo catálogo público e gostaria de mais informações sobre os carros disponíveis.",
                                             tracking
                                         ),
                                         vehicleId: currentBanner.kind === "VEHICLE" ? currentBanner.vehicleId : null,
@@ -447,7 +447,7 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                                             type="button"
                                             onClick={() => setCurrentBannerIndex((current) => (current + 1) % banners.length)}
                                             className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/12 bg-white text-black/72 transition hover:border-black/20 hover:text-io-dark"
-                                            aria-label="Proximo banner"
+                                            aria-label="Próximo banner"
                                         >
                                             <ChevronRight className="h-5 w-5" />
                                         </button>
@@ -457,7 +457,7 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                         </>
                     ) : (
                         <div className="rounded-[32px] bg-[#212121] px-6 py-12 text-center text-white">
-                            <p className="text-sm text-white/72">Ainda nao ha banners para este catalogo.</p>
+                            <p className="text-sm text-white/72">Ainda não há banners para este catálogo.</p>
                         </div>
                     )}
                 </section>
@@ -474,7 +474,7 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                         </div>
 
                         <div className="rounded-full bg-black/[0.04] px-4 py-3 text-sm font-medium text-black/60">
-                            {filteredVehicles.length} veiculo(s) disponivel(is)
+                            {filteredVehicles.length} veículo(s) disponível(is)
                         </div>
                     </div>
 
@@ -493,8 +493,8 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                         </div>
 
                         <FilterSelect label="Marca" value={brand} onChange={setBrand} options={brandOptions} />
-                        <FilterSelect label="Cambio" value={transmission} onChange={setTransmission} options={transmissionOptions} />
-                        <FilterSelect label="Combustivel" value={fuelType} onChange={setFuelType} options={fuelOptions} />
+                        <FilterSelect label="Câmbio" value={transmission} onChange={setTransmission} options={transmissionOptions} />
+                        <FilterSelect label="Combustível" value={fuelType} onChange={setFuelType} options={fuelOptions} />
                     </div>
                 </section>
 
@@ -511,7 +511,7 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                                         setLeadCapture({
                                             redirectUrl: buildTrackedWhatsappHref(
                                                 data.company.whatsappNumber,
-                                                `Ola! Tenho interesse no veiculo ${vehicle.title}.`,
+                                                `Olá! Tenho interesse no veículo ${vehicle.title}.`,
                                                 tracking
                                             ),
                                             vehicleId: vehicle.id,
@@ -527,8 +527,8 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                             <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-black/[0.04]">
                                 <Search className="h-6 w-6 text-black/42" />
                             </div>
-                            <h3 className="mt-4 font-display text-2xl font-bold">Nenhum veiculo encontrado</h3>
-                            <p className="mt-2 text-sm text-black/56">Tente ajustar os filtros para explorar todo o estoque disponivel.</p>
+                            <h3 className="mt-4 font-display text-2xl font-bold">Nenhum veículo encontrado</h3>
+                            <p className="mt-2 text-sm text-black/56">Tente ajustar os filtros para explorar todo o estoque disponível.</p>
                         </div>
                     )}
                 </section>

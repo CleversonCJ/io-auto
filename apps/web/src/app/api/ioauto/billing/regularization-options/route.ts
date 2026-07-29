@@ -4,6 +4,6 @@ export async function GET() {
     return jsonFromAuthedUpstream(
         "/ioauto/billing/regularization-options",
         {},
-        "Falha ao carregar opcoes de regularizacao da assinatura.",
+        "Falha ao carregar opções de regularização da assinatura.",
     );
 }

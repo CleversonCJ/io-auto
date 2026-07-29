@@ -16,7 +16,7 @@ async function fetchPublicResource<T>(path: string) {
     }
 
     if (!response.ok) {
-        throw new Error((payload as ApiError | null)?.message ?? "Falha ao carregar o catalogo publico.");
+        throw new Error((payload as ApiError | null)?.message ?? "Falha ao carregar o catálogo público.");
     }
 
     return payload as T;

@@ -22,7 +22,7 @@ export function OptionsChipsInput({
     onChange,
     disabled,
     maxItems = 10,
-    placeholder = "Digite uma opcao e pressione Enter",
+    placeholder = "Digite uma opção e pressione Enter",
     ariaLabel,
     error,
 }: OptionsChipsInputProps) {
@@ -59,7 +59,7 @@ export function OptionsChipsInput({
                                 onClick={() => removeOption(item)}
                                 disabled={disabled}
                                 className="rounded-full text-xs opacity-70 transition hover:opacity-100 disabled:cursor-not-allowed"
-                                aria-label={`Remover opcao ${item}`}
+                                aria-label={`Remover opção ${item}`}
                             >
                                 x
                             </button>
@@ -79,8 +79,8 @@ export function OptionsChipsInput({
                         }}
                         onBlur={commitDraft}
                         disabled={disabled || value.length >= maxItems}
-                        aria-label={ariaLabel ?? "Adicionar opcao"}
-                        placeholder={value.length >= maxItems ? "Limite de opcoes atingido" : placeholder}
+                        aria-label={ariaLabel ?? "Adicionar opção"}
+                        placeholder={value.length >= maxItems ? "Limite de opções atingido" : placeholder}
                         className="h-11 flex-1 rounded-xl border border-black/10 px-3 text-sm outline-none transition focus:border-io-purple focus:ring-2 focus:ring-io-purple/10 disabled:cursor-not-allowed disabled:bg-black/5"
                     />
                     <button
@@ -93,7 +93,7 @@ export function OptionsChipsInput({
                     </button>
                 </div>
             </div>
-            <p className="mt-2 text-xs text-black/50">{value.length}/{maxItems} opcoes</p>
+            <p className="mt-2 text-xs text-black/50">{value.length}/{maxItems} opções</p>
             <FieldError message={error} />
         </div>
     );

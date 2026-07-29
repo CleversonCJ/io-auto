@@ -23,11 +23,11 @@ export async function POST() {
 
     const payload = await readJsonSafely<ExitPayload>(result.upstream!);
     if (!result.upstream!.ok) {
-        return NextResponse.json({ message: payload?.message ?? "Falha ao encerrar impersonacao." }, { status: result.upstream!.status });
+        return NextResponse.json({ message: payload?.message ?? "Falha ao encerrar impersonação." }, { status: result.upstream!.status });
     }
 
     if (!payload?.accessToken || !payload?.refreshToken) {
-        return NextResponse.json({ message: "Resposta invalida ao encerrar impersonacao." }, { status: 502 });
+        return NextResponse.json({ message: "Resposta inválida ao encerrar impersonação." }, { status: 502 });
     }
 
     await setAuthCookies(payload.accessToken, payload.refreshToken);

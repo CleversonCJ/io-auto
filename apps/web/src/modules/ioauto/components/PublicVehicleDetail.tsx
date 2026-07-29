@@ -31,7 +31,7 @@ function getVehicleImages(detail: PublicVehicleDetail["vehicle"]) {
 }
 
 function formatMileage(value?: number | null) {
-    if (value == null || Number.isNaN(Number(value))) return "Quilometragem nao informada";
+    if (value == null || Number.isNaN(Number(value))) return "Quilometragem não informada";
     return `${new Intl.NumberFormat("pt-BR").format(value)} km`;
 }
 
@@ -39,12 +39,12 @@ function formatVehicleYears(detail: Pick<PublicVehicleDetail["vehicle"], "modelY
     if (detail.manufactureYear && detail.modelYear) return `${detail.manufactureYear}/${detail.modelYear}`;
     if (detail.modelYear) return String(detail.modelYear);
     if (detail.manufactureYear) return String(detail.manufactureYear);
-    return "Ano nao informado";
+    return "Ano não informado";
 }
 
 function buildVehicleLocation(detail: Pick<PublicVehicleDetail["vehicle"], "city" | "state">) {
     const parts = [detail.city, detail.state].filter(Boolean);
-    return parts.length ? parts.join(" / ") : "Localizacao nao informada";
+    return parts.length ? parts.join(" / ") : "Localização não informada";
 }
 
 function getInitials(name?: string | null) {
@@ -82,7 +82,7 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
 
     const contactHref = buildTrackedWhatsappHref(
         data.company.whatsappNumber,
-        `Ola! Tenho interesse no veiculo ${data.vehicle.title}.`,
+        `Olá! Tenho interesse no veículo ${data.vehicle.title}.`,
         tracking
     );
 
@@ -91,13 +91,13 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
         { label: "Modelo", value: data.vehicle.model, icon: <Info className="h-4 w-4" /> },
         { label: "Ano", value: formatVehicleYears(data.vehicle), icon: <CalendarDays className="h-4 w-4" /> },
         { label: "Quilometragem", value: formatMileage(data.vehicle.mileage), icon: <Gauge className="h-4 w-4" /> },
-        { label: "Cambio", value: data.vehicle.transmission ?? "Nao informado", icon: <Settings2 className="h-4 w-4" /> },
-        { label: "Combustivel", value: data.vehicle.fuelType ?? "Nao informado", icon: <Sparkles className="h-4 w-4" /> },
-        { label: "Carroceria", value: data.vehicle.bodyType ?? "Nao informado", icon: <ShieldCheck className="h-4 w-4" /> },
-        { label: "Portas", value: data.vehicle.doors != null ? `${data.vehicle.doors}` : "Nao informado", icon: <CarFront className="h-4 w-4" /> },
-        { label: "Cor", value: data.vehicle.color ?? "Nao informado", icon: <Palette className="h-4 w-4" /> },
-        { label: "Localizacao", value: buildVehicleLocation(data.vehicle), icon: <MapPin className="h-4 w-4" /> },
-        { label: "Final da placa", value: data.vehicle.plateFinal ?? "Nao informado", icon: <Info className="h-4 w-4" /> },
+        { label: "Câmbio", value: data.vehicle.transmission ?? "Não informado", icon: <Settings2 className="h-4 w-4" /> },
+        { label: "Combustível", value: data.vehicle.fuelType ?? "Não informado", icon: <Sparkles className="h-4 w-4" /> },
+        { label: "Carroceria", value: data.vehicle.bodyType ?? "Não informado", icon: <ShieldCheck className="h-4 w-4" /> },
+        { label: "Portas", value: data.vehicle.doors != null ? `${data.vehicle.doors}` : "Não informado", icon: <CarFront className="h-4 w-4" /> },
+        { label: "Cor", value: data.vehicle.color ?? "Não informado", icon: <Palette className="h-4 w-4" /> },
+        { label: "Localização", value: buildVehicleLocation(data.vehicle), icon: <MapPin className="h-4 w-4" /> },
+        { label: "Final da placa", value: data.vehicle.plateFinal ?? "Não informado", icon: <Info className="h-4 w-4" /> },
     ];
 
     return (
@@ -131,7 +131,7 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                             disabled={!contactHref}
                         >
                             <MessageCircle className="h-4 w-4" />
-                            {contactHref ? "Contato via WhatsApp" : "Contato indisponivel"}
+                            {contactHref ? "Contato via WhatsApp" : "Contato indisponível"}
                         </button>
                     </div>
                 </header>
@@ -142,7 +142,7 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                         className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-medium text-black/65 shadow-[0_10px_30px_rgba(15,23,42,0.07)] transition hover:text-io-dark"
                     >
                         <ArrowLeft className="h-4 w-4" />
-                        Voltar ao catalogo
+                        Voltar ao catálogo
                     </Link>
                 </div>
 
@@ -153,7 +153,7 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                                 <img src={selectedImage} alt={data.vehicle.title} className="h-[320px] w-full object-cover md:h-[520px]" />
                             ) : (
                                 <div className="flex h-[320px] items-center justify-center bg-white text-white/70 md:h-[520px]">
-                                    Sem imagens disponiveis
+                                    Sem imagens disponíveis
                                 </div>
                             )}
                         </div>
@@ -235,7 +235,7 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                 <section className="mt-7">
                     <div className="flex items-center gap-3">
                         <div className="h-8 w-1 rounded-full bg-io-purple" />
-                        <h3 className="font-display text-2xl font-bold md:text-3xl">Especificacoes detalhadas</h3>
+                        <h3 className="font-display text-2xl font-bold md:text-3xl">Especificações detalhadas</h3>
                     </div>
 
                     <div className="mt-5 rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_55px_rgba(15,23,42,0.07)] md:p-6">
@@ -253,9 +253,9 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
 
                         <div className="mt-6 grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
                             <div className="rounded-[28px] bg-[#212121] px-5 py-5 text-white">
-                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Descricao</p>
+                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Descrição</p>
                                 <p className="mt-4 text-sm leading-7 text-white/76">
-                                    {data.vehicle.description?.trim() || "Este veiculo esta disponivel para atendimento e negociacao. Fale com a loja para receber fotos, condicoes e simulacoes."}
+                                    {data.vehicle.description?.trim() || "Este veículo está disponível para atendimento e negociação. Fale com a loja para receber fotos, condições e simulações."}
                                 </p>
                             </div>
 

@@ -95,7 +95,7 @@ export function BillingAccessBlockerPopup() {
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-700">Acesso bloqueado</p>
                 <h2 className="mt-2 text-2xl font-black text-zinc-900 md:text-3xl">Pagamento pendente da assinatura</h2>
                 <p className="mt-3 text-sm leading-6 text-zinc-600">
-                    {status?.blockReason || "Sua assinatura esta pendente. Regularize o pagamento para liberar o sistema novamente."}
+                    {status?.blockReason || "Sua assinatura está pendente. Regularize o pagamento para liberar o sistema novamente."}
                 </p>
 
                 <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -110,7 +110,7 @@ export function BillingAccessBlockerPopup() {
 
                 <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
                     <p className="text-sm text-zinc-700">
-                        Use o botao abaixo para abrir a cobranca no Asaas e realizar o pagamento da fatura em aberto.
+                        Use o botão abaixo para abrir a cobrança no Asaas e realizar o pagamento da fatura em aberto.
                     </p>
                     {regularizationUrl ? (
                         <a
@@ -133,7 +133,7 @@ export function BillingAccessBlockerPopup() {
                 </div>
 
                 <p className="mt-6 text-xs text-zinc-500">
-                    A conta sera liberada automaticamente apos a confirmacao de pagamento do Asaas.
+                    A conta será liberada automaticamente após a confirmação de pagamento do Asaas.
                     {checkingRelease ? " Verificando status de pagamento..." : ""}
                 </p>
             </div>

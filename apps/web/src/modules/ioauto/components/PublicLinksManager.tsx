@@ -88,7 +88,7 @@ async function compressBannerImage(file: File) {
         const image = await new Promise<HTMLImageElement>((resolve, reject) => {
             const nextImage = new Image();
             nextImage.onload = () => resolve(nextImage);
-            nextImage.onerror = () => reject(new Error("Nao foi possivel processar a imagem selecionada."));
+            nextImage.onerror = () => reject(new Error("Não foi possível processar a imagem selecionada."));
             nextImage.src = objectUrl;
         });
 
@@ -106,7 +106,7 @@ async function compressBannerImage(file: File) {
 
         const context = canvas.getContext("2d");
         if (!context) {
-            throw new Error("Nao foi possivel preparar a imagem para upload.");
+            throw new Error("Não foi possível preparar a imagem para upload.");
         }
 
         context.drawImage(image, 0, 0, width, height);
@@ -205,7 +205,7 @@ export function PublicLinksManager() {
             if (!linksResponse.ok) throw new Error("Falha ao carregar os links públicos.");
             if (!vehiclesResponse.ok) throw new Error("Falha ao carregar os veículos.");
 
-            if (!settingsResponse.ok) throw new Error("Falha ao carregar as configuracoes do banner.");
+            if (!settingsResponse.ok) throw new Error("Falha ao carregar as configurações do banner.");
 
             const [linksPayload, vehiclesPayload, mePayload, settingsPayload] = await Promise.all([
                 linksResponse.json() as Promise<PublicLinkRecord[]>,
@@ -320,7 +320,7 @@ export function PublicLinksManager() {
 
         const remainingSlots = Math.max(0, MAX_BANNER_IMAGES - catalogSettings.customImageUrls.length);
         if (remainingSlots === 0) {
-            setError(`Voce pode manter no maximo ${MAX_BANNER_IMAGES} imagens no banner.`);
+            setError(`Você pode manter no máximo ${MAX_BANNER_IMAGES} imagens no banner.`);
             return;
         }
 
@@ -359,7 +359,7 @@ export function PublicLinksManager() {
 
         if (!response.ok) {
             const data = (await response.json().catch(() => null)) as { message?: string } | null;
-            setError(data?.message ?? "Falha ao salvar as configuracoes do banner.");
+            setError(data?.message ?? "Falha ao salvar as configurações do banner.");
             setSavingCatalogSettings(false);
             return;
         }
@@ -421,10 +421,10 @@ export function PublicLinksManager() {
                                     </p>
                                     <h2 className="mt-4 font-display text-3xl font-bold text-io-dark">Escolha como a vitrine abre</h2>
                                     <p className="mt-2 text-sm text-black/56">
-                                        Use os carros em destaque ou envie imagens proprias para rodar no topo da pagina publica como banner.
+                                        Use os carros em destaque ou envie imagens próprias para rodar no topo da página pública como banner.
                                     </p>
                                     <p className="mt-3 text-sm text-black/50">
-                                        Preview publico: {origin}/estoque-publico/{slugifyCompanyName(companyName)}
+                                        Preview público: {origin}/estoque-publico/{slugifyCompanyName(companyName)}
                                     </p>
                                 </div>
 
@@ -458,7 +458,7 @@ export function PublicLinksManager() {
                                         <div className="flex items-center justify-between gap-3">
                                             <div>
                                                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/38">Imagens do banner</p>
-                                                <p className="mt-2 text-sm text-black/56">Ate {MAX_BANNER_IMAGES} imagens. Elas sao comprimidas antes de salvar.</p>
+                                                <p className="mt-2 text-sm text-black/56">Até {MAX_BANNER_IMAGES} imagens. Elas são comprimidas antes de salvar.</p>
                                             </div>
                                             <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-full bg-io-purple px-4 text-sm font-semibold text-white transition hover:bg-black/85">
                                                 {processingImages ? "Processando..." : "Adicionar imagens"}
@@ -505,7 +505,7 @@ export function PublicLinksManager() {
                                         </div>
                                         <h3 className="mt-6 font-display text-2xl font-bold text-io-dark">Modo Automático</h3>
                                         <p className="mt-2 text-sm text-black/56 max-w-sm">
-                                            Neste modo, o banner exibira automaticamente os veiculos em destaque e as entradas mais recentes do seu estoque.
+                                            Neste modo, o banner exibira automaticamente os veículos em destaque e as entradas mais recentes do seu estoque.
                                         </p>
                                     </div>
                                 )}
@@ -513,15 +513,15 @@ export function PublicLinksManager() {
                                 <div className="rounded-[28px] border border-black/10 bg-white p-6 shadow-sm">
                                     <div className="flex items-center gap-2">
                                         <div className="h-2 w-2 rounded-full bg-io-purple animate-pulse" />
-                                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-black/35">Configuracao atual</p>
+                                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-black/35">Configuração atual</p>
                                     </div>
                                     <h3 className="mt-4 font-display text-2xl font-bold text-io-dark">
                                         {isCustomBannerMode(catalogSettings.bannerMode) ? "Imagens personalizadas" : "Carros do estoque"}
                                     </h3>
                                     <p className="mt-3 text-sm leading-6 text-black/56">
                                         {isCustomBannerMode(catalogSettings.bannerMode)
-                                            ? "A pagina publica exibira as imagens enviadas ao lado em um carrossel rotativo."
-                                            : "A pagina publica continua usando os carros em destaque e mais recentes no banner."}
+                                            ? "A página pública exibira as imagens enviadas ao lado em um carrossel rotativo."
+                                            : "A página pública continua usando os carros em destaque e mais recentes no banner."}
                                     </p>
 
                                     <div className="mt-6 space-y-3">
@@ -549,7 +549,7 @@ export function PublicLinksManager() {
 
                                     {catalogSettingsChanged && (
                                         <p className="mt-4 text-center text-xs text-io-purple font-medium">
-                                            Voce tem alteracoes nao salvas. Clique acima para aplicar.
+                                            Você tem alterações não salvas. Clique acima para aplicar.
                                         </p>
                                     )}
                                 </div>

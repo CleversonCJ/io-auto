@@ -4,6 +4,6 @@ export async function POST() {
     return jsonFromAuthedUpstream(
         "/ioauto/billing/plan-change/notice/dismiss",
         { method: "POST" },
-        "Falha ao confirmar a leitura da alteracao de plano.",
+        "Falha ao confirmar a leitura da alteração de plano.",
     );
 }

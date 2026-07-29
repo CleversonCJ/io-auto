@@ -7,12 +7,12 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body,
-    }, "Falha ao atualizar o lancamento financeiro.");
+    }, "Falha ao atualizar o lançamento financeiro.");
 }
 
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
     const { id } = await context.params;
     return jsonFromAuthedUpstream(`/ioauto/financial/entries/${id}`, {
         method: "DELETE",
-    }, "Falha ao excluir o lancamento financeiro.");
+    }, "Falha ao excluir o lançamento financeiro.");
 }

@@ -5,5 +5,5 @@ export async function DELETE(_: Request, context: { params: Promise<{ id: string
 
     return jsonFromAuthedUpstream(`/ioauto/public-links/${id}`, {
         method: "DELETE",
-    }, "Falha ao remover o link publico.");
+    }, "Falha ao remover o link público.");
 }

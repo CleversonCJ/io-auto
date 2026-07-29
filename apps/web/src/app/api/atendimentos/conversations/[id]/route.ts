@@ -46,7 +46,7 @@ export async function DELETE(_: Request, { params }: Params) {
 
     if (res.status === 401) {
         const newAccess = await refreshAccessToken(apiBase);
-        if (!newAccess) return NextResponse.json({ message: "Sessao expirada" }, { status: 401 });
+        if (!newAccess) return NextResponse.json({ message: "Sessão expirada" }, { status: 401 });
         access = newAccess;
         res = await fetch(`${apiBase}/atendimentos/conversations/${id}`, {
             method: "DELETE",

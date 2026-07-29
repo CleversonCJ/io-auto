@@ -11,5 +11,5 @@ export async function POST(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body,
-    }, "Falha ao registrar a origem publica do lead.");
+    }, "Falha ao registrar a origem pública do lead.");
 }

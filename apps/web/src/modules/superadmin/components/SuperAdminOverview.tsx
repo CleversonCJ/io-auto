@@ -64,7 +64,7 @@ export function SuperAdminOverview() {
                                 </div>
                                 <div className="flex items-start justify-between gap-3 rounded-2xl bg-white/8 px-4 py-3">
                                     <span>R$ 32,6 mil em atraso para tratar</span>
-                                    <span className="rounded-full bg-amber-500/18 px-3 py-1 text-xs font-semibold text-amber-100">Cobranca</span>
+                                    <span className="rounded-full bg-amber-500/18 px-3 py-1 text-xs font-semibold text-amber-100">Cobrança</span>
                                 </div>
                             </div>
                         </div>

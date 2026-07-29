@@ -4,7 +4,7 @@ type RealtimeEvent = {
     type: "conversation.changed" | "message.changed" | "crm.state.changed" | "realtime.pong" | string;
     companyId?: string | null;
     conversationId?: string | null;
-    at?: string | null;
+    até: string | null;
 };
 
 type RealtimeListener = (event: RealtimeEvent) => void;
@@ -65,7 +65,7 @@ async function getAccessToken() {
     const res = await fetch("/api/realtime/token", { cache: "no-store" });
     if (!res.ok) throw new Error("Sem token realtime.");
     const data = (await res.json().catch(() => null)) as { accessToken?: string } | null;
-    if (!data?.accessToken) throw new Error("Token realtime invalido.");
+    if (!data?.accessToken) throw new Error("Token realtime inválido.");
     return data.accessToken;
 }
 
