@@ -48,8 +48,10 @@ async function refreshAccessToken(apiBase: string) {
 
     if (!refreshRes.ok) {
         console.error(`[atendimentos/conversations] refreshAccessToken POST /auth/refresh failed with status: ${refreshRes.status}`);
-        store.set(ACCESS_COOKIE, "", { path: "/", maxAge: 0 });
-        store.set(REFRESH_COOKIE, "", { path: "/", maxAge: 0 });
+        if ([400, 401, 403].includes(refreshRes.status)) {
+            store.set(ACCESS_COOKIE, "", { path: "/", maxAge: 0 });
+            store.set(REFRESH_COOKIE, "", { path: "/", maxAge: 0 });
+        }
         return null;
     }
 

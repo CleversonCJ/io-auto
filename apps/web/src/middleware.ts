@@ -26,6 +26,12 @@ export async function middleware(req: NextRequest) {
 
     const token = req.cookies.get(ACCESS_COOKIE)?.value;
     if (!token) {
+        const refresh = req.cookies.get(REFRESH_COOKIE)?.value;
+        if (refresh) {
+            // Allow the protected shell to hydrate. AuthSessionWatcher will
+            // exchange the httpOnly refresh cookie and rehydrate the layout.
+            return NextResponse.next();
+        }
         const url = req.nextUrl.clone();
         url.pathname = "/login";
         return NextResponse.redirect(url);

@@ -49,11 +49,21 @@ body {
     margin: 0;
     background: var(--io-light);
     color: var(--io-dark);
-    font-family: var(--font-body), sans-serif;
+    font-family: var(--font-poppins), sans-serif;
 }
 
-.font-display {
-    font-family: var(--font-display), sans-serif;
+.font-display,
+.font-mono,
+button,
+code,
+input,
+kbd,
+optgroup,
+pre,
+samp,
+select,
+textarea {
+    font-family: var(--font-poppins), sans-serif;
 }
 
 * {

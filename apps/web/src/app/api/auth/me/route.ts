@@ -9,6 +9,9 @@ type RefreshResponse = {
     refreshToken?: string;
     message?: string;
 };
+type RefreshOutcome =
+    | { status: "refreshed"; accessToken: string }
+    | { status: "expired" | "unavailable"; accessToken: null };
 
 function previewToken(token?: string | null) {
     if (!token) return null;
@@ -38,13 +41,13 @@ async function logAuthState(stage: string, request: Request) {
     });
 }
 
-async function refreshAccessToken(apiBase: string) {
+async function refreshAccessToken(apiBase: string): Promise<RefreshOutcome> {
     const cookieStore = await cookies();
     const refresh = cookieStore.get(REFRESH_COOKIE)?.value;
 
     if (!refresh) {
         await clearAuthCookies();
-        return null;
+        return { status: "expired", accessToken: null };
     }
 
     const refreshRes = await fetchUpstream(`${apiBase}/auth/refresh`, {
@@ -54,13 +57,19 @@ async function refreshAccessToken(apiBase: string) {
     });
 
     const data = await readJsonSafely<RefreshResponse>(refreshRes);
-    if (!refreshRes.ok || !data?.accessToken || !data?.refreshToken) {
-        await clearAuthCookies();
-        return null;
+    if (!refreshRes.ok) {
+        if ([400, 401, 403].includes(refreshRes.status)) {
+            await clearAuthCookies();
+            return { status: "expired", accessToken: null };
+        }
+        return { status: "unavailable", accessToken: null };
+    }
+    if (!data?.accessToken || !data?.refreshToken) {
+        return { status: "unavailable", accessToken: null };
     }
 
     await setAuthCookies(data.accessToken, data.refreshToken);
-    return data.accessToken;
+    return { status: "refreshed", accessToken: data.accessToken };
 }
 
 export async function GET(request: Request) {
@@ -68,11 +77,17 @@ export async function GET(request: Request) {
         const apiBase = getServerApiBase();
         const cookieStore = await cookies();
         let token = cookieStore.get(ACCESS_COOKIE)?.value ?? null;
+        let refreshed = false;
 
         if (!token) {
             await logAuthState("missing-access-before-refresh", request);
             console.error("[auth/me] io_access cookie is MISSING! Attempting to refresh using refresh token...");
-            token = await refreshAccessToken(apiBase);
+            const refreshOutcome = await refreshAccessToken(apiBase);
+            if (refreshOutcome.status === "unavailable") {
+                return NextResponse.json({ message: "Servidor de autenticacao indisponivel no momento." }, { status: 503 });
+            }
+            token = refreshOutcome.accessToken;
+            refreshed = refreshOutcome.status === "refreshed";
         }
 
         if (!token) {
@@ -92,14 +107,22 @@ export async function GET(request: Request) {
         if (res.status === 401) {
             await logAuthState("upstream-returned-401-before-refresh", request);
             console.error("[auth/me] requestMe returned 401. Attempting refresh...");
-            const newToken = await refreshAccessToken(apiBase);
-            if (!newToken) {
+            const refreshOutcome = await refreshAccessToken(apiBase);
+            if (refreshOutcome.status !== "refreshed") {
                 await logAuthState("refresh-failed-after-upstream-401", request);
                 console.error("[auth/me] refreshAccessToken failed. Returning 401.");
-                return NextResponse.json({ message: "Sessao expirada" }, { status: 401 });
+                return NextResponse.json(
+                    {
+                        message: refreshOutcome.status === "unavailable"
+                            ? "Servidor de autenticacao indisponivel no momento."
+                            : "Sessao expirada",
+                    },
+                    { status: refreshOutcome.status === "unavailable" ? 503 : 401 },
+                );
             }
 
-            token = newToken;
+            token = refreshOutcome.accessToken;
+            refreshed = true;
             res = await requestMe(token);
         }
 
@@ -114,7 +137,11 @@ export async function GET(request: Request) {
             return NextResponse.json({ message: data?.message ?? "Falha ao obter usuario" }, { status: res.status });
         }
 
-        return NextResponse.json(data);
+        const response = NextResponse.json(data);
+        if (refreshed) {
+            response.headers.set("x-io-auth-refreshed", "1");
+        }
+        return response;
     } catch (error) {
         console.error("[auth/me] Unable to reach authentication backend.", error);
         return NextResponse.json({ message: "Servidor de autenticacao indisponivel no momento." }, { status: 503 });

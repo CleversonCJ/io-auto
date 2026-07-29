@@ -945,7 +945,7 @@ export function AiAgentsStudio() {
                             </p>
                             <p>
                                 <span className="font-semibold text-io-dark">Redirect URI esperado:</span>{" "}
-                                <span className="font-mono text-xs">/api/integrations/google/oauth/callback</span>
+                                <span className="text-xs">/api/integrations/google/oauth/callback</span>
                             </p>
                             <p className="text-xs text-black/55">
                                 Configure esse caminho no Google Cloud Console dentro de Authorized redirect URIs, usando o dominio do frontend.

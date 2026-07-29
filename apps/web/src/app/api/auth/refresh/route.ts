@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { ACCESS_COOKIE, REFRESH_COOKIE, setAuthCookies } from "@/core/auth/cookies";
+import { REFRESH_COOKIE, clearAuthCookies, setAuthCookies } from "@/core/auth/cookies";
 import { getServerApiBase } from "@/core/http/getServerApiBase";
 import { fetchUpstream, readJsonSafely } from "@/core/http/upstream";
 
@@ -21,10 +21,15 @@ export async function POST() {
         });
 
         const data = await readJsonSafely<{ accessToken?: string; refreshToken?: string; message?: string }>(res);
-        if (!res.ok || !data?.accessToken || !data?.refreshToken) {
-            cookieStore.set(ACCESS_COOKIE, "", { path: "/", maxAge: 0 });
-            cookieStore.set(REFRESH_COOKIE, "", { path: "/", maxAge: 0 });
+        if (!res.ok) {
+            if ([400, 401, 403].includes(res.status)) {
+                await clearAuthCookies();
+            }
             return NextResponse.json({ message: data?.message ?? "Sessao expirada" }, { status: res.status });
+        }
+
+        if (!data?.accessToken || !data?.refreshToken) {
+            return NextResponse.json({ message: "Resposta invalida do servidor de autenticacao." }, { status: 502 });
         }
 
         await setAuthCookies(data.accessToken, data.refreshToken);

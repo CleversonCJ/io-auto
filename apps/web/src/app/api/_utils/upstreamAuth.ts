@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { ACCESS_COOKIE, REFRESH_COOKIE, setAuthCookies } from "@/core/auth/cookies";
+import { ACCESS_COOKIE, REFRESH_COOKIE, clearAuthCookies, setAuthCookies } from "@/core/auth/cookies";
 import { getServerApiBase } from "@/core/http/getServerApiBase";
 import { fetchUpstream, readJsonSafely } from "@/core/http/upstream";
 
@@ -9,6 +9,9 @@ type DebugContext = {
     label?: string;
     request?: Request;
 };
+type RefreshAccessResult =
+    | { status: "refreshed"; accessToken: string }
+    | { status: "expired" | "unavailable"; accessToken: null };
 
 function previewToken(token?: string | null) {
     if (!token) return null;
@@ -42,10 +45,13 @@ async function getAccessToken() {
     return (await cookies()).get(ACCESS_COOKIE)?.value;
 }
 
-async function refreshAccessToken(apiBase: string) {
+async function refreshAccessToken(apiBase: string): Promise<RefreshAccessResult> {
     const store = await cookies();
     const refresh = store.get(REFRESH_COOKIE)?.value;
-    if (!refresh) return null;
+    if (!refresh) {
+        await clearAuthCookies();
+        return { status: "expired", accessToken: null };
+    }
 
     const refreshResponse = await fetchUpstream(`${apiBase}/auth/refresh`, {
         method: "POST",
@@ -55,16 +61,27 @@ async function refreshAccessToken(apiBase: string) {
     });
 
     if (!refreshResponse.ok) {
-        store.set(ACCESS_COOKIE, "", { path: "/", maxAge: 0 });
-        store.set(REFRESH_COOKIE, "", { path: "/", maxAge: 0 });
-        return null;
+        if ([400, 401, 403].includes(refreshResponse.status)) {
+            await clearAuthCookies();
+            return { status: "expired", accessToken: null };
+        }
+        return { status: "unavailable", accessToken: null };
     }
 
     const data = await readJsonSafely<{ accessToken: string; refreshToken: string }>(refreshResponse);
-    if (!data?.accessToken || !data.refreshToken) return null;
+    if (!data?.accessToken || !data.refreshToken) {
+        return { status: "unavailable", accessToken: null };
+    }
 
     await setAuthCookies(data.accessToken, data.refreshToken);
-    return data.accessToken;
+    return { status: "refreshed", accessToken: data.accessToken };
+}
+
+function refreshFailureResponse(result: Exclude<RefreshAccessResult, { status: "refreshed" }>) {
+    if (result.status === "unavailable") {
+        return NextResponse.json({ message: "Servidor de autenticacao indisponivel no momento." }, { status: 503 });
+    }
+    return NextResponse.json({ message: "Sessao expirada" }, { status: 401 });
 }
 
 export async function fetchAuthedUpstream(path: string, init: RequestInit = {}, context?: DebugContext) {
@@ -72,10 +89,14 @@ export async function fetchAuthedUpstream(path: string, init: RequestInit = {}, 
     let access = await getAccessToken();
     if (!access) {
         await logAuthState("missing-access-before-upstream", path, context);
-        return {
-            upstream: null,
-            response: NextResponse.json({ message: "Sessao expirada" }, { status: 401 }),
-        };
+        const refreshResult = await refreshAccessToken(apiBase);
+        if (refreshResult.status !== "refreshed") {
+            return {
+                upstream: null,
+                response: refreshFailureResponse(refreshResult),
+            };
+        }
+        access = refreshResult.accessToken;
     }
 
     const headers = new Headers(init.headers);
@@ -92,15 +113,15 @@ export async function fetchAuthedUpstream(path: string, init: RequestInit = {}, 
 
     if (upstream.status === 401) {
         await logAuthState("upstream-returned-401-before-refresh", path, context);
-        const refreshed = await refreshAccessToken(apiBase);
-        if (!refreshed) {
+        const refreshResult = await refreshAccessToken(apiBase);
+        if (refreshResult.status !== "refreshed") {
             await logAuthState("refresh-failed-after-upstream-401", path, context);
             return {
                 upstream: null,
-                response: NextResponse.json({ message: "Sessao expirada" }, { status: 401 }),
+                response: refreshFailureResponse(refreshResult),
             };
         }
-        headers.set("Authorization", `Bearer ${refreshed}`);
+        headers.set("Authorization", `Bearer ${refreshResult.accessToken}`);
         upstream = await fetchUpstream(`${apiBase}${path}`, {
             ...init,
             headers,

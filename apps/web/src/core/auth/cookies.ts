@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { decodeJwt } from "jose";
 import type { NextResponse } from "next/server";
 
 export const ACCESS_COOKIE = "io_access";
@@ -16,6 +17,8 @@ function resolveSecureCookieFlag() {
 }
 
 const secure = resolveSecureCookieFlag();
+const ACCESS_COOKIE_FALLBACK_MAX_AGE_SECONDS = 15 * 60;
+const REFRESH_COOKIE_FALLBACK_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 const authCookieOptions = {
     httpOnly: true,
@@ -29,15 +32,27 @@ const expiredAuthCookieOptions = {
     maxAge: 0,
 };
 
+function resolveTokenMaxAge(token: string, fallbackSeconds: number) {
+    try {
+        const expiration = decodeJwt(token).exp;
+        if (!expiration) return fallbackSeconds;
+        return Math.max(1, expiration - Math.floor(Date.now() / 1000));
+    } catch {
+        return fallbackSeconds;
+    }
+}
+
 export async function setAuthCookies(access: string, refresh: string) {
     const c = await cookies();
 
     c.set(ACCESS_COOKIE, access, {
         ...authCookieOptions,
+        maxAge: resolveTokenMaxAge(access, ACCESS_COOKIE_FALLBACK_MAX_AGE_SECONDS),
     });
 
     c.set(REFRESH_COOKIE, refresh, {
         ...authCookieOptions,
+        maxAge: resolveTokenMaxAge(refresh, REFRESH_COOKIE_FALLBACK_MAX_AGE_SECONDS),
     });
 }
 

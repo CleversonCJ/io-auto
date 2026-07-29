@@ -26,8 +26,10 @@ async function refreshAccessToken(apiBase: string) {
     });
 
     if (!refreshRes.ok) {
-        cookieStore.set(ACCESS_COOKIE, "", { path: "/", maxAge: 0 });
-        cookieStore.set(REFRESH_COOKIE, "", { path: "/", maxAge: 0 });
+        if ([400, 401, 403].includes(refreshRes.status)) {
+            cookieStore.set(ACCESS_COOKIE, "", { path: "/", maxAge: 0 });
+            cookieStore.set(REFRESH_COOKIE, "", { path: "/", maxAge: 0 });
+        }
         return null;
     }
 

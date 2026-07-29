@@ -19,8 +19,10 @@ async function refreshAccessToken(apiBase: string) {
     });
 
     if (!refreshRes.ok) {
-        c.set(ACCESS_COOKIE, "", { path: "/", maxAge: 0 });
-        c.set(REFRESH_COOKIE, "", { path: "/", maxAge: 0 });
+        if ([400, 401, 403].includes(refreshRes.status)) {
+            c.set(ACCESS_COOKIE, "", { path: "/", maxAge: 0 });
+            c.set(REFRESH_COOKIE, "", { path: "/", maxAge: 0 });
+        }
         return null;
     }
 

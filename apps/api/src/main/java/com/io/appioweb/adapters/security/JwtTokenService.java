@@ -22,6 +22,9 @@ import java.util.UUID;
 public class JwtTokenService implements TokenServicePort {
     private static final Duration IMPERSONATION_ACCESS_TTL = Duration.ofMinutes(15);
     private static final Duration IMPERSONATION_REFRESH_TTL = Duration.ofMinutes(30);
+    private static final Duration REFRESH_ROTATION_GRACE_TTL = Duration.ofSeconds(5);
+    private static final Duration REFRESH_ROTATION_WAIT_TIMEOUT = Duration.ofSeconds(1);
+    private static final long REFRESH_ROTATION_POLL_MILLIS = 20L;
 
     private final JwtEncoder encoder;
     private final JwtDecoder decoder;
@@ -77,10 +80,12 @@ public class JwtTokenService implements TokenServicePort {
         }
 
         String jti = jwt.getId();
-        String saved = store.getRefresh(jti);
-        if (saved == null) throw new BusinessException("AUTH_INVALID", "Refresh expirado ou revogado");
-
-        store.deleteRefresh(jti);
+        String saved = store.consumeRefresh(jti);
+        if (saved == null) {
+            AuthTokens concurrentRotation = awaitConcurrentRefreshRotation(jti);
+            if (concurrentRotation != null) return concurrentRotation;
+            throw new BusinessException("AUTH_INVALID", "Refresh expirado ou revogado");
+        }
 
         UUID userId = UUID.fromString(jwt.getSubject());
         UUID companyId = UUID.fromString(jwt.getClaimAsString("cid"));
@@ -103,22 +108,33 @@ public class JwtTokenService implements TokenServicePort {
                 new HashSet<>(roles == null ? List.of() : roles)
         );
 
+        AuthTokens rotated;
         if ("impersonation_refresh".equals(type)) {
             String actorRaw = jwt.getClaimAsString("actorSuperAdminId");
             String tenantRaw = jwt.getClaimAsString("impersonatedTenantId");
             if (actorRaw == null || tenantRaw == null) {
                 throw new BusinessException("AUTH_INVALID", "Refresh de impersonacao invalido");
             }
-            return issueImpersonationTokens(user, UUID.fromString(actorRaw), UUID.fromString(tenantRaw));
+            rotated = issueImpersonationTokens(user, UUID.fromString(actorRaw), UUID.fromString(tenantRaw));
+        } else {
+            rotated = issueTokens(user);
         }
 
-        return issueTokens(user);
+        store.storeRefreshRotation(
+                jti,
+                rotated.accessToken(),
+                rotated.refreshToken(),
+                rotated.accessExpiresInSeconds(),
+                REFRESH_ROTATION_GRACE_TTL
+        );
+        return rotated;
     }
 
     @Override
     public void revokeRefresh(String refreshToken) {
         Jwt jwt = decodeSafe(refreshToken);
         store.deleteRefresh(jwt.getId());
+        store.deleteRefreshRotation(jwt.getId());
     }
 
     @Override
@@ -204,5 +220,29 @@ public class JwtTokenService implements TokenServicePort {
         } catch (Exception e) {
             throw new BusinessException("AUTH_INVALID", "Token invalido");
         }
+    }
+
+    private AuthTokens awaitConcurrentRefreshRotation(String jti) {
+        long deadline = System.nanoTime() + REFRESH_ROTATION_WAIT_TIMEOUT.toNanos();
+
+        do {
+            RedisTokenStore.RefreshRotation rotation = store.getRefreshRotation(jti);
+            if (rotation != null) {
+                return new AuthTokens(
+                        rotation.accessToken(),
+                        rotation.refreshToken(),
+                        rotation.accessExpiresInSeconds()
+                );
+            }
+
+            try {
+                Thread.sleep(REFRESH_ROTATION_POLL_MILLIS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+        } while (System.nanoTime() < deadline);
+
+        return null;
     }
 }

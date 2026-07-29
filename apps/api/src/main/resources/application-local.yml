@@ -42,7 +42,5 @@ app:
     jwt:
       secret: ${JWT_SECRET}
       issuer: "app_io_web"
-      access-ttl: 15m
-      refresh-ttl: 30d
 
 

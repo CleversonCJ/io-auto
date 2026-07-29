@@ -1,16 +1,13 @@
 import type { Metadata } from "next";
-import { Manrope, Space_Grotesk } from "next/font/google";
+import { Poppins } from "next/font/google";
 
 import "./globals.css";
 
-const manrope = Manrope({
+const poppins = Poppins({
     subsets: ["latin"],
-    variable: "--font-body",
-});
-
-const spaceGrotesk = Space_Grotesk({
-    subsets: ["latin"],
-    variable: "--font-display",
+    weight: ["400", "500", "600", "700", "800", "900"],
+    variable: "--font-poppins",
+    display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -25,7 +22,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
         <html lang="pt-BR">
-            <body className={`${manrope.variable} ${spaceGrotesk.variable}`}>{children}</body>
+            <body className={poppins.variable}>{children}</body>
         </html>
     );
 }
