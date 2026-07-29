@@ -90,7 +90,6 @@ public class OlxIntegrationController {
 
     @GetMapping("/api/integrations/olx/status")
     public ResponseEntity<StatusResponse> getStatus() {
-        enforceOlxPlan();
         OlxAccountService.OlxConnectionSnapshot account = accountService.getStatus(currentUser.companyId());
         OlxNotificationConfigService.WebhookConfigSnapshot webhook = account.connected()
                 ? notificationConfigService.getWebhookConfig(currentUser.companyId())
@@ -110,7 +109,6 @@ public class OlxIntegrationController {
     @PostMapping("/api/integrations/olx/disconnect")
     @Transactional
     public ResponseEntity<Void> disconnect() {
-        enforceOlxPlan();
         accountService.disconnect(currentUser.companyId());
         return ResponseEntity.noContent().build();
     }

@@ -8,4 +8,5 @@ import java.util.UUID;
 public interface MeliAccountRepositoryJpa extends JpaRepository<JpaMeliAccountEntity, UUID> {
     Optional<JpaMeliAccountEntity> findByCompanyId(UUID companyId);
     Optional<JpaMeliAccountEntity> findByMeliUserId(Long meliUserId);
+    void deleteAllByCompanyId(UUID companyId);
 }

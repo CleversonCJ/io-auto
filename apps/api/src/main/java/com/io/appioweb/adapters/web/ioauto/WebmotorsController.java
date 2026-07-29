@@ -32,6 +32,7 @@ public class WebmotorsController {
     private final WmAuthService authService;
     private final FeatureUsageService featureUsageService;
     private final SuperAdminPlanManagementService planManagementService;
+    private final IoAutoIntegrationManagementService integrationManagementService;
 
     public WebmotorsController(
             CurrentUserPort currentUser,
@@ -40,7 +41,8 @@ public class WebmotorsController {
             WebmotorsLeadService leadService,
             WmAuthService authService,
             FeatureUsageService featureUsageService,
-            SuperAdminPlanManagementService planManagementService
+            SuperAdminPlanManagementService planManagementService,
+            IoAutoIntegrationManagementService integrationManagementService
     ) {
         this.currentUser = currentUser;
         this.credentialService = credentialService;
@@ -49,6 +51,7 @@ public class WebmotorsController {
         this.authService = authService;
         this.featureUsageService = featureUsageService;
         this.planManagementService = planManagementService;
+        this.integrationManagementService = integrationManagementService;
     }
 
     @GetMapping("/ioauto/webmotors/settings")
@@ -71,12 +74,20 @@ public class WebmotorsController {
         enforceWebmotorsPlan();
         WebmotorsCredentialSnapshot credentials = credentialService.getOrCreate(currentUser.companyId(), storeKey);
         WebmotorsTransportResult<WebmotorsRestAccessToken> tokenTransport = authService.issueAccessToken(credentials);
+        integrationManagementService.markWebmotorsConnected(currentUser.companyId());
         return ResponseEntity.ok(new ValidateWebmotorsSettingsResponse(
                 true,
                 tokenTransport.statusCode(),
                 tokenTransport.payload().expiresInSeconds(),
                 "Access token obtido com sucesso."
         ));
+    }
+
+    @PostMapping("/ioauto/webmotors/settings/disconnect")
+    @Transactional
+    public ResponseEntity<Void> disconnectSettings() {
+        integrationManagementService.disconnectWebmotors(currentUser.companyId());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/ioauto/webmotors/ads")

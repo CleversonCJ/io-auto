@@ -2377,7 +2377,7 @@ public class IoAutoBillingService {
     }
 
     private void upsertIntegration(UUID companyId, String providerKey, String displayName, Instant now) {
-        JpaIoAutoIntegrationEntity entity = integrations.findByCompanyIdAndProviderKey(companyId, providerKey)
+        JpaIoAutoIntegrationEntity entity = integrations.findByCompanyIdAndProviderKeyIgnoreCase(companyId, providerKey)
                 .orElseGet(JpaIoAutoIntegrationEntity::new);
 
         if (entity.getId() == null) {

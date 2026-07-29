@@ -8,5 +8,5 @@ import java.util.UUID;
 
 public interface IoAutoIntegrationRepositoryJpa extends JpaRepository<JpaIoAutoIntegrationEntity, UUID> {
     List<JpaIoAutoIntegrationEntity> findAllByCompanyIdOrderByDisplayNameAsc(UUID companyId);
-    Optional<JpaIoAutoIntegrationEntity> findByCompanyIdAndProviderKey(UUID companyId, String providerKey);
+    Optional<JpaIoAutoIntegrationEntity> findByCompanyIdAndProviderKeyIgnoreCase(UUID companyId, String providerKey);
 }

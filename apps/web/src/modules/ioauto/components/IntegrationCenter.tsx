@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Cable, LoaderCircle, Plus, Save } from "lucide-react";
+import { AlertTriangle, Cable, LoaderCircle, Plus, Save, Trash2 } from "lucide-react";
 import { MercadoLivreSetupCard } from "@/modules/ioauto/components/MercadoLivreSetupCard";
 import { OlxSetupCard } from "@/modules/ioauto/components/OlxSetupCard";
 import { WebmotorsSetupCard } from "@/modules/ioauto/components/WebmotorsSetupCard";
@@ -63,7 +63,10 @@ function toDraft(record: IntegrationRecord): IntegrationDraft {
 
 function normalizeProviderKey(value: string) {
     const normalized = value.trim().toLowerCase();
-    return normalized === "olx-autos" ? "olx" : normalized;
+    if (normalized === "mercado-livre" || normalized === "meli") return "mercadolivre";
+    if (normalized === "olx-autos") return "olx";
+    if (normalized === "web-motors") return "webmotors";
+    return normalized;
 }
 
 function defaultIntegrationLabel(providerKey: string) {
@@ -140,6 +143,8 @@ export function IntegrationCenter() {
     const [integrations, setIntegrations] = useState<IntegrationRecord[]>([]);
     const [drafts, setDrafts] = useState<Record<string, IntegrationDraft>>({});
     const [savingProvider, setSavingProvider] = useState<string | null>(null);
+    const [deletingProvider, setDeletingProvider] = useState<string | null>(null);
+    const [deleteBlockedProvider, setDeleteBlockedProvider] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -246,20 +251,14 @@ export function IntegrationCenter() {
 
     function handleConnectionStateChange(providerKey: string, connected: boolean) {
         const normalized = normalizeProviderKey(providerKey);
-        const wasConnected = isProviderConnected(normalized);
         setConnectionOverrides((current) => ({
             ...current,
             [normalized]: connected,
         }));
-        setOpenedProviderKeys((current) => {
-            if (!connected && wasConnected) {
-                return current.filter((item) => item !== normalized);
-            }
-            if (connected && !current.includes(normalized)) {
-                return [...current, normalized];
-            }
-            return current;
-        });
+        setOpenedProviderKeys((current) => (current.includes(normalized) ? current : [...current, normalized]));
+        if (!connected) {
+            setDeleteBlockedProvider((current) => (current === normalized ? null : current));
+        }
     }
 
     async function handleSave(providerKey: string) {
@@ -297,6 +296,48 @@ export function IntegrationCenter() {
             setError(cause instanceof Error ? cause.message : "Falha ao atualizar a integracao.");
         } finally {
             setSavingProvider(null);
+        }
+    }
+
+    async function handleDelete(providerKey: string) {
+        const normalized = normalizeProviderKey(providerKey);
+        setError(null);
+        setNotice(null);
+
+        if (isProviderConnected(normalized)) {
+            setDeleteBlockedProvider(normalized);
+            return;
+        }
+
+        if (!window.confirm(`Excluir a integracao ${defaultIntegrationLabel(normalized)} deste tenant?`)) {
+            return;
+        }
+
+        setDeletingProvider(normalized);
+        setDeleteBlockedProvider(null);
+        try {
+            const response = await fetch(`/api/ioauto/integrations/${encodeURIComponent(normalized)}`, {
+                method: "DELETE",
+            });
+            const payload = await response.json().catch(() => null) as { code?: string; message?: string } | null;
+            if (!response.ok) {
+                if (payload?.code === "IOAUTO_INTEGRATION_CONNECTED") {
+                    setDeleteBlockedProvider(normalized);
+                    return;
+                }
+                throw new Error(payload?.message ?? "Falha ao excluir a integracao.");
+            }
+
+            setOpenedProviderKeys((current) => current.filter((item) => item !== normalized));
+            setConnectionOverrides((current) => Object.fromEntries(
+                Object.entries(current).filter(([provider]) => provider !== normalized),
+            ));
+            await loadIntegrations();
+            setNotice(`Integracao ${defaultIntegrationLabel(normalized)} excluida com sucesso.`);
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : "Falha ao excluir a integracao.");
+        } finally {
+            setDeletingProvider(null);
         }
     }
 
@@ -379,17 +420,48 @@ export function IntegrationCenter() {
                     </div>
                 ) : visibleIntegrations.length ? (
                     <div className="mt-6 grid gap-6">
-                        {visibleIntegrations.map((integration) =>
-                            renderIntegrationPanel({
-                                integration,
-                                draft: drafts[normalizeProviderKey(integration.providerKey)] ?? toDraft(integration),
-                                saving: savingProvider === normalizeProviderKey(integration.providerKey),
-                                onDraftChange: (partial) => updateDraft(integration.providerKey, partial),
-                                onSave: () => void handleSave(integration.providerKey),
-                                onRefreshParent: () => void loadIntegrations(),
-                                onConnectionStateChange: (connected) => handleConnectionStateChange(integration.providerKey, connected),
-                            })
-                        )}
+                        {visibleIntegrations.map((integration) => {
+                            const normalized = normalizeProviderKey(integration.providerKey);
+                            const connected = isProviderConnected(normalized);
+                            return (
+                                <div key={normalized} className="grid gap-3">
+                                    {renderIntegrationPanel({
+                                        integration,
+                                        draft: drafts[normalized] ?? toDraft(integration),
+                                        saving: savingProvider === normalized,
+                                        connected,
+                                        onDraftChange: (partial) => updateDraft(integration.providerKey, partial),
+                                        onSave: () => void handleSave(integration.providerKey),
+                                        onRefreshParent: () => void loadIntegrations(),
+                                        onConnectionStateChange: (nextConnected) => handleConnectionStateChange(integration.providerKey, nextConnected),
+                                    })}
+
+                                    <section className="flex flex-col gap-4 rounded-[24px] border border-red-100 bg-red-50/55 px-5 py-4 md:flex-row md:items-center md:justify-between">
+                                        <div>
+                                            <p className="text-sm font-bold text-red-800">Excluir integracao</p>
+                                            <p className="mt-1 text-xs leading-5 text-red-700/75">
+                                                Remove as configuracoes salvas deste tenant. A integracao precisa estar desconectada.
+                                            </p>
+                                            {deleteBlockedProvider === normalized ? (
+                                                <p className="mt-3 inline-flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                                                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                                                    Esta integracao esta conectada. Desconecte-a antes de excluir.
+                                                </p>
+                                            ) : null}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleDelete(integration.providerKey)}
+                                            disabled={deletingProvider != null}
+                                            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full border border-red-200 bg-white px-5 text-sm font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {deletingProvider === normalized ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                            Excluir integracao
+                                        </button>
+                                    </section>
+                                </div>
+                            );
+                        })}
                     </div>
                 ) : (
                     <div className="mt-6 flex min-h-[280px] flex-col items-center justify-center rounded-[30px] border-2 border-dashed border-black/6 bg-black/[0.02] px-6 text-center">
@@ -411,6 +483,7 @@ function renderIntegrationPanel({
     integration,
     draft,
     saving,
+    connected,
     onDraftChange,
     onSave,
     onRefreshParent,
@@ -419,6 +492,7 @@ function renderIntegrationPanel({
     integration: IntegrationRecord;
     draft: IntegrationDraft;
     saving: boolean;
+    connected: boolean;
     onDraftChange: (partial: Partial<IntegrationDraft>) => void;
     onSave: () => void;
     onRefreshParent: () => void;
@@ -426,7 +500,13 @@ function renderIntegrationPanel({
 }) {
     const normalizedProviderKey = normalizeProviderKey(integration.providerKey);
     if (normalizedProviderKey === "webmotors") {
-        return <WebmotorsSetupCard key={integration.providerKey} onRefreshParent={onRefreshParent} />;
+        return (
+            <WebmotorsSetupCard
+                connected={connected}
+                onConnectionStateChange={onConnectionStateChange}
+                onRefreshParent={onRefreshParent}
+            />
+        );
     }
     if (normalizedProviderKey === "mercadolivre") {
         return <MercadoLivreSetupCard key={integration.providerKey} onConnectionStateChange={onConnectionStateChange} onRefreshParent={onRefreshParent} />;

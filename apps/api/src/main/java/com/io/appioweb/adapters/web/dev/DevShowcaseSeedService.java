@@ -204,7 +204,7 @@ public class DevShowcaseSeedService {
             String accountName,
             String username
     ) {
-        JpaIoAutoIntegrationEntity entity = integrations.findByCompanyIdAndProviderKey(companyId, providerKey)
+        JpaIoAutoIntegrationEntity entity = integrations.findByCompanyIdAndProviderKeyIgnoreCase(companyId, providerKey)
                 .orElseGet(JpaIoAutoIntegrationEntity::new);
         if (entity.getId() == null) {
             entity.setId(uuidFor(companyId, "integration:" + providerKey));

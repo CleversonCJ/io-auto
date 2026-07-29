@@ -4,12 +4,19 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "ioauto_integrations")
+@Table(
+        name = "ioauto_integrations",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_ioauto_integrations_company_provider",
+                columnNames = {"company_id", "provider_key"}
+        )
+)
 public class JpaIoAutoIntegrationEntity {
 
     @Id

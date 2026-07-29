@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, KeyRound, LoaderCircle, Save } from "lucide-react";
+import { CheckCircle2, KeyRound, LoaderCircle, Save, Unplug } from "lucide-react";
 import type { WebmotorsSettingsRecord, WebmotorsValidationResult } from "@/modules/ioauto/types";
 
 type LoadState = "idle" | "loading" | "ready";
 
 type Props = {
+    connected?: boolean;
+    onConnectionStateChange?: (connected: boolean) => void;
     onRefreshParent?: () => void;
 };
 
@@ -38,11 +40,12 @@ const DEFAULT_SETTINGS: WebmotorsSettingsRecord = {
     callbackSecret: "",
 };
 
-export function WebmotorsSetupCard({ onRefreshParent }: Props) {
+export function WebmotorsSetupCard({ connected = false, onConnectionStateChange, onRefreshParent }: Props) {
     const [draft, setDraft] = useState<WebmotorsSettingsRecord>(DEFAULT_SETTINGS);
     const [loadState, setLoadState] = useState<LoadState>("loading");
     const [saving, setSaving] = useState(false);
     const [validating, setValidating] = useState(false);
+    const [disconnecting, setDisconnecting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [validation, setValidation] = useState<WebmotorsValidationResult | null>(null);
@@ -128,6 +131,31 @@ export function WebmotorsSetupCard({ onRefreshParent }: Props) {
         setValidation(payload as WebmotorsValidationResult);
         setSuccess(readMessage(payload, "Credenciais validadas com sucesso."));
         setValidating(false);
+        onConnectionStateChange?.(true);
+        onRefreshParent?.();
+    }
+
+    async function handleDisconnect() {
+        setDisconnecting(true);
+        setError(null);
+        setSuccess(null);
+
+        const response = await fetch("/api/ioauto/webmotors/settings/disconnect", {
+            method: "POST",
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok) {
+            setError(readMessage(payload, "Falha ao desconectar a Webmotors."));
+            setDisconnecting(false);
+            return;
+        }
+
+        setDraft(DEFAULT_SETTINGS);
+        setValidation(null);
+        setSuccess("Integracao Webmotors desconectada. Agora ela pode ser excluida.");
+        setDisconnecting(false);
+        onConnectionStateChange?.(false);
         onRefreshParent?.();
     }
 
@@ -213,10 +241,21 @@ export function WebmotorsSetupCard({ onRefreshParent }: Props) {
                     </div>
 
                     <div className="mt-6 flex flex-wrap justify-end gap-3">
+                        {connected ? (
+                            <button
+                                type="button"
+                                onClick={() => void handleDisconnect()}
+                                disabled={saving || validating || disconnecting}
+                                className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {disconnecting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Unplug className="h-4 w-4" />}
+                                Desconectar
+                            </button>
+                        ) : null}
                         <button
                             type="button"
                             onClick={() => handleValidate()}
-                            disabled={saving || validating}
+                            disabled={saving || validating || disconnecting}
                             className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-io-dark transition hover:bg-black/[0.04] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {validating ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
@@ -225,7 +264,7 @@ export function WebmotorsSetupCard({ onRefreshParent }: Props) {
                         <button
                             type="button"
                             onClick={() => handleSave()}
-                            disabled={saving || validating}
+                            disabled={saving || validating || disconnecting}
                             className="inline-flex items-center gap-2 rounded-full bg-io-purple px-5 py-3 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:bg-black/20"
                         >
                             {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

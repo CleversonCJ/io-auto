@@ -34,7 +34,7 @@ public class OlxAccountService {
     @Transactional(readOnly = true)
     public OlxConnectionSnapshot getStatus(UUID companyId) {
         JpaOlxAccountEntity account = accounts.findByCompanyId(companyId).orElse(null);
-        JpaIoAutoIntegrationEntity integration = integrations.findByCompanyIdAndProviderKey(companyId, PROVIDER_KEY).orElse(null);
+        JpaIoAutoIntegrationEntity integration = integrations.findByCompanyIdAndProviderKeyIgnoreCase(companyId, PROVIDER_KEY).orElse(null);
         boolean connected = account != null && account.isActive() && !safe(account.getAccessToken()).isBlank();
         return new OlxConnectionSnapshot(
                 companyId,
@@ -133,7 +133,7 @@ public class OlxAccountService {
             String lastError,
             Instant now
     ) {
-        JpaIoAutoIntegrationEntity integration = integrations.findByCompanyIdAndProviderKey(companyId, PROVIDER_KEY)
+        JpaIoAutoIntegrationEntity integration = integrations.findByCompanyIdAndProviderKeyIgnoreCase(companyId, PROVIDER_KEY)
                 .orElseGet(JpaIoAutoIntegrationEntity::new);
         if (integration.getId() == null) {
             integration.setId(UUID.randomUUID());

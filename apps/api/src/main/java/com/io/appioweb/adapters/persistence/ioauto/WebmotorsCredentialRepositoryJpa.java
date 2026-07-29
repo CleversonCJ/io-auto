@@ -7,4 +7,5 @@ import java.util.UUID;
 
 public interface WebmotorsCredentialRepositoryJpa extends JpaRepository<JpaWebmotorsCredentialEntity, UUID> {
     Optional<JpaWebmotorsCredentialEntity> findByCompanyIdAndStoreKey(UUID companyId, String storeKey);
+    void deleteAllByCompanyId(UUID companyId);
 }

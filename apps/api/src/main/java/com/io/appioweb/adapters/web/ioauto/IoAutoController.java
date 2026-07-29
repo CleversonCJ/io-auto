@@ -73,7 +73,6 @@ public class IoAutoController {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final int MAX_PUBLIC_CATALOG_BANNER_IMAGES = 6;
     private static final int MAX_PUBLIC_CATALOG_IMAGE_LENGTH = 2_000_000;
-    private static final List<String> DEFAULT_INTEGRATION_PROVIDER_KEYS = List.of("olx", "mercadolivre", "webmotors");
     private static final Map<String, String> VEHICLE_TRANSMISSION_OPTIONS = Map.ofEntries(
             Map.entry("automatica", "Automatica"),
             Map.entry("automatico", "Automatica"),
@@ -140,6 +139,7 @@ public class IoAutoController {
     private final IoAutoVehicleRepositoryJpa vehicles;
     private final IoAutoVehiclePublicationRepositoryJpa publications;
     private final IoAutoIntegrationRepositoryJpa integrations;
+    private final IoAutoIntegrationManagementService integrationManagementService;
     private final IoAutoPublicLinkRepositoryJpa publicLinks;
     private final IoAutoPublicLeadEventRepositoryJpa publicLeadEvents;
     private final IoAutoPublicCatalogLeadRepositoryJpa publicCatalogLeads;
@@ -163,6 +163,7 @@ public class IoAutoController {
             IoAutoVehicleRepositoryJpa vehicles,
             IoAutoVehiclePublicationRepositoryJpa publications,
             IoAutoIntegrationRepositoryJpa integrations,
+            IoAutoIntegrationManagementService integrationManagementService,
             IoAutoPublicLinkRepositoryJpa publicLinks,
             IoAutoPublicLeadEventRepositoryJpa publicLeadEvents,
             IoAutoPublicCatalogLeadRepositoryJpa publicCatalogLeads,
@@ -185,6 +186,7 @@ public class IoAutoController {
         this.vehicles = vehicles;
         this.publications = publications;
         this.integrations = integrations;
+        this.integrationManagementService = integrationManagementService;
         this.publicLinks = publicLinks;
         this.publicLeadEvents = publicLeadEvents;
         this.publicCatalogLeads = publicCatalogLeads;
@@ -603,10 +605,9 @@ public class IoAutoController {
     }
 
     @GetMapping("/ioauto/integrations")
-    @Transactional
     public ResponseEntity<List<IoAutoIntegrationHttpResponse>> listIntegrations() {
         UUID companyId = currentUser.companyId();
-        List<IoAutoIntegrationHttpResponse> response = ensureDefaultIntegrations(companyId, Instant.now()).stream()
+        List<IoAutoIntegrationHttpResponse> response = integrations.findAllByCompanyIdOrderByDisplayNameAsc(companyId).stream()
                 .filter(entity -> isSupportedProvider(entity.getProviderKey()))
                 .map(this::toIntegrationResponse)
                 .toList();
@@ -627,7 +628,7 @@ public class IoAutoController {
         }
         planManagementService.assertProviderIntegrationEnabled(companyId, normalizedProviderKey);
 
-        JpaIoAutoIntegrationEntity entity = integrations.findByCompanyIdAndProviderKey(companyId, normalizedProviderKey)
+        JpaIoAutoIntegrationEntity entity = integrations.findByCompanyIdAndProviderKeyIgnoreCase(companyId, normalizedProviderKey)
                 .orElseGet(() -> {
                     JpaIoAutoIntegrationEntity created = new JpaIoAutoIntegrationEntity();
                     created.setId(UUID.randomUUID());
@@ -655,6 +656,13 @@ public class IoAutoController {
         integrations.save(entity);
 
         return ResponseEntity.ok(toIntegrationResponse(entity));
+    }
+
+    @DeleteMapping("/ioauto/integrations/{providerKey}")
+    @Transactional
+    public ResponseEntity<Void> deleteIntegration(@PathVariable String providerKey) {
+        integrationManagementService.deleteDisconnectedIntegration(currentUser.companyId(), providerKey);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/ioauto/publications")
@@ -1522,7 +1530,7 @@ public class IoAutoController {
 
     private JpaIoAutoIntegrationEntity resolveOrCreateIntegration(UUID companyId, String providerKey, Instant now) {
         String normalizedProviderKey = normalizeProviderKey(providerKey);
-        JpaIoAutoIntegrationEntity entity = integrations.findByCompanyIdAndProviderKey(companyId, normalizedProviderKey)
+        JpaIoAutoIntegrationEntity entity = integrations.findByCompanyIdAndProviderKeyIgnoreCase(companyId, normalizedProviderKey)
                 .orElseGet(() -> {
                     JpaIoAutoIntegrationEntity created = new JpaIoAutoIntegrationEntity();
                     created.setId(UUID.randomUUID());
@@ -1557,13 +1565,6 @@ public class IoAutoController {
         return changed ? integrations.save(entity) : entity;
     }
 
-    private List<JpaIoAutoIntegrationEntity> ensureDefaultIntegrations(UUID companyId, Instant now) {
-        for (String providerKey : DEFAULT_INTEGRATION_PROVIDER_KEYS) {
-            resolveOrCreateIntegration(companyId, providerKey, now);
-        }
-        return integrations.findAllByCompanyIdOrderByDisplayNameAsc(companyId);
-    }
-
     private String determinePublicationStatus(JpaIoAutoIntegrationEntity integration) {
         return "CONNECTED".equalsIgnoreCase(integration.getStatus()) || "ACTIVE".equalsIgnoreCase(integration.getStatus())
                 ? "READY_TO_SYNC"
@@ -1591,11 +1592,17 @@ public class IoAutoController {
     }
 
     private String normalizeProviderKey(String value) {
-        return normalizeText(value)
+        String normalized = normalizeText(value)
                 .toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9-]+", "-")
                 .replaceAll("^-+", "")
                 .replaceAll("-+$", "");
+        return switch (normalized) {
+            case "mercado-livre", "meli" -> "mercadolivre";
+            case "olx-autos" -> "olx";
+            case "web-motors" -> "webmotors";
+            default -> normalized;
+        };
     }
 
     private String normalizePublicCatalogBannerMode(String value) {
