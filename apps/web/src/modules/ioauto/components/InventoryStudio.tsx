@@ -390,9 +390,10 @@ export function InventoryStudio() {
     const [form, setForm] = useState<VehicleFormState>(emptyForm());
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [saleContextLoading, setSaleContextLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
-    const [stockTab, setStockTab] = useState<"ALL" | "AVAILABLE" | "SOLD">("ALL");
+    const [stockTab, setStockTab] = useState<"AVAILABLE" | "SOLD">("AVAILABLE");
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [uploadingImages, setUploadingImages] = useState(false);
     const [isImageDragActive, setIsImageDragActive] = useState(false);
@@ -410,6 +411,7 @@ export function InventoryStudio() {
     const [saleSubmitting, setSaleSubmitting] = useState(false);
     const [saleMessage, setSaleMessage] = useState<string | null>(null);
     const imageInputRef = useRef<HTMLInputElement | null>(null);
+    const saleContextLoadedRef = useRef(false);
 
     const selectedVehicle = useMemo(() => vehicles.find((vehicle) => vehicle.id === selectedId) ?? null, [selectedId, vehicles]);
     const connectedIntegrations = useMemo(() => integrations.filter((integration) => isConnectedIntegrationStatus(integration.status)), [integrations]);
@@ -446,14 +448,20 @@ export function InventoryStudio() {
             }),
         [form.targetIntegrations, readyPublicationProviderKeys]
     );
+    const vehiclesByAvailability = useMemo(
+        () =>
+            vehicles.reduce(
+                (grouped, vehicle) => {
+                    const target = String(vehicle.status ?? "").trim().toUpperCase() === "SOLD" ? grouped.sold : grouped.available;
+                    target.push(vehicle);
+                    return grouped;
+                },
+                { available: [] as VehicleRecord[], sold: [] as VehicleRecord[] },
+            ),
+        [vehicles],
+    );
     const visibleVehicles = useMemo(() => {
-        let filteredByTab = vehicles;
-        if (stockTab === "AVAILABLE") {
-            filteredByTab = vehicles.filter((vehicle) => String(vehicle.status ?? "").trim().toUpperCase() !== "SOLD");
-        } else if (stockTab === "SOLD") {
-            filteredByTab = vehicles.filter((vehicle) => String(vehicle.status ?? "").trim().toUpperCase() === "SOLD");
-        }
-
+        const filteredByTab = stockTab === "SOLD" ? vehiclesByAvailability.sold : vehiclesByAvailability.available;
         const query = search.trim().toLowerCase();
         if (!query) return filteredByTab;
         return filteredByTab.filter((vehicle) =>
@@ -472,15 +480,9 @@ export function InventoryStudio() {
                 .toLowerCase()
                 .includes(query)
         );
-    }, [search, stockTab, vehicles]);
-    const availableVehiclesCount = useMemo(
-        () => vehicles.filter((vehicle) => String(vehicle.status ?? "").trim().toUpperCase() !== "SOLD").length,
-        [vehicles]
-    );
-    const soldVehiclesCount = useMemo(
-        () => vehicles.filter((vehicle) => String(vehicle.status ?? "").trim().toUpperCase() === "SOLD").length,
-        [vehicles]
-    );
+    }, [search, stockTab, vehiclesByAvailability]);
+    const availableVehiclesCount = vehiclesByAvailability.available.length;
+    const soldVehiclesCount = vehiclesByAvailability.sold.length;
     const requiresBuyerLead = Boolean(billing?.features.leadManagement);
     const saleFinancialPreview = useMemo(
         () => computeSaleClosingFinancialPreview(saleVehicle?.priceCents ?? 0, saleFinancial, saleVehicle == null
@@ -495,6 +497,7 @@ export function InventoryStudio() {
 
     useEffect(() => {
         void loadInventory();
+        void loadInventoryContext();
     }, []);
 
     useEffect(() => {
@@ -852,32 +855,72 @@ export function InventoryStudio() {
         void loadMeliListingTypes(categoryId);
     }, [form.meli.categoryId]);
 
-    async function loadInventory() {
-        setLoading(true);
+    async function loadInventory(showLoadingState = true) {
+        if (showLoadingState) {
+            setLoading(true);
+            setError(null);
+        }
         try {
-            const [vehiclesResponse, integrationsResponse, usersResponse, billingResponse] = await Promise.all([
-                fetch("/api/ioauto/vehicles", { cache: "no-store" }),
+            const vehiclesResponse = await fetch("/api/ioauto/vehicles", { cache: "no-store" });
+            if (!vehiclesResponse.ok) throw new Error("Falha ao listar os veículos.");
+            const vehiclePayload = await vehiclesResponse.json() as VehicleRecord[];
+
+            setVehicles(vehiclePayload);
+            setSelectedId((current) => (current && vehiclePayload.some((vehicle) => vehicle.id === current) ? current : vehiclePayload[0]?.id ?? null));
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : "Falha ao carregar o estoque.");
+        } finally {
+            if (showLoadingState) {
+                setLoading(false);
+            }
+        }
+    }
+
+    async function loadInventoryContext() {
+        try {
+            const [integrationsResponse, billingResponse] = await Promise.all([
                 fetch("/api/ioauto/integrations", { cache: "no-store" }),
-                fetch("/api/atendimentos/users", { cache: "no-store", credentials: "include" }),
                 fetch("/api/ioauto/billing", { cache: "no-store", credentials: "include" }),
             ]);
-            if (!usersResponse.ok) throw new Error("Falha ao listar a equipe.");
-
-            if (!vehiclesResponse.ok) throw new Error("Falha ao listar os veículos.");
             if (!integrationsResponse.ok) throw new Error("Falha ao listar as integrações.");
-
             if (!billingResponse.ok) throw new Error("Falha ao carregar o plano atual.");
 
-            const [vehiclePayload, integrationPayload, usersPayload, billingPayload] = await Promise.all([
-                vehiclesResponse.json() as Promise<VehicleRecord[]>,
+            const [integrationPayload, billingPayload] = await Promise.all([
                 integrationsResponse.json() as Promise<IntegrationRecord[]>,
-                usersResponse.json() as Promise<TeamMember[]>,
                 billingResponse.json() as Promise<BillingSnapshot>,
             ]);
+            setIntegrations(integrationPayload);
+            setBilling(billingPayload);
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : "Falha ao carregar os recursos auxiliares do estoque.");
+        }
+    }
+
+    async function loadSaleContext() {
+        if (saleContextLoadedRef.current || saleContextLoading) return;
+
+        setSaleContextLoading(true);
+        try {
+            const usersRequest = fetch("/api/atendimentos/users", { cache: "no-store", credentials: "include" });
+            let currentBilling = billing;
+            if (!currentBilling) {
+                const billingResponse = await fetch("/api/ioauto/billing", { cache: "no-store", credentials: "include" });
+                if (!billingResponse.ok) throw new Error("Falha ao carregar o plano atual.");
+                currentBilling = await billingResponse.json() as BillingSnapshot;
+                setBilling(currentBilling);
+            }
+
+            const conversationsRequest = currentBilling.features.leadManagement
+                ? fetch("/api/atendimentos/conversations", { cache: "no-store", credentials: "include" })
+                : null;
+
+            const usersResponse = await usersRequest;
+            if (!usersResponse.ok) throw new Error("Falha ao listar a equipe.");
+            const usersPayload = await usersResponse.json() as TeamMember[];
 
             let conversationsPayload: ConversationRecord[] = [];
-            if (billingPayload.features.leadManagement) {
-                const conversationsResponse = await fetch("/api/atendimentos/conversations", { cache: "no-store", credentials: "include" });
+            if (conversationsRequest) {
+                const conversationsResponse = await conversationsRequest;
                 if (!conversationsResponse.ok) {
                     const payload = await conversationsResponse.json().catch(() => ({ message: "Falha ao listar os leads." }));
                     throw new Error(payload.message ?? "Falha ao listar os leads.");
@@ -885,17 +928,16 @@ export function InventoryStudio() {
                 conversationsPayload = await conversationsResponse.json() as ConversationRecord[];
             }
 
-            setVehicles(vehiclePayload);
-            setIntegrations(integrationPayload);
-            setBilling(billingPayload);
-            setSaleConversations(conversationsPayload);
             setTeamMembers(usersPayload);
-            setSelectedId((current) => (current && vehiclePayload.some((vehicle) => vehicle.id === current) ? current : vehiclePayload[0]?.id ?? null));
-            setError(null);
+            setSaleConversations(conversationsPayload);
+            if (currentBilling.features.leadManagement) {
+                setSaleBuyerMode(conversationsPayload.length ? "EXISTING" : "NEW");
+            }
+            saleContextLoadedRef.current = true;
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao carregar o estoque.");
+            setSaleMessage(cause instanceof Error ? cause.message : "Falha ao carregar os dados para concluir a venda.");
         } finally {
-            setLoading(false);
+            setSaleContextLoading(false);
         }
     }
 
@@ -946,6 +988,7 @@ export function InventoryStudio() {
         setSaleBuyerName("");
         setSaleBuyerPhone("");
         setSaleMessage(null);
+        void loadSaleContext();
     }
 
     function closeSaleModal() {
@@ -1017,8 +1060,8 @@ export function InventoryStudio() {
                         : vehicle
                 )
             );
+            saleContextLoadedRef.current = false;
             closeSaleModal();
-            await loadInventory();
         } catch (cause) {
             setSaleMessage(cause instanceof Error ? cause.message : "Não foi possível concluir a venda do veículo.");
         } finally {
@@ -1216,7 +1259,7 @@ export function InventoryStudio() {
             await persistSelectedMappings(savedVehicle.id);
             const publicationErrors = await syncSelectedIntegrations(savedVehicle);
 
-            await loadInventory();
+            await loadInventory(false);
             setSelectedId(savedVehicle.id);
 
             if (publicationErrors.length) {
@@ -1232,7 +1275,10 @@ export function InventoryStudio() {
         }
     }
 
-    const publishedVehicles = vehicles.filter((vehicle) => vehicle.publications.length > 0).length;
+    const publishedVehicles = useMemo(
+        () => vehicles.filter((vehicle) => vehicle.publications.length > 0).length,
+        [vehicles],
+    );
 
     return (
         <>
@@ -1279,7 +1325,6 @@ export function InventoryStudio() {
                 </section>
 
                 <div className="mt-5 flex flex-wrap gap-3">
-                    <StockTabButton active={stockTab === "ALL"} label="Todos" count={vehicles.length} onClick={() => setStockTab("ALL")} />
                     <StockTabButton active={stockTab === "AVAILABLE"} label="Disponíveis" count={availableVehiclesCount} onClick={() => setStockTab("AVAILABLE")} />
                     <StockTabButton active={stockTab === "SOLD"} label="Vendidos" count={soldVehiclesCount} onClick={() => setStockTab("SOLD")} />
                 </div>
@@ -1287,12 +1332,7 @@ export function InventoryStudio() {
                 {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
 
                 {loading ? (
-                    <section className="flex min-h-[280px] items-center justify-center rounded-[34px] border border-black/10 bg-white shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
-                        <div className="flex items-center gap-3 text-black/45">
-                            <LoaderCircle className="h-5 w-5 animate-spin" />
-                            <span className="text-sm font-medium">Carregando o estoque...</span>
-                        </div>
-                    </section>
+                    <InventoryLoadingState />
                 ) : visibleVehicles.length ? (
                     <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                         {visibleVehicles.map((vehicle) => (
@@ -1743,16 +1783,17 @@ export function InventoryStudio() {
                             <select
                                 value={saleSellerUserId}
                                 onChange={(event) => setSaleSellerUserId(event.target.value)}
+                                disabled={saleContextLoading}
                                 className="rounded-[22px] border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/25"
                             >
-                                <option value="">Selecione um vendedor</option>
+                                <option value="">{saleContextLoading ? "Carregando vendedores..." : "Selecione um vendedor"}</option>
                                 {teamMembers.map((member) => (
                                     <option key={member.id} value={member.id}>
                                         {member.fullName}{member.teamName ? ` • ${member.teamName}` : ""}
                                     </option>
                                 ))}
                             </select>
-                            {!teamMembers.length ? <p className="text-xs text-black/45">Nenhum membro da equipe foi encontrado para vincular a venda.</p> : null}
+                            {!saleContextLoading && !teamMembers.length ? <p className="text-xs text-black/45">Nenhum membro da equipe foi encontrado para vincular a venda.</p> : null}
                         </div>
 
                         <div className="mt-5 grid gap-4 rounded-[22px] border border-black/10 bg-[#fafafa] p-4">
@@ -1988,9 +2029,10 @@ export function InventoryStudio() {
                                         <select
                                             value={saleBuyerConversationId}
                                             onChange={(event) => setSaleBuyerConversationId(event.target.value)}
+                                            disabled={saleContextLoading}
                                             className="rounded-[22px] border border-black/10 bg-white px-4 py-3 text-sm text-io-dark outline-none transition focus:border-black/25"
                                         >
-                                            <option value="">Selecione um lead comprador</option>
+                                            <option value="">{saleContextLoading ? "Carregando leads..." : "Selecione um lead comprador"}</option>
                                             {saleConversations.map((conversation) => (
                                                 <option key={conversation.id} value={conversation.id}>
                                                     {(conversation.displayName || "Lead sem nome")}
@@ -1999,7 +2041,7 @@ export function InventoryStudio() {
                                                 </option>
                                             ))}
                                         </select>
-                                        {!saleConversations.length ? <p className="text-xs text-black/45">Nenhum lead foi encontrado. Use a opção de criar novo lead para vincular o comprador.</p> : null}
+                                        {!saleContextLoading && !saleConversations.length ? <p className="text-xs text-black/45">Nenhum lead foi encontrado. Use a opção de criar novo lead para vincular o comprador.</p> : null}
                                     </div>
                                 ) : (
                                     <div className="grid gap-3 md:grid-cols-2">
@@ -2035,10 +2077,10 @@ export function InventoryStudio() {
                             <button
                                 type="button"
                                 onClick={handleCloseSale}
-                                disabled={saleSubmitting || !teamMembers.length}
+                                disabled={saleSubmitting || saleContextLoading || !teamMembers.length}
                                 className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-emerald-500 px-5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-black/20"
                             >
-                                {saleSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                {saleSubmitting || saleContextLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                                 Concluir venda
                             </button>
                         </div>
@@ -2046,6 +2088,50 @@ export function InventoryStudio() {
                 </div>
             ) : null}
         </>
+    );
+}
+
+function InventoryLoadingState() {
+    return (
+        <section
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+            className="overflow-hidden rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)] md:p-6"
+        >
+            <div className="flex items-center gap-4 border-b border-black/[0.06] pb-5">
+                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f6efff] text-io-purple">
+                    <span className="absolute inset-2 animate-ping rounded-xl bg-io-purple/10" />
+                    <CarFront className="relative h-5 w-5" />
+                </div>
+                <div>
+                    <p className="text-sm font-semibold text-io-dark">Preparando seu estoque</p>
+                    <p className="mt-1 text-xs text-black/45">Organizando veículos e informações de publicação...</p>
+                </div>
+            </div>
+
+            <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {Array.from({ length: 4 }, (_, index) => (
+                    <div
+                        key={index}
+                        aria-hidden="true"
+                        className="overflow-hidden rounded-[28px] border border-black/[0.06] bg-white p-3"
+                    >
+                        <div className="io-inventory-shimmer h-44 rounded-[22px]" />
+                        <div className="space-y-3 px-2 pb-3 pt-5">
+                            <div className="io-inventory-shimmer h-5 w-3/4 rounded-full" />
+                            <div className="io-inventory-shimmer h-3 w-1/2 rounded-full" />
+                            <div className="flex gap-2 pt-1">
+                                <div className="io-inventory-shimmer h-8 w-20 rounded-full" />
+                                <div className="io-inventory-shimmer h-8 w-24 rounded-full" />
+                            </div>
+                            <div className="io-inventory-shimmer mt-5 h-7 w-2/3 rounded-full" />
+                            <div className="io-inventory-shimmer h-11 w-full rounded-full" />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </section>
     );
 }
 
@@ -2065,7 +2151,7 @@ function InventoryVehicleCard({
         <article className="group flex h-full flex-col overflow-hidden rounded-[30px] border border-black/10 bg-white p-3 shadow-[0_18px_45px_rgba(15,23,42,0.06)] transition hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
             <div className="relative overflow-hidden rounded-[24px] bg-[#f1eee8]">
                 {imageUrl ? (
-                    <img src={imageUrl} alt={vehicle.title} className="h-60 w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+                    <img src={imageUrl} alt={vehicle.title} loading="lazy" decoding="async" className="h-60 w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
                 ) : (
                     <div className="flex h-60 w-full items-center justify-center bg-white text-white">
                         <div className="text-center">
