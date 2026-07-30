@@ -38,6 +38,11 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
     }
 
     @Override
+    public Optional<String> findNameById(java.util.UUID id) {
+        return jpa.findNameById(id);
+    }
+
+    @Override
     public Optional<Company> findByEmail(String email) {
         return jpa.findByEmail(email.toLowerCase()).map(entity -> new Company(
                 entity.getId(),

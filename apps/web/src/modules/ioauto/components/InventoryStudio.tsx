@@ -22,6 +22,7 @@ import { OlxVehiclePanel, emptyOlxVehicleForm, type OlxVehicleFormState } from "
 import type {
     BillingSnapshot,
     ConversationRecord,
+    InventoryVehicleSummary,
     IntegrationRecord,
     MeliCategoryRecord,
     MeliCategorySuggestion,
@@ -275,6 +276,38 @@ function getVehicleImage(vehicle: VehicleRecord) {
     return uniqueImageList([vehicle.coverImageUrl, ...vehicle.gallery])[0] ?? null;
 }
 
+function inventorySummaryToVehicle(summary: InventoryVehicleSummary): VehicleRecord {
+    const imageVersion = summary.updatedAt ? `?v=${encodeURIComponent(summary.updatedAt)}` : "";
+    return {
+        ...summary,
+        transmission: null,
+        fuelType: null,
+        bodyType: null,
+        doors: null,
+        color: null,
+        plateFinal: null,
+        plate: null,
+        contactPhone: null,
+        zipcode: null,
+        city: null,
+        state: null,
+        description: null,
+        coverImageUrl: summary.coverImageAvailable
+            ? `/api/ioauto/vehicles/${encodeURIComponent(summary.id)}/cover-image${imageVersion}`
+            : null,
+        gallery: [],
+        optionals: [],
+        financing: {
+            downPaymentCents: null,
+            installmentCount: null,
+            installmentValueCents: null,
+        },
+        meliCategoryId: null,
+        meliListingTypeId: null,
+        meliCondition: null,
+    };
+}
+
 function formatCurrencyInput(raw: string) {
     if (!raw) return "";
     return new Intl.NumberFormat("pt-BR", {
@@ -387,7 +420,6 @@ export function InventoryStudio() {
     const [billing, setBilling] = useState<BillingSnapshot | null>(null);
     const [saleConversations, setSaleConversations] = useState<ConversationRecord[]>([]);
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-    const [selectedId, setSelectedId] = useState<string | null>(null);
     const [form, setForm] = useState<VehicleFormState>(emptyForm());
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -397,6 +429,7 @@ export function InventoryStudio() {
     const [stockTab, setStockTab] = useState<"AVAILABLE" | "SOLD">("AVAILABLE");
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [uploadingImages, setUploadingImages] = useState(false);
+    const [loadingVehicleId, setLoadingVehicleId] = useState<string | null>(null);
     const [isImageDragActive, setIsImageDragActive] = useState(false);
     const [draggedImageUrl, setDraggedImageUrl] = useState<string | null>(null);
     const [dragOverImageUrl, setDragOverImageUrl] = useState<string | null>(null);
@@ -414,7 +447,6 @@ export function InventoryStudio() {
     const imageInputRef = useRef<HTMLInputElement | null>(null);
     const saleContextLoadedRef = useRef(false);
 
-    const selectedVehicle = useMemo(() => vehicles.find((vehicle) => vehicle.id === selectedId) ?? null, [selectedId, vehicles]);
     const connectedIntegrations = useMemo(() => integrations.filter((integration) => isConnectedIntegrationStatus(integration.status)), [integrations]);
     const readyPublicationIntegrations = useMemo(
         () => connectedIntegrations.filter((integration) => integration.supportsPublication),
@@ -500,14 +532,6 @@ export function InventoryStudio() {
         void loadInventory();
         void loadInventoryContext();
     }, []);
-
-    useEffect(() => {
-        if (!selectedVehicle) {
-            setForm(emptyForm());
-            return;
-        }
-        setForm(vehicleToForm(selectedVehicle));
-    }, [selectedVehicle]);
 
     function updateField<K extends keyof VehicleFormState>(key: K, value: VehicleFormState[K]) {
         setForm((current) => ({ ...current, [key]: value }));
@@ -862,12 +886,12 @@ export function InventoryStudio() {
             setError(null);
         }
         try {
-            const vehiclesResponse = await fetch("/api/ioauto/vehicles", { cache: "no-store" });
+            const vehiclesResponse = await fetch("/api/ioauto/vehicles/inventory-summaries", { cache: "no-store" });
             if (!vehiclesResponse.ok) throw new Error("Falha ao listar os veículos.");
-            const vehiclePayload = await vehiclesResponse.json() as VehicleRecord[];
+            const summaries = await vehiclesResponse.json() as InventoryVehicleSummary[];
+            const vehiclePayload = summaries.map(inventorySummaryToVehicle);
 
             setVehicles(vehiclePayload);
-            setSelectedId((current) => (current && vehiclePayload.some((vehicle) => vehicle.id === current) ? current : vehiclePayload[0]?.id ?? null));
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : "Falha ao carregar o estoque.");
         } finally {
@@ -943,7 +967,6 @@ export function InventoryStudio() {
     }
 
     function openCreateEditor() {
-        setSelectedId(null);
         setForm(emptyForm());
         setError(null);
         setUploadingImages(false);
@@ -953,15 +976,28 @@ export function InventoryStudio() {
         setIsEditorOpen(true);
     }
 
-    function openEditEditor(vehicle: VehicleRecord) {
-        setSelectedId(vehicle.id);
-        setForm(vehicleToForm(vehicle));
+    async function openEditEditor(vehicle: VehicleRecord) {
+        if (loadingVehicleId) return;
+        setLoadingVehicleId(vehicle.id);
         setError(null);
-        setUploadingImages(false);
-        setIsImageDragActive(false);
-        setDraggedImageUrl(null);
-        setDragOverImageUrl(null);
-        setIsEditorOpen(true);
+        try {
+            const response = await fetch(`/api/ioauto/vehicles/${encodeURIComponent(vehicle.id)}`, { cache: "no-store" });
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({ message: "Falha ao carregar o veículo." }));
+                throw new Error(payload.message ?? "Falha ao carregar o veículo.");
+            }
+            const fullVehicle = await response.json() as VehicleRecord;
+            setForm(vehicleToForm(fullVehicle));
+            setUploadingImages(false);
+            setIsImageDragActive(false);
+            setDraggedImageUrl(null);
+            setDragOverImageUrl(null);
+            setIsEditorOpen(true);
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : "Falha ao carregar o veículo.");
+        } finally {
+            setLoadingVehicleId(null);
+        }
     }
 
     function closeEditor() {
@@ -971,7 +1007,7 @@ export function InventoryStudio() {
         setIsImageDragActive(false);
         setDraggedImageUrl(null);
         setDragOverImageUrl(null);
-        setForm(selectedVehicle ? vehicleToForm(selectedVehicle) : emptyForm());
+        setForm(emptyForm());
     }
 
     function openCloseSaleModal(vehicle: VehicleRecord) {
@@ -1261,7 +1297,6 @@ export function InventoryStudio() {
             const publicationErrors = await syncSelectedIntegrations(savedVehicle);
 
             await loadInventory(false);
-            setSelectedId(savedVehicle.id);
 
             if (publicationErrors.length) {
                 setError(`Veículo salvo no IO Auto, mas algumas integrações não concluíram a publicação: ${publicationErrors.join(" | ")}`);
@@ -1339,7 +1374,8 @@ export function InventoryStudio() {
                             <InventoryVehicleCard
                                 key={vehicle.id}
                                 vehicle={vehicle}
-                                onEdit={() => openEditEditor(vehicle)}
+                                editing={loadingVehicleId === vehicle.id}
+                                onEdit={() => void openEditEditor(vehicle)}
                                 onCloseSale={() => openCloseSaleModal(vehicle)}
                             />
                         ))}
@@ -2137,10 +2173,12 @@ function InventoryLoadingState() {
 
 function InventoryVehicleCard({
     vehicle,
+    editing,
     onEdit,
     onCloseSale,
 }: {
     vehicle: VehicleRecord;
+    editing: boolean;
     onEdit: () => void;
     onCloseSale: () => void;
 }) {
@@ -2218,9 +2256,14 @@ function InventoryVehicleCard({
                         </button>
                     ) : null}
 
-                    <button type="button" onClick={onEdit} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-black text-sm font-semibold text-white transition hover:bg-black/85 shadow-sm">
-                        <PencilLine className="h-4 w-4" />
-                        Editar veículo
+                    <button
+                        type="button"
+                        onClick={onEdit}
+                        disabled={editing}
+                        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-black text-sm font-semibold text-white shadow-sm transition hover:bg-black/85 disabled:cursor-wait disabled:opacity-70"
+                    >
+                        {editing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <PencilLine className="h-4 w-4" />}
+                        {editing ? "Carregando..." : "Editar veículo"}
                     </button>
                 </div>
             </div>

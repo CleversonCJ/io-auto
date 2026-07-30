@@ -300,6 +300,35 @@ export type VehicleRecord = {
     updatedAt: string | null;
 };
 
+export type InventoryVehicleSummary = {
+    id: string;
+    stockNumber: string | null;
+    title: string;
+    brand: string;
+    model: string;
+    version: string | null;
+    engine: string | null;
+    year: number | null;
+    modelYear: number | null;
+    manufactureYear: number | null;
+    priceCents: number | null;
+    mileage: number | null;
+    consigned: boolean;
+    consignedOwnerName: string | null;
+    consignmentCommissionPercentage: number | null;
+    featured: boolean;
+    status: string;
+    coverImageAvailable: boolean;
+    publications: VehiclePublication[];
+    updatedAt: string | null;
+};
+
+export type VehicleOptionRecord = {
+    id: string;
+    title: string;
+    status: string;
+};
+
 export type OlxAdRecord = {
     id: string;
     vehicleId: string;

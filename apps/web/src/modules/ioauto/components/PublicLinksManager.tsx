@@ -15,7 +15,7 @@ import {
     Trash2,
     X,
 } from "lucide-react";
-import type { PublicCatalogSettings, PublicLinkRecord, VehicleRecord } from "@/modules/ioauto/types";
+import type { PublicCatalogSettings, PublicLinkRecord, VehicleOptionRecord } from "@/modules/ioauto/types";
 import { formatDateTime } from "@/modules/ioauto/formatters";
 import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
@@ -152,10 +152,12 @@ async function compressBannerImage(file: File) {
 
 export function PublicLinksManager() {
     const [links, setLinks] = useState<PublicLinkRecord[]>([]);
-    const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
+    const [vehicles, setVehicles] = useState<VehicleOptionRecord[]>([]);
     const [responsibleUsers, setResponsibleUsers] = useState<LinkResponsibleUser[]>([]);
     const [catalogSettings, setCatalogSettings] = useState<PublicCatalogSettings>(DEFAULT_PUBLIC_CATALOG_SETTINGS);
     const [savedCatalogSettings, setSavedCatalogSettings] = useState<PublicCatalogSettings>(DEFAULT_PUBLIC_CATALOG_SETTINGS);
+    const [catalogSettingsLoading, setCatalogSettingsLoading] = useState(true);
+    const [catalogSettingsError, setCatalogSettingsError] = useState<string | null>(null);
     const [companyName, setCompanyName] = useState("Catálogo");
     const [origin, setOrigin] = useState("");
     const [loading, setLoading] = useState(true);
@@ -214,6 +216,7 @@ export function PublicLinksManager() {
     useEffect(() => {
         setOrigin(window.location.origin);
         void loadData();
+        void loadCatalogSettings();
     }, []);
 
     useEffect(() => {
@@ -230,39 +233,50 @@ export function PublicLinksManager() {
     async function loadData() {
         setLoading(true);
         try {
-            const [linksResponse, vehiclesResponse, usersResponse, meResponse, settingsResponse] = await Promise.all([
+            const [linksResponse, vehiclesResponse, usersResponse, meResponse] = await Promise.all([
                 fetch("/api/ioauto/public-links", { cache: "no-store" }),
-                fetch("/api/ioauto/vehicles", { cache: "no-store" }),
+                fetch("/api/ioauto/vehicles/options", { cache: "no-store" }),
                 fetch("/api/atendimentos/users", { cache: "no-store" }),
                 fetch("/api/auth/me", { cache: "no-store" }),
-                fetch("/api/ioauto/public-catalog-settings", { cache: "no-store" }),
             ]);
 
             if (!linksResponse.ok) throw new Error("Falha ao carregar os links públicos.");
             if (!vehiclesResponse.ok) throw new Error("Falha ao carregar os veículos.");
             if (!usersResponse.ok) throw new Error("Falha ao carregar os usuários responsáveis.");
 
-            if (!settingsResponse.ok) throw new Error("Falha ao carregar as configurações do banner.");
-
-            const [linksPayload, vehiclesPayload, usersPayload, mePayload, settingsPayload] = await Promise.all([
+            const [linksPayload, vehiclesPayload, usersPayload, mePayload] = await Promise.all([
                 linksResponse.json() as Promise<PublicLinkRecord[]>,
-                vehiclesResponse.json() as Promise<VehicleRecord[]>,
+                vehiclesResponse.json() as Promise<VehicleOptionRecord[]>,
                 usersResponse.json() as Promise<LinkResponsibleUser[]>,
                 meResponse.ok ? meResponse.json() as Promise<MePayload> : Promise.resolve(null),
-                settingsResponse.json() as Promise<PublicCatalogSettings>,
             ]);
 
             setLinks(linksPayload);
             setVehicles(vehiclesPayload);
             setResponsibleUsers(usersPayload);
             setCompanyName(mePayload?.companyName?.trim() || "Catálogo");
-            setCatalogSettings(settingsPayload);
-            setSavedCatalogSettings(settingsPayload);
             setError(null);
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : "Falha ao carregar os links.");
         } finally {
             setLoading(false);
+        }
+    }
+
+    async function loadCatalogSettings() {
+        setCatalogSettingsLoading(true);
+        setCatalogSettingsError(null);
+        try {
+            const response = await fetch("/api/ioauto/public-catalog-settings", { cache: "no-store" });
+            if (!response.ok) throw new Error("Falha ao carregar as configurações do banner.");
+
+            const payload = await response.json() as PublicCatalogSettings;
+            setCatalogSettings(payload);
+            setSavedCatalogSettings(payload);
+        } catch (cause) {
+            setCatalogSettingsError(cause instanceof Error ? cause.message : "Falha ao carregar as configurações do banner.");
+        } finally {
+            setCatalogSettingsLoading(false);
         }
     }
 
@@ -451,7 +465,26 @@ export function PublicLinksManager() {
                     />
                 ) : (
                     <div className="grid gap-6">
-                        <section className="rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)] md:p-6">
+                        {catalogSettingsLoading ? (
+                            <SystemPageLoader
+                                compact
+                                label="Carregando configuração do catálogo"
+                                description="Preparando o banner da vitrine pública..."
+                                className="rounded-[34px] border border-black/10 bg-white shadow-[0_18px_45px_rgba(0,0,0,0.06)]"
+                            />
+                        ) : catalogSettingsError ? (
+                            <section className="rounded-[34px] border border-red-100 bg-red-50 px-6 py-8 text-center">
+                                <p className="text-sm font-semibold text-red-700">{catalogSettingsError}</p>
+                                <button
+                                    type="button"
+                                    onClick={() => void loadCatalogSettings()}
+                                    className="mt-4 inline-flex h-11 items-center justify-center rounded-full bg-io-dark px-5 text-sm font-semibold text-white transition hover:bg-black/85"
+                                >
+                                    Tentar novamente
+                                </button>
+                            </section>
+                        ) : (
+                            <section className="rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)] md:p-6">
                             <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                                 <div className="max-w-3xl">
                                     <p className="inline-flex items-center gap-2 rounded-full bg-io-purple/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-io-purple border border-io-purple/10">
@@ -593,7 +626,8 @@ export function PublicLinksManager() {
                                     )}
                                 </div>
                             </div>
-                        </section>
+                            </section>
+                        )}
 
                         <LinkSection
                             title="Links públicos do estoque"

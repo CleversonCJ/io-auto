@@ -15,6 +15,9 @@ public interface CompanyRepositoryJpa extends JpaRepository<JpaCompanyEntity, UU
     Optional<JpaCompanyEntity> findByZapiInstanceId(String zapiInstanceId);
     Optional<JpaCompanyEntity> findByCnpj(String cnpj);
 
+    @Query("select c.name from JpaCompanyEntity c where c.id = :companyId")
+    Optional<String> findNameById(@Param("companyId") UUID companyId);
+
     @Transactional
     @Modifying
     @Query("update JpaCompanyEntity c set c.lastAccessAt = :accessAt, c.updatedAt = :accessAt where c.id = :companyId")

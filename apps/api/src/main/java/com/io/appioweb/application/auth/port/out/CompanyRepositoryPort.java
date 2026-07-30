@@ -9,6 +9,7 @@ import java.util.UUID;
 
 public interface CompanyRepositoryPort {
     Optional<Company> findById(UUID id);
+    Optional<String> findNameById(UUID id);
     Optional<Company> findByEmail(String email);
     Optional<Company> findByZapiInstanceId(String zapiInstanceId);
     List<Company> findAll();

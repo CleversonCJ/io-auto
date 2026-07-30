@@ -32,12 +32,12 @@ public class MeUseCase implements UserAdminUseCase {
         User user = users.findById(current.userId())
                 .orElseThrow(() -> new BusinessException("AUTH_NOT_FOUND", "Usuario nao encontrado"));
         var team = teams.findByIdAndCompanyId(user.teamId(), user.companyId()).orElse(null);
-        var company = companies.findById(user.companyId()).orElse(null);
+        String companyName = companies.findNameById(user.companyId()).orElse(null);
 
         return new MeResponse(
                 user.id(),
                 user.companyId(),
-                company == null ? null : company.name(),
+                companyName,
                 user.email(),
                 user.fullName(),
                 user.profileImageUrl(),

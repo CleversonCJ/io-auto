@@ -29,6 +29,8 @@ import com.io.appioweb.shared.errors.BusinessException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -50,6 +52,7 @@ import com.io.appioweb.application.ioauto.meli.MeliCategoryService;
 import com.io.appioweb.application.ioauto.meli.MeliListingTypeService;
 import com.io.appioweb.application.ioauto.olx.OlxAdService;
 
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -58,6 +61,7 @@ import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -213,7 +217,7 @@ public class IoAutoController {
             @RequestParam(name = "to", required = false) String to
     ) {
         UUID companyId = currentUser.companyId();
-        String companyName = companies.findById(companyId).map(company -> company.name()).orElse("IOAuto");
+        String companyName = companies.findNameById(companyId).orElse("IOAuto");
         DashboardPeriodSelection periodSelection = resolveDashboardPeriod(preset, from, to);
 
         List<JpaIoAutoVehicleEntity> companyVehicles = vehicles.findAllByCompanyIdOrderByUpdatedAtDesc(companyId);
@@ -359,6 +363,119 @@ public class IoAutoController {
                 .map(vehicle -> toVehicleResponse(vehicle, publicationsByVehicle.getOrDefault(vehicle.getId(), List.of()), integrationsByKey))
                 .toList();
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/ioauto/vehicles/inventory-summaries")
+    public ResponseEntity<List<IoAutoVehicleInventorySummaryHttpResponse>> listVehicleInventorySummaries() {
+        UUID companyId = currentUser.companyId();
+        featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_VEHICLE_MANAGEMENT, Map.of("action", "LIST_VEHICLES"));
+
+        Map<UUID, List<JpaIoAutoVehiclePublicationEntity>> publicationsByVehicle =
+                groupPublicationsByVehicle(publications.findAllByCompanyIdOrderByUpdatedAtDesc(companyId));
+        Map<String, JpaIoAutoIntegrationEntity> integrationsByKey = integrations.findAllByCompanyIdOrderByDisplayNameAsc(companyId).stream()
+                .filter(integration -> isSupportedProvider(integration.getProviderKey()))
+                .collect(java.util.stream.Collectors.toMap(
+                        JpaIoAutoIntegrationEntity::getProviderKey,
+                        item -> item,
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
+
+        List<IoAutoVehicleInventorySummaryHttpResponse> response = vehicles.findInventorySummariesByCompanyId(companyId).stream()
+                .map(vehicle -> new IoAutoVehicleInventorySummaryHttpResponse(
+                        vehicle.getId(),
+                        normalizeNullableText(vehicle.getStockNumber()),
+                        vehicle.getTitle(),
+                        vehicle.getBrand(),
+                        vehicle.getModel(),
+                        normalizeNullableText(vehicle.getVersion()),
+                        normalizeNullableText(vehicle.getEngine()),
+                        vehicle.getYear(),
+                        vehicle.getModelYear(),
+                        vehicle.getManufactureYear(),
+                        vehicle.getPriceCents(),
+                        vehicle.getMileage(),
+                        vehicle.getConsigned(),
+                        normalizeNullableText(vehicle.getConsignedOwnerName()),
+                        vehicle.getConsignmentCommissionPercentage(),
+                        vehicle.getFeatured(),
+                        normalizeText(vehicle.getStatus(), "DRAFT"),
+                        vehicle.getCoverImageAvailable(),
+                        toPublicationSummaries(
+                                publicationsByVehicle.getOrDefault(vehicle.getId(), List.of()),
+                                integrationsByKey
+                        ),
+                        vehicle.getUpdatedAt()
+                ))
+                .toList();
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/ioauto/vehicles/options")
+    public ResponseEntity<List<IoAutoVehicleOptionHttpResponse>> listVehicleOptions() {
+        UUID companyId = currentUser.companyId();
+        List<IoAutoVehicleOptionHttpResponse> response = vehicles.findOptionsByCompanyId(companyId).stream()
+                .map(vehicle -> new IoAutoVehicleOptionHttpResponse(
+                        vehicle.getId(),
+                        vehicle.getTitle(),
+                        normalizeText(vehicle.getStatus(), "DRAFT")
+                ))
+                .toList();
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/ioauto/vehicles/{vehicleId}")
+    public ResponseEntity<IoAutoVehicleHttpResponse> getVehicle(@PathVariable UUID vehicleId) {
+        UUID companyId = currentUser.companyId();
+        JpaIoAutoVehicleEntity vehicle = vehicles.findByIdAndCompanyId(vehicleId, companyId)
+                .orElseThrow(() -> new BusinessException("VEHICLE_NOT_FOUND", "Veículo não encontrado."));
+        return ResponseEntity.ok(toVehicleResponse(
+                vehicle,
+                publications.findAllByCompanyIdAndVehicleId(companyId, vehicleId),
+                integrations.findAllByCompanyIdOrderByDisplayNameAsc(companyId).stream()
+                        .filter(integration -> isSupportedProvider(integration.getProviderKey()))
+                        .collect(java.util.stream.Collectors.toMap(
+                                JpaIoAutoIntegrationEntity::getProviderKey,
+                                item -> item,
+                                (left, right) -> left,
+                                LinkedHashMap::new
+                        ))
+        ));
+    }
+
+    @GetMapping("/ioauto/vehicles/{vehicleId}/cover-image")
+    public ResponseEntity<?> getVehicleCoverImage(@PathVariable UUID vehicleId) {
+        UUID companyId = currentUser.companyId();
+        String source = normalizeNullableText(
+                vehicles.findCoverImageByIdAndCompanyId(vehicleId, companyId).orElse(null)
+        );
+        if (source == null) {
+            source = vehicles.findGalleryJsonByIdAndCompanyId(vehicleId, companyId)
+                    .map(this::readStringArray)
+                    .flatMap(items -> items.stream().findFirst())
+                    .orElse(null);
+        }
+        if (source == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        if (source.startsWith("https://") || source.startsWith("http://")) {
+            return ResponseEntity.status(302)
+                    .location(URI.create(source))
+                    .header(HttpHeaders.CACHE_CONTROL, "private, max-age=604800")
+                    .build();
+        }
+
+        VehicleImageContent image = decodeVehicleImage(source);
+        if (image == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(image.contentType()))
+                .contentLength(image.bytes().length)
+                .header(HttpHeaders.CACHE_CONTROL, "private, max-age=604800, immutable")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(image.bytes());
     }
 
     @GetMapping("/public/stock/{companyIdentifier}")
@@ -912,16 +1029,31 @@ public class IoAutoController {
         UUID companyId = currentUser.companyId();
         planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_OWN_SITE);
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "LIST_PUBLIC_LINKS"));
-        var company = companies.findById(companyId).orElse(null);
-        if (company == null) {
+        String companyName = companies.findNameById(companyId).orElse(null);
+        if (companyName == null) {
             return ResponseEntity.ok(List.of());
         }
 
         List<JpaIoAutoPublicLinkEntity> links = publicLinks.findAllByCompanyIdOrderByCreatedAtDesc(companyId);
-        List<JpaIoAutoVehicleEntity> companyVehicles = vehicles.findAllByCompanyIdOrderByUpdatedAtDesc(companyId);
-        Map<UUID, JpaIoAutoVehicleEntity> vehiclesById = companyVehicles.stream()
-                .collect(java.util.stream.Collectors.toMap(JpaIoAutoVehicleEntity::getId, item -> item, (left, right) -> left, LinkedHashMap::new));
-        List<JpaIoAutoPublicLeadEventEntity> events = publicLeadEvents.findAllByCompanyIdOrderByCreatedAtDesc(companyId);
+        Map<UUID, String> vehicleTitlesById = vehicles.findOptionsByCompanyId(companyId).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        IoAutoVehicleRepositoryJpa.VehicleOptionSummary::getId,
+                        IoAutoVehicleRepositoryJpa.VehicleOptionSummary::getTitle,
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
+        Map<String, PublicLinkEventStats> eventStatsBySource = publicLeadEvents.summarizeForPublicLinks(companyId).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        aggregate -> publicLinkEventStatsKey(aggregate.getSourceType(), aggregate.getSourceReference()),
+                        aggregate -> new PublicLinkEventStats(
+                                aggregate.getTotalInteractions(),
+                                aggregate.getContactClicks(),
+                                aggregate.getInterestClicks(),
+                                aggregate.getLastInteractionAt()
+                        ),
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
         Map<UUID, String> responsibleUserNames = users.findAllByCompanyId(companyId).stream()
                 .collect(java.util.stream.Collectors.toMap(
                         user -> user.id(),
@@ -932,10 +1064,10 @@ public class IoAutoController {
 
         List<PublicLinkHttpResponse> response = links.stream()
                 .map(link -> toPublicLinkResponse(
-                        company,
+                        companyName,
                         link,
-                        vehiclesById,
-                        events,
+                        vehicleTitlesById,
+                        eventStatsBySource,
                         responsibleUserNames.get(link.getResponsibleUserId())
                 ))
                 .toList();
@@ -1054,14 +1186,14 @@ public class IoAutoController {
         entity.setUpdatedAt(now);
         publicLinks.save(entity);
 
-        Map<UUID, JpaIoAutoVehicleEntity> vehiclesById = vehicle == null
+        Map<UUID, String> vehicleTitlesById = vehicle == null
                 ? Map.of()
-                : Map.of(vehicle.getId(), vehicle);
+                : Map.of(vehicle.getId(), vehicle.getTitle());
         return ResponseEntity.ok(toPublicLinkResponse(
-                company,
+                company.name(),
                 entity,
-                vehiclesById,
-                List.of(),
+                vehicleTitlesById,
+                Map.of(),
                 normalizeText(responsibleUser.fullName(), responsibleUser.email())
         ));
     }
@@ -1346,20 +1478,8 @@ public class IoAutoController {
             List<JpaIoAutoVehiclePublicationEntity> vehiclePublications,
             Map<String, JpaIoAutoIntegrationEntity> integrationsByKey
     ) {
-        List<IoAutoVehicleHttpResponse.PublicationSummary> publicationSummaries = vehiclePublications.stream()
-                .filter(publication -> isSupportedProvider(publication.getProviderKey()))
-                .sorted(Comparator.comparing(JpaIoAutoVehiclePublicationEntity::getProviderKey))
-                .map(publication -> {
-                    JpaIoAutoIntegrationEntity integration = integrationsByKey.get(publication.getProviderKey());
-                    return new IoAutoVehicleHttpResponse.PublicationSummary(
-                            publication.getId(),
-                            publication.getProviderKey(),
-                            integration == null ? defaultIntegrationLabel(publication.getProviderKey()) : integration.getDisplayName(),
-                            normalizeText(publication.getStatus(), "READY_TO_SYNC"),
-                            normalizeNullableText(publication.getExternalUrl())
-                    );
-                })
-                .toList();
+        List<IoAutoVehicleHttpResponse.PublicationSummary> publicationSummaries =
+                toPublicationSummaries(vehiclePublications, integrationsByKey);
 
         return new IoAutoVehicleHttpResponse(
                 vehicle.getId(),
@@ -1403,6 +1523,45 @@ public class IoAutoController {
         );
     }
 
+    private List<IoAutoVehicleHttpResponse.PublicationSummary> toPublicationSummaries(
+            List<JpaIoAutoVehiclePublicationEntity> vehiclePublications,
+            Map<String, JpaIoAutoIntegrationEntity> integrationsByKey
+    ) {
+        return vehiclePublications.stream()
+                .filter(publication -> isSupportedProvider(publication.getProviderKey()))
+                .sorted(Comparator.comparing(JpaIoAutoVehiclePublicationEntity::getProviderKey))
+                .map(publication -> {
+                    JpaIoAutoIntegrationEntity integration = integrationsByKey.get(publication.getProviderKey());
+                    return new IoAutoVehicleHttpResponse.PublicationSummary(
+                            publication.getId(),
+                            publication.getProviderKey(),
+                            integration == null ? defaultIntegrationLabel(publication.getProviderKey()) : integration.getDisplayName(),
+                            normalizeText(publication.getStatus(), "READY_TO_SYNC"),
+                            normalizeNullableText(publication.getExternalUrl())
+                    );
+                })
+                .toList();
+    }
+
+    private VehicleImageContent decodeVehicleImage(String source) {
+        if (source == null || source.startsWith("data:image/") == false) return null;
+        int metadataEnd = source.indexOf(',');
+        if (metadataEnd <= "data:".length()) return null;
+
+        String metadata = source.substring("data:".length(), metadataEnd);
+        int metadataSeparator = metadata.indexOf(';');
+        String contentType = metadataSeparator >= 0 ? metadata.substring(0, metadataSeparator) : metadata;
+        if (contentType.startsWith("image/") == false || metadata.toLowerCase(Locale.ROOT).contains(";base64") == false) {
+            return null;
+        }
+
+        try {
+            return new VehicleImageContent(contentType, Base64.getDecoder().decode(source.substring(metadataEnd + 1)));
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
     private IoAutoIntegrationHttpResponse toIntegrationResponse(JpaIoAutoIntegrationEntity entity) {
         return new IoAutoIntegrationHttpResponse(
                 normalizeText(entity.getProviderKey()),
@@ -1434,31 +1593,20 @@ public class IoAutoController {
     }
 
     private PublicLinkHttpResponse toPublicLinkResponse(
-            com.io.appioweb.domain.auth.entity.Company company,
+            String companyName,
             JpaIoAutoPublicLinkEntity link,
-            Map<UUID, JpaIoAutoVehicleEntity> vehiclesById,
-            List<JpaIoAutoPublicLeadEventEntity> events,
+            Map<UUID, String> vehicleTitlesById,
+            Map<String, PublicLinkEventStats> eventStatsBySource,
             String responsibleUserName
     ) {
-        JpaIoAutoVehicleEntity vehicle = link.getVehicleId() == null ? null : vehiclesById.get(link.getVehicleId());
         String sourceType = normalizeNullableText(link.getSourceType());
         String sourceReference = normalizeNullableText(link.getSourceReference());
         String trackingSourceType = resolvePublicLinkTrackingSourceType(link);
         String trackingSourceReference = resolvePublicLinkTrackingSourceReference(link);
-
-        List<JpaIoAutoPublicLeadEventEntity> matchingEvents = events.stream()
-                .filter(event -> normalizeText(event.getSourceType()).equalsIgnoreCase(normalizeText(trackingSourceType)))
-                .filter(event -> normalizeText(event.getSourceReference()).equalsIgnoreCase(normalizeText(trackingSourceReference)))
-                .toList();
-
-        long totalInteractions = matchingEvents.size();
-        long contactClicks = matchingEvents.stream()
-                .filter(event -> "CONTACT_CLICK".equalsIgnoreCase(event.getEventType()))
-                .count();
-        long interestClicks = matchingEvents.stream()
-                .filter(event -> "INTEREST_CLICK".equalsIgnoreCase(event.getEventType()))
-                .count();
-        Instant lastInteractionAt = matchingEvents.isEmpty() ? null : matchingEvents.get(0).getCreatedAt();
+        PublicLinkEventStats eventStats = eventStatsBySource.getOrDefault(
+                publicLinkEventStatsKey(trackingSourceType, trackingSourceReference),
+                PublicLinkEventStats.EMPTY
+        );
 
         return new PublicLinkHttpResponse(
                 link.getId(),
@@ -1472,15 +1620,21 @@ public class IoAutoController {
                 link.getResponsibleUserId(),
                 normalizeNullableText(responsibleUserName),
                 link.getVehicleId(),
-                vehicle == null ? null : vehicle.getTitle(),
-                buildPublicLinkPath(company, link),
-                totalInteractions,
-                contactClicks,
-                interestClicks,
-                lastInteractionAt,
+                link.getVehicleId() == null ? null : vehicleTitlesById.get(link.getVehicleId()),
+                buildPublicLinkPath(companyName, link),
+                eventStats.totalInteractions(),
+                eventStats.contactClicks(),
+                eventStats.interestClicks(),
+                eventStats.lastInteractionAt(),
                 link.getCreatedAt(),
                 link.getUpdatedAt()
         );
+    }
+
+    private String publicLinkEventStatsKey(String sourceType, String sourceReference) {
+        return normalizeText(sourceType).toUpperCase(Locale.ROOT)
+                + "\u0000"
+                + normalizeText(sourceReference).toUpperCase(Locale.ROOT);
     }
 
     private PublicCatalogSettingsHttpResponse toPublicCatalogSettingsResponse(com.io.appioweb.domain.auth.entity.Company company) {
@@ -2122,8 +2276,8 @@ public class IoAutoController {
         }
     }
 
-    private String buildPublicLinkPath(com.io.appioweb.domain.auth.entity.Company company, JpaIoAutoPublicLinkEntity link) {
-        String basePath = "/estoque-publico/" + slugifyPublicPathSegment(company.name());
+    private String buildPublicLinkPath(String companyName, JpaIoAutoPublicLinkEntity link) {
+        String basePath = "/estoque-publico/" + slugifyPublicPathSegment(companyName);
         if ("VEHICLE".equalsIgnoreCase(normalizeText(link.getScopeType())) && link.getVehicleId() != null) {
             basePath += "/veiculo/" + link.getVehicleId();
         }
@@ -2434,6 +2588,49 @@ public class IoAutoController {
                 String sourcePlatform
         ) {
         }
+    }
+
+    public record IoAutoVehicleInventorySummaryHttpResponse(
+            UUID id,
+            String stockNumber,
+            String title,
+            String brand,
+            String model,
+            String version,
+            String engine,
+            Integer year,
+            Integer modelYear,
+            Integer manufactureYear,
+            Long priceCents,
+            Integer mileage,
+            boolean consigned,
+            String consignedOwnerName,
+            java.math.BigDecimal consignmentCommissionPercentage,
+            boolean featured,
+            String status,
+            boolean coverImageAvailable,
+            List<IoAutoVehicleHttpResponse.PublicationSummary> publications,
+            Instant updatedAt
+    ) {
+    }
+
+    public record IoAutoVehicleOptionHttpResponse(
+            UUID id,
+            String title,
+            String status
+    ) {
+    }
+
+    private record VehicleImageContent(String contentType, byte[] bytes) {
+    }
+
+    private record PublicLinkEventStats(
+            long totalInteractions,
+            long contactClicks,
+            long interestClicks,
+            Instant lastInteractionAt
+    ) {
+        private static final PublicLinkEventStats EMPTY = new PublicLinkEventStats(0, 0, 0, null);
     }
 
     public record IoAutoVehicleHttpResponse(
