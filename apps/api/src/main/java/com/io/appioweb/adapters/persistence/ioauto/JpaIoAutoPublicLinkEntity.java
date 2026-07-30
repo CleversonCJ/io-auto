@@ -42,6 +42,9 @@ public class JpaIoAutoPublicLinkEntity {
     @Column(name = "whatsapp_number", length = 20)
     private String whatsappNumber;
 
+    @Column(name = "responsible_user_id")
+    private UUID responsibleUserId;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -126,6 +129,14 @@ public class JpaIoAutoPublicLinkEntity {
 
     public void setWhatsappNumber(String whatsappNumber) {
         this.whatsappNumber = whatsappNumber;
+    }
+
+    public UUID getResponsibleUserId() {
+        return responsibleUserId;
+    }
+
+    public void setResponsibleUserId(UUID responsibleUserId) {
+        this.responsibleUserId = responsibleUserId;
     }
 
     public Instant getCreatedAt() {

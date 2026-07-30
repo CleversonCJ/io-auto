@@ -159,6 +159,7 @@ export function PublicCatalogLeadsPage() {
     const [fromDate, setFromDate] = useState("");
     const [toDate, setToDate] = useState("");
     const [search, setSearch] = useState("");
+    const [selectedUserId, setSelectedUserId] = useState("");
     const [refreshTick, setRefreshTick] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -192,6 +193,9 @@ export function PublicCatalogLeadsPage() {
                     if (fromDate) params.set("from", fromDate);
                     if (toDate) params.set("to", toDate);
                 }
+                if (selectedUserId) {
+                    params.set("sellerUserId", selectedUserId);
+                }
 
                 const response = await fetch(`/api/ioauto/public-catalog-leads?${params.toString()}`, {
                     cache: "no-store",
@@ -223,7 +227,7 @@ export function PublicCatalogLeadsPage() {
         return () => {
             active = false;
         };
-    }, [fromDate, preset, refreshTick, toDate]);
+    }, [fromDate, preset, refreshTick, selectedUserId, toDate]);
 
     useEffect(() => {
         let refreshTimer: number | null = null;
@@ -587,7 +591,11 @@ export function PublicCatalogLeadsPage() {
                         })}
                     </div>
 
-                    <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr_0.75fr]">
+                    <div className={`grid gap-4 ${
+                        data?.canViewAllLeads
+                            ? "lg:grid-cols-[1.15fr_0.75fr_0.75fr_0.9fr]"
+                            : "lg:grid-cols-[1.25fr_0.75fr_0.75fr]"
+                    }`}>
                         <label className="grid gap-2">
                             <span className="text-xs font-bold uppercase tracking-[0.18em] text-black/38">
                                 {"Buscar"}
@@ -638,6 +646,29 @@ export function PublicCatalogLeadsPage() {
                                 />
                             </div>
                         </label>
+
+                        {data?.canViewAllLeads ? (
+                            <label className="grid gap-2">
+                                <span className="text-xs font-bold uppercase tracking-[0.18em] text-black/38">
+                                    {"Responsável"}
+                                </span>
+                                <div className="flex h-14 items-center gap-3 rounded-[24px] border border-[#6b00e3]/12 bg-[#faf6ff] px-4 transition focus-within:border-[#6b00e3]/24 focus-within:bg-white">
+                                    <UserRound className="h-4 w-4 shrink-0 text-io-purple" />
+                                    <select
+                                        value={selectedUserId}
+                                        onChange={(event) => setSelectedUserId(event.target.value)}
+                                        className="w-full bg-transparent text-sm font-medium text-io-dark outline-none"
+                                    >
+                                        <option value="">Todos os usuários</option>
+                                        {teamMembers.map((member) => (
+                                            <option key={member.id} value={member.id}>
+                                                {member.fullName}{member.teamName ? ` • ${member.teamName}` : ""}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </label>
+                        ) : null}
                     </div>
                 </div>
             </section>
@@ -672,7 +703,9 @@ export function PublicCatalogLeadsPage() {
                         {filteredLeads.map((lead) => {
                             const previewVehicleData = lead.vehicleId ? vehiclesById[lead.vehicleId] ?? null : null;
                             const whatsappHref = buildWhatsappLeadHref(lead, previewVehicleData);
-                            const saleSeller = lead.sellerUserId ? teamMembers.find((member) => member.id === lead.sellerUserId) ?? null : null;
+                            const responsibleUser = lead.sellerUserId
+                                ? teamMembers.find((member) => member.id === lead.sellerUserId) ?? null
+                                : null;
 
                             return (
                                 <article
@@ -702,11 +735,11 @@ export function PublicCatalogLeadsPage() {
                                                 <Phone className="h-4 w-4 text-io-purple" />
                                                 {formatPhone(lead.customerPhone)}
                                             </p>
-                                            {lead.convertedToSale ? (
-                                                <p className="mt-2 text-sm text-black/52">
-                                                    {saleSeller ? `Vendedor: ${saleSeller.fullName}` : "Venda vinculada ao lead"}
-                                                </p>
-                                            ) : null}
+                                            <p className="mt-2 text-sm text-black/52">
+                                                {responsibleUser
+                                                    ? `Responsável: ${responsibleUser.fullName}`
+                                                    : "Responsável não identificado"}
+                                            </p>
                                         </div>
 
                                         <div>

@@ -713,6 +713,7 @@ export type PublicCatalogLeadList = {
     preset: string;
     fromDate: string;
     toDate: string;
+    canViewAllLeads: boolean;
     totalLeads: number;
     leadsWithVehicle: number;
     leadsWithCampaign: number;
@@ -745,6 +746,8 @@ export type PublicLinkRecord = {
     sourceReference: string | null;
     useCompanyWhatsapp: boolean;
     whatsappNumber: string | null;
+    responsibleUserId: string | null;
+    responsibleUserName: string | null;
     vehicleId: string | null;
     vehicleTitle: string | null;
     publicPath: string;

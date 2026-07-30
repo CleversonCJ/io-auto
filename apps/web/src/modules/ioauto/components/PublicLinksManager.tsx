@@ -23,6 +23,14 @@ type MePayload = {
     companyName?: string | null;
 };
 
+type LinkResponsibleUser = {
+    id: string;
+    fullName: string;
+    email: string;
+    teamId?: string | null;
+    teamName?: string | null;
+};
+
 type LinkFormState = {
     name: string;
     linkKind: "PUBLIC" | "CAMPAIGN";
@@ -32,6 +40,7 @@ type LinkFormState = {
     sourceReference: string;
     useCompanyWhatsapp: boolean;
     whatsappNumber: string;
+    responsibleUserId: string;
 };
 
 const MAX_BANNER_IMAGES = 6;
@@ -50,6 +59,7 @@ function emptyForm(): LinkFormState {
         sourceReference: "",
         useCompanyWhatsapp: true,
         whatsappNumber: "",
+        responsibleUserId: "",
     };
 }
 
@@ -142,6 +152,7 @@ async function compressBannerImage(file: File) {
 export function PublicLinksManager() {
     const [links, setLinks] = useState<PublicLinkRecord[]>([]);
     const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
+    const [responsibleUsers, setResponsibleUsers] = useState<LinkResponsibleUser[]>([]);
     const [catalogSettings, setCatalogSettings] = useState<PublicCatalogSettings>(DEFAULT_PUBLIC_CATALOG_SETTINGS);
     const [savedCatalogSettings, setSavedCatalogSettings] = useState<PublicCatalogSettings>(DEFAULT_PUBLIC_CATALOG_SETTINGS);
     const [companyName, setCompanyName] = useState("Catálogo");
@@ -169,6 +180,7 @@ export function PublicLinksManager() {
                 link.linkKind,
                 link.scopeType,
                 link.whatsappNumber,
+                link.responsibleUserName,
             ]
                 .filter(Boolean)
                 .join(" ")
@@ -217,27 +229,31 @@ export function PublicLinksManager() {
     async function loadData() {
         setLoading(true);
         try {
-            const [linksResponse, vehiclesResponse, meResponse, settingsResponse] = await Promise.all([
+            const [linksResponse, vehiclesResponse, usersResponse, meResponse, settingsResponse] = await Promise.all([
                 fetch("/api/ioauto/public-links", { cache: "no-store" }),
                 fetch("/api/ioauto/vehicles", { cache: "no-store" }),
+                fetch("/api/atendimentos/users", { cache: "no-store" }),
                 fetch("/api/auth/me", { cache: "no-store" }),
                 fetch("/api/ioauto/public-catalog-settings", { cache: "no-store" }),
             ]);
 
             if (!linksResponse.ok) throw new Error("Falha ao carregar os links públicos.");
             if (!vehiclesResponse.ok) throw new Error("Falha ao carregar os veículos.");
+            if (!usersResponse.ok) throw new Error("Falha ao carregar os usuários responsáveis.");
 
             if (!settingsResponse.ok) throw new Error("Falha ao carregar as configurações do banner.");
 
-            const [linksPayload, vehiclesPayload, mePayload, settingsPayload] = await Promise.all([
+            const [linksPayload, vehiclesPayload, usersPayload, mePayload, settingsPayload] = await Promise.all([
                 linksResponse.json() as Promise<PublicLinkRecord[]>,
                 vehiclesResponse.json() as Promise<VehicleRecord[]>,
+                usersResponse.json() as Promise<LinkResponsibleUser[]>,
                 meResponse.ok ? meResponse.json() as Promise<MePayload> : Promise.resolve(null),
                 settingsResponse.json() as Promise<PublicCatalogSettings>,
             ]);
 
             setLinks(linksPayload);
             setVehicles(vehiclesPayload);
+            setResponsibleUsers(usersPayload);
             setCompanyName(mePayload?.companyName?.trim() || "Catálogo");
             setCatalogSettings(settingsPayload);
             setSavedCatalogSettings(settingsPayload);
@@ -276,6 +292,10 @@ export function PublicLinksManager() {
             setError("Informe um WhatsApp válido com DDD para este link.");
             return;
         }
+        if (!form.responsibleUserId) {
+            setError("Selecione o usuário responsável pelos leads deste link.");
+            return;
+        }
 
         setSaving(true);
         const payload = {
@@ -287,6 +307,7 @@ export function PublicLinksManager() {
             sourceReference: form.linkKind === "CAMPAIGN" ? slugifyReference(form.sourceReference) : null,
             useCompanyWhatsapp: form.useCompanyWhatsapp,
             whatsappNumber: form.useCompanyWhatsapp ? null : normalizeWhatsappNumber(form.whatsappNumber),
+            responsibleUserId: form.responsibleUserId,
         };
 
         const response = await fetch("/api/ioauto/public-links", {
@@ -695,6 +716,34 @@ export function PublicLinksManager() {
                                     </div>
                                 )}
 
+                                <label className="grid gap-2 rounded-[28px] border border-black/10 bg-white px-5 py-5">
+                                    <span className="text-sm font-semibold text-io-dark">Responsável pelos leads</span>
+                                    <span className="text-sm leading-6 text-black/55">
+                                        Os leads originados por este link ficarão visíveis para o usuário selecionado e para administradores.
+                                    </span>
+                                    <select
+                                        value={form.responsibleUserId}
+                                        onChange={(event) => {
+                                            updateForm("responsibleUserId", event.target.value);
+                                            setError(null);
+                                        }}
+                                        required
+                                        className="mt-2 h-12 rounded-2xl border border-black/10 bg-[#f7f7f7] px-4 text-sm text-io-dark outline-none transition focus:border-black/30 focus:bg-white"
+                                    >
+                                        <option value="">Selecione um usuário</option>
+                                        {responsibleUsers.map((user) => (
+                                            <option key={user.id} value={user.id}>
+                                                {user.fullName}{user.teamName ? ` • ${user.teamName}` : ""}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {!responsibleUsers.length ? (
+                                        <span className="text-xs text-red-700">
+                                            Nenhum usuário ativo está disponível para receber leads.
+                                        </span>
+                                    ) : null}
+                                </label>
+
                                 <fieldset className="rounded-[28px] border border-black/10 bg-white px-5 py-5">
                                     <legend className="px-2 text-sm font-semibold text-io-dark">WhatsApp dos botões de contato</legend>
                                     <p className="mt-1 text-sm text-black/55">
@@ -798,7 +847,12 @@ export function PublicLinksManager() {
                                     </button>
                                     <button
                                         type="submit"
-                                        disabled={saving || (form.linkKind === "CAMPAIGN" && form.scopeType === "VEHICLE" && !form.vehicleId)}
+                                        disabled={
+                                            saving
+                                            || !form.responsibleUserId
+                                            || !responsibleUsers.length
+                                            || (form.linkKind === "CAMPAIGN" && form.scopeType === "VEHICLE" && !form.vehicleId)
+                                        }
                                         className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-io-purple px-5 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:bg-black/30"
                                     >
                                         {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
@@ -846,7 +900,7 @@ function LinkSection({
                     {links.map((link, index) => (
                         <article
                             key={link.id}
-                            className={`grid gap-4 bg-white px-4 py-4 lg:grid-cols-[1.25fr_0.9fr_0.9fr_0.6fr_0.6fr_0.6fr_0.9fr_auto] lg:items-center ${index === 0 ? "" : "border-t border-black/8"
+                            className={`grid gap-4 bg-white px-4 py-4 xl:grid-cols-[1.2fr_0.85fr_0.9fr_0.85fr_0.55fr_0.55fr_0.55fr_0.85fr_auto] xl:items-center ${index === 0 ? "" : "border-t border-black/8"
                                 }`}
                         >
                             <div className="min-w-0">
@@ -854,6 +908,13 @@ function LinkSection({
                                 <p className="mt-1 text-sm text-black/56">
                                     {linkKindLabel(link.linkKind)} • {scopeLabel(link.scopeType)}
                                     {link.vehicleTitle ? ` • ${link.vehicleTitle}` : ""}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/35">Responsável</p>
+                                <p className="mt-1 text-sm text-black/62">
+                                    {link.responsibleUserName || "Não atribuído"}
                                 </p>
                             </div>
 

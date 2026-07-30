@@ -20,6 +20,7 @@ import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehicleEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehiclePublicationEntity;
 import com.io.appioweb.application.auth.port.out.CompanyRepositoryPort;
 import com.io.appioweb.application.auth.port.out.CurrentUserPort;
+import com.io.appioweb.application.auth.port.out.UserRepositoryPort;
 import com.io.appioweb.application.ioauto.VehicleAutoPublicationService;
 import com.io.appioweb.application.superadmin.FeatureUsageService;
 import com.io.appioweb.application.superadmin.SuperAdminPlanManagementService;
@@ -133,6 +134,7 @@ public class IoAutoController {
 
     private final CurrentUserPort currentUser;
     private final CompanyRepositoryPort companies;
+    private final UserRepositoryPort users;
     private final AtendimentoConversationRepositoryJpa conversations;
     private final AtendimentoSessionRepositoryJpa sessions;
     private final CrmCompanyStateRepositoryJpa crmState;
@@ -157,6 +159,7 @@ public class IoAutoController {
     public IoAutoController(
             CurrentUserPort currentUser,
             CompanyRepositoryPort companies,
+            UserRepositoryPort users,
             AtendimentoConversationRepositoryJpa conversations,
             AtendimentoSessionRepositoryJpa sessions,
             CrmCompanyStateRepositoryJpa crmState,
@@ -180,6 +183,7 @@ public class IoAutoController {
     ) {
         this.currentUser = currentUser;
         this.companies = companies;
+        this.users = users;
         this.conversations = conversations;
         this.sessions = sessions;
         this.crmState = crmState;
@@ -472,17 +476,18 @@ public class IoAutoController {
             trackedVehicleId = null;
         }
 
+        String normalizedSourceType = trimToMaxLength(normalizePublicCatalogLeadSourceType(request.sourceType()), 40);
+        String normalizedSourceReference = trimToMaxLength(normalizeNullableText(request.sourceReference()), 160);
         JpaIoAutoPublicCatalogLeadEntity entity = new JpaIoAutoPublicCatalogLeadEntity();
         entity.setId(UUID.randomUUID());
         entity.setCompanyId(companyId);
         entity.setVehicleId(trackedVehicleId);
-        entity.setSellerUserId(parseUuidOrNull(request.sourceReference()));
+        entity.setSellerUserId(resolvePublicLinkResponsibleUserId(companyId, normalizedSourceType, normalizedSourceReference));
         entity.setCustomerName(trimToMaxLength(requireText(request.customerName(), "Informe o nome."), 160));
         entity.setCustomerPhone(normalizePublicCatalogLeadPhone(request.customerPhone()));
         entity.setVehicleInterestName(resolveVehicleInterestName(companyId, trackedVehicleId, request.customerName()));
-        String normalizedSourceType = trimToMaxLength(normalizePublicCatalogLeadSourceType(request.sourceType()), 40);
         entity.setSourceType(normalizedSourceType);
-        entity.setSourceReference(trimToMaxLength(normalizeNullableText(request.sourceReference()), 160));
+        entity.setSourceReference(normalizedSourceReference);
         entity.setPagePath(trimToMaxLength(normalizeNullableText(request.pagePath()), 255));
         entity.setSourceUrl(normalizeNullableText(request.sourceUrl()));
         entity.setOriginSource(trimToMaxLength(normalizedSourceType, 255));
@@ -776,7 +781,8 @@ public class IoAutoController {
     public ResponseEntity<PublicCatalogLeadListHttpResponse> listPublicCatalogLeads(
             @RequestParam(name = "preset", required = false) String preset,
             @RequestParam(name = "from", required = false) String from,
-            @RequestParam(name = "to", required = false) String to
+            @RequestParam(name = "to", required = false) String to,
+            @RequestParam(name = "sellerUserId", required = false) UUID sellerUserId
     ) {
         UUID companyId = currentUser.companyId();
         planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_LEAD_MANAGEMENT);
@@ -787,8 +793,12 @@ public class IoAutoController {
                 .orElse("catalogo");
         boolean canViewAllLeads = currentUser.roles().stream()
                 .anyMatch(role -> "ADMIN".equalsIgnoreCase(role) || "SUPERADMIN".equalsIgnoreCase(role));
+        UUID effectiveSellerUserId = canViewAllLeads ? sellerUserId : currentUser.userId();
+        if (effectiveSellerUserId != null && users.findByIdAndCompanyId(effectiveSellerUserId, companyId).isEmpty()) {
+            throw new BusinessException("IOAUTO_LEAD_USER_INVALID", "Usuário responsável não encontrado nesta empresa.");
+        }
 
-        List<JpaIoAutoPublicCatalogLeadEntity> leads = canViewAllLeads
+        List<JpaIoAutoPublicCatalogLeadEntity> leads = effectiveSellerUserId == null
                 ? publicCatalogLeads.findAllByCompanyIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
                 companyId,
                 periodSelection.fromAt(),
@@ -839,6 +849,7 @@ public class IoAutoController {
                 periodSelection.preset(),
                 periodSelection.fromDate(),
                 periodSelection.toDate(),
+                canViewAllLeads,
                 leads.size(),
                 leadsWithVehicle,
                 leadsWithCampaign,
@@ -912,9 +923,22 @@ public class IoAutoController {
         Map<UUID, JpaIoAutoVehicleEntity> vehiclesById = companyVehicles.stream()
                 .collect(java.util.stream.Collectors.toMap(JpaIoAutoVehicleEntity::getId, item -> item, (left, right) -> left, LinkedHashMap::new));
         List<JpaIoAutoPublicLeadEventEntity> events = publicLeadEvents.findAllByCompanyIdOrderByCreatedAtDesc(companyId);
+        Map<UUID, String> responsibleUserNames = users.findAllByCompanyId(companyId).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        user -> user.id(),
+                        user -> normalizeText(user.fullName(), user.email()),
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
 
         List<PublicLinkHttpResponse> response = links.stream()
-                .map(link -> toPublicLinkResponse(company, link, vehiclesById, events))
+                .map(link -> toPublicLinkResponse(
+                        company,
+                        link,
+                        vehiclesById,
+                        events,
+                        responsibleUserNames.get(link.getResponsibleUserId())
+                ))
                 .toList();
 
         return ResponseEntity.ok(response);
@@ -976,6 +1000,12 @@ public class IoAutoController {
         featureUsageService.registerUsage(companyId, FeatureUsageService.FEATURE_OWN_SITE, Map.of("action", "CREATE_PUBLIC_LINK"));
         var company = companies.findById(companyId)
                 .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa não encontrada."));
+        var responsibleUser = users.findByIdAndCompanyId(request.responsibleUserId(), companyId)
+                .filter(user -> user.isActive())
+                .orElseThrow(() -> new BusinessException(
+                        "IOAUTO_PUBLIC_LINK_INVALID_RESPONSIBLE",
+                        "Selecione um usuário ativo da empresa para receber os leads deste link."
+                ));
 
         String linkKind = normalizePublicLinkKind(request.linkKind());
         String scopeType = normalizePublicLinkScope(request.scopeType());
@@ -1020,6 +1050,7 @@ public class IoAutoController {
         entity.setSourceReference(sourceReference);
         entity.setUseCompanyWhatsapp(useCompanyWhatsapp);
         entity.setWhatsappNumber(whatsappNumber);
+        entity.setResponsibleUserId(responsibleUser.id());
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         publicLinks.save(entity);
@@ -1027,7 +1058,13 @@ public class IoAutoController {
         Map<UUID, JpaIoAutoVehicleEntity> vehiclesById = vehicle == null
                 ? Map.of()
                 : Map.of(vehicle.getId(), vehicle);
-        return ResponseEntity.ok(toPublicLinkResponse(company, entity, vehiclesById, List.of()));
+        return ResponseEntity.ok(toPublicLinkResponse(
+                company,
+                entity,
+                vehiclesById,
+                List.of(),
+                normalizeText(responsibleUser.fullName(), responsibleUser.email())
+        ));
     }
 
     @DeleteMapping("/ioauto/public-links/{linkId}")
@@ -1395,7 +1432,8 @@ public class IoAutoController {
             com.io.appioweb.domain.auth.entity.Company company,
             JpaIoAutoPublicLinkEntity link,
             Map<UUID, JpaIoAutoVehicleEntity> vehiclesById,
-            List<JpaIoAutoPublicLeadEventEntity> events
+            List<JpaIoAutoPublicLeadEventEntity> events,
+            String responsibleUserName
     ) {
         JpaIoAutoVehicleEntity vehicle = link.getVehicleId() == null ? null : vehiclesById.get(link.getVehicleId());
         String sourceType = normalizeNullableText(link.getSourceType());
@@ -1426,6 +1464,8 @@ public class IoAutoController {
                 sourceReference,
                 link.isUseCompanyWhatsapp(),
                 sanitizeWhatsappNumber(link.getWhatsappNumber()),
+                link.getResponsibleUserId(),
+                normalizeNullableText(responsibleUserName),
                 link.getVehicleId(),
                 vehicle == null ? null : vehicle.getTitle(),
                 buildPublicLinkPath(company, link),
@@ -2013,25 +2053,52 @@ public class IoAutoController {
             String sourceReference
     ) {
         String companyWhatsapp = sanitizeWhatsappNumber(company.whatsappNumber());
-        String normalizedReference = normalizeNullableText(sourceReference);
-        if (normalizedReference == null) {
+        JpaIoAutoPublicLinkEntity link = findPublicLinkByTracking(company.id(), sourceType, sourceReference);
+        if (link == null || link.isUseCompanyWhatsapp()) {
             return companyWhatsapp;
         }
 
+        String customWhatsapp = sanitizeWhatsappNumber(link.getWhatsappNumber());
+        return customWhatsapp == null ? companyWhatsapp : customWhatsapp;
+    }
+
+    private JpaIoAutoPublicLinkEntity findPublicLinkByTracking(
+            UUID companyId,
+            String sourceType,
+            String sourceReference
+    ) {
+        String normalizedReference = normalizeNullableText(sourceReference);
+        if (normalizedReference == null) {
+            return null;
+        }
+
         String normalizedType = normalizeNullableText(sourceType);
-        return publicLinks.findAllByCompanyIdOrderByCreatedAtDesc(company.id()).stream()
+        return publicLinks.findAllByCompanyIdOrderByCreatedAtDesc(companyId).stream()
                 .filter(link -> normalizedReference.equalsIgnoreCase(normalizeText(resolvePublicLinkTrackingSourceReference(link))))
                 .filter(link -> normalizedType == null
                         || normalizedType.equalsIgnoreCase(normalizeText(resolvePublicLinkTrackingSourceType(link))))
                 .findFirst()
-                .map(link -> {
-                    if (link.isUseCompanyWhatsapp()) {
-                        return companyWhatsapp;
-                    }
-                    String customWhatsapp = sanitizeWhatsappNumber(link.getWhatsappNumber());
-                    return customWhatsapp == null ? companyWhatsapp : customWhatsapp;
-                })
-                .orElse(companyWhatsapp);
+                .orElse(null);
+    }
+
+    private UUID resolvePublicLinkResponsibleUserId(
+            UUID companyId,
+            String sourceType,
+            String sourceReference
+    ) {
+        JpaIoAutoPublicLinkEntity link = findPublicLinkByTracking(companyId, sourceType, sourceReference);
+        UUID responsibleUserId = link == null ? null : link.getResponsibleUserId();
+        if (responsibleUserId == null) {
+            responsibleUserId = parseUuidOrNull(sourceReference);
+        }
+        if (responsibleUserId == null) {
+            return null;
+        }
+
+        return users.findByIdAndCompanyId(responsibleUserId, companyId)
+                .filter(user -> user.isActive())
+                .map(user -> user.id())
+                .orElse(null);
     }
 
     private com.io.appioweb.domain.auth.entity.Company resolvePublicCompany(String identifier) {
@@ -2518,6 +2585,7 @@ public class IoAutoController {
             String preset,
             LocalDate fromDate,
             LocalDate toDate,
+            boolean canViewAllLeads,
             long totalLeads,
             long leadsWithVehicle,
             long leadsWithCampaign,
@@ -2553,6 +2621,8 @@ public class IoAutoController {
             String sourceReference,
             boolean useCompanyWhatsapp,
             String whatsappNumber,
+            UUID responsibleUserId,
+            String responsibleUserName,
             UUID vehicleId,
             String vehicleTitle,
             String publicPath,
@@ -2716,7 +2786,8 @@ public class IoAutoController {
             String sourceType,
             String sourceReference,
             Boolean useCompanyWhatsapp,
-            String whatsappNumber
+            String whatsappNumber,
+            @NotNull(message = "Selecione o usuário responsável pelos leads.") UUID responsibleUserId
     ) {
     }
 
