@@ -37,6 +37,7 @@ export function buildTrackedWhatsappHref(
 ) {
     const digits = String(phone ?? "").replace(/\D/g, "");
     if (!digits) return null;
+    const whatsappDigits = digits.length === 10 || digits.length === 11 ? `55${digits}` : digits;
 
     const sanitizedMessage = message
         .split("\n")
@@ -44,7 +45,7 @@ export function buildTrackedWhatsappHref(
         .join("\n")
         .trim();
 
-    return `https://wa.me/${digits}?text=${encodeURIComponent(sanitizedMessage)}`;
+    return `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(sanitizedMessage)}`;
 }
 
 export function getPublicLeadSessionId() {

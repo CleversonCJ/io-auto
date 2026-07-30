@@ -743,6 +743,8 @@ export type PublicLinkRecord = {
     scopeType: string;
     sourceType: string | null;
     sourceReference: string | null;
+    useCompanyWhatsapp: boolean;
+    whatsappNumber: string | null;
     vehicleId: string | null;
     vehicleTitle: string | null;
     publicPath: string;

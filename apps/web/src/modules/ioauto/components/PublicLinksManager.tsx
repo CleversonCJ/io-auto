@@ -9,6 +9,7 @@ import {
     Link2,
     LoaderCircle,
     Megaphone,
+    MessageCircle,
     Plus,
     Search,
     Trash2,
@@ -29,6 +30,8 @@ type LinkFormState = {
     scopeType: "CATALOG" | "VEHICLE";
     vehicleId: string;
     sourceReference: string;
+    useCompanyWhatsapp: boolean;
+    whatsappNumber: string;
 };
 
 const MAX_BANNER_IMAGES = 6;
@@ -45,6 +48,8 @@ function emptyForm(): LinkFormState {
         scopeType: "CATALOG",
         vehicleId: "",
         sourceReference: "",
+        useCompanyWhatsapp: true,
+        whatsappNumber: "",
     };
 }
 
@@ -61,6 +66,22 @@ function slugifyReference(value: string) {
 
 function slugifyCompanyName(value: string) {
     return slugifyReference(value) || "catalogo";
+}
+
+function normalizeWhatsappNumber(value: string) {
+    return value.replace(/\D/g, "").slice(0, 11);
+}
+
+function formatWhatsappInput(value: string) {
+    const digits = normalizeWhatsappNumber(value);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function isValidWhatsappNumber(value: string) {
+    return /^[1-9]{2}[2-9]\d{7,8}$/.test(normalizeWhatsappNumber(value));
 }
 
 function linkKindLabel(value: string) {
@@ -147,6 +168,7 @@ export function PublicLinksManager() {
                 link.sourceType,
                 link.linkKind,
                 link.scopeType,
+                link.whatsappNumber,
             ]
                 .filter(Boolean)
                 .join(" ")
@@ -236,14 +258,7 @@ export function PublicLinksManager() {
     }
 
     function openCreateModal() {
-        setForm({
-            name: "",
-            linkKind: "PUBLIC",
-            sourceType: "INFLUENCER",
-            scopeType: "CATALOG",
-            vehicleId: "",
-            sourceReference: "",
-        });
+        setForm(emptyForm());
         setError(null);
         setIsCreateOpen(true);
     }
@@ -255,9 +270,14 @@ export function PublicLinksManager() {
 
     async function handleCreateLink(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        setSaving(true);
         setError(null);
 
+        if (!form.useCompanyWhatsapp && !isValidWhatsappNumber(form.whatsappNumber)) {
+            setError("Informe um WhatsApp válido com DDD para este link.");
+            return;
+        }
+
+        setSaving(true);
         const payload = {
             name: form.name,
             linkKind: form.linkKind,
@@ -265,6 +285,8 @@ export function PublicLinksManager() {
             vehicleId: form.scopeType === "VEHICLE" ? form.vehicleId || null : null,
             sourceType: form.linkKind === "CAMPAIGN" ? form.sourceType : null,
             sourceReference: form.linkKind === "CAMPAIGN" ? slugifyReference(form.sourceReference) : null,
+            useCompanyWhatsapp: form.useCompanyWhatsapp,
+            whatsappNumber: form.useCompanyWhatsapp ? null : normalizeWhatsappNumber(form.whatsappNumber),
         };
 
         const response = await fetch("/api/ioauto/public-links", {
@@ -580,8 +602,8 @@ export function PublicLinksManager() {
             </div>
 
             {isCreateOpen ? (
-                <div className="fixed inset-0 z-50 bg-black/55 px-4 py-6">
-                    <div className="mx-auto flex h-full max-w-3xl items-center justify-center">
+                <div className="fixed inset-0 z-50 overflow-y-auto bg-black/55 px-4 py-6">
+                    <div className="mx-auto flex min-h-full max-w-3xl items-center justify-center">
                         <div className="w-full rounded-[34px] border border-white/15 bg-white p-6 shadow-[0_24px_80px_rgba(0,0,0,0.28)] md:p-7">
                             <div className="flex items-start justify-between gap-4">
                                 <div>
@@ -673,10 +695,98 @@ export function PublicLinksManager() {
                                     </div>
                                 )}
 
+                                <fieldset className="rounded-[28px] border border-black/10 bg-white px-5 py-5">
+                                    <legend className="px-2 text-sm font-semibold text-io-dark">WhatsApp dos botões de contato</legend>
+                                    <p className="mt-1 text-sm text-black/55">
+                                        Escolha qual número receberá os contatos originados por este link.
+                                    </p>
+
+                                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                        <label
+                                            className={`flex cursor-pointer items-start gap-3 rounded-[22px] border px-4 py-4 transition ${
+                                                form.useCompanyWhatsapp
+                                                    ? "border-io-purple bg-io-purple/5"
+                                                    : "border-black/10 bg-[#fafafa] hover:border-black/20"
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="whatsappSource"
+                                                checked={form.useCompanyWhatsapp}
+                                                onChange={() => {
+                                                    updateForm("useCompanyWhatsapp", true);
+                                                    setError(null);
+                                                }}
+                                                className="mt-1 accent-[#6b00e3]"
+                                            />
+                                            <span>
+                                                <span className="block text-sm font-semibold text-io-dark">Número padrão da empresa</span>
+                                                <span className="mt-1 block text-xs leading-5 text-black/50">
+                                                    Usa automaticamente o WhatsApp cadastrado nas configurações da empresa.
+                                                </span>
+                                            </span>
+                                        </label>
+
+                                        <label
+                                            className={`flex cursor-pointer items-start gap-3 rounded-[22px] border px-4 py-4 transition ${
+                                                !form.useCompanyWhatsapp
+                                                    ? "border-io-purple bg-io-purple/5"
+                                                    : "border-black/10 bg-[#fafafa] hover:border-black/20"
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="whatsappSource"
+                                                checked={!form.useCompanyWhatsapp}
+                                                onChange={() => {
+                                                    updateForm("useCompanyWhatsapp", false);
+                                                    setError(null);
+                                                }}
+                                                className="mt-1 accent-[#6b00e3]"
+                                            />
+                                            <span>
+                                                <span className="block text-sm font-semibold text-io-dark">Número personalizado</span>
+                                                <span className="mt-1 block text-xs leading-5 text-black/50">
+                                                    Direciona somente os contatos deste link para outro WhatsApp.
+                                                </span>
+                                            </span>
+                                        </label>
+                                    </div>
+
+                                    {!form.useCompanyWhatsapp ? (
+                                        <label className="mt-4 grid gap-2">
+                                            <span className="text-sm font-medium text-black/60">WhatsApp personalizado</span>
+                                            <div className="flex h-12 items-center gap-3 rounded-2xl border border-black/10 bg-[#f7f7f7] px-4 transition focus-within:border-black/30 focus-within:bg-white">
+                                                <MessageCircle className="h-4 w-4 shrink-0 text-black/38" />
+                                                <input
+                                                    value={form.whatsappNumber}
+                                                    onChange={(event) => {
+                                                        updateForm("whatsappNumber", formatWhatsappInput(event.target.value));
+                                                        setError(null);
+                                                    }}
+                                                    placeholder="(11) 99999-9999"
+                                                    inputMode="tel"
+                                                    autoComplete="tel"
+                                                    maxLength={15}
+                                                    required
+                                                    className="h-full w-full bg-transparent text-sm text-io-dark outline-none placeholder:text-black/32"
+                                                />
+                                            </div>
+                                            {form.whatsappNumber && !isValidWhatsappNumber(form.whatsappNumber) ? (
+                                                <span className="text-xs text-red-700">Informe um número válido com DDD.</span>
+                                            ) : (
+                                                <span className="text-xs text-black/42">Use um número brasileiro com DDD.</span>
+                                            )}
+                                        </label>
+                                    ) : null}
+                                </fieldset>
+
                                 <div className="rounded-[28px] bg-black/5 px-5 py-5">
                                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/38">Preview do link</p>
                                     <p className="mt-3 break-all text-sm leading-6 text-black/68">{origin}{previewPath}</p>
                                 </div>
+
+                                {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
 
                                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
                                     <button
@@ -736,7 +846,7 @@ function LinkSection({
                     {links.map((link, index) => (
                         <article
                             key={link.id}
-                            className={`grid gap-4 bg-white px-4 py-4 lg:grid-cols-[1.3fr_0.95fr_0.7fr_0.7fr_0.7fr_0.95fr_auto] lg:items-center ${index === 0 ? "" : "border-t border-black/8"
+                            className={`grid gap-4 bg-white px-4 py-4 lg:grid-cols-[1.25fr_0.9fr_0.9fr_0.6fr_0.6fr_0.6fr_0.9fr_auto] lg:items-center ${index === 0 ? "" : "border-t border-black/8"
                                 }`}
                         >
                             <div className="min-w-0">
@@ -751,6 +861,15 @@ function LinkSection({
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/35">Origem</p>
                                 <p className="mt-1 text-sm text-black/62">
                                     {link.sourceReference || (link.linkKind === "PUBLIC" ? "Rastreamento automático" : "Sem rastreio")}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/35">WhatsApp</p>
+                                <p className="mt-1 text-sm text-black/62">
+                                    {link.useCompanyWhatsapp
+                                        ? "Padrão da empresa"
+                                        : formatWhatsappInput(link.whatsappNumber ?? "") || "Personalizado"}
                                 </p>
                             </div>
 

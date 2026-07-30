@@ -359,7 +359,11 @@ public class IoAutoController {
     }
 
     @GetMapping("/public/stock/{companyIdentifier}")
-    public ResponseEntity<PublicInventoryCatalogHttpResponse> getPublicInventory(@PathVariable String companyIdentifier) {
+    public ResponseEntity<PublicInventoryCatalogHttpResponse> getPublicInventory(
+            @PathVariable String companyIdentifier,
+            @RequestParam(name = "source", required = false) String sourceType,
+            @RequestParam(name = "ref", required = false) String sourceReference
+    ) {
         var company = resolvePublicCompany(companyIdentifier);
         if (company == null) {
             return ResponseEntity.notFound().build();
@@ -379,7 +383,7 @@ public class IoAutoController {
                 .toList();
 
         return ResponseEntity.ok(new PublicInventoryCatalogHttpResponse(
-                toPublicCompanySummary(company),
+                toPublicCompanySummary(company, resolvePublicLinkWhatsappNumber(company, sourceType, sourceReference)),
                 buildResolvedPublicCatalogBanners(company, publicVehicles),
                 catalogVehicles
         ));
@@ -388,7 +392,9 @@ public class IoAutoController {
     @GetMapping("/public/stock/{companyIdentifier}/vehicles/{vehicleId}")
     public ResponseEntity<PublicVehicleDetailHttpResponse> getPublicVehicle(
             @PathVariable String companyIdentifier,
-            @PathVariable UUID vehicleId
+            @PathVariable UUID vehicleId,
+            @RequestParam(name = "source", required = false) String sourceType,
+            @RequestParam(name = "ref", required = false) String sourceReference
     ) {
         var company = resolvePublicCompany(companyIdentifier);
         if (company == null) {
@@ -408,7 +414,7 @@ public class IoAutoController {
         }
 
         return ResponseEntity.ok(new PublicVehicleDetailHttpResponse(
-                toPublicCompanySummary(company),
+                toPublicCompanySummary(company, resolvePublicLinkWhatsappNumber(company, sourceType, sourceReference)),
                 toPublicVehicleResponse(vehicle)
         ));
     }
@@ -978,6 +984,19 @@ public class IoAutoController {
         }
         String sourceType = "PUBLIC".equals(linkKind) ? null : normalizePublicLinkSourceType(request.sourceType());
         String sourceReference = "PUBLIC".equals(linkKind) ? null : normalizePublicLinkSourceReference(request.sourceReference());
+        boolean useCompanyWhatsapp = request.useCompanyWhatsapp() == null || request.useCompanyWhatsapp();
+        String whatsappNumber;
+        if (useCompanyWhatsapp) {
+            if (sanitizeWhatsappNumber(company.whatsappNumber()) == null) {
+                throw new BusinessException(
+                        "IOAUTO_PUBLIC_LINK_INVALID_WHATSAPP",
+                        "Cadastre um WhatsApp válido para a empresa ou informe um número personalizado para o link."
+                );
+            }
+            whatsappNumber = null;
+        } else {
+            whatsappNumber = requirePublicLinkWhatsappNumber(request.whatsappNumber());
+        }
 
         UUID vehicleId = request.vehicleId();
         JpaIoAutoVehicleEntity vehicle = null;
@@ -999,6 +1018,8 @@ public class IoAutoController {
         entity.setScopeType(scopeType);
         entity.setSourceType(sourceType);
         entity.setSourceReference(sourceReference);
+        entity.setUseCompanyWhatsapp(useCompanyWhatsapp);
+        entity.setWhatsappNumber(whatsappNumber);
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         publicLinks.save(entity);
@@ -1357,13 +1378,16 @@ public class IoAutoController {
         );
     }
 
-    private PublicCompanySummary toPublicCompanySummary(com.io.appioweb.domain.auth.entity.Company company) {
+    private PublicCompanySummary toPublicCompanySummary(
+            com.io.appioweb.domain.auth.entity.Company company,
+            String whatsappNumber
+    ) {
         return new PublicCompanySummary(
                 company.id(),
                 normalizeText(company.name(), "Catalogo"),
                 slugifyPublicPathSegment(company.name()),
                 normalizeNullableText(company.profileImageUrl()),
-                sanitizeWhatsappNumber(company.whatsappNumber())
+                sanitizeWhatsappNumber(whatsappNumber)
         );
     }
 
@@ -1400,6 +1424,8 @@ public class IoAutoController {
                 normalizeText(link.getScopeType(), "CATALOG"),
                 sourceType,
                 sourceReference,
+                link.isUseCompanyWhatsapp(),
+                sanitizeWhatsappNumber(link.getWhatsappNumber()),
                 link.getVehicleId(),
                 vehicle == null ? null : vehicle.getTitle(),
                 buildPublicLinkPath(company, link),
@@ -1964,7 +1990,48 @@ public class IoAutoController {
 
     private String sanitizeWhatsappNumber(String raw) {
         String digits = normalizeText(raw).replaceAll("\\D", "");
-        return digits.isBlank() ? null : digits;
+        if ((digits.length() == 12 || digits.length() == 13) && digits.startsWith("55")) {
+            digits = digits.substring(2);
+        }
+        return digits.matches("[1-9]{2}[2-9]\\d{7,8}") ? digits : null;
+    }
+
+    private String requirePublicLinkWhatsappNumber(String raw) {
+        String normalized = sanitizeWhatsappNumber(raw);
+        if (normalized == null) {
+            throw new BusinessException(
+                    "IOAUTO_PUBLIC_LINK_INVALID_WHATSAPP",
+                    "Informe um WhatsApp válido com DDD para o link."
+            );
+        }
+        return normalized;
+    }
+
+    private String resolvePublicLinkWhatsappNumber(
+            com.io.appioweb.domain.auth.entity.Company company,
+            String sourceType,
+            String sourceReference
+    ) {
+        String companyWhatsapp = sanitizeWhatsappNumber(company.whatsappNumber());
+        String normalizedReference = normalizeNullableText(sourceReference);
+        if (normalizedReference == null) {
+            return companyWhatsapp;
+        }
+
+        String normalizedType = normalizeNullableText(sourceType);
+        return publicLinks.findAllByCompanyIdOrderByCreatedAtDesc(company.id()).stream()
+                .filter(link -> normalizedReference.equalsIgnoreCase(normalizeText(resolvePublicLinkTrackingSourceReference(link))))
+                .filter(link -> normalizedType == null
+                        || normalizedType.equalsIgnoreCase(normalizeText(resolvePublicLinkTrackingSourceType(link))))
+                .findFirst()
+                .map(link -> {
+                    if (link.isUseCompanyWhatsapp()) {
+                        return companyWhatsapp;
+                    }
+                    String customWhatsapp = sanitizeWhatsappNumber(link.getWhatsappNumber());
+                    return customWhatsapp == null ? companyWhatsapp : customWhatsapp;
+                })
+                .orElse(companyWhatsapp);
     }
 
     private com.io.appioweb.domain.auth.entity.Company resolvePublicCompany(String identifier) {
@@ -2484,6 +2551,8 @@ public class IoAutoController {
             String scopeType,
             String sourceType,
             String sourceReference,
+            boolean useCompanyWhatsapp,
+            String whatsappNumber,
             UUID vehicleId,
             String vehicleTitle,
             String publicPath,
@@ -2645,7 +2714,9 @@ public class IoAutoController {
             String scopeType,
             UUID vehicleId,
             String sourceType,
-            String sourceReference
+            String sourceReference,
+            Boolean useCompanyWhatsapp,
+            String whatsappNumber
     ) {
     }
 

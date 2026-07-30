@@ -36,6 +36,12 @@ public class JpaIoAutoPublicLinkEntity {
     @Column(name = "source_reference", length = 160)
     private String sourceReference;
 
+    @Column(name = "use_company_whatsapp", nullable = false)
+    private boolean useCompanyWhatsapp = true;
+
+    @Column(name = "whatsapp_number", length = 20)
+    private String whatsappNumber;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -104,6 +110,22 @@ public class JpaIoAutoPublicLinkEntity {
 
     public void setSourceReference(String sourceReference) {
         this.sourceReference = sourceReference;
+    }
+
+    public boolean isUseCompanyWhatsapp() {
+        return useCompanyWhatsapp;
+    }
+
+    public void setUseCompanyWhatsapp(boolean useCompanyWhatsapp) {
+        this.useCompanyWhatsapp = useCompanyWhatsapp;
+    }
+
+    public String getWhatsappNumber() {
+        return whatsappNumber;
+    }
+
+    public void setWhatsappNumber(String whatsappNumber) {
+        this.whatsappNumber = whatsappNumber;
     }
 
     public Instant getCreatedAt() {

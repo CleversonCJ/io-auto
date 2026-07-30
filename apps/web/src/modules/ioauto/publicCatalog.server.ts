@@ -6,6 +6,11 @@ type ApiError = {
     message?: string;
 };
 
+type PublicCatalogTracking = {
+    sourceType?: string | null;
+    sourceReference?: string | null;
+};
+
 async function fetchPublicResource<T>(path: string) {
     const apiBase = getServerApiBase();
     const response = await fetchUpstream(`${apiBase}${path}`, { cache: "no-store" });
@@ -22,10 +27,24 @@ async function fetchPublicResource<T>(path: string) {
     return payload as T;
 }
 
-export async function getPublicInventoryCatalog(companySlug: string) {
-    return fetchPublicResource<PublicInventoryCatalog>(`/public/stock/${companySlug}`);
+function withTrackingQuery(path: string, tracking?: PublicCatalogTracking) {
+    const sourceReference = tracking?.sourceReference?.trim();
+    if (!sourceReference) return path;
+
+    const query = new URLSearchParams();
+    query.set("source", tracking?.sourceType?.trim() || "influencer");
+    query.set("ref", sourceReference);
+    return `${path}?${query.toString()}`;
 }
 
-export async function getPublicVehicleDetail(companySlug: string, vehicleId: string) {
-    return fetchPublicResource<PublicVehicleDetail>(`/public/stock/${companySlug}/vehicles/${vehicleId}`);
+export async function getPublicInventoryCatalog(companySlug: string, tracking?: PublicCatalogTracking) {
+    return fetchPublicResource<PublicInventoryCatalog>(
+        withTrackingQuery(`/public/stock/${companySlug}`, tracking)
+    );
+}
+
+export async function getPublicVehicleDetail(companySlug: string, vehicleId: string, tracking?: PublicCatalogTracking) {
+    return fetchPublicResource<PublicVehicleDetail>(
+        withTrackingQuery(`/public/stock/${companySlug}/vehicles/${vehicleId}`, tracking)
+    );
 }
