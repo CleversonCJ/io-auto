@@ -10,8 +10,8 @@ export type ContactLabel = {
 
 export type ContactLabelAssignments = Record<string, string[]>;
 
-const LABELS_STORAGE_KEY = "io.contact.labels";
-const ASSIGNMENTS_STORAGE_KEY = "io.contact.label.assignments";
+const LEGACY_LABELS_STORAGE_KEY = "io.contact.labels";
+const LEGACY_ASSIGNMENTS_STORAGE_KEY = "io.contact.label.assignments";
 
 function safeJsonParse<T>(value: string | null, fallback: T): T {
     if (!value) return fallback;
@@ -49,25 +49,71 @@ function normalizeLabel(raw: Partial<ContactLabel> | null | undefined): ContactL
     };
 }
 
-export function listContactLabels(): ContactLabel[] {
-    if (typeof window === "undefined") return [];
-    const parsed = safeJsonParse<Partial<ContactLabel>[]>(window.localStorage.getItem(LABELS_STORAGE_KEY), []);
-    return parsed
+function normalizeLabels(raw: Partial<ContactLabel>[]) {
+    return raw
         .map((item) => normalizeLabel(item))
         .filter((item): item is ContactLabel => Boolean(item));
 }
 
-export function saveContactLabels(labels: ContactLabel[]) {
-    if (typeof window === "undefined") return;
-    const normalized = labels
-        .map((label) => normalizeLabel(label))
-        .filter((item): item is ContactLabel => Boolean(item));
-    window.localStorage.setItem(LABELS_STORAGE_KEY, JSON.stringify(normalized));
+function readLegacyContactLabels(): ContactLabel[] {
+    if (typeof window === "undefined") return [];
+    const parsed = safeJsonParse<Partial<ContactLabel>[]>(window.localStorage.getItem(LEGACY_LABELS_STORAGE_KEY), []);
+    return normalizeLabels(parsed);
 }
 
-export function listContactLabelAssignments(): ContactLabelAssignments {
+function clearLegacyContactLabels() {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem(LEGACY_LABELS_STORAGE_KEY);
+}
+
+async function readLabelsResponse(response: Response) {
+    const data = (await response.json().catch(() => [])) as Partial<ContactLabel>[];
+    if (!response.ok) {
+        const message = data && !Array.isArray(data) && "message" in data
+            ? String((data as { message?: unknown }).message ?? "")
+            : "";
+        throw new Error(message || "Não foi possível carregar as etiquetas.");
+    }
+    return normalizeLabels(Array.isArray(data) ? data : []);
+}
+
+export async function loadContactLabels(): Promise<ContactLabel[]> {
+    const response = await fetch("/api/atendimentos/labels", { cache: "no-store" });
+    const serverLabels = await readLabelsResponse(response);
+    const legacyLabels = readLegacyContactLabels();
+
+    if (serverLabels.length === 0 && legacyLabels.length > 0) {
+        const migrated = await saveContactLabels(legacyLabels);
+        clearLegacyContactLabels();
+        return migrated;
+    }
+
+    clearLegacyContactLabels();
+    return serverLabels;
+}
+
+export async function saveContactLabels(labels: ContactLabel[]): Promise<ContactLabel[]> {
+    const normalized = normalizeLabels(labels);
+    const response = await fetch("/api/atendimentos/labels", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            items: normalized.map((label) => ({
+                id: label.id,
+                title: label.title,
+                color: label.color,
+                createdAt: label.createdAt,
+            })),
+        }),
+    });
+    const saved = await readLabelsResponse(response);
+    clearLegacyContactLabels();
+    return saved;
+}
+
+export function readLegacyContactLabelAssignments(): ContactLabelAssignments {
     if (typeof window === "undefined") return {};
-    const parsed = safeJsonParse<Record<string, unknown>>(window.localStorage.getItem(ASSIGNMENTS_STORAGE_KEY), {});
+    const parsed = safeJsonParse<Record<string, unknown>>(window.localStorage.getItem(LEGACY_ASSIGNMENTS_STORAGE_KEY), {});
     const next: ContactLabelAssignments = {};
     for (const key of Object.keys(parsed)) {
         const value = parsed[key];
@@ -80,18 +126,9 @@ export function listContactLabelAssignments(): ContactLabelAssignments {
     return next;
 }
 
-export function saveContactLabelAssignments(assignments: ContactLabelAssignments) {
+export function clearLegacyContactLabelAssignments() {
     if (typeof window === "undefined") return;
-    const next: ContactLabelAssignments = {};
-    for (const key of Object.keys(assignments)) {
-        const normalizedKey = key.trim();
-        if (!normalizedKey) continue;
-        const ids = (assignments[key] ?? [])
-            .map((item) => String(item ?? "").trim())
-            .filter(Boolean);
-        if (ids.length) next[normalizedKey] = Array.from(new Set(ids));
-    }
-    window.localStorage.setItem(ASSIGNMENTS_STORAGE_KEY, JSON.stringify(next));
+    window.localStorage.removeItem(LEGACY_ASSIGNMENTS_STORAGE_KEY);
 }
 
 export function getLabelTextColor(backgroundHex: string) {

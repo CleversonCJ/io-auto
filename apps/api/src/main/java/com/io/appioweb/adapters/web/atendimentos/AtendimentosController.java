@@ -8,9 +8,13 @@ import com.io.appioweb.adapters.persistence.aiagents.AiAgentKanbanStateRepositor
 import com.io.appioweb.adapters.persistence.aiagents.AiAgentRunLogRepositoryJpa;
 import com.io.appioweb.adapters.persistence.googlecalendar.AiAgentCalendarSuggestionStateRepositoryJpa;
 import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoConversationRepositoryJpa;
+import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoConversationEventRepositoryJpa;
+import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoConversationReadStateRepositoryJpa;
 import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoClassificationResult;
 import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoMessageRepositoryJpa;
 import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoConversationEntity;
+import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoConversationEventEntity;
+import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoConversationReadStateEntity;
 import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoMessageEntity;
 import com.io.appioweb.adapters.web.aiagents.AiAgentOrchestrationService;
 import com.io.appioweb.adapters.web.aiagents.kanban.KanbanMoveDecisionService;
@@ -18,7 +22,10 @@ import com.io.appioweb.adapters.web.aiagents.request.AiAgentOrchestrateHttpReque
 import com.io.appioweb.adapters.web.aisupervisors.SupervisorRoutingService;
 import com.io.appioweb.adapters.web.atendimentos.request.ConcludeConversationHttpRequest;
 import com.io.appioweb.adapters.web.atendimentos.request.CreateManualConversationHttpRequest;
+import com.io.appioweb.adapters.web.atendimentos.request.ImportConversationEventsHttpRequest;
+import com.io.appioweb.adapters.web.atendimentos.request.MarkConversationReadHttpRequest;
 import com.io.appioweb.adapters.web.atendimentos.request.UpdateConversationLabelsHttpRequest;
+import com.io.appioweb.adapters.web.atendimentos.request.UpdateConversationContactHttpRequest;
 import com.io.appioweb.adapters.web.atendimentos.request.SendAudioHttpRequest;
 import com.io.appioweb.adapters.web.atendimentos.request.SendDocumentHttpRequest;
 import com.io.appioweb.adapters.web.atendimentos.request.SendImageHttpRequest;
@@ -29,6 +36,7 @@ import com.io.appioweb.adapters.web.atendimentos.response.AtendimentoTeamHttpRes
 import com.io.appioweb.adapters.web.atendimentos.response.AtendimentoUserHttpResponse;
 import com.io.appioweb.adapters.web.atendimentos.response.ConversationHttpResponse;
 import com.io.appioweb.adapters.web.atendimentos.response.CreateConversationHttpResponse;
+import com.io.appioweb.adapters.web.atendimentos.response.ConversationEventHttpResponse;
 import com.io.appioweb.adapters.web.atendimentos.response.ConversationLabelHttpResponse;
 import com.io.appioweb.adapters.web.atendimentos.response.MessageHttpResponse;
 import com.io.appioweb.adapters.web.atendimentos.response.SendTextHttpResponse;
@@ -55,6 +63,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -95,6 +104,8 @@ public class AtendimentosController {
     private final AiAgentCalendarSuggestionStateRepositoryJpa aiAgentCalendarSuggestionStates;
     private final AtendimentoConversationRepositoryJpa conversations;
     private final AtendimentoMessageRepositoryJpa messages;
+    private final AtendimentoConversationEventRepositoryJpa conversationEvents;
+    private final AtendimentoConversationReadStateRepositoryJpa conversationReadStates;
     private final RealtimeGateway realtime;
     private final AtendimentoSessionLifecycleService sessionLifecycleService;
     private final AiAgentOrchestrationService aiAgentOrchestration;
@@ -114,6 +125,8 @@ public class AtendimentosController {
             AiAgentCalendarSuggestionStateRepositoryJpa aiAgentCalendarSuggestionStates,
             AtendimentoConversationRepositoryJpa conversations,
             AtendimentoMessageRepositoryJpa messages,
+            AtendimentoConversationEventRepositoryJpa conversationEvents,
+            AtendimentoConversationReadStateRepositoryJpa conversationReadStates,
             RealtimeGateway realtime,
             AtendimentoSessionLifecycleService sessionLifecycleService,
             AiAgentOrchestrationService aiAgentOrchestration,
@@ -132,6 +145,8 @@ public class AtendimentosController {
         this.aiAgentCalendarSuggestionStates = aiAgentCalendarSuggestionStates;
         this.conversations = conversations;
         this.messages = messages;
+        this.conversationEvents = conversationEvents;
+        this.conversationReadStates = conversationReadStates;
         this.realtime = realtime;
         this.sessionLifecycleService = sessionLifecycleService;
         this.aiAgentOrchestration = aiAgentOrchestration;
@@ -219,12 +234,25 @@ public class AtendimentosController {
 
         var conversationIds = deduped.stream().map(JpaAtendimentoConversationEntity::getId).toList();
         Map<UUID, JpaAtendimentoMessageEntity> lastMessageByConversationId = new LinkedHashMap<>();
+        Map<UUID, List<JpaAtendimentoMessageEntity>> messagesByConversationId = new LinkedHashMap<>();
+        Map<UUID, JpaAtendimentoConversationReadStateEntity> readStateByConversationId = new LinkedHashMap<>();
         Map<UUID, AtendimentoSessionLifecycleService.ConversationSessionSummary> sessionSummaryByConversationId =
                 sessionLifecycleService.summarizeLatestSessions(companyId, conversationIds);
         if (!conversationIds.isEmpty()) {
             var conversationMessages = messages.findAllByConversationIdInAndCompanyIdOrderByCreatedAtAsc(conversationIds, companyId);
             for (JpaAtendimentoMessageEntity message : conversationMessages) {
                 lastMessageByConversationId.put(message.getConversationId(), message);
+                messagesByConversationId
+                        .computeIfAbsent(message.getConversationId(), ignored -> new java.util.ArrayList<>())
+                        .add(message);
+            }
+            for (JpaAtendimentoConversationReadStateEntity state :
+                    conversationReadStates.findAllByCompanyIdAndUserIdAndConversationIdIn(
+                            companyId,
+                            currentUser.userId(),
+                            conversationIds
+                    )) {
+                readStateByConversationId.put(state.getConversationId(), state);
             }
         }
 
@@ -236,6 +264,8 @@ public class AtendimentosController {
                             c.getId(),
                             c.getPhone(),
                             c.getDisplayName(),
+                            c.getContactDisplayPhone(),
+                            c.getContactDescription(),
                             c.getContactPhotoUrl(),
                             c.getSourcePlatform(),
                             c.getSourceReference(),
@@ -258,6 +288,11 @@ public class AtendimentosController {
                             lastMessage != null
                                     ? normalizePersistedMessageType(lastMessage.getMessageType(), c.getLastMessageText())
                                     : null,
+                            lastMessage != null ? lastMessage.getId() : null,
+                            countUnreadMessages(
+                                    messagesByConversationId.getOrDefault(c.getId(), List.of()),
+                                    readStateByConversationId.get(c.getId())
+                            ),
                             session != null ? session.sessionId() : null,
                             session != null ? session.arrivedAt() : null,
                             session != null ? session.firstResponseAt() : null,
@@ -347,6 +382,14 @@ public class AtendimentosController {
                 current.fullName(),
                 true
         );
+        recordConversationEvent(
+                companyId,
+                conversation.getId(),
+                "STARTED",
+                current.fullName() + " assumiu o atendimento",
+                current,
+                now
+        );
         realtime.conversationChanged(companyId, conversation.getId());
         return ResponseEntity.noContent().build();
     }
@@ -373,6 +416,17 @@ public class AtendimentosController {
                 assignment.user() == null ? null : assignment.user().id(),
                 assignment.user() == null ? null : assignment.user().fullName(),
                 assignment.user() != null
+        );
+        String transferTarget = assignment.user() == null
+                ? "a equipe " + assignment.team().name()
+                : assignment.team().name() + " / " + assignment.user().fullName();
+        recordConversationEvent(
+                companyId,
+                conversation.getId(),
+                "TRANSFERRED",
+                actor.fullName() + " transferiu o atendimento para " + transferTarget,
+                actor,
+                now
         );
         realtime.conversationChanged(companyId, conversation.getId());
         return ResponseEntity.noContent().build();
@@ -454,6 +508,126 @@ public class AtendimentosController {
         conversation.setUpdatedAt(now);
         conversations.saveAndFlush(conversation);
         realtime.conversationChanged(companyId, conversation.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/atendimentos/conversations/{conversationId}/contact")
+    public ResponseEntity<Void> updateConversationContact(
+            @PathVariable UUID conversationId,
+            @Valid @RequestBody UpdateConversationContactHttpRequest req
+    ) {
+        UUID companyId = currentUser.companyId();
+        User actor = requireCurrentOperator(companyId);
+        var conversation = conversations.findByIdAndCompanyId(conversationId, companyId)
+                .orElseThrow(() -> new BusinessException("ATENDIMENTO_CONVERSATION_NOT_FOUND", "Conversa não encontrada"));
+        assertConversationAccessible(actor, conversation);
+
+        Instant now = Instant.now();
+        conversation.setDisplayName(req.displayName().trim());
+        conversation.setContactDisplayPhone(trimToNull(req.displayPhone()));
+        conversation.setContactDescription(trimToNull(req.description()));
+        conversation.setUpdatedAt(now);
+        conversations.saveAndFlush(conversation);
+        realtime.conversationChanged(companyId, conversation.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/atendimentos/conversations/{conversationId}/read")
+    public ResponseEntity<Void> markConversationRead(
+            @PathVariable UUID conversationId,
+            @RequestBody(required = false) MarkConversationReadHttpRequest req
+    ) {
+        UUID companyId = currentUser.companyId();
+        User actor = requireCurrentOperator(companyId);
+        var conversation = conversations.findByIdAndCompanyId(conversationId, companyId)
+                .orElseThrow(() -> new BusinessException("ATENDIMENTO_CONVERSATION_NOT_FOUND", "Conversa não encontrada"));
+        assertConversationAccessible(actor, conversation);
+
+        JpaAtendimentoMessageEntity lastReadMessage = null;
+        if (req != null && req.lastMessageId() != null) {
+            lastReadMessage = messages.findByIdAndCompanyId(req.lastMessageId(), companyId)
+                    .filter(message -> conversationId.equals(message.getConversationId()))
+                    .orElseThrow(() -> new BusinessException(
+                            "ATENDIMENTO_READ_MESSAGE_INVALID",
+                            "A mensagem informada não pertence à conversa."
+                    ));
+        }
+        if (lastReadMessage == null) {
+            lastReadMessage = messages.findFirstByConversationIdAndCompanyIdOrderByCreatedAtDesc(conversationId, companyId)
+                    .orElse(null);
+        }
+
+        Instant now = Instant.now();
+        conversationReadStates.upsertReadState(
+                UUID.randomUUID(),
+                companyId,
+                actor.id(),
+                conversationId,
+                lastReadMessage == null ? null : lastReadMessage.getId(),
+                lastReadMessage == null ? now : lastReadMessage.getCreatedAt(),
+                now
+        );
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/atendimentos/conversations/{conversationId}/events")
+    public ResponseEntity<List<ConversationEventHttpResponse>> listConversationEvents(@PathVariable UUID conversationId) {
+        UUID companyId = currentUser.companyId();
+        User actor = requireCurrentOperator(companyId);
+        var conversation = conversations.findByIdAndCompanyId(conversationId, companyId)
+                .orElseThrow(() -> new BusinessException("ATENDIMENTO_CONVERSATION_NOT_FOUND", "Conversa não encontrada"));
+        assertConversationAccessible(actor, conversation);
+
+        var data = conversationEvents.findAllByCompanyIdAndConversationIdOrderByEventAtAsc(companyId, conversationId).stream()
+                .map(event -> new ConversationEventHttpResponse(
+                        event.getId(),
+                        toPublicEventType(event.getEventType()),
+                        event.getEventText(),
+                        event.getActorUserId(),
+                        event.getActorUserName(),
+                        event.getEventAt()
+                ))
+                .toList();
+        return ResponseEntity.ok(data);
+    }
+
+    @PostMapping("/atendimentos/conversations/{conversationId}/events/import")
+    public ResponseEntity<Void> importConversationEvents(
+            @PathVariable UUID conversationId,
+            @Valid @RequestBody ImportConversationEventsHttpRequest req
+    ) {
+        UUID companyId = currentUser.companyId();
+        User actor = requireCurrentOperator(companyId);
+        var conversation = conversations.findByIdAndCompanyId(conversationId, companyId)
+                .orElseThrow(() -> new BusinessException("ATENDIMENTO_CONVERSATION_NOT_FOUND", "Conversa não encontrada"));
+        assertConversationAccessible(actor, conversation);
+
+        Instant now = Instant.now();
+        for (ImportConversationEventsHttpRequest.EventItem item : req.events()) {
+            String eventType = normalizeImportedEventType(item.type());
+            String text = item.text().trim();
+            if (conversationEvents.existsByCompanyIdAndConversationIdAndEventTypeAndEventTextAndEventAt(
+                    companyId,
+                    conversationId,
+                    eventType,
+                    text,
+                    item.at()
+            )) {
+                continue;
+            }
+            JpaAtendimentoConversationEventEntity event = new JpaAtendimentoConversationEventEntity();
+            event.setId(UUID.randomUUID());
+            event.setCompanyId(companyId);
+            event.setConversationId(conversationId);
+            event.setEventType(eventType);
+            event.setEventText(text);
+            event.setActorUserId(actor.id());
+            event.setActorUserName(actor.fullName());
+            event.setEventAt(item.at());
+            event.setCreatedAt(now);
+            conversationEvents.save(event);
+        }
+        conversationEvents.flush();
         return ResponseEntity.noContent().build();
     }
 
@@ -1840,6 +2014,69 @@ public class AtendimentosController {
         String lid = normalizeLid(conversation.getContactLid());
         if (lid != null) return "lid:" + lid;
         return "phone:" + canonicalPhone(conversation.getPhone());
+    }
+
+    private long countUnreadMessages(
+            List<JpaAtendimentoMessageEntity> conversationMessages,
+            JpaAtendimentoConversationReadStateEntity readState
+    ) {
+        if (conversationMessages.isEmpty()) return 0;
+        UUID lastReadMessageId = readState == null ? null : readState.getLastReadMessageId();
+        Instant lastReadAt = readState == null ? null : readState.getLastReadAt();
+        boolean foundLastReadMessage = lastReadMessageId == null;
+        long unread = 0;
+
+        for (JpaAtendimentoMessageEntity message : conversationMessages) {
+            if (!foundLastReadMessage) {
+                if (lastReadMessageId.equals(message.getId())) {
+                    foundLastReadMessage = true;
+                }
+                continue;
+            }
+            if (lastReadMessageId != null && lastReadMessageId.equals(message.getId())) continue;
+            if (lastReadMessageId == null && lastReadAt != null && !message.getCreatedAt().isAfter(lastReadAt)) continue;
+            if (!message.isFromMe()) unread++;
+        }
+
+        if (lastReadMessageId != null && !foundLastReadMessage) {
+            return conversationMessages.stream()
+                    .filter(message -> lastReadAt == null || message.getCreatedAt().isAfter(lastReadAt))
+                    .filter(message -> !message.isFromMe())
+                    .count();
+        }
+        return unread;
+    }
+
+    private void recordConversationEvent(
+            UUID companyId,
+            UUID conversationId,
+            String eventType,
+            String eventText,
+            User actor,
+            Instant eventAt
+    ) {
+        JpaAtendimentoConversationEventEntity event = new JpaAtendimentoConversationEventEntity();
+        event.setId(UUID.randomUUID());
+        event.setCompanyId(companyId);
+        event.setConversationId(conversationId);
+        event.setEventType(eventType);
+        event.setEventText(eventText);
+        event.setActorUserId(actor.id());
+        event.setActorUserName(actor.fullName());
+        event.setEventAt(eventAt);
+        event.setCreatedAt(eventAt);
+        conversationEvents.save(event);
+    }
+
+    private String normalizeImportedEventType(String value) {
+        String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        if ("START".equals(normalized) || "STARTED".equals(normalized)) return "STARTED";
+        if ("TRANSFER".equals(normalized) || "TRANSFERRED".equals(normalized)) return "TRANSFERRED";
+        throw new BusinessException("ATENDIMENTO_EVENT_TYPE_INVALID", "Tipo de evento da conversa inválido.");
+    }
+
+    private String toPublicEventType(String value) {
+        return "TRANSFERRED".equalsIgnoreCase(value) ? "transfer" : "start";
     }
 
     private static String trimToNull(String value) {

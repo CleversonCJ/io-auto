@@ -24,6 +24,12 @@ public class JpaAtendimentoConversationEntity {
     @Column(name = "display_name", length = 180)
     private String displayName;
 
+    @Column(name = "contact_display_phone", length = 30)
+    private String contactDisplayPhone;
+
+    @Column(name = "contact_description", columnDefinition = "text")
+    private String contactDescription;
+
     @Column(name = "contact_lid", length = 80)
     private String contactLid;
 
@@ -101,6 +107,12 @@ public class JpaAtendimentoConversationEntity {
 
     public String getDisplayName() { return displayName; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }
+
+    public String getContactDisplayPhone() { return contactDisplayPhone; }
+    public void setContactDisplayPhone(String contactDisplayPhone) { this.contactDisplayPhone = contactDisplayPhone; }
+
+    public String getContactDescription() { return contactDescription; }
+    public void setContactDescription(String contactDescription) { this.contactDescription = contactDescription; }
 
     public String getContactLid() { return contactLid; }
     public void setContactLid(String contactLid) { this.contactLid = contactLid; }

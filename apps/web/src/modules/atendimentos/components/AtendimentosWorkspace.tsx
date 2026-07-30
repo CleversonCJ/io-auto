@@ -40,25 +40,22 @@ import {
     X,
 } from "lucide-react";
 import {
+    clearLegacyContactLabelAssignments,
     getLabelTextColor,
-    listContactLabels,
+    loadContactLabels,
+    readLegacyContactLabelAssignments,
     type ContactLabel,
     type ContactLabelAssignments,
 } from "@/modules/etiquetas/storage";
 import {
+    loadCustomAtendimentoClassifications,
     listAtendimentoClassificationCategories,
     listAllAtendimentoClassifications,
-    listCustomAtendimentoClassifications,
     saveCustomAtendimentoClassifications,
     type AtendimentoClassification,
     type ContactConclusionMap,
 } from "@/modules/classificacoes/storage";
 import { AtendimentoClassificationCategoryIcon } from "@/modules/classificacoes/icons";
-import {
-    listCrmLeadDefaultFieldValues,
-    saveCrmLeadDefaultFieldValues,
-    type CrmLeadDefaultFieldValueMap,
-} from "@/modules/crm/storage";
 import { subscribeRealtime } from "@/core/realtime/client";
 import { ChatEmojiPicker } from "@/modules/atendimentos/components/ChatEmojiPicker";
 
@@ -87,6 +84,7 @@ type Chat = {
     phone: string;
     displayPhone: string;
     name: string;
+    description: string;
     avatar: string;
     photoUrl?: string | null;
     status: "NEW" | "IN_PROGRESS";
@@ -104,6 +102,8 @@ type Chat = {
     lastMessageFromMe?: boolean | null;
     lastMessageStatus?: string | null;
     lastMessageType?: string | null;
+    lastMessageId?: string | null;
+    unreadCount: number;
     sessionId?: string | null;
     arrivedAt?: string | null;
     firstResponseAt?: string | null;
@@ -125,6 +125,8 @@ type ApiConversation = {
     id: string;
     phone: string;
     displayName: string | null;
+    contactDisplayPhone?: string | null;
+    contactDescription?: string | null;
     photoUrl: string | null;
     status: "NEW" | "IN_PROGRESS";
     assignedTeamId: string | null;
@@ -140,6 +142,8 @@ type ApiConversation = {
     lastMessageFromMe?: boolean | null;
     lastMessageStatus?: string | null;
     lastMessageType?: string | null;
+    lastMessageId?: string | null;
+    unreadCount?: number | null;
     sessionId?: string | null;
     arrivedAt?: string | null;
     firstResponseAt?: string | null;
@@ -216,10 +220,6 @@ const AUDIO_WAVE_BARS = 36;
 const AUDIO_WAVE_UPDATE_INTERVAL_MS = 90;
 const CONTACT_SIDEBAR_ANIMATION_MS = 220;
 const ATENDIMENTOS_AUTO_REFRESH_INTERVAL_MS = 15000;
-const REOPEN_HANDLED_STORAGE_KEY = "io.atendimento.reopenHandled";
-const TIMELINE_NOTICES_STORAGE_KEY = "io.atendimento.timelineNotices";
-const READ_TOKENS_STORAGE_KEY = "io.atendimento.readTokens";
-
 type ImageTextLayer = {
     id: string;
     text: string;
@@ -231,7 +231,6 @@ type ImageTextLayer = {
     rotation: number;
 };
 
-type ReopenHandledMap = Record<string, string>;
 type TimelineNoticeKind = "start" | "transfer";
 type TimelineNotice = {
     id: string;
@@ -239,7 +238,6 @@ type TimelineNotice = {
     atRaw: string;
     kind: TimelineNoticeKind;
 };
-type TimelineNoticeByContact = Record<string, TimelineNotice[]>;
 type ContactSidebarTab = "details" | "media";
 type ContactSidebarDraft = {
     name: string;
@@ -295,89 +293,6 @@ function classificationCategoryFromResult(result: string | null | undefined): "a
     if (normalized === "QUESTION") return "questions";
     if (normalized === "OTHER") return "other";
     return null;
-}
-
-function listReopenHandledContacts(): ReopenHandledMap {
-    if (typeof window === "undefined") return {};
-    try {
-        const parsed = JSON.parse(window.localStorage.getItem(REOPEN_HANDLED_STORAGE_KEY) ?? "{}") as Record<string, unknown>;
-        const next: ReopenHandledMap = {};
-        for (const key of Object.keys(parsed)) {
-            const normalizedKey = normalizePhone(key);
-            if (!normalizedKey) continue;
-            const handledAt = String(parsed[key] ?? "").trim();
-            if (!handledAt) continue;
-            next[normalizedKey] = handledAt;
-        }
-        return next;
-    } catch {
-        return {};
-    }
-}
-
-function saveReopenHandledContacts(map: ReopenHandledMap) {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(REOPEN_HANDLED_STORAGE_KEY, JSON.stringify(map));
-}
-
-function listTimelineNotices(): TimelineNoticeByContact {
-    if (typeof window === "undefined") return {};
-    try {
-        const parsed = JSON.parse(window.localStorage.getItem(TIMELINE_NOTICES_STORAGE_KEY) ?? "{}") as Record<string, unknown>;
-        const next: TimelineNoticeByContact = {};
-        for (const key of Object.keys(parsed)) {
-            const contactKey = normalizePhone(key);
-            if (!contactKey) continue;
-            const rawList = Array.isArray(parsed[key]) ? parsed[key] : [];
-            const normalized = rawList
-                .map((item) => {
-                    const value = item as Partial<TimelineNotice> | null | undefined;
-                    if (!value) return null;
-                    const id = String(value.id ?? "").trim();
-                    const text = String(value.text ?? "").trim();
-                    const atRaw = String(value.atRaw ?? "").trim();
-                    const kind = value.kind === "start" || value.kind === "transfer" ? value.kind : null;
-                    if (!id || !text || !atRaw || !kind) return null;
-                    return { id, text, atRaw, kind } satisfies TimelineNotice;
-                })
-                .filter((item): item is TimelineNotice => Boolean(item));
-            if (normalized.length) next[contactKey] = normalized;
-        }
-        return next;
-    } catch {
-        return {};
-    }
-}
-
-function saveTimelineNotices(map: TimelineNoticeByContact) {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(TIMELINE_NOTICES_STORAGE_KEY, JSON.stringify(map));
-}
-
-function listReadConversationTokens() {
-    if (typeof window === "undefined") return {} as Record<string, string>;
-    try {
-        const parsed = JSON.parse(window.localStorage.getItem(READ_TOKENS_STORAGE_KEY) ?? "{}") as Record<string, unknown>;
-        const next: Record<string, string> = {};
-        for (const key of Object.keys(parsed)) {
-            const normalizedKey = String(key ?? "").trim();
-            const token = String(parsed[key] ?? "").trim();
-            if (!normalizedKey || !token) continue;
-            next[normalizedKey] = token;
-        }
-        return next;
-    } catch {
-        return {};
-    }
-}
-
-function saveReadConversationTokens(map: Record<string, string>) {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(READ_TOKENS_STORAGE_KEY, JSON.stringify(map));
-}
-
-function buildConversationToken(chat: Pick<Chat, "lastAtRaw" | "lastMessage" | "lastMessageFromMe" | "lastMessageStatus" | "lastMessageType">) {
-    return `${chat.lastAtRaw ?? ""}|${chat.lastMessage}|${chat.lastMessageFromMe ? "1" : "0"}|${chat.lastMessageStatus ?? ""}|${chat.lastMessageType ?? ""}`;
 }
 
 function toDayKey(value: string | null | undefined) {
@@ -810,21 +725,6 @@ function MessageText({
     return <p className={className}>{renderLinkedText(text, linkClassName)}</p>;
 }
 
-function applyLeadDefaultsToChat(chat: Chat, leadDefaultFieldValues: CrmLeadDefaultFieldValueMap) {
-    const defaults = leadDefaultFieldValues[chat.id];
-    const nextName = defaults?.name?.trim() || chat.name;
-    return {
-        ...chat,
-        name: nextName,
-        displayPhone: normalizeDisplayPhone(defaults?.phone) || chat.phone,
-        avatar: chat.photoUrl ? chat.avatar : toInitials(nextName),
-    };
-}
-
-function applyLeadDefaultsToChats(chats: Chat[], leadDefaultFieldValues: CrmLeadDefaultFieldValueMap) {
-    return chats.map((chat) => applyLeadDefaultsToChat(chat, leadDefaultFieldValues));
-}
-
 type OutgoingMessageStatus = "sent" | "received" | "read";
 
 function toOutgoingMessageStatus(status?: string | null): OutgoingMessageStatus {
@@ -1062,6 +962,43 @@ type FilterSelectOption = {
     chipStyle?: CSSProperties;
 };
 
+type LegacyContactOverride = {
+    name?: string;
+    phone?: string;
+    description?: string;
+    lastAt?: string;
+};
+
+const LEGACY_CONTACT_OVERRIDES_KEY = "io.crm.lead.defaultValues";
+const LEGACY_TIMELINE_NOTICES_KEY = "io.atendimento.timelineNotices";
+const LEGACY_READ_TOKENS_KEY = "io.atendimento.readTokens";
+const LEGACY_REOPEN_HANDLED_KEY = "io.atendimento.reopenHandled";
+
+function readLegacyStorageRecord<T>(key: string) {
+    if (typeof window === "undefined") return {} as Record<string, T>;
+    try {
+        const parsed = JSON.parse(window.localStorage.getItem(key) ?? "{}");
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+            ? parsed as Record<string, T>
+            : {};
+    } catch {
+        return {};
+    }
+}
+
+function clearLegacyAtendimentoStorage() {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem(LEGACY_CONTACT_OVERRIDES_KEY);
+    window.localStorage.removeItem(LEGACY_TIMELINE_NOTICES_KEY);
+    window.localStorage.removeItem(LEGACY_READ_TOKENS_KEY);
+    window.localStorage.removeItem(LEGACY_REOPEN_HANDLED_KEY);
+    clearLegacyContactLabelAssignments();
+}
+
+function buildLegacyConversationToken(chat: Chat) {
+    return `${chat.lastAtRaw ?? ""}|${chat.lastMessage}|${chat.lastMessageFromMe ? "1" : "0"}|${chat.lastMessageStatus ?? ""}|${chat.lastMessageType ?? ""}`;
+}
+
 type CompactMultiSelectProps = {
     title: string;
     placeholder: string;
@@ -1245,13 +1182,13 @@ export function AtendimentosWorkspace() {
     const [isStarting, setIsStarting] = useState(false);
     const [isTransferring, setIsTransferring] = useState(false);
     const [availableLabels, setAvailableLabels] = useState<ContactLabel[]>([]);
+    const [areCatalogsLoaded, setAreCatalogsLoaded] = useState(false);
+    const [areConversationsLoaded, setAreConversationsLoaded] = useState(false);
     const [labelsByContact, setLabelsByContact] = useState<ContactLabelAssignments>({});
     const [isChatLabelsOpen, setIsChatLabelsOpen] = useState(false);
     const [availableClassifications, setAvailableClassifications] = useState<AtendimentoClassification[]>([]);
     const [contactConclusions, setContactConclusions] = useState<ContactConclusionMap>({});
-    const [leadDefaultFieldValues, setLeadDefaultFieldValues] = useState<CrmLeadDefaultFieldValueMap>({});
-    const [reopenHandledByContact, setReopenHandledByContact] = useState<ReopenHandledMap>({});
-    const [timelineNoticesByContact, setTimelineNoticesByContact] = useState<TimelineNoticeByContact>({});
+    const [timelineNotices, setTimelineNotices] = useState<TimelineNotice[]>([]);
     const [isConcludeModalOpen, setIsConcludeModalOpen] = useState(false);
     const [concludeClassificationId, setConcludeClassificationId] = useState("");
     const [concludeLabelIds, setConcludeLabelIds] = useState<string[]>([]);
@@ -1314,10 +1251,8 @@ export function AtendimentosWorkspace() {
     const cropBoxRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
     const textDragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
     const textResizeRef = useRef<{ id: string; startX: number; startY: number; startWidth: number; startFontSize: number } | null>(null);
-    const lastConversationTokenRef = useRef<Record<string, string>>({});
-    const lastReadTokenRef = useRef<Record<string, string>>(listReadConversationTokens());
-    const leadDefaultFieldValuesRef = useRef<CrmLeadDefaultFieldValueMap>({});
     const routeSelectionAppliedRef = useRef<string>("");
+    const legacyStorageMigrationAttemptedRef = useRef(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<BlobPart[]>([]);
     const audioStreamRef = useRef<MediaStream | null>(null);
@@ -1332,18 +1267,6 @@ export function AtendimentosWorkspace() {
     const contactSidebarEnterFrameNestedRef = useRef<number | null>(null);
 
     const concludedContactKeys = useMemo(() => new Set(Object.keys(contactConclusions)), [contactConclusions]);
-    const reopenedContactKeys = useMemo(() => {
-        const keys = new Set<string>();
-        for (const chat of chats) {
-            const contactKey = normalizePhone(chat.phone);
-            const conclusion = contactConclusions[contactKey];
-            if (!conclusion) continue;
-            const lastAt = toTimestamp(chat.lastAtRaw);
-            const concludedAt = toTimestamp(conclusion.concludedAt);
-            if (lastAt > concludedAt) keys.add(contactKey);
-        }
-        return keys;
-    }, [chats, contactConclusions]);
     const visibleChats = useMemo(
         () => chats.filter((chat) => {
             const key = normalizePhone(chat.phone);
@@ -1369,10 +1292,6 @@ export function AtendimentosWorkspace() {
     const selectedChat = useMemo(() => chats.find((chat) => chat.id === selectedId) ?? null, [chats, selectedId]);
     const selectedChatDraft = useMemo(() => (selectedId ? (draftsByChatId[selectedId] ?? "") : ""), [draftsByChatId, selectedId]);
     const selectedChatDraftTrimmed = useMemo(() => selectedChatDraft.trim(), [selectedChatDraft]);
-    const selectedChatLeadDefaults = useMemo(
-        () => (selectedChat ? leadDefaultFieldValues[selectedChat.id] ?? null : null),
-        [leadDefaultFieldValues, selectedChat]
-    );
     const transferUsersForSelectedTeam = useMemo(
         () => (selectedTransferTeamId ? transferUsers.filter((user) => user.teamId === selectedTransferTeamId) : []),
         [transferUsers, selectedTransferTeamId]
@@ -1406,8 +1325,8 @@ export function AtendimentosWorkspace() {
         [availableLabels, selectedChatLabelIds]
     );
     const selectedChatDescription = useMemo(
-        () => selectedChatLeadDefaults?.description?.trim() || selectedChat?.lastMessage || "",
-        [selectedChatLeadDefaults, selectedChat]
+        () => selectedChat?.description?.trim() || "",
+        [selectedChat]
     );
     const isCurrentUserSuperAdmin = useMemo(
         () => currentUserRoles.some((role) => role.toUpperCase() === "SUPERADMIN"),
@@ -1499,36 +1418,14 @@ export function AtendimentosWorkspace() {
         return isChatInCurrentTeam(chat) && !chat.assignedUserId;
     }
 
-    function persistReadToken(chatId: string, token: string) {
-        const normalizedChatId = String(chatId ?? "").trim();
-        const normalizedToken = String(token ?? "").trim();
-        if (!normalizedChatId || !normalizedToken) return;
-        if (lastReadTokenRef.current[normalizedChatId] === normalizedToken) return;
-        const next = { ...lastReadTokenRef.current, [normalizedChatId]: normalizedToken };
-        lastReadTokenRef.current = next;
-        saveReadConversationTokens(next);
-    }
-
-    function removeReadTokens(chatIds: Iterable<string>) {
-        let changed = false;
-        const next = { ...lastReadTokenRef.current };
-        for (const chatId of chatIds) {
-            if (!next[chatId]) continue;
-            delete next[chatId];
-            changed = true;
-        }
-        if (!changed) return;
-        lastReadTokenRef.current = next;
-        saveReadConversationTokens(next);
-    }
-
     function markChatAsRead(chat: Chat | null | undefined) {
         if (!chat || !isChatMine(chat)) return;
-        const token = lastConversationTokenRef.current[chat.id] || buildConversationToken(chat);
-        if (token) {
-            persistReadToken(chat.id, token);
-        }
         setUnreadByChatId((previous) => ({ ...previous, [chat.id]: 0 }));
+        void fetch(`/api/atendimentos/conversations/${chat.id}/read`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lastMessageId: chat.lastMessageId ?? null }),
+        });
     }
 
     function isChatInNewTab(chat: Chat) {
@@ -1642,8 +1539,6 @@ export function AtendimentosWorkspace() {
         showUnreadOnly,
         unreadByChatId,
         sortOrder,
-        reopenedContactKeys,
-        reopenHandledByContact,
     ]);
     const userFilterOptions = useMemo(() => {
         const map = new Map<string, string>();
@@ -1712,9 +1607,8 @@ export function AtendimentosWorkspace() {
     }, [displayedMessages, selectedChatConclusion, showSelectedChatHistory]);
     const selectedChatTimelineNotices = useMemo(() => {
         if (!selectedChat) return [] as TimelineNotice[];
-        const contactKey = normalizePhone(selectedChat.phone);
-        const fromStorage = timelineNoticesByContact[contactKey] ?? [];
-        const fallbackStartNotice = selectedChat.startedAt
+        const hasPersistedStart = timelineNotices.some((notice) => notice.kind === "start");
+        const fallbackStartNotice = selectedChat.startedAt && !hasPersistedStart
             ? [{
                 id: `start-fallback-${selectedChat.id}-${selectedChat.startedAt}`,
                 text: `Atendimento iniciado em ${formatDateTime(selectedChat.startedAt)}`,
@@ -1722,7 +1616,7 @@ export function AtendimentosWorkspace() {
                 kind: "start" as const,
             }]
             : [];
-        const combined = [...fallbackStartNotice, ...fromStorage];
+        const combined = [...fallbackStartNotice, ...timelineNotices];
         const unique = new Map<string, TimelineNotice>();
         for (const notice of combined) {
             const key = `${notice.kind}|${notice.atRaw}|${notice.text}`;
@@ -1732,7 +1626,7 @@ export function AtendimentosWorkspace() {
         if (!selectedChatConclusion || showSelectedChatHistory) return all;
         const concludedAt = toTimestamp(selectedChatConclusion.concludedAt);
         return all.filter((notice) => toTimestamp(notice.atRaw) > concludedAt);
-    }, [selectedChat, timelineNoticesByContact, selectedChatConclusion, showSelectedChatHistory]);
+    }, [selectedChat, timelineNotices, selectedChatConclusion, showSelectedChatHistory]);
     const timelineEntries = useMemo(() => {
         const sortable = [
             ...selectedChatTimelineNotices.map((notice, index) => ({
@@ -1794,12 +1688,13 @@ export function AtendimentosWorkspace() {
         return `date|${last.id}|${last.label}`;
     }, [timelineEntries]);
 
-    function loadLabelsState() {
-        setAvailableLabels(listContactLabels());
+    async function loadLabelsState() {
+        setAvailableLabels(await loadContactLabels());
     }
 
-    function loadConclusionState() {
-        setAvailableClassifications(listAllAtendimentoClassifications());
+    async function loadConclusionState() {
+        const custom = await loadCustomAtendimentoClassifications();
+        setAvailableClassifications(listAllAtendimentoClassifications(custom));
     }
 
     function buildLabelsPayload(labelIds: string[]) {
@@ -1828,50 +1723,34 @@ export function AtendimentosWorkspace() {
         }
     }
 
-    function loadLeadDefaultValuesState() {
-        const next = listCrmLeadDefaultFieldValues();
-        leadDefaultFieldValuesRef.current = next;
-        setLeadDefaultFieldValues(next);
-        setChats((previous) => applyLeadDefaultsToChats(previous, next));
-    }
-
-    function loadReopenHandledState() {
-        setReopenHandledByContact(listReopenHandledContacts());
-    }
-
-    function loadTimelineNoticesState() {
-        setTimelineNoticesByContact(listTimelineNotices());
-    }
-
-    function addTimelineNotice(contactKey: string, notice: Omit<TimelineNotice, "id">) {
-        const normalizedContactKey = normalizePhone(contactKey);
-        if (!normalizedContactKey) return;
-        setTimelineNoticesByContact((previous) => {
-            const list = previous[normalizedContactKey] ?? [];
-            const nextNotice: TimelineNotice = {
-                id: `notice-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-                ...notice,
-            };
-            const next = {
-                ...previous,
-                [normalizedContactKey]: [...list, nextNotice].sort((a, b) => toTimestamp(a.atRaw) - toTimestamp(b.atRaw)),
-            };
-            saveTimelineNotices(next);
-            return next;
-        });
-    }
-
-    function markReopenedAsHandled(chat: Chat) {
-        const contactKey = normalizePhone(chat.phone);
-        if (!contactKey) return;
-        setReopenHandledByContact((previous) => {
-            const next = {
-                ...previous,
-                [contactKey]: new Date().toISOString(),
-            };
-            saveReopenHandledContacts(next);
-            return next;
-        });
+    async function loadTimelineNotices(conversationId: string) {
+        if (!conversationId) {
+            setTimelineNotices([]);
+            return;
+        }
+        const response = await fetch(`/api/atendimentos/conversations/${conversationId}/events`, { cache: "no-store" });
+        if (!response.ok) {
+            setTimelineNotices([]);
+            return;
+        }
+        const data = (await response.json().catch(() => [])) as Array<{
+            id?: string;
+            type?: string;
+            text?: string;
+            at?: string;
+        }>;
+        setTimelineNotices(
+            (Array.isArray(data) ? data : [])
+                .map((event) => {
+                    const id = String(event.id ?? "").trim();
+                    const text = String(event.text ?? "").trim();
+                    const atRaw = String(event.at ?? "").trim();
+                    const kind = event.type === "transfer" ? "transfer" : event.type === "start" ? "start" : null;
+                    if (!id || !text || !atRaw || !kind) return null;
+                    return { id, text, atRaw, kind } satisfies TimelineNotice;
+                })
+                .filter((event): event is TimelineNotice => Boolean(event))
+        );
     }
 
     async function toggleLabelOnSelectedChat(labelId: string) {
@@ -1925,15 +1804,6 @@ export function AtendimentosWorkspace() {
                 .filter((item) => item.id === chat.id || normalizePhone(item.phone) === contactKey)
                 .map((item) => item.id)
         );
-        const nextLeadDefaults = { ...leadDefaultFieldValuesRef.current };
-        for (const chatId of chatIdsToRemove) {
-            delete nextLeadDefaults[chatId];
-            delete lastConversationTokenRef.current[chatId];
-        }
-        removeReadTokens(chatIdsToRemove);
-        leadDefaultFieldValuesRef.current = nextLeadDefaults;
-        saveCrmLeadDefaultFieldValues(nextLeadDefaults);
-        setLeadDefaultFieldValues(nextLeadDefaults);
         setChats((previous) => previous.filter((item) => !chatIdsToRemove.has(item.id)));
         setMessages([]);
         setPendingMessages((previous) => previous.filter((message) => !message.chatId || !chatIdsToRemove.has(message.chatId)));
@@ -1952,18 +1822,7 @@ export function AtendimentosWorkspace() {
             delete next[contactKey];
             return next;
         });
-        setReopenHandledByContact((previous) => {
-            const next = { ...previous };
-            delete next[contactKey];
-            saveReopenHandledContacts(next);
-            return next;
-        });
-        setTimelineNoticesByContact((previous) => {
-            const next = { ...previous };
-            delete next[contactKey];
-            saveTimelineNotices(next);
-            return next;
-        });
+        setTimelineNotices([]);
         routeSelectionAppliedRef.current = "";
         closeContactSidebar();
         setSelectedId((current) => (chatIdsToRemove.has(current) ? "" : current));
@@ -2035,25 +1894,34 @@ export function AtendimentosWorkspace() {
         const nextName = contactSidebarDraft.name.trim() || selectedChat.name;
         const nextDisplayPhone = normalizeDisplayPhone(contactSidebarDraft.phone) || selectedChat.phone;
         const nextDescription = contactSidebarDraft.description.trim();
-        const nextLeadDefaults: CrmLeadDefaultFieldValueMap = {
-            ...leadDefaultFieldValuesRef.current,
-            [selectedChat.id]: {
-                ...leadDefaultFieldValuesRef.current[selectedChat.id],
-                name: nextName,
-                phone: nextDisplayPhone,
-                description: nextDescription || undefined,
-                lastAt: selectedChat.lastAtRaw ?? leadDefaultFieldValuesRef.current[selectedChat.id]?.lastAt,
-            },
-        };
-        leadDefaultFieldValuesRef.current = nextLeadDefaults;
-        saveCrmLeadDefaultFieldValues(nextLeadDefaults);
-        setLeadDefaultFieldValues(nextLeadDefaults);
-        setChats((previous) => applyLeadDefaultsToChats(previous, nextLeadDefaults));
-
         const contactKey = normalizePhone(selectedChat.phone);
         const nextLabelIds = Array.from(new Set(contactSidebarDraft.labelIds));
         try {
+            const contactResponse = await fetch(`/api/atendimentos/conversations/${selectedChat.id}/contact`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    displayName: nextName,
+                    displayPhone: nextDisplayPhone,
+                    description: nextDescription,
+                }),
+            });
+            if (!contactResponse.ok) {
+                const data = (await contactResponse.json().catch(() => null)) as { message?: string } | null;
+                throw new Error(data?.message ?? "Falha ao salvar os dados do contato.");
+            }
             await syncConversationLabels(selectedChat.id, nextLabelIds);
+            setChats((previous) => previous.map((chat) => (
+                chat.id === selectedChat.id
+                    ? {
+                        ...chat,
+                        name: nextName,
+                        displayPhone: nextDisplayPhone,
+                        description: nextDescription,
+                        avatar: chat.photoUrl ? chat.avatar : toInitials(nextName),
+                    }
+                    : chat
+            )));
             setLabelsByContact((previous) => {
                 const next = { ...previous };
                 if (nextLabelIds.length) next[contactKey] = nextLabelIds;
@@ -2157,15 +2025,6 @@ export function AtendimentosWorkspace() {
                 return;
             }
 
-            const contactKey = normalizePhone(selectedChat.phone);
-            setReopenHandledByContact((previous) => {
-                if (!(contactKey in previous)) return previous;
-                const next = { ...previous };
-                delete next[contactKey];
-                saveReopenHandledContacts(next);
-                return next;
-            });
-
             await loadConversations();
             setSelectedId("");
             setMobileView("list");
@@ -2204,7 +2063,7 @@ export function AtendimentosWorkspace() {
         setManageClassificationMsg(null);
     }
 
-    function saveManageClassificationInModal() {
+    async function saveManageClassificationInModal() {
         setManageClassificationMsg(null);
         const title = manageClassificationTitle.trim();
         if (!title) {
@@ -2216,7 +2075,7 @@ export function AtendimentosWorkspace() {
             setManageClassificationMsg("Informe um valor numérico válido.");
             return;
         }
-        const currentCustom = listCustomAtendimentoClassifications();
+        const currentCustom = availableClassifications.filter((item) => !item.system);
         const duplicate = currentCustom.some((item) =>
             item.id !== manageClassificationEditingId &&
             item.title.trim().toLowerCase() === title.toLowerCase() &&
@@ -2253,22 +2112,30 @@ export function AtendimentosWorkspace() {
                     updatedAt: now,
                 },
             ];
-        saveCustomAtendimentoClassifications(next);
-        loadConclusionState();
-        resetManageClassificationForm();
+        try {
+            const saved = await saveCustomAtendimentoClassifications(next);
+            setAvailableClassifications(listAllAtendimentoClassifications(saved));
+            resetManageClassificationForm();
+        } catch (error) {
+            setManageClassificationMsg(error instanceof Error ? error.message : "Não foi possível salvar a classificação.");
+        }
     }
 
-    function removeCustomClassificationInModal(item: AtendimentoClassification) {
-        const next = listCustomAtendimentoClassifications().filter((current) => current.id !== item.id);
-        saveCustomAtendimentoClassifications(next);
-        loadConclusionState();
-        if (concludeClassificationId === item.id) setConcludeClassificationId("");
-        if (manageClassificationEditingId === item.id) resetManageClassificationForm();
+    async function removeCustomClassificationInModal(item: AtendimentoClassification) {
+        const next = availableClassifications.filter((current) => !current.system && current.id !== item.id);
+        try {
+            const saved = await saveCustomAtendimentoClassifications(next);
+            setAvailableClassifications(listAllAtendimentoClassifications(saved));
+            if (concludeClassificationId === item.id) setConcludeClassificationId("");
+            if (manageClassificationEditingId === item.id) resetManageClassificationForm();
+        } catch (error) {
+            setManageClassificationMsg(error instanceof Error ? error.message : "Não foi possível excluir a classificação.");
+        }
     }
 
-    function toggleCustomClassificationValueFlag(item: AtendimentoClassification) {
+    async function toggleCustomClassificationValueFlag(item: AtendimentoClassification) {
         if (item.system) return;
-        const next = listCustomAtendimentoClassifications().map((current) => {
+        const next = availableClassifications.filter((current) => !current.system).map((current) => {
             if (current.id !== item.id) return current;
             const enabled = !current.hasValue;
             return {
@@ -2278,8 +2145,12 @@ export function AtendimentosWorkspace() {
                 updatedAt: new Date().toISOString(),
             };
         });
-        saveCustomAtendimentoClassifications(next);
-        loadConclusionState();
+        try {
+            const saved = await saveCustomAtendimentoClassifications(next);
+            setAvailableClassifications(listAllAtendimentoClassifications(saved));
+        } catch (error) {
+            setManageClassificationMsg(error instanceof Error ? error.message : "Não foi possível atualizar a classificação.");
+        }
     }
 
     function scrollMessagesToBottom(behavior: ScrollBehavior = "auto") {
@@ -2322,11 +2193,12 @@ export function AtendimentosWorkspace() {
                     concludedAt: historyCutoffAt,
                 };
             }
-            return applyLeadDefaultsToChat({
+            return {
                 id: chat.id,
                 phone: normalizedPhone,
-                displayPhone: normalizedPhone,
+                displayPhone: normalizeDisplayPhone(chat.contactDisplayPhone) || normalizedPhone,
                 name: fallbackName,
+                description: chat.contactDescription?.trim() || "",
                 avatar: toInitials(fallbackName),
                 photoUrl: chat.photoUrl,
                 status: chat.status,
@@ -2344,6 +2216,8 @@ export function AtendimentosWorkspace() {
                 lastMessageFromMe: chat.lastMessageFromMe ?? null,
                 lastMessageStatus: chat.lastMessageStatus ?? null,
                 lastMessageType: chat.lastMessageType ?? null,
+                lastMessageId: chat.lastMessageId ?? null,
+                unreadCount: Math.max(0, Number(chat.unreadCount ?? 0) || 0),
                 sessionId: chat.sessionId ?? null,
                 arrivedAt: chat.arrivedAt ?? null,
                 firstResponseAt: chat.firstResponseAt ?? null,
@@ -2353,80 +2227,26 @@ export function AtendimentosWorkspace() {
                 latestCompletedAt: chat.latestCompletedAt ?? null,
                 latestCompletedClassificationResult: chat.latestCompletedClassificationResult ?? null,
                 latestCompletedClassificationLabel: chat.latestCompletedClassificationLabel ?? null,
-            }, leadDefaultFieldValuesRef.current);
+            } satisfies Chat;
         });
         setChats(mapped);
+        setAreConversationsLoaded(true);
         setContactConclusions(nextConclusions);
         setLabelsByContact(nextLabelsByContact);
-        setUnreadByChatId((previous) => {
-            const next: Record<string, number> = { ...previous };
-            const nextTokens: Record<string, string> = {};
-            const mappedIds = new Set<string>();
-            const nextReadTokens = { ...lastReadTokenRef.current };
-            const activeConversationId = selectedIdRef.current;
-
-            for (const chat of mapped) {
-                mappedIds.add(chat.id);
-                const token = buildConversationToken(chat);
-                nextTokens[chat.id] = token;
-
-                const previousToken = lastConversationTokenRef.current[chat.id];
-                if (next[chat.id] == null) next[chat.id] = 0;
-                if (activeConversationId === chat.id && isChatMine(chat) && token) {
-                    nextReadTokens[chat.id] = token;
-                    next[chat.id] = 0;
-                }
-                const hasIncomingLastMessage = chat.lastMessageFromMe !== true && (chat.lastAtRaw ?? "").length > 0;
-                const readToken = nextReadTokens[chat.id] ?? "";
-                const hasUnreadIncomingLastMessage = hasIncomingLastMessage && token !== readToken;
-
-                if (readToken && token === readToken) {
-                    next[chat.id] = 0;
-                }
-
-                // Primeira vez que vemos a conversa no estado atual.
-                if (chat.status === "NEW" && hasUnreadIncomingLastMessage) {
-                    // Regra fixa: chat novo com ultima mensagem recebida sempre exibe badge
-                    // ate iniciar/transferir atendimento.
-                    next[chat.id] = Math.max(next[chat.id] ?? 0, 1);
-                }
-
-                if (previousToken == null) {
-                    if (hasUnreadIncomingLastMessage) {
-                        // Primeira leitura da conversa no cliente: se a ultima mensagem
-                        // ja e recebida (fromMe !== true), exibe badge inicial.
-                        next[chat.id] = Math.max(next[chat.id] ?? 0, 1);
-                    }
-                    continue;
-                }
-
-                if (previousToken === token) {
-                    // Garantia de consistencia: se a ultima mensagem segue nao lida e recebida,
-                    // mantemos ao menos 1 nao lido mesmo sem variacao de token no poll atual.
-                    if (hasUnreadIncomingLastMessage) {
-                        next[chat.id] = Math.max(next[chat.id] ?? 0, 1);
-                    }
-                    continue;
-                }
-
-                if (!hasUnreadIncomingLastMessage) continue;
-                next[chat.id] = Math.max((next[chat.id] ?? 0) + 1, 1);
+        const activeConversationId = selectedIdRef.current;
+        const nextUnread: Record<string, number> = {};
+        for (const chat of mapped) {
+            const isActiveAndMine = activeConversationId === chat.id && Boolean(currentUserId) && chat.assignedUserId === currentUserId;
+            nextUnread[chat.id] = isActiveAndMine ? 0 : chat.unreadCount;
+            if (isActiveAndMine && chat.unreadCount > 0) {
+                void fetch(`/api/atendimentos/conversations/${chat.id}/read`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ lastMessageId: chat.lastMessageId ?? null }),
+                });
             }
-
-            for (const chatId of Object.keys(next)) {
-                if (!mappedIds.has(chatId)) delete next[chatId];
-            }
-            for (const chatId of Object.keys(nextReadTokens)) {
-                if (!mappedIds.has(chatId)) {
-                    delete nextReadTokens[chatId];
-                }
-            }
-
-            lastConversationTokenRef.current = nextTokens;
-            lastReadTokenRef.current = nextReadTokens;
-            saveReadConversationTokens(nextReadTokens);
-            return next;
-        });
+        }
+        setUnreadByChatId(nextUnread);
         setSelectedId((currentSelectedId) => {
             if (!mapped.length) return "";
             if (!currentSelectedId) return "";
@@ -2438,9 +2258,13 @@ export function AtendimentosWorkspace() {
     async function loadMessages(conversationId: string) {
         if (!conversationId) {
             setMessages([]);
+            setTimelineNotices([]);
             return;
         }
-        const res = await fetch(`/api/atendimentos/conversations/${conversationId}/messages`, { cache: "no-store" });
+        const [res] = await Promise.all([
+            fetch(`/api/atendimentos/conversations/${conversationId}/messages`, { cache: "no-store" }),
+            loadTimelineNotices(conversationId),
+        ]);
         if (!res.ok) return;
         const data = (await res.json().catch(() => [])) as ApiMessage[];
         setMessages(
@@ -2526,24 +2350,93 @@ export function AtendimentosWorkspace() {
     }, []);
 
     useEffect(() => {
-        loadLabelsState();
-        loadConclusionState();
-        loadLeadDefaultValuesState();
-        loadReopenHandledState();
-        loadTimelineNoticesState();
+        async function loadCatalogs() {
+            try {
+                await Promise.all([loadLabelsState(), loadConclusionState()]);
+                setAreCatalogsLoaded(true);
+            } catch (error) {
+                setSendError(error instanceof Error ? error.message : "Falha ao carregar configurações do atendimento.");
+            }
+        }
+        void loadCatalogs();
     }, []);
 
     useEffect(() => {
-        function handleStorage() {
-            loadLabelsState();
-            loadConclusionState();
-            loadLeadDefaultValuesState();
-            loadReopenHandledState();
-            loadTimelineNoticesState();
+        if (!areCatalogsLoaded || !areConversationsLoaded || legacyStorageMigrationAttemptedRef.current) return;
+        legacyStorageMigrationAttemptedRef.current = true;
+
+        async function migrateLegacyStorage() {
+            const legacyAssignments = readLegacyContactLabelAssignments();
+            const legacyOverrides = readLegacyStorageRecord<LegacyContactOverride>(LEGACY_CONTACT_OVERRIDES_KEY);
+            const legacyNotices = readLegacyStorageRecord<unknown[]>(LEGACY_TIMELINE_NOTICES_KEY);
+            const legacyReadTokens = readLegacyStorageRecord<string>(LEGACY_READ_TOKENS_KEY);
+            const validLabelIds = new Set(availableLabels.map((label) => label.id));
+
+            for (const chat of chats) {
+                const contactKey = normalizePhone(chat.phone);
+                const legacyLabelIds = (legacyAssignments[contactKey] ?? []).filter((id) => validLabelIds.has(id));
+                if (legacyLabelIds.length > 0 && (labelsByContact[contactKey] ?? []).length === 0) {
+                    await syncConversationLabels(chat.id, legacyLabelIds);
+                }
+
+                const override = legacyOverrides[chat.id];
+                const hasPersistedProfile = Boolean(chat.description) || normalizeDisplayPhone(chat.displayPhone) !== chat.phone;
+                const sameConversationVersion = !override?.lastAt || override.lastAt === chat.lastAtRaw;
+                if (override && !hasPersistedProfile && sameConversationVersion) {
+                    const response = await fetch(`/api/atendimentos/conversations/${chat.id}/contact`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            displayName: override.name?.trim() || chat.name,
+                            displayPhone: normalizeDisplayPhone(override.phone) || chat.phone,
+                            description: override.description?.trim() || "",
+                        }),
+                    });
+                    if (!response.ok) throw new Error("Falha ao migrar dados locais do contato.");
+                }
+
+                const rawNotices = Array.isArray(legacyNotices[contactKey]) ? legacyNotices[contactKey] : [];
+                const events = rawNotices
+                    .map((item) => {
+                        const value = item as Partial<TimelineNotice> | null | undefined;
+                        const type = value?.kind === "start" || value?.kind === "transfer" ? value.kind : null;
+                        const text = String(value?.text ?? "").trim();
+                        const at = String(value?.atRaw ?? "").trim();
+                        if (!type || !text || !at || Number.isNaN(new Date(at).getTime())) return null;
+                        return { type, text, at };
+                    })
+                    .filter((item): item is { type: TimelineNoticeKind; text: string; at: string } => Boolean(item));
+                if (events.length > 0) {
+                    const response = await fetch(`/api/atendimentos/conversations/${chat.id}/events/import`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ events }),
+                    });
+                    if (!response.ok) throw new Error("Falha ao migrar eventos locais do atendimento.");
+                }
+
+                const readToken = String(legacyReadTokens[chat.id] ?? "");
+                if (readToken && readToken === buildLegacyConversationToken(chat)) {
+                    const response = await fetch(`/api/atendimentos/conversations/${chat.id}/read`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ lastMessageId: chat.lastMessageId ?? null }),
+                    });
+                    if (!response.ok) throw new Error("Falha ao migrar estado de leitura da conversa.");
+                }
+            }
+
+            clearLegacyAtendimentoStorage();
+            await loadConversations();
+            if (selectedIdRef.current) {
+                await loadMessages(selectedIdRef.current);
+            }
         }
-        window.addEventListener("storage", handleStorage);
-        return () => window.removeEventListener("storage", handleStorage);
-    }, []);
+
+        void migrateLegacyStorage().catch((error) => {
+            setSendError(error instanceof Error ? error.message : "Falha ao migrar dados locais do atendimento.");
+        });
+    }, [areCatalogsLoaded, areConversationsLoaded, chats, availableLabels, labelsByContact]);
 
     useEffect(() => {
         if (!selectedChat) {
@@ -3048,12 +2941,6 @@ export function AtendimentosWorkspace() {
                 setSendError(data?.message ?? "Falha ao iniciar atendimento");
                 return;
             }
-            markReopenedAsHandled(selectedChat);
-            addTimelineNotice(selectedChat.phone, {
-                kind: "start",
-                atRaw: new Date().toISOString(),
-                text: `${currentUserName || "Atendente"} assumiu o atendimento`,
-            });
             await loadConversations();
             await loadMessages(selectedChat.id);
         } finally {
@@ -3100,20 +2987,6 @@ export function AtendimentosWorkspace() {
                 const data = (await res.json().catch(() => null)) as { message?: string } | null;
                 setSendError(data?.message ?? "Falha ao transferir atendimento");
                 return;
-            }
-            if (transferMode === "conversation" && selectedChat) {
-                markReopenedAsHandled(selectedChat);
-                const targetTeamName = transferTeams.find((team) => team.id === selectedTransferTeamId)?.name ?? "outra equipe";
-                const targetUserName = selectedTransferUserId
-                    ? transferUsers.find((user) => user.id === selectedTransferUserId)?.fullName ?? "outro atendente"
-                    : "";
-                addTimelineNotice(selectedChat.phone, {
-                    kind: "transfer",
-                    atRaw: new Date().toISOString(),
-                    text: selectedTransferUserId
-                        ? `${currentUserName || "Atendente"} transferiu o atendimento para ${targetTeamName} / ${targetUserName}`
-                        : `${currentUserName || "Atendente"} transferiu o atendimento para a equipe ${targetTeamName}`,
-                });
             }
             setIsTransferOpen(false);
             const data = (await res.json().catch(() => null)) as { conversationId?: string } | null;

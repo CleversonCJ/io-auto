@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import {
     listAtendimentoClassificationCategories,
-    listCustomAtendimentoClassifications,
+    loadCustomAtendimentoClassifications,
     saveCustomAtendimentoClassifications,
     type AtendimentoClassificationCategoryId,
     type AtendimentoClassification,
@@ -20,10 +20,8 @@ import {
 import { AtendimentoClassificationCategoryIcon } from "@/modules/classificacoes/icons";
 import {
     getLabelTextColor,
-    listContactLabelAssignments,
-    listContactLabels,
+    loadContactLabels,
     normalizeHexColor,
-    saveContactLabelAssignments,
     saveContactLabels,
     type ContactLabel,
 } from "@/modules/etiquetas/storage";
@@ -421,9 +419,11 @@ export function AccessManagementPanel() {
             } catch {
                 setTeams([]);
             }
-            loadLabels();
-            loadCustomClassifications();
-            loadCrmStages();
+            await Promise.all([
+                loadLabels().catch(() => setContactLabels([])),
+                loadCustomClassifications().catch(() => setCustomClassifications([])),
+                loadCrmStages(),
+            ]);
             setLoading(false);
         }
         boot();
@@ -450,12 +450,12 @@ export function AccessManagementPanel() {
         setCompanies(data as Company[]);
     }
 
-    function loadLabels() {
-        setContactLabels(listContactLabels());
+    async function loadLabels() {
+        setContactLabels(await loadContactLabels());
     }
 
-    function loadCustomClassifications() {
-        setCustomClassifications(listCustomAtendimentoClassifications());
+    async function loadCustomClassifications() {
+        setCustomClassifications(await loadCustomAtendimentoClassifications());
     }
 
     async function loadCrmStages() {
@@ -576,7 +576,7 @@ export function AccessManagementPanel() {
         return Number.isFinite(parsed);
     }
 
-    function upsertLabel(action: "create" | "edit", current?: ContactLabel) {
+    async function upsertLabel(action: "create" | "edit", current?: ContactLabel) {
         setLabelModalMsg(null);
         if (!isLabelFormValid()) {
             setLabelModalMsg("Informe o título da etiqueta.");
@@ -594,30 +594,29 @@ export function AccessManagementPanel() {
         const next = action === "create"
             ? [...contactLabels, { id: `label_${Date.now()}`, title: cleanTitle, color: cleanColor, createdAt: now, updatedAt: now }]
             : contactLabels.map((item) => (item.id === current?.id ? { ...item, title: cleanTitle, color: cleanColor, updatedAt: now } : item));
-        saveContactLabels(next);
-        setContactLabels(next);
-        pushToast(action === "create" ? "Etiqueta criada com sucesso." : "Etiqueta atualizada com sucesso.", "success");
-        closeLabelModal();
-    }
-
-    function removeLabel(item: ContactLabel) {
-        const nextLabels = contactLabels.filter((label) => label.id !== item.id);
-        saveContactLabels(nextLabels);
-        setContactLabels(nextLabels);
-
-        const assignments = listContactLabelAssignments();
-        const nextAssignments: Record<string, string[]> = {};
-        for (const key of Object.keys(assignments)) {
-            const ids = (assignments[key] ?? []).filter((labelId) => labelId !== item.id);
-            if (ids.length) nextAssignments[key] = ids;
+        try {
+            const saved = await saveContactLabels(next);
+            setContactLabels(saved);
+            pushToast(action === "create" ? "Etiqueta criada com sucesso." : "Etiqueta atualizada com sucesso.", "success");
+            closeLabelModal();
+        } catch (error) {
+            setLabelModalMsg(error instanceof Error ? error.message : "Não foi possível salvar a etiqueta.");
         }
-        saveContactLabelAssignments(nextAssignments);
-
-        pushToast("Etiqueta excluída com sucesso.", "success");
-        closeLabelModal();
     }
 
-    function upsertClassification(action: "create" | "edit", current?: AtendimentoClassification) {
+    async function removeLabel(item: ContactLabel) {
+        const nextLabels = contactLabels.filter((label) => label.id !== item.id);
+        try {
+            const saved = await saveContactLabels(nextLabels);
+            setContactLabels(saved);
+            pushToast("Etiqueta excluída com sucesso.", "success");
+            closeLabelModal();
+        } catch (error) {
+            setLabelModalMsg(error instanceof Error ? error.message : "Não foi possível excluir a etiqueta.");
+        }
+    }
+
+    async function upsertClassification(action: "create" | "edit", current?: AtendimentoClassification) {
         setClassificationModalMsg(null);
         if (!isClassificationFormValid()) {
             setClassificationModalMsg(classificationFormHasValue ? "Informe um valor numérico válido." : "Informe o título da classificação.");
@@ -636,18 +635,26 @@ export function AccessManagementPanel() {
             ? [...customClassifications, { id: `classification_${Date.now()}`, title: cleanTitle, categoryId: classificationFormCategoryId, hasValue: classificationFormHasValue, value: normalizedValue, system: false, createdAt: now, updatedAt: now }]
             : customClassifications.map((item) => (item.id === current?.id ? { ...item, title: cleanTitle, categoryId: classificationFormCategoryId, hasValue: classificationFormHasValue, value: normalizedValue, updatedAt: now } : item));
 
-        saveCustomAtendimentoClassifications(next);
-        setCustomClassifications(next);
-        pushToast(action === "create" ? "Classificação criada com sucesso." : "Classificação atualizada com sucesso.", "success");
-        closeClassificationModal();
+        try {
+            const saved = await saveCustomAtendimentoClassifications(next);
+            setCustomClassifications(saved);
+            pushToast(action === "create" ? "Classificação criada com sucesso." : "Classificação atualizada com sucesso.", "success");
+            closeClassificationModal();
+        } catch (error) {
+            setClassificationModalMsg(error instanceof Error ? error.message : "Não foi possível salvar a classificação.");
+        }
     }
 
-    function removeClassification(item: AtendimentoClassification) {
+    async function removeClassification(item: AtendimentoClassification) {
         const next = customClassifications.filter((classification) => classification.id !== item.id);
-        saveCustomAtendimentoClassifications(next);
-        setCustomClassifications(next);
-        pushToast("Classificação excluída com sucesso.", "success");
-        closeClassificationModal();
+        try {
+            const saved = await saveCustomAtendimentoClassifications(next);
+            setCustomClassifications(saved);
+            pushToast("Classificação excluída com sucesso.", "success");
+            closeClassificationModal();
+        } catch (error) {
+            setClassificationModalMsg(error instanceof Error ? error.message : "Não foi possível excluir a classificação.");
+        }
     }
 
     async function hasEmailConflict(

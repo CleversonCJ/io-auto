@@ -12,8 +12,6 @@ import {
     mergeCrmStatePatchToApi,
     type CrmCustomField,
     type CrmCustomFieldType,
-    type CrmFollowUp,
-    type CrmFollowUpNotification,
     type CrmLeadFieldOrder,
     type CrmLeadCustomFieldValueMap,
     type CrmLeadStageMap,
@@ -23,8 +21,7 @@ import {
 import type { PublicCatalogLeadList } from "@/modules/ioauto/types";
 import {
     getLabelTextColor,
-    listContactLabelAssignments,
-    listContactLabels,
+    loadContactLabels,
     type ContactLabel,
 } from "@/modules/etiquetas/storage";
 import { subscribeRealtime } from "@/core/realtime/client";
@@ -42,6 +39,7 @@ type ApiConversation = {
     startedAt?: string | null;
     unreadCount?: number | null;
     lastMessageFromMe?: boolean | null;
+    labels?: Array<{ id: string; title: string; color?: string | null }> | null;
 };
 
 type AtendimentoUser = {
@@ -339,8 +337,6 @@ export function CrmKanban() {
     const [customFields, setCustomFields] = useState<CrmCustomField[]>([]);
     const [leadFieldOrder, setLeadFieldOrder] = useState<CrmLeadFieldOrder>([]);
     const [leadFieldValues, setLeadFieldValues] = useState<CrmLeadCustomFieldValueMap>({});
-    const [followUps, setFollowUps] = useState<CrmFollowUp[]>([]);
-    const [followUpNotifications, setFollowUpNotifications] = useState<CrmFollowUpNotification[]>([]);
     const [conversations, setConversations] = useState<ApiConversation[]>([]);
     const [publicCatalogLeads, setPublicCatalogLeads] = useState<PublicCatalogLead[]>([]);
     const [availableUsers, setAvailableUsers] = useState<AtendimentoUser[]>([]);
@@ -546,8 +542,6 @@ export function CrmKanban() {
         setCustomFields(next.customFields);
         setLeadFieldOrder(next.leadFieldOrder);
         setLeadFieldValues(next.leadFieldValues);
-        setFollowUps(next.followUps);
-        setFollowUpNotifications(next.followUpNotifications);
     }
 
     function persistCrmStatePatch(patch: Partial<CrmState>) {
@@ -569,7 +563,18 @@ export function CrmKanban() {
         const res = await fetch("/api/atendimentos/conversations", { cache: "no-store" });
         if (!res.ok) throw new Error("Falha ao carregar atendimentos.");
         const data = (await res.json().catch(() => [])) as ApiConversation[];
-        setConversations(Array.isArray(data) ? data : []);
+        const nextConversations = Array.isArray(data) ? data : [];
+        setConversations(nextConversations);
+        const nextLabelsByContact: Record<string, string[]> = {};
+        for (const conversation of nextConversations) {
+            const labelIds = (conversation.labels ?? [])
+                .map((label) => String(label.id ?? "").trim())
+                .filter(Boolean);
+            if (labelIds.length > 0) {
+                nextLabelsByContact[normalizePhone(conversation.phone)] = Array.from(new Set(labelIds));
+            }
+        }
+        setLabelsByContact(nextLabelsByContact);
     }
 
     async function refreshUsers() {
@@ -618,9 +623,14 @@ export function CrmKanban() {
             setLoading(true);
             setError(null);
             try {
-                await Promise.all([refreshConversations(), refreshCrmState(), refreshUsers(), refreshPublicCatalogLeads()]);
-                setAvailableLabels(listContactLabels());
-                setLabelsByContact(listContactLabelAssignments());
+                const [, , , , labels] = await Promise.all([
+                    refreshConversations(),
+                    refreshCrmState(),
+                    refreshUsers(),
+                    refreshPublicCatalogLeads(),
+                    loadContactLabels(),
+                ]);
+                setAvailableLabels(labels);
             } catch {
                 setError("Não foi possível carregar os dados do CRM.");
             } finally {

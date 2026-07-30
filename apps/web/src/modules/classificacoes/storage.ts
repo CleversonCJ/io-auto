@@ -25,8 +25,8 @@ export type ContactConclusion = {
 
 export type ContactConclusionMap = Record<string, ContactConclusion>;
 
-const CUSTOM_CLASSIFICATIONS_STORAGE_KEY = "io.atendimento.classifications.custom";
-const CONCLUSIONS_STORAGE_KEY = "io.atendimento.conclusions";
+const LEGACY_CUSTOM_CLASSIFICATIONS_STORAGE_KEY = "io.atendimento.classifications.custom";
+const LEGACY_CONCLUSIONS_STORAGE_KEY = "io.atendimento.conclusions";
 
 const CLASSIFICATION_CATEGORIES: AtendimentoClassificationCategory[] = [
     { id: "achieved", label: "Objetivo atingido" },
@@ -51,6 +51,14 @@ function safeJsonParse<T>(value: string | null, fallback: T): T {
     }
 }
 
+function resolveCategoryId(value: unknown): AtendimentoClassificationCategoryId {
+    const normalized = String(value ?? "").trim().toLowerCase();
+    if (normalized === "achieved" || normalized === "lost" || normalized === "questions" || normalized === "other") {
+        return normalized;
+    }
+    return "other";
+}
+
 function normalizeClassification(raw: Partial<AtendimentoClassification> | null | undefined): AtendimentoClassification | null {
     if (!raw) return null;
     const id = String(raw.id ?? "").trim();
@@ -66,18 +74,43 @@ function normalizeClassification(raw: Partial<AtendimentoClassification> | null 
         categoryId: resolveCategoryId(raw.categoryId),
         hasValue,
         value,
-        system: false,
+        system: Boolean(raw.system),
         createdAt: String(raw.createdAt ?? now),
         updatedAt: String(raw.updatedAt ?? now),
     };
 }
 
-function resolveCategoryId(value: unknown): AtendimentoClassificationCategoryId {
-    const normalized = String(value ?? "").trim().toLowerCase();
-    if (normalized === "achieved" || normalized === "lost" || normalized === "questions" || normalized === "other") {
-        return normalized;
+function normalizeClassifications(raw: Partial<AtendimentoClassification>[]) {
+    return raw
+        .map((item) => normalizeClassification(item))
+        .filter((item): item is AtendimentoClassification => Boolean(item))
+        .map((item) => ({ ...item, system: false }));
+}
+
+function readLegacyClassifications() {
+    if (typeof window === "undefined") return [];
+    const parsed = safeJsonParse<Partial<AtendimentoClassification>[]>(
+        window.localStorage.getItem(LEGACY_CUSTOM_CLASSIFICATIONS_STORAGE_KEY),
+        []
+    );
+    return normalizeClassifications(parsed);
+}
+
+function clearLegacyClassificationStorage() {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem(LEGACY_CUSTOM_CLASSIFICATIONS_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_CONCLUSIONS_STORAGE_KEY);
+}
+
+async function readClassificationsResponse(response: Response) {
+    const data = await response.json().catch(() => []);
+    if (!response.ok) {
+        const message = data && typeof data === "object" && !Array.isArray(data) && "message" in data
+            ? String((data as { message?: unknown }).message ?? "")
+            : "";
+        throw new Error(message || "Não foi possível carregar as classificações.");
     }
-    return "other";
+    return normalizeClassifications(Array.isArray(data) ? data : []);
 }
 
 export function listAtendimentoClassificationCategories() {
@@ -88,63 +121,46 @@ export function listDefaultAtendimentoClassifications() {
     return DEFAULT_CLASSIFICATIONS;
 }
 
-export function listCustomAtendimentoClassifications(): AtendimentoClassification[] {
-    if (typeof window === "undefined") return [];
-    const parsed = safeJsonParse<Partial<AtendimentoClassification>[]>(window.localStorage.getItem(CUSTOM_CLASSIFICATIONS_STORAGE_KEY), []);
-    return parsed
-        .map((item) => normalizeClassification(item))
-        .filter((item): item is AtendimentoClassification => Boolean(item));
-}
+export async function loadCustomAtendimentoClassifications(): Promise<AtendimentoClassification[]> {
+    const response = await fetch("/api/atendimentos/classifications", { cache: "no-store" });
+    const serverClassifications = await readClassificationsResponse(response);
+    const legacyClassifications = readLegacyClassifications();
 
-export function saveCustomAtendimentoClassifications(classifications: AtendimentoClassification[]) {
-    if (typeof window === "undefined") return;
-    const normalized = classifications
-        .map((item) => normalizeClassification(item))
-        .filter((item): item is AtendimentoClassification => Boolean(item));
-    window.localStorage.setItem(CUSTOM_CLASSIFICATIONS_STORAGE_KEY, JSON.stringify(normalized));
-}
-
-export function listAllAtendimentoClassifications(): AtendimentoClassification[] {
-    return [...listDefaultAtendimentoClassifications(), ...listCustomAtendimentoClassifications()];
-}
-
-export function listContactConclusions(): ContactConclusionMap {
-    if (typeof window === "undefined") return {};
-    const parsed = safeJsonParse<Record<string, unknown>>(window.localStorage.getItem(CONCLUSIONS_STORAGE_KEY), {});
-    const next: ContactConclusionMap = {};
-    for (const key of Object.keys(parsed)) {
-        const normalizedKey = key.trim();
-        if (!normalizedKey) continue;
-        const value = parsed[key] as Partial<ContactConclusion> | null | undefined;
-        if (!value) continue;
-        const ids = (value.classificationIds ?? [])
-            .map((item) => String(item ?? "").trim())
-            .filter(Boolean);
-        if (!ids.length) continue;
-        next[normalizedKey] = {
-            classificationIds: Array.from(new Set(ids)),
-            concludedAt: String(value.concludedAt ?? new Date().toISOString()),
-        };
+    if (serverClassifications.length === 0 && legacyClassifications.length > 0) {
+        const migrated = await saveCustomAtendimentoClassifications(legacyClassifications);
+        clearLegacyClassificationStorage();
+        return migrated;
     }
-    return next;
+
+    clearLegacyClassificationStorage();
+    return serverClassifications;
 }
 
-export function saveContactConclusions(map: ContactConclusionMap) {
-    if (typeof window === "undefined") return;
-    const next: ContactConclusionMap = {};
-    for (const key of Object.keys(map)) {
-        const normalizedKey = key.trim();
-        if (!normalizedKey) continue;
-        const value = map[key];
-        if (!value) continue;
-        const ids = (value.classificationIds ?? [])
-            .map((item) => String(item ?? "").trim())
-            .filter(Boolean);
-        if (!ids.length) continue;
-        next[normalizedKey] = {
-            classificationIds: Array.from(new Set(ids)),
-            concludedAt: String(value.concludedAt ?? new Date().toISOString()),
-        };
-    }
-    window.localStorage.setItem(CONCLUSIONS_STORAGE_KEY, JSON.stringify(next));
+export async function saveCustomAtendimentoClassifications(
+    classifications: AtendimentoClassification[]
+): Promise<AtendimentoClassification[]> {
+    const normalized = normalizeClassifications(classifications);
+    const response = await fetch("/api/atendimentos/classifications", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            items: normalized.map((item) => ({
+                id: item.id,
+                title: item.title,
+                categoryId: item.categoryId,
+                hasValue: item.hasValue,
+                value: item.value,
+                createdAt: item.createdAt,
+            })),
+        }),
+    });
+    const saved = await readClassificationsResponse(response);
+    clearLegacyClassificationStorage();
+    return saved;
+}
+
+export function listAllAtendimentoClassifications(
+    customClassifications: AtendimentoClassification[] = []
+): AtendimentoClassification[] {
+    return [...listDefaultAtendimentoClassifications(), ...customClassifications];
 }
