@@ -5,6 +5,7 @@ import { ArrowDownCircle, ArrowUpCircle, Wallet, TrendingUp, DollarSign, Target,
 import { formatMoney } from "@/modules/ioauto/formatters";
 import { useFinancialData } from "@/modules/financeiro/contexts/FinancialContext";
 import { FinancialFilterBar } from "./FinancialFilterBar";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 export function FinancialDashboard() {
     const { data, loading, error, filters } = useFinancialData();
@@ -39,7 +40,7 @@ export function FinancialDashboard() {
     }, [data, filters]);
 
     if (loading) {
-        return <div className="text-sm text-black/55">Carregando dashboard...</div>;
+        return <SystemPageLoader label="Carregando financeiro" description="Consolidando os indicadores do período..." />;
     }
 
     if (error) {

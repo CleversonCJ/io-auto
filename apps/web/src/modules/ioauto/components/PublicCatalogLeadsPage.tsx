@@ -32,6 +32,7 @@ import {
     type SaleClosingFinancialFormState,
 } from "@/modules/ioauto/saleClosingFinancial";
 import type { PublicCatalogLeadList, VehicleRecord } from "@/modules/ioauto/types";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 const PRESET_OPTIONS = [
     { value: "LAST_7_DAYS", label: "Últimos 7 dias" },
@@ -683,12 +684,12 @@ export function PublicCatalogLeadsPage() {
                 ) : null}
 
                 {loading ? (
-                    <div className="mt-6 grid min-h-[280px] place-items-center rounded-[28px] border border-dashed border-[#6b00e3]/12 bg-[#fcf9ff]">
-                        <div className="flex items-center gap-3 text-sm font-medium text-io-purple">
-                            <LoaderCircle className="h-5 w-5 animate-spin" />
-                            {"Carregando leads do catálogo..."}
-                        </div>
-                    </div>
+                    <SystemPageLoader
+                        compact
+                        label="Carregando leads"
+                        description="Atualizando contatos e responsáveis..."
+                        className="mt-6 rounded-[28px] border border-[#6b00e3]/12 bg-[#fcf9ff]"
+                    />
                 ) : filteredLeads.length ? (
                     <div className="mt-6 grid gap-4">
                         {filteredLeads.map((lead) => {

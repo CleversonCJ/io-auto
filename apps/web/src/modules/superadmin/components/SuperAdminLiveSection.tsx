@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { SuperAdminDashboardSection } from "@/modules/superadmin/components/SuperAdminDashboardSection";
 import { buildSuperAdminVisualSection, type CatalogLeadRow, type CustomerHealthRow, type SupportTicketSummary, type TenantSnapshot } from "@/modules/superadmin/components/SuperAdminLiveSectionVisual";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 export type SuperAdminLiveSectionKey =
     | "financeiro"
@@ -1140,7 +1141,14 @@ export function SuperAdminLiveSection({ section }: Props) {
                 {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
             </section>
 
-            {loading && !dashboardData ? <div className="rounded-2xl border border-black/10 bg-white p-8 text-center text-sm text-black/55">Carregando dados...</div> : null}
+            {loading && !dashboardData ? (
+                <SystemPageLoader
+                    compact
+                    label="Carregando indicadores"
+                    description="Consolidando os dados administrativos..."
+                    className="rounded-2xl border border-black/10 bg-white"
+                />
+            ) : null}
             {!loading && !error && !dashboardData ? <div className="rounded-2xl border border-black/10 bg-white p-8 text-center text-sm text-black/55">Sem dados para o período selecionado.</div> : null}
             {!error && dashboardData ? content : null}
         </div>

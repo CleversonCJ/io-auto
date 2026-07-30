@@ -6,6 +6,7 @@ import { BadgeCheck, CalendarClock, Camera, ExternalLink, Loader2, Mail, Receipt
 import { SubscriptionCenter } from "@/modules/ioauto/components/SubscriptionCenter";
 import type { BillingSnapshot } from "@/modules/ioauto/types";
 import { formatDateTime, formatMoney } from "@/modules/ioauto/formatters";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 type CurrentUser = {
     userId: string;
@@ -167,6 +168,7 @@ function exportAdjustedProfileImage(editor: ProfileImageEditorState) {
 export function ProfileCenter() {
     const [user, setUser] = useState<CurrentUser | null>(null);
     const [billing, setBilling] = useState<BillingSnapshot | null>(null);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [profileImageSaving, setProfileImageSaving] = useState(false);
     const [profileImageFeedback, setProfileImageFeedback] = useState<string | null>(null);
@@ -202,6 +204,9 @@ export function ProfileCenter() {
             .catch((cause: Error) => {
                 if (!active) return;
                 setError(cause.message);
+            })
+            .finally(() => {
+                if (active) setLoading(false);
             });
 
         return () => {
@@ -314,6 +319,10 @@ export function ProfileCenter() {
         } finally {
             setProfileImageSaving(false);
         }
+    }
+
+    if (loading) {
+        return <SystemPageLoader label="Carregando perfil" description="Preparando conta, permissões e assinatura..." />;
     }
 
     if (error) {

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { PublicCatalogSettings, PublicLinkRecord, VehicleRecord } from "@/modules/ioauto/types";
 import { formatDateTime } from "@/modules/ioauto/formatters";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 type MePayload = {
     companyId?: string;
@@ -442,12 +443,12 @@ export function PublicLinksManager() {
                 {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
 
                 {loading ? (
-                    <section className="flex min-h-[280px] items-center justify-center rounded-[34px] border border-black/10 bg-white shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
-                        <div className="flex items-center gap-3 text-black/45">
-                            <LoaderCircle className="h-5 w-5 animate-spin" />
-                            <span className="text-sm font-medium">Carregando os links...</span>
-                        </div>
-                    </section>
+                    <SystemPageLoader
+                        compact
+                        label="Carregando links"
+                        description="Preparando páginas, veículos e responsáveis..."
+                        className="rounded-[34px] border border-black/10 bg-white shadow-[0_18px_45px_rgba(0,0,0,0.06)]"
+                    />
                 ) : (
                     <div className="grid gap-6">
                         <section className="rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)] md:p-6">

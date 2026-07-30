@@ -165,17 +165,13 @@ public class AtendimentoSessionLifecycleService {
             return Map.of();
         }
 
-        List<JpaAtendimentoSessionEntity> rows = sessions.findAllByCompanyIdAndConversationIdInOrderByArrivedAtDescCreatedAtDesc(companyId, conversationIds);
         Map<UUID, JpaAtendimentoSessionEntity> latestByConversation = new LinkedHashMap<>();
         Map<UUID, JpaAtendimentoSessionEntity> latestCompletedByConversation = new LinkedHashMap<>();
-        for (JpaAtendimentoSessionEntity row : rows) {
-            latestByConversation.putIfAbsent(row.getConversationId(), row);
-            if (row.getCompletedAt() != null) {
-                JpaAtendimentoSessionEntity current = latestCompletedByConversation.get(row.getConversationId());
-                if (current == null || row.getCompletedAt().isAfter(current.getCompletedAt())) {
-                    latestCompletedByConversation.put(row.getConversationId(), row);
-                }
-            }
+        for (JpaAtendimentoSessionEntity row : sessions.findLatestByConversationIds(companyId, conversationIds)) {
+            latestByConversation.put(row.getConversationId(), row);
+        }
+        for (JpaAtendimentoSessionEntity row : sessions.findLatestCompletedByConversationIds(companyId, conversationIds)) {
+            latestCompletedByConversation.put(row.getConversationId(), row);
         }
 
         List<UUID> latestSessionIds = latestByConversation.values().stream()

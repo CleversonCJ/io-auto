@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import type { PartnerDetailResponse, PartnerMetricPoint } from "@/modules/superadmin/partnerProgramTypes";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 async function fetchJson<T>(url: string, fallbackMessage = "Falha ao carregar dados.") {
     const response = await fetch(url, { cache: "no-store" });
@@ -112,7 +113,7 @@ export function SuperAdminPartnerDetailPage({ partnerId }: { partnerId: string }
     }, [partnerId]);
 
     if (loading) {
-        return <div className="rounded-[30px] border border-black/10 bg-white p-8 text-center text-black/56">Carregando parceiro...</div>;
+        return <SystemPageLoader label="Carregando parceiro" description="Preparando o histórico e os resultados..." />;
     }
 
     if (!data) {

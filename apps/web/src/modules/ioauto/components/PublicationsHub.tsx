@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Layers3 } from "lucide-react";
 import type { PublicationRecord } from "@/modules/ioauto/types";
 import { formatDateTime, statusLabel } from "@/modules/ioauto/formatters";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 export function PublicationsHub() {
     const [publications, setPublications] = useState<PublicationRecord[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetch("/api/ioauto/publications", { cache: "no-store" })
@@ -22,7 +24,8 @@ export function PublicationsHub() {
                 setPublications(payload);
                 setError(null);
             })
-            .catch((cause: Error) => setError(cause.message));
+            .catch((cause: Error) => setError(cause.message))
+            .finally(() => setLoading(false));
     }, []);
 
     const grouped = useMemo(() => {
@@ -33,6 +36,10 @@ export function PublicationsHub() {
             return accumulator;
         }, {});
     }, [publications]);
+
+    if (loading) {
+        return <SystemPageLoader label="Carregando publicações" description="Atualizando o status dos anúncios..." />;
+    }
 
     if (error) {
         return <div className="rounded-[32px] border border-red-200 bg-red-50 px-6 py-5 text-sm text-red-700">{error}</div>;

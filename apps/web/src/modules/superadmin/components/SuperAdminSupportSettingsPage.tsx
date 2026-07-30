@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 type SupportSettingsPayload = {
     configured: boolean;
@@ -93,6 +94,10 @@ export function SuperAdminSupportSettingsPage() {
         }
     }
 
+    if (loading) {
+        return <SystemPageLoader label="Carregando configurações" description="Preparando os canais de suporte..." />;
+    }
+
     return (
         <div className="grid gap-6">
             <section className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
@@ -140,7 +145,6 @@ export function SuperAdminSupportSettingsPage() {
                         </button>
                         {feedback ? <p className="text-sm text-emerald-700">{feedback}</p> : null}
                         {error ? <p className="text-sm text-red-700">{error}</p> : null}
-                        {loading ? <p className="text-sm text-black/55">Carregando configurações...</p> : null}
                     </div>
                 </form>
             </section>

@@ -12,6 +12,7 @@ import type {
     SaveDreSubcategoryPayload,
 } from "@/modules/financeiro/types";
 import { FinancialFilterBar } from "./FinancialFilterBar";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 type DreTab = "report" | "categories";
 
@@ -325,7 +326,7 @@ export function FinancialDRE() {
     }
 
     if (loading) {
-        return <div className="text-sm text-black/55">Carregando DRE...</div>;
+        return <SystemPageLoader label="Carregando DRE" description="Calculando receitas, custos e resultados..." />;
     }
 
     if (error) {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Copy, Handshake, PencilLine, Plus, Save, Trophy } from "lucide-react";
 import type { PartnerDashboardResponse, PartnerDecimalMetricPoint, PartnerLeadRow, PartnerMetricPoint, PartnerRow, SuperAdminPlanOption } from "@/modules/superadmin/partnerProgramTypes";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 type PartnerFormState = {
     partnerId: string | null;
@@ -452,11 +453,7 @@ export function SuperAdminPartnersPage() {
     }
 
     if (loading) {
-        return (
-            <div className="rounded-[30px] border border-black/10 bg-white p-10 text-center text-black/56 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
-                Carregando módulo de parceiros...
-            </div>
-        );
+        return <SystemPageLoader label="Carregando parceiros" description="Consolidando parceiros, indicações e comissões..." />;
     }
 
     if (!dashboard) {

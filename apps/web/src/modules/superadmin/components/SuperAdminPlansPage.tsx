@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { BadgeCent, PencilLine, Plus, Trash2 } from "lucide-react";
 import { normalizeLandingCheckoutUrl } from "@/modules/superadmin/utils/normalizeLandingCheckoutUrl";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 type PlanFeatures = {
     catalogBioLink: boolean;
@@ -391,6 +392,10 @@ export function SuperAdminPlansPage() {
         } finally {
             setDeletingId(null);
         }
+    }
+
+    if (loading && rows.length === 0) {
+        return <SystemPageLoader label="Carregando planos" description="Preparando preços, limites e recursos..." />;
     }
 
     return (

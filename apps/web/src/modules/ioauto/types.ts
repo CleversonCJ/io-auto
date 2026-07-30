@@ -211,7 +211,6 @@ export type DashboardResponse = {
     inventoryValueCents: number;
     totalSalesCount: number;
     totalSalesRevenueCents: number;
-    billing: BillingSnapshot;
     periodFilter: {
         preset: string;
         from: string;

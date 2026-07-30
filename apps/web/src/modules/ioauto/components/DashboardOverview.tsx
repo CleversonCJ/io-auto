@@ -7,6 +7,7 @@ import HighchartsReact from "highcharts-react-official";
 import { BadgeDollarSign, Cable, CarFront, MessagesSquare, Stars, TrendingUp, DollarSign, Target, CalendarDays, Wallet } from "lucide-react";
 import type { DashboardResponse } from "@/modules/ioauto/types";
 import { formatDateTime, formatMoney, statusLabel } from "@/modules/ioauto/formatters";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 const statCards = [
     { key: "vehicleCount", label: "Veículos no catálogo", icon: <CarFront className="h-5 w-5" />, palette: "bg-indigo-100 text-indigo-700" },
@@ -270,6 +271,10 @@ export function DashboardOverview() {
             inventoryCents,
         };
     }, [data, preset, customFrom, customTo]);
+
+    if (loading && !data) {
+        return <SystemPageLoader label="Carregando visão geral" description="Consolidando estoque, leads e resultados..." />;
+    }
 
     if (error) {
         return <div className="rounded-[32px] border border-red-200 bg-red-50 px-6 py-5 text-sm text-red-700">{error}</div>;

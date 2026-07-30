@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CarFront, CheckCircle2, Globe2, LoaderCircle, MessageSquareText, PhoneCall } from "lucide-react";
 import type { ConversationMessage, ConversationRecord, VehicleRecord } from "@/modules/ioauto/types";
 import { formatDateTime, formatMoney, platformLabel, statusLabel } from "@/modules/ioauto/formatters";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 type TeamMember = {
     id: string;
@@ -47,6 +48,7 @@ export function ConversationInbox() {
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [messages, setMessages] = useState<ConversationMessage[]>([]);
+    const [pageLoading, setPageLoading] = useState(true);
     const [loadingMessages, setLoadingMessages] = useState(false);
     const [pageError, setPageError] = useState<string | null>(null);
     const [refreshTick, setRefreshTick] = useState(0);
@@ -68,6 +70,7 @@ export function ConversationInbox() {
 
     useEffect(() => {
         let active = true;
+        setPageLoading(true);
 
         Promise.all([
             fetch("/api/atendimentos/conversations", { cache: "no-store", credentials: "include" }),
@@ -104,6 +107,9 @@ export function ConversationInbox() {
             .catch((cause: Error) => {
                 if (!active) return;
                 setPageError(cause.message);
+            })
+            .finally(() => {
+                if (active) setPageLoading(false);
             });
 
         return () => {
@@ -212,6 +218,10 @@ export function ConversationInbox() {
         } finally {
             setSaleSubmitting(false);
         }
+    }
+
+    if (pageLoading && conversations.length === 0) {
+        return <SystemPageLoader label="Carregando conversas" description="Sincronizando leads, mensagens e responsáveis..." />;
     }
 
     return (

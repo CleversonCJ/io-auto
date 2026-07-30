@@ -33,6 +33,7 @@ import type {
     VehicleRecord,
 } from "@/modules/ioauto/types";
 import { formatDateTime, formatMoney, formatShortDate, platformLabel, statusLabel } from "@/modules/ioauto/formatters";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 import {
     buildSaleClosingFinancialPayload,
     computeSaleClosingFinancialPreview,
@@ -1326,7 +1327,12 @@ export function InventoryStudio() {
                 {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
 
                 {loading ? (
-                    <InventoryLoadingState />
+                    <SystemPageLoader
+                        compact
+                        label="Carregando estoque"
+                        description="Preparando veículos e publicações..."
+                        className="rounded-[34px] border border-black/10 bg-white shadow-[0_18px_45px_rgba(0,0,0,0.05)]"
+                    />
                 ) : visibleVehicles.length ? (
                     <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                         {visibleVehicles.map((vehicle) => (

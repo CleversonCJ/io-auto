@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 import {
     EMPTY_AI_AGENTS_STATE,
     disconnectGoogleOAuthFromApi,
@@ -842,7 +843,7 @@ export function AiAgentsStudio() {
     }
 
     if (loading) {
-        return <section className="rounded-2xl border border-black/10 bg-white p-5">Carregando módulo de Agentes IA...</section>;
+        return <SystemPageLoader label="Carregando Agentes IA" description="Preparando agentes, modelos e automações..." />;
     }
 
     return (

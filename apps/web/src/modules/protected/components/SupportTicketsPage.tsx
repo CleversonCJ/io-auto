@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { AlertCircle, CheckCircle2, Clock3, LifeBuoy, RefreshCcw, SendHorizontal } from "lucide-react";
 import { formatDateTime, statusLabel } from "@/modules/ioauto/formatters";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 type SupportTicketSummary = {
     ticketId: string;
@@ -267,6 +268,10 @@ export function SupportTicketsPage() {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }, [ticketDetail?.messages.length, selectedTicketId]);
+
+    if (ticketsLoading && tickets.length === 0) {
+        return <SystemPageLoader label="Carregando chamados" description="Buscando seu histórico de suporte..." />;
+    }
 
     return (
         <section className="grid gap-6">

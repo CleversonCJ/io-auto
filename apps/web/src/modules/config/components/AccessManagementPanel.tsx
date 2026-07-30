@@ -10,6 +10,7 @@ import {
     Pencil,
     Trash2,
 } from "lucide-react";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 import {
     listAtendimentoClassificationCategories,
     loadCustomAtendimentoClassifications,
@@ -369,7 +370,6 @@ export function AccessManagementPanel() {
     useEffect(() => {
         const initialView = searchParams?.get("view");
         if (initialView === "stages") {
-            loadCrmStages();
             setView("stages");
         }
     }, [searchParams]);
@@ -390,7 +390,14 @@ export function AccessManagementPanel() {
         async function boot() {
             setLoading(true);
             setToasts([]);
-            const [meRes, rolesRes] = await Promise.all([fetch("/api/auth/me"), fetch("/api/auth/roles")]);
+            const [meRes, rolesRes] = await Promise.all([
+                fetch("/api/auth/me"),
+                fetch("/api/auth/roles"),
+                loadTeams().catch(() => setTeams([])),
+                loadLabels().catch(() => setContactLabels([])),
+                loadCustomClassifications().catch(() => setCustomClassifications([])),
+                loadCrmStages(),
+            ]);
             if (!meRes.ok) {
                 pushToast("Falha ao carregar usuário", "error");
                 setLoading(false);
@@ -400,16 +407,6 @@ export function AccessManagementPanel() {
             const rolesData = rolesRes.ok ? ((await rolesRes.json()) as string[]) : ["ADMIN", "MANAGER", "AGENT"];
             setMe(meData);
             setRoles(rolesData);
-            try {
-                await loadTeams();
-            } catch {
-                setTeams([]);
-            }
-            await Promise.all([
-                loadLabels().catch(() => setContactLabels([])),
-                loadCustomClassifications().catch(() => setCustomClassifications([])),
-                loadCrmStages(),
-            ]);
             setLoading(false);
         }
         boot();
@@ -1178,7 +1175,7 @@ export function AccessManagementPanel() {
         closeModal();
     }
 
-    if (loading) return <section className="rounded-2xl border border-black/10 bg-white p-6 shadow-soft">Carregando...</section>;
+    if (loading) return <SystemPageLoader label="Carregando configurações" description="Preparando usuários, equipes e permissões..." />;
     if (!canManageUsers) return <section className="rounded-2xl border border-black/10 bg-white p-6 shadow-soft">Sem permissão.</section>;
 
     return (

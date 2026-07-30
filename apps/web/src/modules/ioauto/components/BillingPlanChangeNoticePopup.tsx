@@ -12,15 +12,18 @@ function adjustmentModeLabel(mode?: string | null) {
     return "Atualização do plano";
 }
 
-export function BillingPlanChangeNoticePopup() {
-    const [billing, setBilling] = useState<BillingSnapshot | null>(null);
-    const [loading, setLoading] = useState(true);
+export function BillingPlanChangeNoticePopup({ initialBilling = null }: { initialBilling?: BillingSnapshot | null }) {
+    const [billing, setBilling] = useState<BillingSnapshot | null>(initialBilling);
+    const [loading, setLoading] = useState(initialBilling == null);
     const [dismissing, setDismissing] = useState(false);
     const popupRef = useRef<HTMLDivElement | null>(null);
+    const billingLoadedRef = useRef(initialBilling != null);
+    const notice = billing?.planChangeNotice;
+    const requiresPayment = (notice?.requiresAction ?? false) || (notice?.immediateChargeCents ?? 0) > 0;
+    const canDismiss = !requiresPayment;
 
     useEffect(() => {
         let active = true;
-        let firstLoad = true;
 
         async function loadBillingSnapshot() {
             const response = await fetch("/api/ioauto/billing", { cache: "no-store" });
@@ -35,30 +38,37 @@ export function BillingPlanChangeNoticePopup() {
                 setBilling(payload);
             } catch {
                 if (!active) return;
-                if (firstLoad) {
+                if (initialBilling == null) {
                     setBilling(null);
                 }
             } finally {
-                if (!active || !firstLoad) return;
+                if (!active) return;
                 setLoading(false);
-                firstLoad = false;
             }
         }
 
-        void refresh();
-        const intervalId = window.setInterval(() => {
+        const shouldLoadInitialSnapshot = !billingLoadedRef.current;
+        if (shouldLoadInitialSnapshot) {
+            billingLoadedRef.current = true;
+        }
+
+        if (shouldLoadInitialSnapshot || (notice?.active && requiresPayment)) {
             void refresh();
-        }, 15000);
+        } else {
+            setLoading(false);
+        }
+
+        const intervalId = notice?.active && requiresPayment
+            ? window.setInterval(() => void refresh(), 15000)
+            : null;
 
         return () => {
             active = false;
-            window.clearInterval(intervalId);
+            if (intervalId != null) {
+                window.clearInterval(intervalId);
+            }
         };
-    }, []);
-
-    const notice = billing?.planChangeNotice;
-    const requiresPayment = (notice?.requiresAction ?? false) || (notice?.immediateChargeCents ?? 0) > 0;
-    const canDismiss = !requiresPayment;
+    }, [initialBilling, notice?.active, requiresPayment]);
 
     useEffect(() => {
         if (!notice?.active || !requiresPayment) return;

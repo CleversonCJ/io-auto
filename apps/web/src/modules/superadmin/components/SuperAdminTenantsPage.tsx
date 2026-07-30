@@ -7,6 +7,7 @@ import { SuperAdminCustomPlanCheckoutModal } from "@/modules/superadmin/componen
 import { SuperAdminSectionHeaderActions } from "@/modules/superadmin/components/SuperAdminSectionHeaderActions";
 import { SuperAdminTenantPlanChangeModal } from "@/modules/superadmin/components/SuperAdminTenantPlanChangeModal";
 import { SuperAdminTenantCreateModal } from "@/modules/superadmin/components/SuperAdminTenantCreateModal";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 type TenantRow = {
     tenantId: string;
@@ -330,6 +331,10 @@ export function SuperAdminTenantsPage() {
         setLogsTenant(null);
         setResetResult(null);
         setActionModal(null);
+    }
+
+    if (loading && rows.length === 0) {
+        return <SystemPageLoader label="Carregando empresas" description="Preparando tenants, planos e acessos..." />;
     }
 
     return (

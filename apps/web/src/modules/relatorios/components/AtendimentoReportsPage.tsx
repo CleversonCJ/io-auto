@@ -5,7 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Highcharts from "highcharts";
 import "highcharts/modules/heatmap";
 import "highcharts/highcharts-more";
-import { ArrowRightToLine, CircleHelp, Equal, Loader2, Minus, Plus, RefreshCcw, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { ArrowRightToLine, CircleHelp, Equal, Minus, Plus, RefreshCcw, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 const HighchartsReact = dynamic(() => import("highcharts-react-official"), { ssr: false });
 const REPORTS_AUTO_REFRESH_INTERVAL_MS = 15000;
@@ -433,7 +434,14 @@ export function AtendimentoReportsPage() {
                 <div className="mt-5 flex flex-wrap gap-2">{(["geral", "usuario", "resultados"] as TabKey[]).map((item) => <button key={item} type="button" onClick={() => setTab(item)} className={`h-11 rounded-full px-5 text-sm font-semibold transition ${tab === item ? "bg-io-purple text-white shadow-soft" : "border border-black/10 bg-white text-black/60 hover:bg-black/5"}`}>{item === "geral" ? "Geral" : item === "usuario" ? "Usuário" : "Resultados"}</button>)}</div>
             </div>
 
-            {loading ? <div className="grid place-items-center rounded-2xl border border-black/10 bg-white px-6 py-16 shadow-soft"><div className="flex items-center gap-3 text-sm text-black/60"><Loader2 className="h-5 w-5 animate-spin text-io-purple" strokeWidth={2} />Carregando relatórios...</div></div> : null}
+            {loading ? (
+                <SystemPageLoader
+                    compact
+                    label="Carregando relatórios"
+                    description="Calculando indicadores e comparativos..."
+                    className="rounded-2xl border border-black/10 bg-white shadow-soft"
+                />
+            ) : null}
             {!loading && error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-5 text-sm text-red-700 shadow-soft">{error}</div> : null}
 
             {!loading && !error && tab === "geral" && overview ? (

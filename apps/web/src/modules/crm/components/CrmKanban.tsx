@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ExternalLink, MessageCircleMore, Search, Trash2, X } from "lucide-react";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 import {
     CRM_VALUE_FIELD_ID,
     CRM_VALUE_FIELD_KEY,
@@ -913,13 +914,7 @@ export function CrmKanban() {
     }
 
     if (loading) {
-        return (
-            <section className="flex h-full w-full items-center justify-center bg-io-light p-6">
-                <div className="rounded-[28px] border border-black/10 bg-white px-6 py-4 text-sm font-medium text-black/60 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
-                    Carregando CRM...
-                </div>
-            </section>
-        );
+        return <SystemPageLoader label="Carregando CRM" description="Organizando etapas, leads e responsáveis..." />;
     }
 
     if (error) {
@@ -952,7 +947,7 @@ export function CrmKanban() {
     }
 
     return (
-        <section className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden bg-io-light pt-4 md:pt-6">
+        <section className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden bg-io-light pt-4 md:h-[calc(100dvh-3rem)] md:pt-6">
             <div className="mb-4 w-full max-w-full shrink-0 px-4 md:px-6">
                 <div className="min-w-0 overflow-hidden rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)] md:p-6">
                     {/* Linha superior: busca, filtros e botões */}

@@ -8,6 +8,7 @@ import { OlxSetupCard } from "@/modules/ioauto/components/OlxSetupCard";
 import { WebmotorsSetupCard } from "@/modules/ioauto/components/WebmotorsSetupCard";
 import type { IntegrationRecord } from "@/modules/ioauto/types";
 import { formatDateTime, statusLabel } from "@/modules/ioauto/formatters";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 type IntegrationDraft = {
     displayName: string;
@@ -410,9 +411,12 @@ export function IntegrationCenter() {
                 {notice ? <p className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</p> : null}
 
                 {loading ? (
-                    <div className="mt-6 flex min-h-[200px] items-center justify-center rounded-[30px] border border-black/8 bg-[#fafafa]">
-                        <LoaderCircle className="h-6 w-6 animate-spin text-io-purple" />
-                    </div>
+                    <SystemPageLoader
+                        compact
+                        label="Carregando integrações"
+                        description="Verificando conexões e configurações..."
+                        className="mt-6 rounded-[30px] border border-black/8 bg-[#fafafa]"
+                    />
                 ) : visibleIntegrations.length ? (
                     <div className="mt-6 grid gap-6">
                         {visibleIntegrations.map((integration) => {

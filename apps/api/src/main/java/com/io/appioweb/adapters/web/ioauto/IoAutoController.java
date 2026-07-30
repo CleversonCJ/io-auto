@@ -227,7 +227,6 @@ public class IoAutoController {
         java.util.Set<UUID> supportedConversationIds = companyConversations.stream()
                 .map(JpaAtendimentoConversationEntity::getId)
                 .collect(java.util.stream.Collectors.toSet());
-        BillingSnapshot billing = billingService.getBillingSnapshot(companyId);
         List<JpaAtendimentoSessionEntity> periodLeadSessions = sessions.findAllByCompanyIdAndArrivedAtGreaterThanEqualAndArrivedAtLessThanOrderByArrivedAtAsc(
                 companyId,
                 periodSelection.fromAt(),
@@ -256,6 +255,11 @@ public class IoAutoController {
 
         long totalSalesCount = 0L;
         long totalSalesRevenueCents = 0L;
+        Map<UUID, Long> vehiclePriceById = companyVehicles.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        JpaIoAutoVehicleEntity::getId,
+                        vehicle -> vehicle.getPriceCents() == null ? 0L : vehicle.getPriceCents()
+                ));
         for (JpaAtendimentoSessionEntity session : periodSalesSessions) {
             totalSalesCount++;
             if (session.isSaleIsConsigned()) {
@@ -273,11 +277,7 @@ public class IoAutoController {
             }
 
             if (session.getSoldVehicleId() != null) {
-                Long fallbackPrice = companyVehicles.stream()
-                        .filter(v -> v.getId().equals(session.getSoldVehicleId()))
-                        .map(JpaIoAutoVehicleEntity::getPriceCents)
-                        .findFirst()
-                        .orElse(null);
+                Long fallbackPrice = vehiclePriceById.get(session.getSoldVehicleId());
                 if (fallbackPrice != null && fallbackPrice > 0) {
                     totalSalesRevenueCents += fallbackPrice;
                 }
@@ -297,7 +297,7 @@ public class IoAutoController {
         List<IoAutoDashboardHttpResponse.PeriodPoint> leadVsSales = buildLeadVsSalesSeries(periodSelection, periodLeadSessions, periodSalesSessions);
         List<IoAutoDashboardHttpResponse.SellerSalesSummary> salesBySeller = buildSalesBySeller(periodSalesSessions);
 
-        Map<UUID, List<JpaIoAutoVehiclePublicationEntity>> publicationsByVehicle = groupPublicationsByVehicle(companyId, companyVehicles);
+        Map<UUID, List<JpaIoAutoVehiclePublicationEntity>> publicationsByVehicle = groupPublicationsByVehicle(companyPublications);
 
         List<IoAutoDashboardHttpResponse.RecentVehicle> recentVehicles = companyVehicles.stream()
                 .limit(5)
@@ -332,7 +332,6 @@ public class IoAutoController {
                 inventoryValueCents,
                 totalSalesCount,
                 totalSalesRevenueCents,
-                billing,
                 new IoAutoDashboardHttpResponse.PeriodFilter(
                         periodSelection.preset(),
                         DATE_FORMATTER.format(periodSelection.fromDate()),
@@ -1329,8 +1328,14 @@ public class IoAutoController {
             return Map.of();
         }
 
+        return groupPublicationsByVehicle(publications.findAllByCompanyIdAndVehicleIdIn(companyId, vehicleIds));
+    }
+
+    private Map<UUID, List<JpaIoAutoVehiclePublicationEntity>> groupPublicationsByVehicle(
+            List<JpaIoAutoVehiclePublicationEntity> companyPublications
+    ) {
         Map<UUID, List<JpaIoAutoVehiclePublicationEntity>> grouped = new LinkedHashMap<>();
-        for (JpaIoAutoVehiclePublicationEntity publication : publications.findAllByCompanyIdAndVehicleIdIn(companyId, vehicleIds)) {
+        for (JpaIoAutoVehiclePublicationEntity publication : companyPublications) {
             grouped.computeIfAbsent(publication.getVehicleId(), ignored -> new ArrayList<>()).add(publication);
         }
         return grouped;
@@ -2392,7 +2397,6 @@ public class IoAutoController {
             long inventoryValueCents,
             long totalSalesCount,
             long totalSalesRevenueCents,
-            BillingSnapshot billing,
             PeriodFilter periodFilter,
             List<PeriodPoint> leadVsSales,
             List<SellerSalesSummary> salesBySeller,

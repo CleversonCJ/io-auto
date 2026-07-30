@@ -14,7 +14,6 @@ import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoClassificati
 import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoMessageRepositoryJpa;
 import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoConversationEntity;
 import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoConversationEventEntity;
-import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoConversationReadStateEntity;
 import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoMessageEntity;
 import com.io.appioweb.adapters.web.aiagents.AiAgentOrchestrationService;
 import com.io.appioweb.adapters.web.aiagents.kanban.KanbanMoveDecisionService;
@@ -234,25 +233,20 @@ public class AtendimentosController {
 
         var conversationIds = deduped.stream().map(JpaAtendimentoConversationEntity::getId).toList();
         Map<UUID, JpaAtendimentoMessageEntity> lastMessageByConversationId = new LinkedHashMap<>();
-        Map<UUID, List<JpaAtendimentoMessageEntity>> messagesByConversationId = new LinkedHashMap<>();
-        Map<UUID, JpaAtendimentoConversationReadStateEntity> readStateByConversationId = new LinkedHashMap<>();
+        Map<UUID, Long> unreadByConversationId = new LinkedHashMap<>();
         Map<UUID, AtendimentoSessionLifecycleService.ConversationSessionSummary> sessionSummaryByConversationId =
                 sessionLifecycleService.summarizeLatestSessions(companyId, conversationIds);
         if (!conversationIds.isEmpty()) {
-            var conversationMessages = messages.findAllByConversationIdInAndCompanyIdOrderByCreatedAtAsc(conversationIds, companyId);
-            for (JpaAtendimentoMessageEntity message : conversationMessages) {
-                lastMessageByConversationId.put(message.getConversationId(), message);
-                messagesByConversationId
-                        .computeIfAbsent(message.getConversationId(), ignored -> new java.util.ArrayList<>())
-                        .add(message);
+            for (JpaAtendimentoMessageEntity message : messages.findLatestByConversationIds(companyId, conversationIds)) {
+                lastMessageByConversationId.merge(
+                        message.getConversationId(),
+                        message,
+                        (current, candidate) -> candidate.getId().compareTo(current.getId()) > 0 ? candidate : current
+                );
             }
-            for (JpaAtendimentoConversationReadStateEntity state :
-                    conversationReadStates.findAllByCompanyIdAndUserIdAndConversationIdIn(
-                            companyId,
-                            currentUser.userId(),
-                            conversationIds
-                    )) {
-                readStateByConversationId.put(state.getConversationId(), state);
+            for (AtendimentoMessageRepositoryJpa.ConversationUnreadCount unread :
+                    messages.countUnreadByConversationIds(companyId, currentUser.userId(), conversationIds)) {
+                unreadByConversationId.put(unread.getConversationId(), unread.getUnreadCount());
             }
         }
 
@@ -289,10 +283,7 @@ public class AtendimentosController {
                                     ? normalizePersistedMessageType(lastMessage.getMessageType(), c.getLastMessageText())
                                     : null,
                             lastMessage != null ? lastMessage.getId() : null,
-                            countUnreadMessages(
-                                    messagesByConversationId.getOrDefault(c.getId(), List.of()),
-                                    readStateByConversationId.get(c.getId())
-                            ),
+                            unreadByConversationId.getOrDefault(c.getId(), 0L),
                             session != null ? session.sessionId() : null,
                             session != null ? session.arrivedAt() : null,
                             session != null ? session.firstResponseAt() : null,
@@ -2014,37 +2005,6 @@ public class AtendimentosController {
         String lid = normalizeLid(conversation.getContactLid());
         if (lid != null) return "lid:" + lid;
         return "phone:" + canonicalPhone(conversation.getPhone());
-    }
-
-    private long countUnreadMessages(
-            List<JpaAtendimentoMessageEntity> conversationMessages,
-            JpaAtendimentoConversationReadStateEntity readState
-    ) {
-        if (conversationMessages.isEmpty()) return 0;
-        UUID lastReadMessageId = readState == null ? null : readState.getLastReadMessageId();
-        Instant lastReadAt = readState == null ? null : readState.getLastReadAt();
-        boolean foundLastReadMessage = lastReadMessageId == null;
-        long unread = 0;
-
-        for (JpaAtendimentoMessageEntity message : conversationMessages) {
-            if (!foundLastReadMessage) {
-                if (lastReadMessageId.equals(message.getId())) {
-                    foundLastReadMessage = true;
-                }
-                continue;
-            }
-            if (lastReadMessageId != null && lastReadMessageId.equals(message.getId())) continue;
-            if (lastReadMessageId == null && lastReadAt != null && !message.getCreatedAt().isAfter(lastReadAt)) continue;
-            if (!message.isFromMe()) unread++;
-        }
-
-        if (lastReadMessageId != null && !foundLastReadMessage) {
-            return conversationMessages.stream()
-                    .filter(message -> lastReadAt == null || message.getCreatedAt().isAfter(lastReadAt))
-                    .filter(message -> !message.isFromMe())
-                    .count();
-        }
-        return unread;
     }
 
     private void recordConversationEvent(

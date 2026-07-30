@@ -12,6 +12,12 @@ type DebugContext = {
 type RefreshAccessResult =
     | { status: "refreshed"; accessToken: string }
     | { status: "expired" | "unavailable"; accessToken: null };
+type RefreshTokenRequestResult =
+    | { status: "refreshed"; accessToken: string; refreshToken: string }
+    | { status: "expired" | "unavailable"; accessToken: null; refreshToken: null };
+
+const REFRESH_REUSE_WINDOW_MS = 10_000;
+const refreshRequests = new Map<string, Promise<RefreshTokenRequestResult>>();
 
 function previewToken(token?: string | null) {
     if (!token) return null;
@@ -45,6 +51,53 @@ async function getAccessToken() {
     return (await cookies()).get(ACCESS_COOKIE)?.value;
 }
 
+function requestRefreshedTokens(apiBase: string, refreshToken: string) {
+    const pending = refreshRequests.get(refreshToken);
+    if (pending) return pending;
+
+    const request = (async (): Promise<RefreshTokenRequestResult> => {
+        try {
+            const refreshResponse = await fetchUpstream(`${apiBase}/auth/refresh`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ refreshToken }),
+                cache: "no-store",
+            });
+
+            if (!refreshResponse.ok) {
+                return {
+                    status: [400, 401, 403].includes(refreshResponse.status) ? "expired" : "unavailable",
+                    accessToken: null,
+                    refreshToken: null,
+                };
+            }
+
+            const data = await readJsonSafely<{ accessToken: string; refreshToken: string }>(refreshResponse);
+            if (!data?.accessToken || !data.refreshToken) {
+                return { status: "unavailable", accessToken: null, refreshToken: null };
+            }
+
+            return {
+                status: "refreshed",
+                accessToken: data.accessToken,
+                refreshToken: data.refreshToken,
+            };
+        } catch {
+            return { status: "unavailable", accessToken: null, refreshToken: null };
+        }
+    })();
+
+    refreshRequests.set(refreshToken, request);
+    void request.finally(() => {
+        setTimeout(() => {
+            if (refreshRequests.get(refreshToken) === request) {
+                refreshRequests.delete(refreshToken);
+            }
+        }, REFRESH_REUSE_WINDOW_MS);
+    });
+    return request;
+}
+
 async function refreshAccessToken(apiBase: string): Promise<RefreshAccessResult> {
     const store = await cookies();
     const refresh = store.get(REFRESH_COOKIE)?.value;
@@ -53,28 +106,17 @@ async function refreshAccessToken(apiBase: string): Promise<RefreshAccessResult>
         return { status: "expired", accessToken: null };
     }
 
-    const refreshResponse = await fetchUpstream(`${apiBase}/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken: refresh }),
-        cache: "no-store",
-    });
-
-    if (!refreshResponse.ok) {
-        if ([400, 401, 403].includes(refreshResponse.status)) {
-            await clearAuthCookies();
-            return { status: "expired", accessToken: null };
-        }
-        return { status: "unavailable", accessToken: null };
+    const result = await requestRefreshedTokens(apiBase, refresh);
+    if (result.status === "refreshed") {
+        // Every concurrent route response writes the same rotated pair to the
+        // browser, even though only one request reached the auth service.
+        await setAuthCookies(result.accessToken, result.refreshToken);
+        return { status: "refreshed", accessToken: result.accessToken };
     }
-
-    const data = await readJsonSafely<{ accessToken: string; refreshToken: string }>(refreshResponse);
-    if (!data?.accessToken || !data.refreshToken) {
-        return { status: "unavailable", accessToken: null };
+    if (result.status === "expired") {
+        await clearAuthCookies();
     }
-
-    await setAuthCookies(data.accessToken, data.refreshToken);
-    return { status: "refreshed", accessToken: data.accessToken };
+    return { status: result.status, accessToken: null };
 }
 
 function refreshFailureResponse(result: Exclude<RefreshAccessResult, { status: "refreshed" }>) {

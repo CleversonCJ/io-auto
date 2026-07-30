@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 export type ToastType = "success" | "error" | "info";
 export type ToastMessage = {
@@ -289,9 +290,5 @@ export function ErrorState({
 }
 
 export function LoadingState({ label }: { label: string }) {
-    return (
-        <div className="rounded-2xl border border-black/10 bg-white p-6 text-sm text-black/60 shadow-soft">
-            {label}
-        </div>
-    );
+    return <SystemPageLoader label={label} compact className="rounded-2xl border border-black/10 bg-white shadow-soft" />;
 }

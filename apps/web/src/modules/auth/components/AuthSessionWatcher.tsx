@@ -210,7 +210,12 @@ export function AuthSessionWatcher() {
             window.location.replace("/login");
         };
 
-        void checkSession();
+        // The protected page and its data requests already validate the token.
+        // Defer the extra health check so it does not compete with the initial
+        // page load for a connection or trigger another simultaneous refresh.
+        const initialCheckTimeoutId = window.setTimeout(() => {
+            void checkSession();
+        }, 1_200);
 
         const intervalId = window.setInterval(() => {
             if (document.hidden) return;
@@ -231,6 +236,7 @@ export function AuthSessionWatcher() {
 
         return () => {
             window.fetch = originalFetch;
+            window.clearTimeout(initialCheckTimeoutId);
             window.clearInterval(intervalId);
             window.clearInterval(proactiveRefreshIntervalId);
             window.removeEventListener("focus", handleFocus);

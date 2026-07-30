@@ -7,6 +7,7 @@ import { useFinancialData } from "@/modules/financeiro/contexts/FinancialContext
 import { entryPrimaryLabel, entrySecondaryLabel, formatDate, statusLabel, statusTone } from "./financial-utils";
 import { FinancialTransactionModal } from "./FinancialTransactionModal";
 import type { FinancialEntryRecord } from "@/modules/financeiro/types";
+import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 function formatVehicleSaleNotes(notes: string): string {
     const moneyLabelMap: Array<{ sourceLabel: string; targetLabel: string }> = [
@@ -133,7 +134,7 @@ export function FinancialCashFlow() {
     }, [filteredEntries]);
 
     if (loading) {
-        return <div className="text-sm text-black/55">Carregando fluxo de caixa...</div>;
+        return <SystemPageLoader label="Carregando fluxo de caixa" description="Organizando recebimentos e pagamentos..." />;
     }
 
     if (error) {
