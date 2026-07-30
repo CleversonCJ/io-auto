@@ -416,11 +416,6 @@ export function PublicLinksManager() {
     return (
         <>
             <div className="grid gap-6">
-                <header>
-                    <h1 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">Gerenciamento de links</h1>
-                    <p className="mt-1.5 text-sm text-black/55">Centralize os links públicos do estoque e as campanhas com influenciadores ou divulgadores em um único lugar.</p>
-                </header>
-
                 <section className="overflow-hidden rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)] md:p-6">
                     <div className="flex w-full flex-col gap-3 xl:flex-row xl:items-center">
                         <label className="flex h-14 flex-1 items-center gap-3 rounded-full border border-black/10 bg-[#fafafa] px-5">

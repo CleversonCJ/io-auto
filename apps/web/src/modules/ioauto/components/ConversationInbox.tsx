@@ -218,11 +218,7 @@ export function ConversationInbox() {
         <>
             <div className="grid h-[calc(100vh-50px)] gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
                 <section className="flex h-full flex-col overflow-hidden rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
-                    <div className="flex items-center justify-between gap-3">
-                        <div>
-                            <h1 className="font-display text-2xl font-bold text-io-dark">Leads recebidos</h1>
-                            <p className="mt-1 text-sm text-black/55">Painel de acompanhamento com a origem do atendimento visível em cada lead.</p>
-                        </div>
+                    <div className="flex justify-end">
                         <button
                             type="button"
                             onClick={() => setRefreshTick((value) => value + 1)}

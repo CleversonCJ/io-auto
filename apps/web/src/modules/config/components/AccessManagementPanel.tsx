@@ -366,20 +366,6 @@ export function AccessManagementPanel() {
     const canManageUsers = isAdmin || isSuperAdmin;
     const roleOptions = useMemo(() => roles.filter((r) => isSuperAdmin || r.toUpperCase() !== "SUPERADMIN"), [roles, isSuperAdmin]);
     const classificationCategories = useMemo(() => listAtendimentoClassificationCategories(), []);
-    const pageTitle = view === "users"
-        ? "Gerenciar colaboradores"
-        : view === "teams"
-            ? "Gerenciar equipes"
-        : view === "companies"
-            ? "Gerenciar empresas"
-            : view === "labels"
-                ? "Gerenciar etiquetas"
-                : view === "classifications"
-                    ? "Gerenciar classificações de atendimento"
-                    : view === "stages"
-                        ? "Gerenciar etapas de atendimento"
-                : "Configurações";
-
     useEffect(() => {
         const initialView = searchParams?.get("view");
         if (initialView === "stages") {
@@ -1197,14 +1183,13 @@ export function AccessManagementPanel() {
 
     return (
         <section className="rounded-2xl border border-black/10 bg-white p-6 shadow-soft">
-            <div className="flex items-center justify-between gap-3">
-                <h1 className="text-2xl font-semibold text-io-dark">{pageTitle}</h1>
-                {view !== "home" && (
+            {view !== "home" && (
+                <div className="flex justify-end">
                     <button type="button" onClick={() => setView("home")} className="rounded-xl border px-3 py-2 text-sm">
                         Voltar
                     </button>
-                )}
-            </div>
+                </div>
+            )}
             {view === "home" && (
                 <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     <section className="rounded-2xl border border-black/10 bg-white p-5 shadow-soft">

@@ -395,11 +395,7 @@ export function SuperAdminPlansPage() {
 
     return (
         <div className="grid gap-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <h2 className="text-2xl font-bold text-io-dark">Planos</h2>
-                    <p className="mt-1 text-sm text-black/55">Listagem enxuta com nome, preços, limites, recursos e empresas vinculadas.</p>
-                </div>
+            <div className="flex justify-end">
                 <button
                     type="button"
                     onClick={openCreateModal}

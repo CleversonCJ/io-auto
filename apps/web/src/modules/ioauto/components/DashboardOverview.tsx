@@ -277,11 +277,6 @@ export function DashboardOverview() {
 
     return (
         <div className="grid gap-6">
-            <header>
-                <h1 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">Dashboard</h1>
-                <p className="mt-1.5 text-sm text-black/55">Visão geral do seu negócio — estoque, publicações, leads e desempenho de vendas.</p>
-            </header>
-
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 {statCards.map((item) => (
                     <article key={item.key} className="rounded-[28px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">

@@ -417,11 +417,6 @@ export function AtendimentoReportsPage() {
     }, [overview]);
     return (
         <section className="space-y-6">
-            <header>
-                <h1 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">Relatórios de Atendimentos</h1>
-                <p className="mt-1.5 text-sm text-black/55">Acompanhe backlog, tempos de atendimento, desempenho por usuário e distribuição de resultados usando dados reais persistidos no tenant atual.</p>
-            </header>
-
             <div className="rounded-[28px] border border-black/10 bg-white p-6 shadow-soft">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <p className="text-sm font-semibold text-black/55">Filtros do relatório</p>

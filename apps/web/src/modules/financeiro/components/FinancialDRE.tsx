@@ -335,20 +335,7 @@ export function FinancialDRE() {
     return (
         <div className="grid gap-6">
             <section className="rounded-[34px] border border-io-purple/10 bg-[linear-gradient(180deg,rgba(107,0,227,0.04),rgba(255,255,255,1))] p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="flex items-start gap-4">
-                        <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[22px] border border-io-purple/15 bg-io-purple/10 text-io-purple">
-                            <FileSpreadsheet className="h-6 w-6" />
-                        </span>
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-io-purple/70">Financeiro</p>
-                            <h2 className="mt-2 font-display text-3xl font-bold text-io-dark">DRE</h2>
-                            <p className="mt-2 max-w-3xl text-sm text-black/55">
-                                Demonstrativo do resultado do exercício com categorias e subcategorias vinculadas diretamente ao Fluxo de Caixa.
-                            </p>
-                        </div>
-                    </div>
-
+                <div>
                     <div className="grid gap-3 sm:grid-cols-3">
                         <MetricCard label="Receita líquida" value={formatMoney(data?.dre.netRevenueCents ?? 0)} icon={<TrendingUp className="h-4 w-4" />} />
                         <MetricCard label="Lucro bruto" value={formatMoney(data?.dre.grossProfitCents ?? 0)} icon={<Landmark className="h-4 w-4" />} />

@@ -40,11 +40,6 @@ export function PublicationsHub() {
 
     return (
         <div className="grid gap-6">
-            <header>
-                <h1 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">Fila de publicações</h1>
-                <p className="mt-1.5 text-sm text-black/55">Acompanhe em quais canais cada carro está pronto, publicado ou aguardando configuração.</p>
-            </header>
-
             <section className="rounded-[34px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                 <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-black/55">Status de cada publicação</p>

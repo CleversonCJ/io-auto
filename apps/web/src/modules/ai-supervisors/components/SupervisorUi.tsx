@@ -38,8 +38,6 @@ export function SupervisorBreadcrumbs({ items }: { items: BreadcrumbItem[] }) {
 }
 
 export function PageShell({
-    title,
-    description,
     actions,
     children,
 }: {
@@ -50,15 +48,7 @@ export function PageShell({
 }) {
     return (
         <section className="space-y-5">
-            <header className="rounded-2xl border border-black/10 bg-white px-5 py-5 shadow-soft">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                        <h1 className="text-2xl font-semibold text-io-dark">{title}</h1>
-                        {description ? <p className="mt-2 max-w-3xl text-sm text-black/60">{description}</p> : null}
-                    </div>
-                    {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
-                </div>
-            </header>
+            {actions ? <div className="flex flex-wrap justify-end gap-2">{actions}</div> : null}
             {children}
         </section>
     );

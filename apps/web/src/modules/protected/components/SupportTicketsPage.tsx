@@ -271,15 +271,7 @@ export function SupportTicketsPage() {
     return (
         <section className="grid gap-6">
             <div className="rounded-[28px] border border-black/10 bg-white p-6 shadow-sm">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="max-w-3xl">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">Suporte</p>
-                        <h1 className="mt-2 text-3xl font-black tracking-[-0.03em] text-io-dark">Chamados da empresa</h1>
-                        <p className="mt-3 text-sm leading-6 text-black/60">
-                            Acompanhe todos os chamados da sua empresa, veja o status atual e converse com o time de suporte em uma única tela.
-                        </p>
-                    </div>
-
+                <div className="flex justify-end">
                     <button
                         type="button"
                         onClick={() => void handleManualRefresh()}

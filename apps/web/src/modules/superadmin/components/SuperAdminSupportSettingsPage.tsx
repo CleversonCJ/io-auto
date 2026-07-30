@@ -96,15 +96,7 @@ export function SuperAdminSupportSettingsPage() {
     return (
         <div className="grid gap-6">
             <section className="rounded-[32px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
-                <div className="max-w-3xl">
-                    <p className="text-xs uppercase tracking-[0.18em] text-black/45">Suporte</p>
-                    <h1 className="mt-2 text-2xl font-black text-io-dark">WhatsApp exibido para contas bloqueadas</h1>
-                    <p className="mt-2 text-sm leading-6 text-black/60">
-                        Esse número será usado na tela de login quando uma empresa estiver bloqueada pelo superadmin.
-                    </p>
-                </div>
-
-                <form onSubmit={handleSubmit} className="mt-6 grid gap-5">
+                <form onSubmit={handleSubmit} className="grid gap-5">
                     <label className="grid gap-2 text-sm font-medium text-io-dark">
                         Número do WhatsApp de suporte
                         <input

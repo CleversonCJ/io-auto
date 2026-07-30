@@ -352,11 +352,6 @@ export function IntegrationCenter() {
 
     return (
         <div className="grid gap-6">
-            <header>
-                <h1 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">Integrações</h1>
-                <p className="mt-1.5 text-sm text-black/55">Conecte marketplaces, acompanhe status da conta e gerencie a distribuição do estoque em um único lugar.</p>
-            </header>
-
             <section className="rounded-[34px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)] md:p-8">
                 <div className="flex items-center gap-2">
                     <div className="h-2 w-2 rounded-full bg-io-purple animate-pulse" />

@@ -336,11 +336,7 @@ export function ProfileCenter() {
                         )}
 
                         <div>
-                            <h1 className="mt-2 font-display text-4xl font-bold text-io-dark">
-                                {user?.fullName ?? "Carregando perfil"}
-                            </h1>
-                            <p className="mt-2 text-sm text-black/55">{user?.email ?? "Sem e-mail disponível"}</p>
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                                 <button
                                     type="button"
                                     onClick={() => avatarInputRef.current?.click()}

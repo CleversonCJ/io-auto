@@ -16,13 +16,7 @@ export function SuperAdminOverview() {
             <section className="overflow-hidden rounded-[36px] border border-black/10 bg-[radial-gradient(circle_at_top_left,_rgba(107,0,227,0.18),_transparent_38%),linear-gradient(135deg,#111827,#1f2937_55%,#4c1d95)] p-7 text-white shadow-[0_24px_60px_rgba(17,24,39,0.24)]">
                 <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
                     <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.26em] text-white/55">IO Auto superadmin</p>
-                        <h1 className="mt-3 font-display text-[2.15rem] font-bold leading-tight">Visão geral para operar receita, base, produto e crescimento.</h1>
-                        <p className="mt-3 max-w-2xl text-sm text-white/72">
-                            Essa central foi desenhada para o time vendedor do sistema enxergar o negócio inteiro e agir rápido:
-                            MRR, risco de churn, valor de produto e saúde operacional no mesmo lugar.
-                        </p>
-                        <div className="mt-6 flex flex-wrap gap-3">
+                        <div className="flex flex-wrap gap-3">
                             <Link
                                 href="/protected/superadmin/financeiro"
                                 className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-io-dark transition hover:bg-white/90"

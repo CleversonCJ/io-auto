@@ -518,15 +518,6 @@ export function PublicCatalogLeadsPage() {
 
     return (
         <div className="grid gap-6">
-            <header>
-                <h1 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">
-                    {"Leads do catálogo"}
-                </h1>
-                <p className="mt-1.5 max-w-3xl text-sm text-black/55">
-                    {"Acompanhe quem preencheu o formulário do catálogo público, veja o veículo de interesse e filtre o resultado pelo período que fizer mais sentido para a operação."}
-                </p>
-            </header>
-
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <LeadMetricCard
                     label="Total de leads"

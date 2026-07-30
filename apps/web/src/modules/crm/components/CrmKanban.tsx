@@ -935,11 +935,7 @@ export function CrmKanban() {
     if (orderedStages.length === 0) {
         return (
             <section className="flex h-full w-full flex-col bg-io-light pt-4 md:pt-6">
-                <div className="px-4 md:px-6">
-                    <h1 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">Kanban de atendimentos</h1>
-                    <p className="mt-1.5 text-sm text-black/55">Estruture suas etapas comerciais e acompanhe os leads por coluna.</p>
-                </div>
-                <div className="mx-4 mt-4 grid flex-1 place-items-center rounded-[32px] border border-dashed border-black/15 bg-white p-8 text-center shadow-[0_18px_45px_rgba(15,23,42,0.04)] md:mx-6">
+                <div className="mx-4 grid flex-1 place-items-center rounded-[32px] border border-dashed border-black/15 bg-white p-8 text-center shadow-[0_18px_45px_rgba(15,23,42,0.04)] md:mx-6">
                     <div>
                         <p className="text-base font-semibold text-io-dark">Nenhuma etapa de atendimento cadastrada.</p>
                         <button
@@ -958,10 +954,6 @@ export function CrmKanban() {
     return (
         <section className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden bg-io-light pt-4 md:pt-6">
             <div className="mb-4 w-full max-w-full shrink-0 px-4 md:px-6">
-                <div className="mb-6">
-                    <h2 className="font-display text-[1.75rem] font-bold leading-tight text-io-dark">Kanban de atendimentos</h2>
-                    <p className="mt-1.5 text-sm text-black/55">Visualize seus atendimentos em tempo real, com etapas personalizáveis, filtros e movimentação dos leads entre colunas.</p>
-                </div>
                 <div className="min-w-0 overflow-hidden rounded-[34px] border border-black/10 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)] md:p-6">
                     {/* Linha superior: busca, filtros e botões */}
                     <div className="flex w-full min-w-0 flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
