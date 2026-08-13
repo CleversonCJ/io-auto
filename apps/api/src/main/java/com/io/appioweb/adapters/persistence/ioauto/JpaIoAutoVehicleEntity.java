@@ -107,6 +107,9 @@ public class JpaIoAutoVehicleEntity {
     @Column(name = "gallery_json", nullable = false, columnDefinition = "text")
     private String galleryJson = "[]";
 
+    @Column(name = "image_count", nullable = false)
+    private int imageCount;
+
     @Column(name = "optionals_json", nullable = false, columnDefinition = "text")
     private String optionalsJson = "[]";
 
@@ -414,6 +417,14 @@ public class JpaIoAutoVehicleEntity {
 
     public void setGalleryJson(String galleryJson) {
         this.galleryJson = galleryJson;
+    }
+
+    public int getImageCount() {
+        return imageCount;
+    }
+
+    public void setImageCount(int imageCount) {
+        this.imageCount = imageCount;
     }
 
     public String getOptionalsJson() {

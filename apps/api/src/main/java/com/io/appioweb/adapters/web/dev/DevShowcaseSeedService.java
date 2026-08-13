@@ -271,6 +271,7 @@ public class DevShowcaseSeedService {
             entity.setDescription(seed.description());
             entity.setCoverImageUrl(seed.coverImageUrl());
             entity.setGalleryJson(writeJson(List.of(seed.coverImageUrl(), seed.coverImageUrl() + "&variant=2")));
+            entity.setImageCount(2);
             entity.setOptionalsJson(writeJson(seed.optionals()));
             entity.setUpdatedAt(updatedAt);
             vehicles.save(entity);

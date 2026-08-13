@@ -545,6 +545,7 @@ export function InventoryStudio() {
     const [search, setSearch] = useState("");
     const [stockTab, setStockTab] = useState<"AVAILABLE" | "SOLD">("AVAILABLE");
     const [isEditorOpen, setIsEditorOpen] = useState(false);
+    const [editorDetailsLoaded, setEditorDetailsLoaded] = useState(true);
     const [uploadingImages, setUploadingImages] = useState(false);
     const [loadingVehicleId, setLoadingVehicleId] = useState<string | null>(null);
     const [isImageDragActive, setIsImageDragActive] = useState(false);
@@ -562,6 +563,7 @@ export function InventoryStudio() {
     const [saleSubmitting, setSaleSubmitting] = useState(false);
     const [saleMessage, setSaleMessage] = useState<string | null>(null);
     const imageInputRef = useRef<HTMLInputElement | null>(null);
+    const editorLoadRequestRef = useRef(0);
     const saleContextLoadedRef = useRef(false);
 
     const connectedIntegrations = useMemo(() => integrations.filter((integration) => isConnectedIntegrationStatus(integration.status)), [integrations]);
@@ -1008,7 +1010,9 @@ export function InventoryStudio() {
     }
 
     function openCreateEditor() {
+        editorLoadRequestRef.current += 1;
         setForm(emptyForm());
+        setEditorDetailsLoaded(true);
         setError(null);
         setUploadingImages(false);
         setDeletingVehicle(false);
@@ -1020,8 +1024,18 @@ export function InventoryStudio() {
 
     async function openEditEditor(vehicle: VehicleRecord) {
         if (loadingVehicleId) return;
+        const requestId = editorLoadRequestRef.current + 1;
+        editorLoadRequestRef.current = requestId;
         setLoadingVehicleId(vehicle.id);
         setError(null);
+        setForm(vehicleToForm(vehicle));
+        setEditorDetailsLoaded(false);
+        setUploadingImages(false);
+        setDeletingVehicle(false);
+        setIsImageDragActive(false);
+        setDraggedImageUrl(null);
+        setDragOverImageUrl(null);
+        setIsEditorOpen(true);
         try {
             const response = await fetch(`/api/ioauto/vehicles/${encodeURIComponent(vehicle.id)}`, { cache: "no-store" });
             if (!response.ok) {
@@ -1029,22 +1043,28 @@ export function InventoryStudio() {
                 throw new Error(payload.message ?? "Falha ao carregar o veículo.");
             }
             const fullVehicle = await response.json() as VehicleRecord;
+            if (editorLoadRequestRef.current !== requestId) return;
             setForm(vehicleToForm(fullVehicle));
-            setUploadingImages(false);
-            setDeletingVehicle(false);
-            setIsImageDragActive(false);
-            setDraggedImageUrl(null);
-            setDragOverImageUrl(null);
-            setIsEditorOpen(true);
+            setEditorDetailsLoaded(true);
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Falha ao carregar o veículo.");
+            if (editorLoadRequestRef.current === requestId) {
+                setIsEditorOpen(false);
+                setEditorDetailsLoaded(true);
+                setForm(emptyForm());
+                setError(cause instanceof Error ? cause.message : "Falha ao carregar o veículo.");
+            }
         } finally {
-            setLoadingVehicleId(null);
+            if (editorLoadRequestRef.current === requestId) {
+                setLoadingVehicleId(null);
+            }
         }
     }
 
     function closeEditor() {
+        editorLoadRequestRef.current += 1;
         setIsEditorOpen(false);
+        setEditorDetailsLoaded(true);
+        setLoadingVehicleId(null);
         setError(null);
         setUploadingImages(false);
         setDeletingVehicle(false);
@@ -1056,7 +1076,7 @@ export function InventoryStudio() {
 
     async function handleDeleteVehicle() {
         const vehicleId = form.id;
-        if (!vehicleId || deletingVehicle || saving) return;
+        if (!vehicleId || !editorDetailsLoaded || deletingVehicle || saving) return;
 
         const confirmed = window.confirm(
             `Excluir "${form.title || "este veículo"}" do estoque? O veículo sairá das listagens e os anúncios integrados serão retirados.`,
@@ -1284,6 +1304,10 @@ export function InventoryStudio() {
 
     async function handleSaveVehicle(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        if (form.id && !editorDetailsLoaded) {
+            setError("Aguarde o carregamento das informações do veículo.");
+            return;
+        }
         setSaving(true);
         setError(null);
 
@@ -1483,9 +1507,15 @@ export function InventoryStudio() {
                             </div>
 
                             <form onSubmit={handleSaveVehicle} className="flex min-h-0 flex-1 flex-col">
+                                {!editorDetailsLoaded && form.id ? (
+                                    <div className="mx-6 mt-5 flex items-center gap-2 rounded-2xl bg-[#eef4ff] px-4 py-3 text-sm font-medium text-[#2b57d9] md:mx-8">
+                                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                                        Carregando informações complementares e imagens...
+                                    </div>
+                                ) : null}
                                 {error ? <p className="mx-6 mt-5 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700 md:mx-8">{error}</p> : null}
 
-                                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 md:px-8">
+                                <div className={`min-h-0 flex-1 overflow-y-auto px-6 py-6 transition md:px-8 ${!editorDetailsLoaded ? "pointer-events-none opacity-60" : ""}`}>
                                     <div className="grid gap-6">
                                         <section className="rounded-[30px] border border-black/10 bg-white p-5">
                                             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
@@ -1769,7 +1799,7 @@ export function InventoryStudio() {
                                                                     : "border-black/10"
                                                             } ${draggedImageUrl === imageUrl ? "cursor-grabbing opacity-80" : "cursor-grab"}`}
                                                         >
-                                                            <img src={imageUrl} alt={`Imagem ${index + 1}`} className="h-40 w-full object-cover" />
+                                                            <img src={imageUrl} alt={`Imagem ${index + 1}`} loading="lazy" decoding="async" className="h-40 w-full object-cover" />
                                                             <div className="flex items-center justify-between gap-2 px-3 py-3">
                                                                 <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-black/40">
                                                                     <GripVertical className="h-4 w-4" />
@@ -1832,7 +1862,7 @@ export function InventoryStudio() {
                                             <button
                                                 type="button"
                                                 onClick={() => void handleDeleteVehicle()}
-                                                disabled={deletingVehicle || saving || uploadingImages}
+                                                disabled={!editorDetailsLoaded || deletingVehicle || saving || uploadingImages}
                                                 className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-red-200 bg-red-50 px-5 text-sm font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                                             >
                                                 {deletingVehicle ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
@@ -1851,7 +1881,7 @@ export function InventoryStudio() {
                                         </button>
                                         <button
                                             type="submit"
-                                            disabled={saving || deletingVehicle || uploadingImages}
+                                            disabled={!editorDetailsLoaded || saving || deletingVehicle || uploadingImages}
                                             className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-io-purple px-5 text-sm font-semibold text-white transition hover:bg-[#212121] disabled:cursor-not-allowed disabled:bg-black/30"
                                         >
                                             {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

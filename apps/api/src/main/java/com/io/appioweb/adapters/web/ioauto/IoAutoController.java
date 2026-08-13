@@ -419,9 +419,9 @@ public class IoAutoController {
     @GetMapping("/ioauto/vehicles/{vehicleId}")
     public ResponseEntity<IoAutoVehicleHttpResponse> getVehicle(@PathVariable UUID vehicleId) {
         UUID companyId = currentUser.companyId();
-        JpaIoAutoVehicleEntity vehicle = vehicles.findByIdAndCompanyId(vehicleId, companyId)
+        IoAutoVehicleRepositoryJpa.VehicleEditDetails vehicle = vehicles.findEditDetailsByIdAndCompanyId(vehicleId, companyId)
                 .orElseThrow(() -> new BusinessException("VEHICLE_NOT_FOUND", "Veículo não encontrado."));
-        return ResponseEntity.ok(toVehicleResponse(
+        return ResponseEntity.ok(toVehicleEditResponse(
                 vehicle,
                 publications.findAllByCompanyIdAndVehicleId(companyId, vehicleId),
                 integrations.findAllByCompanyIdOrderByDisplayNameAsc(companyId).stream()
@@ -433,6 +433,19 @@ public class IoAutoController {
                                 LinkedHashMap::new
                         ))
         ));
+    }
+
+    @GetMapping("/ioauto/vehicles/{vehicleId}/images/{imageIndex}")
+    public ResponseEntity<?> getVehicleImage(
+            @PathVariable UUID vehicleId,
+            @PathVariable int imageIndex
+    ) {
+        if (imageIndex < 0) {
+            return ResponseEntity.notFound().build();
+        }
+        UUID companyId = currentUser.companyId();
+        String source = vehicles.findImageByIdAndCompanyIdAndIndex(vehicleId, companyId, imageIndex).orElse(null);
+        return privateVehicleImageResponse(source);
     }
 
     @GetMapping("/ioauto/vehicles/{vehicleId}/cover-image")
@@ -1475,8 +1488,10 @@ public class IoAutoController {
         entity.setFeatured(Boolean.TRUE.equals(request.featured()));
         entity.setStatus(normalizeText(request.status(), "DRAFT"));
         entity.setDescription(normalizeNullableText(request.description()));
-        entity.setCoverImageUrl(normalizeNullableText(request.coverImageUrl()));
-        entity.setGalleryJson(writeStringArray(request.gallery()));
+        List<String> resolvedImages = resolveRequestedVehicleImages(entity, request.coverImageUrl(), request.gallery());
+        entity.setCoverImageUrl(resolvedImages.isEmpty() ? null : resolvedImages.get(0));
+        entity.setGalleryJson(writeStringArray(resolvedImages.size() <= 1 ? List.of() : resolvedImages.subList(1, resolvedImages.size())));
+        entity.setImageCount(resolvedImages.size());
         entity.setOptionalsJson(writeStringArray(request.optionals()));
         entity.setFinancingJson(writeVehicleFinancing(request.financing()));
         
@@ -1604,6 +1619,93 @@ public class IoAutoController {
                 publicationSummaries,
                 vehicle.getUpdatedAt()
         );
+    }
+
+    private IoAutoVehicleHttpResponse toVehicleEditResponse(
+            IoAutoVehicleRepositoryJpa.VehicleEditDetails vehicle,
+            List<JpaIoAutoVehiclePublicationEntity> vehiclePublications,
+            Map<String, JpaIoAutoIntegrationEntity> integrationsByKey
+    ) {
+        List<IoAutoVehicleHttpResponse.PublicationSummary> publicationSummaries =
+                toPublicationSummaries(vehiclePublications, integrationsByKey);
+        int imageCount = vehicle.getImageCount() == null ? 0 : Math.max(0, vehicle.getImageCount());
+        List<String> imageUrls = java.util.stream.IntStream.range(0, imageCount)
+                .mapToObj(index -> buildAuthenticatedVehicleImagePath(vehicle.getId(), index, vehicle.getUpdatedAt()))
+                .toList();
+
+        return new IoAutoVehicleHttpResponse(
+                vehicle.getId(),
+                normalizeNullableText(vehicle.getStockNumber()),
+                vehicle.getTitle(),
+                vehicle.getBrand(),
+                vehicle.getModel(),
+                normalizeNullableText(vehicle.getVersion()),
+                normalizeNullableText(vehicle.getEngine()),
+                vehicle.getYear(),
+                vehicle.getModelYear(),
+                vehicle.getManufactureYear(),
+                vehicle.getPriceCents(),
+                vehicle.getMileage(),
+                normalizeNullableText(vehicle.getTransmission()),
+                normalizeNullableText(vehicle.getFuelType()),
+                normalizeNullableText(vehicle.getBodyType()),
+                vehicle.getDoors(),
+                normalizeNullableText(vehicle.getColor()),
+                normalizeNullableText(vehicle.getPlateFinal()),
+                normalizeNullableText(vehicle.getPlate()),
+                normalizeNullableText(vehicle.getContactPhone()),
+                normalizeNullableText(vehicle.getZipcode()),
+                normalizeNullableText(vehicle.getCity()),
+                normalizeNullableText(vehicle.getState()),
+                vehicle.getConsigned(),
+                normalizeNullableText(vehicle.getConsignedOwnerName()),
+                vehicle.getConsignmentCommissionPercentage(),
+                vehicle.getFeatured(),
+                normalizeText(vehicle.getStatus(), "DRAFT"),
+                normalizeNullableText(vehicle.getDescription()),
+                imageUrls.isEmpty() ? null : imageUrls.get(0),
+                imageUrls.size() <= 1 ? List.of() : imageUrls.subList(1, imageUrls.size()),
+                readStringArray(vehicle.getOptionalsJson()),
+                readVehicleFinancing(vehicle.getFinancingJson()),
+                normalizeNullableText(vehicle.getMeliCategoryId()),
+                normalizeNullableText(vehicle.getMeliListingTypeId()),
+                normalizeNullableText(vehicle.getMeliCondition()),
+                publicationSummaries,
+                vehicle.getUpdatedAt()
+        );
+    }
+
+    private String buildAuthenticatedVehicleImagePath(UUID vehicleId, int imageIndex, Instant updatedAt) {
+        String version = updatedAt == null ? "0" : String.valueOf(updatedAt.toEpochMilli());
+        return "/api/ioauto/vehicles/" + vehicleId + "/images/" + imageIndex + "?v=" + version;
+    }
+
+    private ResponseEntity<?> privateVehicleImageResponse(String source) {
+        String normalized = normalizeNullableText(source);
+        if (normalized == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (normalized.startsWith("https://") || normalized.startsWith("http://")) {
+            try {
+                return ResponseEntity.status(302)
+                        .location(URI.create(normalized))
+                        .header(HttpHeaders.CACHE_CONTROL, "private, max-age=604800")
+                        .build();
+            } catch (IllegalArgumentException ignored) {
+                return ResponseEntity.notFound().build();
+            }
+        }
+
+        VehicleImageContent image = decodeVehicleImage(normalized);
+        if (image == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(image.contentType()))
+                .contentLength(image.bytes().length)
+                .header(HttpHeaders.CACHE_CONTROL, "private, max-age=604800, immutable")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(image.bytes());
     }
 
     private List<IoAutoVehicleHttpResponse.PublicationSummary> toPublicationSummaries(
@@ -1858,6 +1960,74 @@ public class IoAutoController {
                 .filter(this::isSupportedPublicCatalogBannerImage)
                 .forEach(images::add);
         return List.copyOf(images);
+    }
+
+    private List<String> resolveRequestedVehicleImages(
+            JpaIoAutoVehicleEntity vehicle,
+            String requestedCoverImage,
+            List<String> requestedGallery
+    ) {
+        List<String> persistedImages = resolveEditableVehicleImages(vehicle);
+        LinkedHashSet<String> resolvedImages = new LinkedHashSet<>();
+        List<String> requestedImages = new ArrayList<>();
+        requestedImages.add(requestedCoverImage);
+        if (requestedGallery != null) {
+            requestedImages.addAll(requestedGallery);
+        }
+
+        for (String requestedImage : requestedImages) {
+            String normalized = normalizeNullableText(requestedImage);
+            if (normalized == null) continue;
+            resolvedImages.add(resolvePersistedVehicleImageReference(vehicle.getId(), persistedImages, normalized));
+        }
+        return List.copyOf(resolvedImages);
+    }
+
+    private List<String> resolveEditableVehicleImages(JpaIoAutoVehicleEntity vehicle) {
+        List<String> images = new ArrayList<>();
+        String coverImage = normalizeNullableText(vehicle.getCoverImageUrl());
+        if (coverImage != null && isSupportedPublicCatalogBannerImage(coverImage)) {
+            images.add(coverImage);
+        }
+        readStringArray(vehicle.getGalleryJson()).stream()
+                .map(this::normalizeNullableText)
+                .filter(java.util.Objects::nonNull)
+                .filter(this::isSupportedPublicCatalogBannerImage)
+                .filter(image -> coverImage == null || !coverImage.equals(image))
+                .forEach(images::add);
+        return List.copyOf(images);
+    }
+
+    private String resolvePersistedVehicleImageReference(
+            UUID vehicleId,
+            List<String> persistedImages,
+            String requestedImage
+    ) {
+        String imagePrefix = "/api/ioauto/vehicles/" + vehicleId + "/images/";
+        String coverPath = "/api/ioauto/vehicles/" + vehicleId + "/cover-image";
+        if (requestedImage.startsWith(coverPath)) {
+            if (persistedImages.isEmpty()) {
+                throw new BusinessException("VEHICLE_IMAGE_REFERENCE_INVALID", "A imagem original do veículo não foi encontrada.");
+            }
+            return persistedImages.get(0);
+        }
+        if (!requestedImage.startsWith("/api/ioauto/vehicles/")) {
+            return requestedImage;
+        }
+        if (!requestedImage.startsWith(imagePrefix)) {
+            throw new BusinessException("VEHICLE_IMAGE_REFERENCE_INVALID", "Referência de imagem inválida para este veículo.");
+        }
+
+        String rawIndex = requestedImage.substring(imagePrefix.length()).split("\\?", 2)[0];
+        try {
+            int imageIndex = Integer.parseInt(rawIndex);
+            if (imageIndex < 0 || imageIndex >= persistedImages.size()) {
+                throw new BusinessException("VEHICLE_IMAGE_REFERENCE_INVALID", "A imagem original do veículo não foi encontrada.");
+            }
+            return persistedImages.get(imageIndex);
+        } catch (NumberFormatException exception) {
+            throw new BusinessException("VEHICLE_IMAGE_REFERENCE_INVALID", "Referência de imagem inválida para este veículo.");
+        }
     }
 
     private List<String> resolvePublicCatalogBannerImages(com.io.appioweb.domain.auth.entity.Company company) {
