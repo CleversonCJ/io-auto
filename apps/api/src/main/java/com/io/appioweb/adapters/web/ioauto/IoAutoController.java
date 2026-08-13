@@ -490,6 +490,7 @@ public class IoAutoController {
         }
 
         UUID companyId = company.id();
+        String companySlug = slugifyPublicPathSegment(company.name());
 
         List<JpaIoAutoVehicleEntity> companyVehicles = vehicles.findAllByCompanyIdOrderByUpdatedAtDesc(companyId);
         Map<UUID, List<JpaIoAutoVehiclePublicationEntity>> publicationsByVehicle = groupPublicationsByVehicle(companyId, companyVehicles);
@@ -499,12 +500,12 @@ public class IoAutoController {
                 .toList();
 
         List<PublicInventoryVehicleHttpResponse> catalogVehicles = publicVehicles.stream()
-                .map(this::toPublicVehicleResponse)
+                .map(vehicle -> toPublicVehicleResponse(vehicle, companySlug))
                 .toList();
 
         return ResponseEntity.ok(new PublicInventoryCatalogHttpResponse(
                 toPublicCompanySummary(company, resolvePublicLinkWhatsappNumber(company, sourceType, sourceReference)),
-                buildResolvedPublicCatalogBanners(company, publicVehicles),
+                buildResolvedPublicCatalogBanners(company, companySlug, publicVehicles),
                 catalogVehicles
         ));
     }
@@ -535,8 +536,65 @@ public class IoAutoController {
 
         return ResponseEntity.ok(new PublicVehicleDetailHttpResponse(
                 toPublicCompanySummary(company, resolvePublicLinkWhatsappNumber(company, sourceType, sourceReference)),
-                toPublicVehicleResponse(vehicle)
+                toPublicVehicleResponse(vehicle, slugifyPublicPathSegment(company.name()))
         ));
+    }
+
+    @GetMapping("/public/stock/{companyIdentifier}/vehicles/{vehicleId}/images/{imageIndex}")
+    public ResponseEntity<?> getPublicVehicleImage(
+            @PathVariable String companyIdentifier,
+            @PathVariable UUID vehicleId,
+            @PathVariable int imageIndex
+    ) {
+        var company = resolvePublicCompany(companyIdentifier);
+        if (company == null || imageIndex < 0) {
+            return ResponseEntity.notFound().build();
+        }
+
+        JpaIoAutoVehicleEntity vehicle = vehicles.findByIdAndCompanyId(vehicleId, company.id()).orElse(null);
+        if (vehicle == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        List<JpaIoAutoVehiclePublicationEntity> vehiclePublications =
+                publications.findAllByCompanyIdAndVehicleId(company.id(), vehicleId);
+        if (!isVehiclePubliclyVisible(vehicle, vehiclePublications)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        List<String> images = resolveVehicleImages(vehicle);
+        if (imageIndex >= images.size()) {
+            return ResponseEntity.notFound().build();
+        }
+        return publicImageResponse(images.get(imageIndex));
+    }
+
+    @GetMapping("/public/stock/{companyIdentifier}/banners/{imageIndex}")
+    public ResponseEntity<?> getPublicCatalogBannerImage(
+            @PathVariable String companyIdentifier,
+            @PathVariable int imageIndex
+    ) {
+        var company = resolvePublicCompany(companyIdentifier);
+        if (company == null || imageIndex < 0 ||
+                !"CUSTOM_IMAGES".equals(normalizePublicCatalogBannerMode(company.publicStockBannerMode()))) {
+            return ResponseEntity.notFound().build();
+        }
+
+        List<String> images = resolvePublicCatalogBannerImages(company);
+        if (imageIndex >= images.size()) {
+            return ResponseEntity.notFound().build();
+        }
+        return publicImageResponse(images.get(imageIndex));
+    }
+
+    @GetMapping("/public/stock/{companyIdentifier}/profile-image")
+    public ResponseEntity<?> getPublicCompanyProfileImage(@PathVariable String companyIdentifier) {
+        var company = resolvePublicCompany(companyIdentifier);
+        if (company == null) {
+            return ResponseEntity.notFound().build();
+        }
+        String profileImage = normalizeNullableText(company.profileImageUrl());
+        return profileImage == null ? ResponseEntity.notFound().build() : publicImageResponse(profileImage);
     }
 
     @PostMapping("/public/stock/{companyId}/track")
@@ -1583,11 +1641,13 @@ public class IoAutoController {
             com.io.appioweb.domain.auth.entity.Company company,
             String whatsappNumber
     ) {
+        String companySlug = slugifyPublicPathSegment(company.name());
+        String profileImage = normalizeNullableText(company.profileImageUrl());
         return new PublicCompanySummary(
                 company.id(),
                 normalizeText(company.name(), "Catalogo"),
-                slugifyPublicPathSegment(company.name()),
-                normalizeNullableText(company.profileImageUrl()),
+                companySlug,
+                profileImage == null ? null : buildPublicCompanyProfileImagePath(companySlug, profileImage),
                 sanitizeWhatsappNumber(whatsappNumber)
         );
     }
@@ -1646,18 +1706,22 @@ public class IoAutoController {
 
     private List<PublicCatalogBanner> buildResolvedPublicCatalogBanners(
             com.io.appioweb.domain.auth.entity.Company company,
+            String companySlug,
             List<JpaIoAutoVehicleEntity> publicVehicles
     ) {
         if ("CUSTOM_IMAGES".equals(normalizePublicCatalogBannerMode(company.publicStockBannerMode()))) {
-            List<PublicCatalogBanner> customBanners = buildCustomCatalogBanners(company);
+            List<PublicCatalogBanner> customBanners = buildCustomCatalogBanners(company, companySlug);
             if (!customBanners.isEmpty()) {
                 return customBanners;
             }
         }
-        return buildVehicleCatalogBanners(publicVehicles);
+        return buildVehicleCatalogBanners(companySlug, publicVehicles);
     }
 
-    private List<PublicCatalogBanner> buildVehicleCatalogBanners(List<JpaIoAutoVehicleEntity> publicVehicles) {
+    private List<PublicCatalogBanner> buildVehicleCatalogBanners(
+            String companySlug,
+            List<JpaIoAutoVehicleEntity> publicVehicles
+    ) {
         return publicVehicles.stream()
                 .sorted(Comparator.comparing(JpaIoAutoVehicleEntity::isFeatured).reversed()
                         .thenComparing(JpaIoAutoVehicleEntity::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
@@ -1668,7 +1732,9 @@ public class IoAutoController {
                         vehicle.getId(),
                         vehicle.getTitle(),
                         buildPublicVehicleSubtitle(vehicle),
-                        resolveVehicleImage(vehicle),
+                        resolveVehicleImages(vehicle).isEmpty()
+                                ? null
+                                : buildPublicVehicleImagePath(companySlug, vehicle, 0),
                         vehicle.getPriceCents(),
                         normalizeNullableText(vehicle.getCity()),
                         normalizeNullableText(vehicle.getState()),
@@ -1678,8 +1744,11 @@ public class IoAutoController {
                 .toList();
     }
 
-    private List<PublicCatalogBanner> buildCustomCatalogBanners(com.io.appioweb.domain.auth.entity.Company company) {
-        List<String> images = sanitizePublicCatalogBannerImages(readStringArray(company.publicStockBannerImagesJson()));
+    private List<PublicCatalogBanner> buildCustomCatalogBanners(
+            com.io.appioweb.domain.auth.entity.Company company,
+            String companySlug
+    ) {
+        List<String> images = resolvePublicCatalogBannerImages(company);
         if (images.isEmpty()) {
             return List.of();
         }
@@ -1692,7 +1761,7 @@ public class IoAutoController {
                         null,
                         companyName,
                         "Confira os carros disponiveis e fale com a loja para receber mais detalhes.",
-                        images.get(index),
+                        buildPublicCatalogBannerImagePath(companySlug, index, images.get(index)),
                         null,
                         null,
                         null,
@@ -1702,7 +1771,14 @@ public class IoAutoController {
                 .toList();
     }
 
-    private PublicInventoryVehicleHttpResponse toPublicVehicleResponse(JpaIoAutoVehicleEntity vehicle) {
+    private PublicInventoryVehicleHttpResponse toPublicVehicleResponse(
+            JpaIoAutoVehicleEntity vehicle,
+            String companySlug
+    ) {
+        List<String> sourceImages = resolveVehicleImages(vehicle);
+        List<String> publicImages = java.util.stream.IntStream.range(0, sourceImages.size())
+                .mapToObj(index -> buildPublicVehicleImagePath(companySlug, vehicle, index))
+                .toList();
         return new PublicInventoryVehicleHttpResponse(
                 vehicle.getId(),
                 normalizeNullableText(vehicle.getStockNumber()),
@@ -1727,8 +1803,8 @@ public class IoAutoController {
                 vehicle.isFeatured(),
                 normalizeText(vehicle.getStatus(), "READY"),
                 normalizeNullableText(vehicle.getDescription()),
-                normalizeNullableText(vehicle.getCoverImageUrl()),
-                readStringArray(vehicle.getGalleryJson()),
+                publicImages.isEmpty() ? null : publicImages.get(0),
+                publicImages.size() <= 1 ? List.of() : publicImages.subList(1, publicImages.size()),
                 readStringArray(vehicle.getOptionalsJson()),
                 readVehicleFinancing(vehicle.getFinancingJson()),
                 vehicle.getUpdatedAt()
@@ -1745,12 +1821,82 @@ public class IoAutoController {
         return String.join(" • ", parts);
     }
 
-    private String resolveVehicleImage(JpaIoAutoVehicleEntity vehicle) {
+    private List<String> resolveVehicleImages(JpaIoAutoVehicleEntity vehicle) {
+        LinkedHashSet<String> images = new LinkedHashSet<>();
         String coverImage = normalizeNullableText(vehicle.getCoverImageUrl());
-        if (coverImage != null) return coverImage;
+        if (coverImage != null && isSupportedPublicCatalogBannerImage(coverImage)) {
+            images.add(coverImage);
+        }
+        readStringArray(vehicle.getGalleryJson()).stream()
+                .map(this::normalizeNullableText)
+                .filter(java.util.Objects::nonNull)
+                .filter(this::isSupportedPublicCatalogBannerImage)
+                .forEach(images::add);
+        return List.copyOf(images);
+    }
 
-        List<String> gallery = readStringArray(vehicle.getGalleryJson());
-        return gallery.isEmpty() ? null : gallery.get(0);
+    private List<String> resolvePublicCatalogBannerImages(com.io.appioweb.domain.auth.entity.Company company) {
+        return readStringArray(company.publicStockBannerImagesJson()).stream()
+                .map(this::normalizeNullableText)
+                .filter(java.util.Objects::nonNull)
+                .filter(this::isSupportedPublicCatalogBannerImage)
+                .distinct()
+                .limit(MAX_PUBLIC_CATALOG_BANNER_IMAGES)
+                .toList();
+    }
+
+    private String buildPublicVehicleImagePath(
+            String companySlug,
+            JpaIoAutoVehicleEntity vehicle,
+            int imageIndex
+    ) {
+        String version = vehicle.getUpdatedAt() == null
+                ? "0"
+                : String.valueOf(vehicle.getUpdatedAt().toEpochMilli());
+        return "/api/public/estoque/" + companySlug
+                + "/vehicles/" + vehicle.getId()
+                + "/images/" + imageIndex
+                + "?v=" + version;
+    }
+
+    private String buildPublicCatalogBannerImagePath(String companySlug, int imageIndex, String source) {
+        return "/api/public/estoque/" + companySlug
+                + "/banners/" + imageIndex
+                + "?v=" + Integer.toUnsignedString(source.hashCode());
+    }
+
+    private String buildPublicCompanyProfileImagePath(String companySlug, String source) {
+        return "/api/public/estoque/" + companySlug
+                + "/profile-image?v=" + Integer.toUnsignedString(source.hashCode());
+    }
+
+    private ResponseEntity<?> publicImageResponse(String source) {
+        String normalized = normalizeNullableText(source);
+        if (normalized == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        if (normalized.startsWith("https://") || normalized.startsWith("http://")) {
+            try {
+                return ResponseEntity.status(302)
+                        .location(URI.create(normalized))
+                        .header(HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                        .build();
+            } catch (IllegalArgumentException ignored) {
+                return ResponseEntity.notFound().build();
+            }
+        }
+
+        VehicleImageContent image = decodeVehicleImage(normalized);
+        if (image == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(image.contentType()))
+                .contentLength(image.bytes().length)
+                .header(HttpHeaders.CACHE_CONTROL, "public, max-age=604800, immutable")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(image.bytes());
     }
 
     private JpaIoAutoIntegrationEntity resolveOrCreateIntegration(UUID companyId, String providerKey, Instant now) {
@@ -2269,9 +2415,10 @@ public class IoAutoController {
         try {
             return companies.findById(UUID.fromString(normalized)).orElse(null);
         } catch (IllegalArgumentException ignored) {
-            return companies.findAll().stream()
+            return companies.findAllReferences().stream()
                     .filter(company -> slugifyPublicPathSegment(company.name()).equalsIgnoreCase(normalized))
                     .findFirst()
+                    .flatMap(company -> companies.findById(company.id()))
                     .orElse(null);
         }
     }

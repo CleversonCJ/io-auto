@@ -114,6 +114,13 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
     }
 
     @Override
+    public List<CompanyReference> findAllReferences() {
+        return jpa.findAllReferences().stream()
+                .map(item -> new CompanyReference(item.getId(), item.getName()))
+                .toList();
+    }
+
+    @Override
     public boolean isTenantBlocked(java.util.UUID companyId) {
         return jpa.findById(companyId)
                 .map(entity -> "BLOCKED".equalsIgnoreCase(entity.getStatus()))
