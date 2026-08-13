@@ -15,6 +15,7 @@ import {
     Plus,
     Save,
     Search,
+    Trash2,
     X,
 } from "lucide-react";
 import { emptyMeliVehicleForm, type MeliVehicleFormState } from "@/modules/ioauto/components/MeliVehiclePanel";
@@ -537,6 +538,7 @@ export function InventoryStudio() {
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
     const [form, setForm] = useState<VehicleFormState>(emptyForm());
     const [saving, setSaving] = useState(false);
+    const [deletingVehicle, setDeletingVehicle] = useState(false);
     const [loading, setLoading] = useState(true);
     const [saleContextLoading, setSaleContextLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -1009,6 +1011,7 @@ export function InventoryStudio() {
         setForm(emptyForm());
         setError(null);
         setUploadingImages(false);
+        setDeletingVehicle(false);
         setIsImageDragActive(false);
         setDraggedImageUrl(null);
         setDragOverImageUrl(null);
@@ -1028,6 +1031,7 @@ export function InventoryStudio() {
             const fullVehicle = await response.json() as VehicleRecord;
             setForm(vehicleToForm(fullVehicle));
             setUploadingImages(false);
+            setDeletingVehicle(false);
             setIsImageDragActive(false);
             setDraggedImageUrl(null);
             setDragOverImageUrl(null);
@@ -1043,10 +1047,40 @@ export function InventoryStudio() {
         setIsEditorOpen(false);
         setError(null);
         setUploadingImages(false);
+        setDeletingVehicle(false);
         setIsImageDragActive(false);
         setDraggedImageUrl(null);
         setDragOverImageUrl(null);
         setForm(emptyForm());
+    }
+
+    async function handleDeleteVehicle() {
+        const vehicleId = form.id;
+        if (!vehicleId || deletingVehicle || saving) return;
+
+        const confirmed = window.confirm(
+            `Excluir "${form.title || "este veículo"}" do estoque? O veículo sairá das listagens e os anúncios integrados serão retirados.`,
+        );
+        if (!confirmed) return;
+
+        setDeletingVehicle(true);
+        setError(null);
+        try {
+            const response = await fetch(`/api/ioauto/vehicles/${encodeURIComponent(vehicleId)}`, {
+                method: "DELETE",
+            });
+            const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+            if (!response.ok) {
+                throw new Error(payload?.message ?? "Falha ao excluir o veículo.");
+            }
+
+            setVehicles((current) => current.filter((vehicle) => vehicle.id !== vehicleId));
+            closeEditor();
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : "Falha ao excluir o veículo.");
+        } finally {
+            setDeletingVehicle(false);
+        }
     }
 
     function openCloseSaleModal(vehicle: VehicleRecord) {
@@ -1793,7 +1827,20 @@ export function InventoryStudio() {
                                 </div>
 
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/8 px-6 py-5 md:px-8">
-                                    <div className="text-xs text-black/45">{readyPublicationIntegrations.length} integrações conectadas prontas para uso na distribuição.</div>
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        {form.id ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleDeleteVehicle()}
+                                                disabled={deletingVehicle || saving || uploadingImages}
+                                                className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-red-200 bg-red-50 px-5 text-sm font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                                {deletingVehicle ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                                {deletingVehicle ? "Excluindo..." : "Excluir veículo"}
+                                            </button>
+                                        ) : null}
+                                        <div className="text-xs text-black/45">{readyPublicationIntegrations.length} integrações conectadas prontas para uso na distribuição.</div>
+                                    </div>
                                     <div className="flex items-center gap-3">
                                         <button
                                             type="button"
@@ -1804,7 +1851,7 @@ export function InventoryStudio() {
                                         </button>
                                         <button
                                             type="submit"
-                                            disabled={saving}
+                                            disabled={saving || deletingVehicle || uploadingImages}
                                             className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-io-purple px-5 text-sm font-semibold text-white transition hover:bg-[#212121] disabled:cursor-not-allowed disabled:bg-black/30"
                                         >
                                             {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

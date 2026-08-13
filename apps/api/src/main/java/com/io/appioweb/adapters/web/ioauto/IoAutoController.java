@@ -781,6 +781,58 @@ public class IoAutoController {
         return ResponseEntity.ok(saveVehicle(vehicleId, request));
     }
 
+    @DeleteMapping("/ioauto/vehicles/{vehicleId}")
+    @Transactional
+    public ResponseEntity<Void> deleteVehicle(@PathVariable UUID vehicleId) {
+        UUID companyId = currentUser.companyId();
+        JpaIoAutoVehicleEntity vehicle = vehicles.findByIdAndCompanyId(vehicleId, companyId)
+                .orElseThrow(() -> new BusinessException("VEHICLE_NOT_FOUND", "Veículo não encontrado."));
+
+        List<JpaIoAutoVehiclePublicationEntity> vehiclePublications =
+                publications.findAllByCompanyIdAndVehicleId(companyId, vehicleId);
+        List<String> providerKeys = vehiclePublications.stream()
+                .map(JpaIoAutoVehiclePublicationEntity::getProviderKey)
+                .map(this::normalizeProviderKey)
+                .filter(this::supportsVehiclePublication)
+                .distinct()
+                .toList();
+
+        Instant now = Instant.now();
+        vehicle.setStatus("REMOVED");
+        vehicle.setFeatured(false);
+        vehicle.setUpdatedAt(now);
+        vehicles.save(vehicle);
+
+        vehiclePublications.forEach(publication -> {
+            publication.setStatus("REMOVAL_PENDING");
+            publication.setLastError(null);
+            publication.setUpdatedAt(now);
+        });
+        if (!vehiclePublications.isEmpty()) {
+            publications.saveAll(vehiclePublications);
+        }
+
+        featureUsageService.registerUsage(
+                companyId,
+                FeatureUsageService.FEATURE_VEHICLE_MANAGEMENT,
+                Map.of("action", "DELETE_VEHICLE")
+        );
+
+        Runnable enqueueRemoval = () -> vehicleAutoPublicationService.enqueueRemoval(companyId, vehicleId, providerKeys);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    enqueueRemoval.run();
+                }
+            });
+        } else {
+            enqueueRemoval.run();
+        }
+
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/ioauto/vehicles/{vehicleId}/sync-publications")
     public ResponseEntity<Void> syncVehiclePublications(@PathVariable UUID vehicleId) {
         UUID companyId = currentUser.companyId();
@@ -2295,7 +2347,7 @@ public class IoAutoController {
             List<JpaIoAutoVehiclePublicationEntity> vehiclePublications
     ) {
         String vehicleStatus = normalizeText(vehicle.getStatus(), "DRAFT").toUpperCase(Locale.ROOT);
-        if ("DRAFT".equals(vehicleStatus) || "ARCHIVED".equals(vehicleStatus) || "SOLD".equals(vehicleStatus)) {
+        if ("DRAFT".equals(vehicleStatus) || "ARCHIVED".equals(vehicleStatus) || "SOLD".equals(vehicleStatus) || "REMOVED".equals(vehicleStatus)) {
             return false;
         }
 

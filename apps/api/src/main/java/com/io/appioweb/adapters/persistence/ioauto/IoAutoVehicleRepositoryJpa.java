@@ -39,9 +39,17 @@ public interface IoAutoVehicleRepositoryJpa extends JpaRepository<JpaIoAutoVehic
         String getStatus();
     }
 
-    List<JpaIoAutoVehicleEntity> findAllByCompanyIdOrderByUpdatedAtDesc(UUID companyId);
+    @Query("""
+            select vehicle
+            from JpaIoAutoVehicleEntity vehicle
+            where vehicle.companyId = :companyId
+              and upper(coalesce(vehicle.status, 'DRAFT')) <> 'REMOVED'
+            order by vehicle.updatedAt desc
+            """)
+    List<JpaIoAutoVehicleEntity> findAllByCompanyIdOrderByUpdatedAtDesc(@Param("companyId") UUID companyId);
     Optional<JpaIoAutoVehicleEntity> findByIdAndCompanyId(UUID id, UUID companyId);
     boolean existsByIdAndCompanyId(UUID id, UUID companyId);
+    boolean existsByIdAndCompanyIdAndStatusNotIgnoreCase(UUID id, UUID companyId, String status);
 
     @Query(value = """
             select vehicle.id as "id",
@@ -71,6 +79,7 @@ public interface IoAutoVehicleRepositoryJpa extends JpaRepository<JpaIoAutoVehic
                    vehicle.updated_at as "updatedAt"
             from ioauto_vehicles vehicle
             where vehicle.company_id = :companyId
+              and upper(coalesce(vehicle.status, 'DRAFT')) <> 'REMOVED'
             order by vehicle.updated_at desc
             """, nativeQuery = true)
     List<InventoryVehicleSummary> findInventorySummariesByCompanyId(@Param("companyId") UUID companyId);
@@ -81,6 +90,7 @@ public interface IoAutoVehicleRepositoryJpa extends JpaRepository<JpaIoAutoVehic
                    vehicle.status as "status"
             from ioauto_vehicles vehicle
             where vehicle.company_id = :companyId
+              and upper(coalesce(vehicle.status, 'DRAFT')) <> 'REMOVED'
             order by vehicle.title asc
             """, nativeQuery = true)
     List<VehicleOptionSummary> findOptionsByCompanyId(@Param("companyId") UUID companyId);

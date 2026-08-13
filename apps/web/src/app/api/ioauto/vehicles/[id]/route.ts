@@ -17,3 +17,13 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         body,
     }, "Falha ao atualizar o veículo.");
 }
+
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+    const { id } = await context.params;
+    return jsonFromAuthedUpstream(
+        `/ioauto/vehicles/${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+        "Falha ao excluir o veículo.",
+        { label: "ioauto/vehicles/delete", request },
+    );
+}

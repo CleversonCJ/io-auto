@@ -1,9 +1,11 @@
 package com.io.appioweb.application.ioauto;
 
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoVehiclePublicationRepositoryJpa;
+import com.io.appioweb.adapters.persistence.ioauto.IoAutoVehicleRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehiclePublicationEntity;
 import com.io.appioweb.adapters.persistence.ioauto.MeliAdRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.OlxAdRepositoryJpa;
+import com.io.appioweb.adapters.persistence.ioauto.WebmotorsAdRepositoryJpa;
 import com.io.appioweb.application.ioauto.meli.MeliAdService;
 import com.io.appioweb.application.ioauto.olx.OlxAdService;
 import com.io.appioweb.application.ioauto.webmotors.WebmotorsAdsService;
@@ -23,8 +25,10 @@ import java.util.concurrent.Executor;
 public class VehicleAutoPublicationService {
 
     private final IoAutoVehiclePublicationRepositoryJpa publications;
+    private final IoAutoVehicleRepositoryJpa vehicles;
     private final MeliAdRepositoryJpa meliAds;
     private final OlxAdRepositoryJpa olxAds;
+    private final WebmotorsAdRepositoryJpa webmotorsAds;
     private final MeliAdService meliAdService;
     private final OlxAdService olxAdService;
     private final WebmotorsAdsService webmotorsAdsService;
@@ -33,8 +37,10 @@ public class VehicleAutoPublicationService {
 
     public VehicleAutoPublicationService(
             IoAutoVehiclePublicationRepositoryJpa publications,
+            IoAutoVehicleRepositoryJpa vehicles,
             MeliAdRepositoryJpa meliAds,
             OlxAdRepositoryJpa olxAds,
+            WebmotorsAdRepositoryJpa webmotorsAds,
             MeliAdService meliAdService,
             OlxAdService olxAdService,
             WebmotorsAdsService webmotorsAdsService,
@@ -42,8 +48,10 @@ public class VehicleAutoPublicationService {
             PlatformTransactionManager transactionManager
     ) {
         this.publications = publications;
+        this.vehicles = vehicles;
         this.meliAds = meliAds;
         this.olxAds = olxAds;
+        this.webmotorsAds = webmotorsAds;
         this.meliAdService = meliAdService;
         this.olxAdService = olxAdService;
         this.webmotorsAdsService = webmotorsAdsService;
@@ -60,6 +68,14 @@ public class VehicleAutoPublicationService {
                 .forEach(providerKey -> enqueueProvider(companyId, vehicleId, providerKey));
     }
 
+    public void enqueueRemoval(UUID companyId, UUID vehicleId, List<String> providerKeys) {
+        providerKeys.stream()
+                .map(this::normalizeProviderKey)
+                .filter(providerKey -> providerKey.isBlank() == false)
+                .distinct()
+                .forEach(providerKey -> enqueueRemovalProvider(companyId, vehicleId, providerKey));
+    }
+
     private void enqueueProvider(UUID companyId, UUID vehicleId, String providerKey) {
         try {
             publicationExecutor.execute(() -> synchronizeProvider(companyId, vehicleId, providerKey));
@@ -68,9 +84,20 @@ public class VehicleAutoPublicationService {
         }
     }
 
+    private void enqueueRemovalProvider(UUID companyId, UUID vehicleId, String providerKey) {
+        try {
+            publicationExecutor.execute(() -> removeProvider(companyId, vehicleId, providerKey));
+        } catch (Exception exception) {
+            recordPublicationError(companyId, vehicleId, providerKey, exception.getMessage());
+        }
+    }
+
     private void synchronizeProvider(UUID companyId, UUID vehicleId, String providerKey) {
         String normalizedProviderKey = safe(providerKey).toLowerCase(Locale.ROOT);
         try {
+            if (!vehicles.existsByIdAndCompanyIdAndStatusNotIgnoreCase(vehicleId, companyId, "REMOVED")) {
+                return;
+            }
             if ("mercadolivre".equals(normalizedProviderKey)) {
                 boolean alreadyPublished = meliAds.findByCompanyIdAndVehicleId(companyId, vehicleId)
                         .map(ad -> safe(ad.getMeliItemId()).isBlank() == false)
@@ -92,6 +119,32 @@ public class VehicleAutoPublicationService {
             }
             if ("webmotors".equals(normalizedProviderKey)) {
                 webmotorsAdsService.enqueuePublish(companyId, vehicleId, "default");
+            }
+        } catch (Exception exception) {
+            recordPublicationError(companyId, vehicleId, normalizedProviderKey, exception.getMessage());
+        }
+    }
+
+    private void removeProvider(UUID companyId, UUID vehicleId, String providerKey) {
+        String normalizedProviderKey = normalizeProviderKey(providerKey);
+        try {
+            if ("mercadolivre".equals(normalizedProviderKey)) {
+                meliAds.findByCompanyIdAndVehicleId(companyId, vehicleId)
+                        .filter(ad -> safe(ad.getMeliItemId()).isBlank() == false)
+                        .filter(ad -> "closed".equalsIgnoreCase(safe(ad.getStatus())) == false)
+                        .ifPresent(ad -> meliAdService.closeAd(companyId, vehicleId));
+                return;
+            }
+            if ("olx".equals(normalizedProviderKey)) {
+                olxAds.findByCompanyIdAndVehicleId(companyId, vehicleId)
+                        .filter(ad -> "DELETED".equalsIgnoreCase(safe(ad.getStatus())) == false)
+                        .ifPresent(ad -> olxAdService.unpublishVehicle(companyId, vehicleId));
+                return;
+            }
+            if ("webmotors".equals(normalizedProviderKey)) {
+                webmotorsAds.findByCompanyIdAndVehicleId(companyId, vehicleId)
+                        .filter(ad -> safe(ad.getRemoteAdCode()).isBlank() == false)
+                        .ifPresent(ad -> webmotorsAdsService.enqueueDelete(companyId, vehicleId, "default"));
             }
         } catch (Exception exception) {
             recordPublicationError(companyId, vehicleId, normalizedProviderKey, exception.getMessage());
