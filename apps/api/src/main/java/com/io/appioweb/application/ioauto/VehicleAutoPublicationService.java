@@ -2,51 +2,109 @@ package com.io.appioweb.application.ioauto;
 
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoVehiclePublicationRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehiclePublicationEntity;
+import com.io.appioweb.adapters.persistence.ioauto.MeliAdRepositoryJpa;
+import com.io.appioweb.adapters.persistence.ioauto.OlxAdRepositoryJpa;
 import com.io.appioweb.application.ioauto.meli.MeliAdService;
 import com.io.appioweb.application.ioauto.olx.OlxAdService;
+import com.io.appioweb.application.ioauto.webmotors.WebmotorsAdsService;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 
 @Service
 public class VehicleAutoPublicationService {
 
     private final IoAutoVehiclePublicationRepositoryJpa publications;
+    private final MeliAdRepositoryJpa meliAds;
+    private final OlxAdRepositoryJpa olxAds;
     private final MeliAdService meliAdService;
     private final OlxAdService olxAdService;
+    private final WebmotorsAdsService webmotorsAdsService;
+    private final Executor publicationExecutor;
     private final TransactionTemplate requiresNewTransaction;
 
     public VehicleAutoPublicationService(
             IoAutoVehiclePublicationRepositoryJpa publications,
+            MeliAdRepositoryJpa meliAds,
+            OlxAdRepositoryJpa olxAds,
             MeliAdService meliAdService,
             OlxAdService olxAdService,
+            WebmotorsAdsService webmotorsAdsService,
+            @Qualifier("vehiclePublicationExecutor") Executor publicationExecutor,
             PlatformTransactionManager transactionManager
     ) {
         this.publications = publications;
+        this.meliAds = meliAds;
+        this.olxAds = olxAds;
         this.meliAdService = meliAdService;
         this.olxAdService = olxAdService;
+        this.webmotorsAdsService = webmotorsAdsService;
+        this.publicationExecutor = publicationExecutor;
         this.requiresNewTransaction = new TransactionTemplate(transactionManager);
         this.requiresNewTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    public void publishAfterCommit(UUID companyId, UUID vehicleId, String providerKey) {
+    public void enqueueSynchronize(UUID companyId, UUID vehicleId, List<String> providerKeys) {
+        providerKeys.stream()
+                .map(this::normalizeProviderKey)
+                .filter(providerKey -> providerKey.isBlank() == false)
+                .distinct()
+                .forEach(providerKey -> enqueueProvider(companyId, vehicleId, providerKey));
+    }
+
+    private void enqueueProvider(UUID companyId, UUID vehicleId, String providerKey) {
+        try {
+            publicationExecutor.execute(() -> synchronizeProvider(companyId, vehicleId, providerKey));
+        } catch (Exception exception) {
+            recordPublicationError(companyId, vehicleId, providerKey, exception.getMessage());
+        }
+    }
+
+    private void synchronizeProvider(UUID companyId, UUID vehicleId, String providerKey) {
         String normalizedProviderKey = safe(providerKey).toLowerCase(Locale.ROOT);
         try {
             if ("mercadolivre".equals(normalizedProviderKey)) {
-                meliAdService.publishVehicle(companyId, vehicleId);
+                boolean alreadyPublished = meliAds.findByCompanyIdAndVehicleId(companyId, vehicleId)
+                        .map(ad -> safe(ad.getMeliItemId()).isBlank() == false)
+                        .orElse(false);
+                if (alreadyPublished) {
+                    meliAdService.updateVehicleAd(companyId, vehicleId);
+                } else {
+                    meliAdService.publishVehicle(companyId, vehicleId);
+                }
                 return;
             }
             if ("olx".equals(normalizedProviderKey)) {
-                olxAdService.publishVehicle(companyId, vehicleId);
+                if (olxAds.findByCompanyIdAndVehicleId(companyId, vehicleId).isPresent()) {
+                    olxAdService.updateVehicleAd(companyId, vehicleId);
+                } else {
+                    olxAdService.publishVehicle(companyId, vehicleId);
+                }
+                return;
+            }
+            if ("webmotors".equals(normalizedProviderKey)) {
+                webmotorsAdsService.enqueuePublish(companyId, vehicleId, "default");
             }
         } catch (Exception exception) {
             recordPublicationError(companyId, vehicleId, normalizedProviderKey, exception.getMessage());
         }
+    }
+
+    private String normalizeProviderKey(String providerKey) {
+        String normalized = safe(providerKey).toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "meli", "mercado-livre", "mercado_livre" -> "mercadolivre";
+            case "web-motors" -> "webmotors";
+            default -> normalized;
+        };
     }
 
     private void recordPublicationError(UUID companyId, UUID vehicleId, String providerKey, String message) {

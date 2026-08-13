@@ -48,8 +48,6 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import com.io.appioweb.application.ioauto.meli.MeliAdService;
-import com.io.appioweb.application.ioauto.meli.MeliCategoryService;
-import com.io.appioweb.application.ioauto.meli.MeliListingTypeService;
 import com.io.appioweb.application.ioauto.olx.OlxAdService;
 
 import java.net.URI;
@@ -155,8 +153,6 @@ public class IoAutoController {
     private final SuperAdminPlanManagementService planManagementService;
     private final RealtimeGateway realtime;
     private final MeliAdService meliAdService;
-    private final MeliCategoryService meliCategoryService;
-    private final MeliListingTypeService meliListingTypeService;
     private final OlxAdService olxAdService;
     private final IoAutoSalesService ioAutoSalesService;
 
@@ -180,8 +176,6 @@ public class IoAutoController {
             SuperAdminPlanManagementService planManagementService,
             RealtimeGateway realtime,
             MeliAdService meliAdService,
-            MeliCategoryService meliCategoryService,
-            MeliListingTypeService meliListingTypeService,
             OlxAdService olxAdService,
             IoAutoSalesService ioAutoSalesService
     ) {
@@ -204,8 +198,6 @@ public class IoAutoController {
         this.planManagementService = planManagementService;
         this.realtime = realtime;
         this.meliAdService = meliAdService;
-        this.meliCategoryService = meliCategoryService;
-        this.meliListingTypeService = meliListingTypeService;
         this.olxAdService = olxAdService;
         this.ioAutoSalesService = ioAutoSalesService;
     }
@@ -776,17 +768,34 @@ public class IoAutoController {
 
     @PostMapping("/ioauto/vehicles")
     @Transactional
-    public ResponseEntity<IoAutoVehicleHttpResponse> createVehicle(@Valid @RequestBody SaveVehicleHttpRequest request) {
+    public ResponseEntity<SaveVehicleHttpResponse> createVehicle(@Valid @RequestBody SaveVehicleHttpRequest request) {
         return ResponseEntity.ok(saveVehicle(null, request));
     }
 
     @PutMapping("/ioauto/vehicles/{vehicleId}")
     @Transactional
-    public ResponseEntity<IoAutoVehicleHttpResponse> updateVehicle(
+    public ResponseEntity<SaveVehicleHttpResponse> updateVehicle(
             @PathVariable UUID vehicleId,
             @Valid @RequestBody SaveVehicleHttpRequest request
     ) {
         return ResponseEntity.ok(saveVehicle(vehicleId, request));
+    }
+
+    @PostMapping("/ioauto/vehicles/{vehicleId}/sync-publications")
+    public ResponseEntity<Void> syncVehiclePublications(@PathVariable UUID vehicleId) {
+        UUID companyId = currentUser.companyId();
+        if (!vehicles.existsByIdAndCompanyId(vehicleId, companyId)) {
+            throw new BusinessException("VEHICLE_NOT_FOUND", "Veículo não encontrado.");
+        }
+
+        List<String> providerKeys = publications.findAllByCompanyIdAndVehicleId(companyId, vehicleId).stream()
+                .map(JpaIoAutoVehiclePublicationEntity::getProviderKey)
+                .map(this::normalizeProviderKey)
+                .filter(this::supportsVehiclePublication)
+                .distinct()
+                .toList();
+        vehicleAutoPublicationService.enqueueSynchronize(companyId, vehicleId, providerKeys);
+        return ResponseEntity.accepted().build();
     }
 
     @GetMapping("/ioauto/integrations")
@@ -1352,7 +1361,7 @@ public class IoAutoController {
     ) {
     }
 
-    private IoAutoVehicleHttpResponse saveVehicle(UUID vehicleId, SaveVehicleHttpRequest request) {
+    private SaveVehicleHttpResponse saveVehicle(UUID vehicleId, SaveVehicleHttpRequest request) {
         UUID companyId = currentUser.companyId();
         if (vehicleId == null) {
             planManagementService.assertVehicleCreationAllowed(companyId);
@@ -1427,21 +1436,6 @@ public class IoAutoController {
                 .filter(this::supportsVehiclePublication)
                 .toList();
 
-        if (selectedIntegrations.contains("mercadolivre")) {
-            if (entity.getMeliCategoryId() == null) {
-                var suggestion = meliCategoryService.discoverVehicleCategory(entity.getTitle());
-                if (suggestion != null && normalizeText(suggestion.categoryId()).isBlank() == false) {
-                    entity.setMeliCategoryId(suggestion.categoryId());
-                }
-            }
-            if (entity.getMeliListingTypeId() == null && entity.getMeliCategoryId() != null) {
-                var listingTypes = meliListingTypeService.getAvailableListingTypes(companyId, entity.getMeliCategoryId());
-                if (!listingTypes.isEmpty()) {
-                    entity.setMeliListingTypeId(listingTypes.get(0).id());
-                }
-            }
-        }
-
         entity.setUpdatedAt(now);
         vehicles.save(entity);
 
@@ -1488,28 +1482,7 @@ public class IoAutoController {
             publications.saveAll(nextPublications);
         }
 
-        if (!selectedIntegrations.isEmpty()) {
-            UUID savedVehicleId = entity.getId();
-            if (TransactionSynchronizationManager.isSynchronizationActive()) {
-                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        for (String providerKey : selectedIntegrations) {
-                            vehicleAutoPublicationService.publishAfterCommit(companyId, savedVehicleId, providerKey);
-                        }
-                    }
-                });
-            } else {
-                for (String providerKey : selectedIntegrations) {
-                    vehicleAutoPublicationService.publishAfterCommit(companyId, savedVehicleId, providerKey);
-                }
-            }
-        }
-
-        Map<String, JpaIoAutoIntegrationEntity> integrationsByKey = integrations.findAllByCompanyIdOrderByDisplayNameAsc(companyId).stream()
-                .filter(integration -> isSupportedProvider(integration.getProviderKey()))
-                .collect(java.util.stream.Collectors.toMap(JpaIoAutoIntegrationEntity::getProviderKey, item -> item, (left, right) -> left, LinkedHashMap::new));
-        return toVehicleResponse(entity, publications.findAllByCompanyIdAndVehicleId(companyId, entity.getId()), integrationsByKey);
+        return new SaveVehicleHttpResponse(entity.getId(), entity.getUpdatedAt());
     }
 
     private Map<UUID, List<JpaIoAutoVehiclePublicationEntity>> groupPublicationsByVehicle(UUID companyId, List<JpaIoAutoVehicleEntity> companyVehicles) {
@@ -3036,6 +3009,12 @@ public class IoAutoController {
                 request.consignmentCommissionPercentage(),
                 request.consignmentCommissionAmountCents()
         );
+    }
+
+    public record SaveVehicleHttpResponse(
+            UUID id,
+            Instant updatedAt
+    ) {
     }
 
     public record SaveVehicleHttpRequest(

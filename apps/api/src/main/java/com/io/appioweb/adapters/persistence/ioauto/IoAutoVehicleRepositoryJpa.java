@@ -41,6 +41,7 @@ public interface IoAutoVehicleRepositoryJpa extends JpaRepository<JpaIoAutoVehic
 
     List<JpaIoAutoVehicleEntity> findAllByCompanyIdOrderByUpdatedAtDesc(UUID companyId);
     Optional<JpaIoAutoVehicleEntity> findByIdAndCompanyId(UUID id, UUID companyId);
+    boolean existsByIdAndCompanyId(UUID id, UUID companyId);
 
     @Query(value = """
             select vehicle.id as "id",

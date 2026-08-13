@@ -89,6 +89,42 @@ type TeamMember = {
     teamName: string | null;
 };
 
+type SavedVehicleResponse = {
+    id: string;
+    updatedAt: string | null;
+};
+
+type OlxMappingPayload = {
+    brandId: string | null;
+    modelId: string | null;
+    versionId: string | null;
+    fuelCode: string | null;
+    gearboxCode: string | null;
+    doorsCode: string | null;
+    colorCode: string | null;
+    featureCodes: string[];
+    plate: string | null;
+    phone: string | null;
+    zipcode: string | null;
+};
+
+type MeliMappingPayload = {
+    categoryId: string | null;
+    listingTypeId: string | null;
+    condition: string | null;
+    sellerSku: string | null;
+    title: string | null;
+    description: string | null;
+    priceCents: number | null;
+    attributes: MeliVehicleFormState["attributes"];
+};
+
+type SelectedMappingPayloads = {
+    providerKeys: string[];
+    olx: OlxMappingPayload | null;
+    mercadolivre: MeliMappingPayload | null;
+};
+
 const TRANSMISSION_OPTIONS = [
     { value: "Automatica", label: "Automático" },
     { value: "Manual", label: "Manual" },
@@ -155,6 +191,11 @@ const SUPPORTED_IMAGE_MIME_TYPES = new Set([
     "image/gif",
     "image/avif",
 ]);
+const MAX_VEHICLE_IMAGES = 20;
+const MAX_IMAGE_DIMENSION = 1600;
+const TARGET_IMAGE_BYTES = 600_000;
+const MAX_UNOPTIMIZED_IMAGE_BYTES = 2_500_000;
+const IMAGE_PROCESSING_CONCURRENCY = 2;
 
 function emptyForm(): VehicleFormState {
     return {
@@ -357,7 +398,7 @@ function isSupportedVehicleImage(file: File) {
     return SUPPORTED_IMAGE_MIME_TYPES.has(file.type.toLowerCase());
 }
 
-function readFileAsDataUrl(file: File) {
+function readBlobAsDataUrl(blob: Blob, label: string) {
     return new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -365,11 +406,85 @@ function readFileAsDataUrl(file: File) {
                 resolve(reader.result);
                 return;
             }
-            reject(new Error(`Não foi possível ler a imagem "${file.name}".`));
+            reject(new Error(`Não foi possível ler a imagem "${label}".`));
         };
-        reader.onerror = () => reject(new Error(`Não foi possível ler a imagem "${file.name}".`));
-        reader.readAsDataURL(file);
+        reader.onerror = () => reject(new Error(`Não foi possível ler a imagem "${label}".`));
+        reader.readAsDataURL(blob);
     });
+}
+
+function loadImageFile(file: File) {
+    return new Promise<HTMLImageElement>((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(file);
+        const image = new Image();
+        image.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(image);
+        };
+        image.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error(`Não foi possível processar a imagem "${file.name}".`));
+        };
+        image.src = objectUrl;
+    });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, quality: number) {
+    return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality));
+}
+
+async function optimizeImageFile(file: File) {
+    try {
+        const image = await loadImageFile(file);
+        const largestDimension = Math.max(image.naturalWidth, image.naturalHeight);
+        const scale = largestDimension > MAX_IMAGE_DIMENSION ? MAX_IMAGE_DIMENSION / largestDimension : 1;
+        const width = Math.max(1, Math.round(image.naturalWidth * scale));
+        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d", { alpha: false });
+        if (!context) throw new Error("Canvas indisponível.");
+
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+
+        let optimized: Blob | null = null;
+        for (const quality of [0.82, 0.72, 0.62, 0.52, 0.42]) {
+            optimized = await canvasToBlob(canvas, quality);
+            if (optimized && optimized.size <= TARGET_IMAGE_BYTES) break;
+        }
+        if (!optimized) throw new Error("Codificação WEBP indisponível.");
+
+        const selected = optimized.size < file.size || file.size > TARGET_IMAGE_BYTES
+            ? optimized
+            : file;
+        return readBlobAsDataUrl(selected, file.name);
+    } catch (cause) {
+        if (file.size <= MAX_UNOPTIMIZED_IMAGE_BYTES) {
+            return readBlobAsDataUrl(file, file.name);
+        }
+        throw cause instanceof Error
+            ? cause
+            : new Error(`Não foi possível otimizar a imagem "${file.name}".`);
+    }
+}
+
+async function optimizeImageFiles(files: File[]) {
+    const results = new Array<string>(files.length);
+    let nextIndex = 0;
+    const workers = Array.from(
+        { length: Math.min(IMAGE_PROCESSING_CONCURRENCY, files.length) },
+        async () => {
+            while (nextIndex < files.length) {
+                const index = nextIndex++;
+                results[index] = await optimizeImageFile(files[index]);
+            }
+        },
+    );
+    await Promise.all(workers);
+    return results;
 }
 
 function isConnectedIntegrationStatus(status: string) {
@@ -596,19 +711,7 @@ export function InventoryStudio() {
 
     async function saveOlxMapping(
         vehicleId: string,
-        mapping: {
-            brandId: string | null;
-            modelId: string | null;
-            versionId: string | null;
-            fuelCode: string | null;
-            gearboxCode: string | null;
-            doorsCode: string | null;
-            colorCode: string | null;
-            featureCodes: string[];
-            plate: string | null;
-            phone: string | null;
-            zipcode: string | null;
-        }
+        mapping: OlxMappingPayload
     ) {
         const response = await fetch(`/api/integrations/olx/vehicles/${vehicleId}/mapping`, {
             method: "PUT",
@@ -619,21 +722,11 @@ export function InventoryStudio() {
         if (!response.ok) {
             throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuração OLX do veículo.");
         }
-        hydrateOlxMapping(payload as OlxVehicleMapping);
     }
 
     async function saveMeliMapping(
         vehicleId: string,
-        mapping: {
-            categoryId: string | null;
-            listingTypeId: string | null;
-            condition: string | null;
-            sellerSku: string | null;
-            title: string | null;
-            description: string | null;
-            priceCents: number | null;
-            attributes: MeliVehicleFormState["attributes"];
-        }
+        mapping: MeliMappingPayload
     ) {
         const response = await fetch(`/api/integrations/mercadolivre/vehicles/${vehicleId}/mapping`, {
             method: "PUT",
@@ -644,7 +737,6 @@ export function InventoryStudio() {
         if (!response.ok) {
             throw new Error((payload as { message?: string } | null)?.message ?? "Falha ao salvar a configuração Mercado Livre do veículo.");
         }
-        hydrateMeliMapping(payload as MeliVehicleMapping);
     }
 
     async function fetchOlxCatalogOptions(path: string) {
@@ -770,105 +862,52 @@ export function InventoryStudio() {
         }
     }
 
-    async function persistSelectedMappings(vehicleId: string) {
+    async function prepareSelectedMappings(): Promise<SelectedMappingPayloads> {
         const selectedProviders = new Set(
             form.targetIntegrations
                 .map((providerKey) => canonicalPublicationProviderKey(providerKey))
                 .filter((providerKey) => readyPublicationProviderKeys.has(providerKey))
         );
+        const [olx, mercadolivre] = await Promise.all([
+            selectedProviders.has("olx") ? buildOlxMappingPayload() : Promise.resolve(null),
+            selectedProviders.has("mercadolivre") ? buildMeliMappingPayload() : Promise.resolve(null),
+        ]);
+        return { providerKeys: Array.from(selectedProviders), olx, mercadolivre };
+    }
+
+    async function persistSelectedMappings(vehicleId: string, mappings: SelectedMappingPayloads) {
         const tasks: Promise<void>[] = [];
-
-        if (selectedProviders.has("olx")) {
-            tasks.push(saveOlxMapping(vehicleId, await buildOlxMappingPayload()));
-        }
-        if (selectedProviders.has("mercadolivre")) {
-            tasks.push(saveMeliMapping(vehicleId, await buildMeliMappingPayload()));
-        }
-
-        if (!tasks.length) return;
+        if (mappings.olx) tasks.push(saveOlxMapping(vehicleId, mappings.olx));
+        if (mappings.mercadolivre) tasks.push(saveMeliMapping(vehicleId, mappings.mercadolivre));
         await Promise.all(tasks);
     }
 
-    function findPublication(vehicle: VehicleRecord, providerKey: string) {
-        const normalizedProviderKey = canonicalPublicationProviderKey(providerKey);
-        return vehicle.publications.find((publication) => canonicalPublicationProviderKey(publication.providerKey) === normalizedProviderKey) ?? null;
-    }
-
-    function shouldUpdateOlxAd(vehicle: VehicleRecord) {
-        const publication = findPublication(vehicle, "olx");
-        if (form.olx.ad?.id || form.olx.ad?.olxListId || form.olx.ad?.importToken) {
-            return true;
-        }
-        const status = publication?.status.trim().toUpperCase() ?? "";
-        return ["PUBLISHED", "SYNC_IN_PROGRESS"].includes(status);
-    }
-
-    function shouldUpdateMeliAd(vehicle: VehicleRecord) {
-        const publication = findPublication(vehicle, "mercadolivre");
-        if (form.meli.ad?.meliItemId) {
-            return true;
-        }
-        const status = publication?.status.trim().toUpperCase() ?? "";
-        return ["PUBLISHED", "PAUSED", "UNDER_REVIEW", "PAYMENT_REQUIRED", "NOT_YET_ACTIVE", "INACTIVE"].includes(status);
-    }
-
-    async function runPublicationAction(providerLabel: string, request: Promise<Response>) {
-        const response = await request;
+    async function syncSelectedIntegrations(vehicleId: string) {
+        const response = await fetch(`/api/ioauto/vehicles/${encodeURIComponent(vehicleId)}/sync-publications`, {
+            method: "POST",
+        });
+        if (response.ok) return;
         const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-        if (!response.ok) {
-            throw new Error(`${providerLabel}: ${payload?.message ?? "Falha ao publicar o veículo."}`);
-        }
+        throw new Error(payload?.message ?? "Não foi possível agendar a sincronização das integrações.");
     }
 
-    async function syncSelectedIntegrations(vehicle: VehicleRecord) {
-        const selectedProviders = new Set(
-            form.targetIntegrations
-                .map((providerKey) => canonicalPublicationProviderKey(providerKey))
-                .filter((providerKey) => readyPublicationProviderKeys.has(providerKey))
-        );
-        const tasks: Promise<void>[] = [];
-
-        if (selectedProviders.has("mercadolivre")) {
-            tasks.push(
-                runPublicationAction(
-                    "Mercado Livre",
-                    fetch(
-                        shouldUpdateMeliAd(vehicle)
-                            ? `/api/integrations/mercadolivre/vehicles/${vehicle.id}/ad`
-                            : `/api/integrations/mercadolivre/vehicles/${vehicle.id}/publish`,
-                        { method: shouldUpdateMeliAd(vehicle) ? "PUT" : "POST" },
-                    ),
-                ),
+    async function finalizeVehicleIntegrations(
+        vehicleId: string,
+        mappingsPromise: Promise<SelectedMappingPayloads>,
+    ) {
+        try {
+            const mappings = await mappingsPromise;
+            await persistSelectedMappings(vehicleId, mappings);
+            if (mappings.providerKeys.length) {
+                await syncSelectedIntegrations(vehicleId);
+            }
+        } catch (cause) {
+            setError(
+                `Veículo salvo, mas a sincronização das integrações ficou pendente: ${
+                    cause instanceof Error ? cause.message : "falha desconhecida"
+                }`,
             );
         }
-
-        if (selectedProviders.has("olx")) {
-            tasks.push(
-                runPublicationAction(
-                    "OLX",
-                    fetch(
-                        shouldUpdateOlxAd(vehicle)
-                            ? `/api/integrations/olx/vehicles/${vehicle.id}/ad`
-                            : `/api/integrations/olx/vehicles/${vehicle.id}/publish`,
-                        { method: shouldUpdateOlxAd(vehicle) ? "PUT" : "POST" },
-                    ),
-                ),
-            );
-        }
-
-        if (selectedProviders.has("webmotors")) {
-            tasks.push(
-                runPublicationAction(
-                    "Webmotors",
-                    fetch(`/api/ioauto/webmotors/ads/${vehicle.id}/publish`, { method: "POST" }),
-                ),
-            );
-        }
-
-        if (!tasks.length) return [] as string[];
-
-        const results = await Promise.allSettled(tasks);
-        return results.flatMap((result) => (result.status === "rejected" ? [result.reason instanceof Error ? result.reason.message : "Falha ao publicar o veículo nas integrações selecionadas."] : []));
     }
 
     useEffect(() => {
@@ -1120,8 +1159,11 @@ export function InventoryStudio() {
             if (invalidFile) {
                 throw new Error("Envie imagens PNG, JPG, WEBP, GIF ou AVIF.");
             }
+            if (form.imageUrls.length + files.length > MAX_VEHICLE_IMAGES) {
+                throw new Error(`Envie no máximo ${MAX_VEHICLE_IMAGES} imagens por veículo.`);
+            }
 
-            const imageUrls = await Promise.all(files.map((file) => readFileAsDataUrl(file)));
+            const imageUrls = await optimizeImageFiles(files);
 
             setForm((current) => ({
                 ...current,
@@ -1266,7 +1308,7 @@ export function InventoryStudio() {
                     : null,
                 description: form.description,
                 coverImageUrl: imageUrls[0] ?? null,
-                gallery: imageUrls,
+                gallery: imageUrls.slice(1),
                 optionals: parseOptionalsInput(form.optionalsText),
                 featured: form.featured,
                 status: form.status,
@@ -1281,29 +1323,23 @@ export function InventoryStudio() {
                 meliCondition: form.meli.condition || null,
             };
 
+            const mappingsPromise = prepareSelectedMappings();
+            void mappingsPromise.catch(() => undefined);
             const response = await fetch(form.id ? `/api/ioauto/vehicles/${form.id}` : "/api/ioauto/vehicles", {
                 method: form.id ? "PUT" : "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
-            const responseBody = (await response.json().catch(() => null)) as VehicleRecord | { message?: string } | null;
+            const responseBody = (await response.json().catch(() => null)) as SavedVehicleResponse | { message?: string } | null;
 
             if (!response.ok) {
                 throw new Error((responseBody as { message?: string } | null)?.message ?? "Falha ao salvar o veículo.");
             }
 
-            const savedVehicle = responseBody as VehicleRecord;
-            await persistSelectedMappings(savedVehicle.id);
-            const publicationErrors = await syncSelectedIntegrations(savedVehicle);
-
-            await loadInventory(false);
-
-            if (publicationErrors.length) {
-                setError(`Veículo salvo no IO Auto, mas algumas integrações não concluíram a publicação: ${publicationErrors.join(" | ")}`);
-                return;
-            }
-
+            const savedVehicle = responseBody as SavedVehicleResponse;
             setIsEditorOpen(false);
+            void loadInventory(false);
+            void finalizeVehicleIntegrations(savedVehicle.id, mappingsPromise);
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : "Falha ao salvar o veículo.");
         } finally {
@@ -1678,7 +1714,7 @@ export function InventoryStudio() {
                                                     <CarFront className="h-6 w-6 text-black/55" />
                                                 </div>
                                                 <p className="mt-4 text-sm font-semibold text-io-dark">{uploadingImages ? "Processando imagens..." : "Solte as imagens aqui"}</p>
-                                                <p className="mt-2 text-sm text-black/52">PNG, JPG, WEBP ou GIF. A primeira imagem vira a capa.</p>
+                                                <p className="mt-2 text-sm text-black/52">Até 20 imagens PNG, JPG, WEBP, GIF ou AVIF, otimizadas automaticamente. A primeira vira a capa.</p>
                                             </div>
 
                                             <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageInputChange} className="hidden" />
