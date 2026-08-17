@@ -39,6 +39,12 @@ public class JpaIoAutoPublicCatalogLeadEntity {
     @Column(name = "source_reference", length = 160)
     private String sourceReference;
 
+    @Column(name = "public_link_id")
+    private UUID publicLinkId;
+
+    @Column(name = "influencer_name", length = 160)
+    private String influencerName;
+
     @Column(name = "page_path", length = 255)
     private String pagePath;
 
@@ -130,6 +136,22 @@ public class JpaIoAutoPublicCatalogLeadEntity {
 
     public void setSourceReference(String sourceReference) {
         this.sourceReference = sourceReference;
+    }
+
+    public UUID getPublicLinkId() {
+        return publicLinkId;
+    }
+
+    public void setPublicLinkId(UUID publicLinkId) {
+        this.publicLinkId = publicLinkId;
+    }
+
+    public String getInfluencerName() {
+        return influencerName;
+    }
+
+    public void setInfluencerName(String influencerName) {
+        this.influencerName = influencerName;
     }
 
     public String getPagePath() {

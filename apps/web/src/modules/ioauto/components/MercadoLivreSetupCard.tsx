@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Cable, CheckCircle2, ExternalLink, LoaderCircle, RefreshCw, Unplug } from "lucide-react";
+import { ArrowRightLeft, Cable, CheckCircle2, ExternalLink, LoaderCircle, LogOut, RefreshCw, Unplug, X } from "lucide-react";
 import type { MeliAdRecord, MeliIntegrationStatus, MeliSyncSummary } from "@/modules/ioauto/types";
 import { formatDateTime } from "@/modules/ioauto/formatters";
 
@@ -24,6 +24,8 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
     const [working, setWorking] = useState<string | null>(null);
     const [message, setMessage] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [switchAccountOpen, setSwitchAccountOpen] = useState(false);
+    const [meliSessionChanged, setMeliSessionChanged] = useState(false);
 
     useEffect(() => {
         void loadAll();
@@ -77,14 +79,39 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
     async function handleDisconnect() {
         await runAction("disconnect", async () => {
             const response = await fetch("/api/integrations/mercadolivre/disconnect", { method: "POST" });
+            const payload = (await response.json().catch(() => null)) as { message?: string } | null;
             if (!response.ok) {
-                const payload = await response.json().catch(() => ({ message: "Falha ao desconectar a conta Mercado Livre." }));
-                throw new Error(payload.message ?? "Falha ao desconectar a conta Mercado Livre.");
+                throw new Error(payload?.message ?? "Falha ao desconectar a conta Mercado Livre.");
             }
-            setMessage("Conta Mercado Livre desconectada.");
+            setMessage(payload?.message ?? "Autorização revogada e conta Mercado Livre desconectada.");
             await loadAll();
             onRefreshParent?.();
         });
+    }
+
+    function openSwitchAccount() {
+        setError(null);
+        setMessage(null);
+        setMeliSessionChanged(false);
+        setSwitchAccountOpen(true);
+    }
+
+    async function handleSwitchAccount() {
+        setWorking("switch");
+        setError(null);
+        try {
+            const response = await fetch("/api/integrations/mercadolivre/switch-account", { method: "POST" });
+            const payload = (await response.json().catch(() => null)) as { url?: string; message?: string } | null;
+            if (!response.ok || !payload?.url) {
+                throw new Error(payload?.message ?? "Falha ao iniciar a troca da conta Mercado Livre.");
+            }
+            setSwitchAccountOpen(false);
+            window.location.assign(payload.url);
+        } catch (cause) {
+            setSwitchAccountOpen(false);
+            setError(cause instanceof Error ? cause.message : "Falha ao iniciar a troca da conta Mercado Livre.");
+            setWorking(null);
+        }
     }
 
     async function handleSyncCategories() {
@@ -164,15 +191,26 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
                         Atualizar
                     </button>
                     {status?.connected ? (
-                        <button
-                            type="button"
-                            onClick={() => void handleDisconnect()}
-                            disabled={working != null}
-                            className="inline-flex h-12 items-center gap-2 rounded-full border border-red-200 bg-red-50 px-5 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            {working === "disconnect" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Unplug className="h-4 w-4" />}
-                            Desconectar
-                        </button>
+                        <>
+                            <button
+                                type="button"
+                                onClick={openSwitchAccount}
+                                disabled={working != null}
+                                className="inline-flex h-12 items-center gap-2 rounded-full bg-[#ffe14a] px-5 text-sm font-semibold text-[#2f2a05] transition hover:bg-[#f0cf2e] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {working === "switch" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
+                                Trocar conta
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => void handleDisconnect()}
+                                disabled={working != null}
+                                className="inline-flex h-12 items-center gap-2 rounded-full border border-red-200 bg-red-50 px-5 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {working === "disconnect" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Unplug className="h-4 w-4" />}
+                                Desconectar
+                            </button>
+                        </>
                     ) : (
                         <button
                             type="button"
@@ -258,6 +296,94 @@ export function MercadoLivreSetupCard({ onConnectionStateChange, onRefreshParent
                     </div>
                 </section>
             </div>
+
+            {switchAccountOpen ? (
+                <div
+                    className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+                    role="presentation"
+                    onMouseDown={(event) => {
+                        if (event.target === event.currentTarget && working !== "switch") setSwitchAccountOpen(false);
+                    }}
+                >
+                    <section
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="meli-switch-account-title"
+                        className="w-full max-w-xl rounded-[32px] border border-white/20 bg-white p-6 shadow-[0_32px_100px_rgba(0,0,0,0.3)] md:p-8"
+                    >
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#8a7300]">Troca segura de conta</p>
+                                <h3 id="meli-switch-account-title" className="mt-3 font-display text-3xl font-bold text-io-dark">Conectar outro Mercado Livre</h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSwitchAccountOpen(false)}
+                                disabled={working === "switch"}
+                                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-black/5 text-black/55 transition hover:bg-black/10 disabled:opacity-40"
+                                aria-label="Fechar troca de conta"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="mt-6 rounded-[24px] border border-black/8 bg-[#faf8f4] p-4">
+                            <p className="text-xs font-bold uppercase tracking-[0.16em] text-black/35">Conta atual</p>
+                            <p className="mt-2 text-lg font-bold text-io-dark">{connectedDisplayName}</p>
+                            {status?.userId ? <p className="mt-1 text-xs text-black/45">ID Mercado Livre: {status.userId}</p> : null}
+                        </div>
+
+                        <div className="mt-6 space-y-4 text-sm leading-6 text-black/62">
+                            <p>
+                                Para impedir que o Mercado Livre reutilize automaticamente esta conta, abra o site em outra aba,
+                                saia da sessão atual e entre com a conta principal que deseja conectar.
+                            </p>
+                            <a
+                                href="https://www.mercadolivre.com.br/"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-black/12 bg-white px-5 font-semibold text-io-dark transition hover:border-black/25"
+                            >
+                                <LogOut className="h-4 w-4" />
+                                Abrir Mercado Livre para trocar login
+                                <ExternalLink className="h-4 w-4" />
+                            </a>
+                        </div>
+
+                        <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-[22px] border border-black/10 bg-black/[0.025] p-4">
+                            <input
+                                type="checkbox"
+                                checked={meliSessionChanged}
+                                onChange={(event) => setMeliSessionChanged(event.target.checked)}
+                                className="mt-1 h-4 w-4 accent-[#c9a900]"
+                            />
+                            <span className="text-sm leading-6 text-black/65">
+                                Já saí da conta atual ou alterei o usuário no Mercado Livre.
+                            </span>
+                        </label>
+
+                        <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setSwitchAccountOpen(false)}
+                                disabled={working === "switch"}
+                                className="inline-flex h-12 items-center justify-center rounded-full border border-black/12 px-5 text-sm font-semibold text-black/65 transition hover:border-black/25 disabled:opacity-40"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => void handleSwitchAccount()}
+                                disabled={!meliSessionChanged || working === "switch"}
+                                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#ffe14a] px-5 text-sm font-bold text-[#2f2a05] transition hover:bg-[#f0cf2e] disabled:cursor-not-allowed disabled:bg-black/10 disabled:text-black/30"
+                            >
+                                {working === "switch" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
+                                Revogar e conectar outra conta
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            ) : null}
         </article>
     );
 }

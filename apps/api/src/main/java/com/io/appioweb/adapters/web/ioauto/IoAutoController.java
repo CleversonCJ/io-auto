@@ -29,6 +29,7 @@ import com.io.appioweb.shared.errors.BusinessException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -52,6 +53,8 @@ import com.io.appioweb.application.ioauto.olx.OlxAdService;
 
 import java.net.URI;
 import java.net.URLEncoder;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -76,6 +79,9 @@ public class IoAutoController {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final int MAX_PUBLIC_CATALOG_BANNER_IMAGES = 6;
     private static final int MAX_PUBLIC_CATALOG_IMAGE_LENGTH = 2_000_000;
+    private static final int MAX_PUBLIC_CATALOG_BANNER_TITLE_LENGTH = 120;
+    private static final int MAX_PUBLIC_CATALOG_BANNER_DESCRIPTION_LENGTH = 300;
+    private static final int MAX_PUBLIC_CATALOG_BANNER_REDIRECT_URL_LENGTH = 2_048;
     private static final Map<String, String> VEHICLE_TRANSMISSION_OPTIONS = Map.ofEntries(
             Map.entry("automatica", "Automatica"),
             Map.entry("automatico", "Automatica"),
@@ -386,6 +392,7 @@ public class IoAutoController {
                         vehicle.getModelYear(),
                         vehicle.getManufactureYear(),
                         vehicle.getPriceCents(),
+                        vehicle.getTradeInPriceCents(),
                         vehicle.getMileage(),
                         vehicle.getConsigned(),
                         normalizeNullableText(vehicle.getConsignedOwnerName()),
@@ -657,6 +664,7 @@ public class IoAutoController {
 
         String normalizedSourceType = trimToMaxLength(normalizePublicCatalogLeadSourceType(request.sourceType()), 40);
         String normalizedSourceReference = trimToMaxLength(normalizeNullableText(request.sourceReference()), 160);
+        JpaIoAutoPublicLinkEntity trackedLink = findPublicLinkByTracking(companyId, normalizedSourceType, normalizedSourceReference);
         JpaIoAutoPublicCatalogLeadEntity entity = new JpaIoAutoPublicCatalogLeadEntity();
         entity.setId(UUID.randomUUID());
         entity.setCompanyId(companyId);
@@ -667,6 +675,10 @@ public class IoAutoController {
         entity.setVehicleInterestName(resolveVehicleInterestName(companyId, trackedVehicleId, request.customerName()));
         entity.setSourceType(normalizedSourceType);
         entity.setSourceReference(normalizedSourceReference);
+        entity.setPublicLinkId(trackedLink == null ? null : trackedLink.getId());
+        entity.setInfluencerName(trackedLink != null && "INFLUENCER".equalsIgnoreCase(normalizeText(trackedLink.getSourceType()))
+                ? normalizeText(trackedLink.getName(), "Influenciador")
+                : null);
         entity.setPagePath(trimToMaxLength(normalizeNullableText(request.pagePath()), 255));
         entity.setSourceUrl(normalizeNullableText(request.sourceUrl()));
         entity.setOriginSource(trimToMaxLength(normalizedSourceType, 255));
@@ -1061,6 +1073,15 @@ public class IoAutoController {
 
         Map<UUID, JpaIoAutoVehicleEntity> vehiclesById = vehicles.findAllByCompanyIdOrderByUpdatedAtDesc(companyId).stream()
                 .collect(java.util.stream.Collectors.toMap(JpaIoAutoVehicleEntity::getId, item -> item, (left, right) -> left, LinkedHashMap::new));
+        Map<String, String> influencerNamesBySource = publicLinks.findAllByCompanyIdOrderByCreatedAtDesc(companyId).stream()
+                .filter(link -> "INFLUENCER".equalsIgnoreCase(normalizeText(link.getSourceType())))
+                .filter(link -> normalizeNullableText(link.getSourceReference()) != null)
+                .collect(java.util.stream.Collectors.toMap(
+                        link -> publicLinkEventStatsKey(link.getSourceType(), link.getSourceReference()),
+                        link -> normalizeText(link.getName(), "Influenciador"),
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
 
         long leadsWithVehicle = leads.stream().filter(lead -> lead.getVehicleId() != null).count();
         long leadsWithCampaign = leads.stream().filter(lead -> normalizeNullableText(lead.getSourceReference()) != null).count();
@@ -1083,6 +1104,7 @@ public class IoAutoController {
                             vehicle == null ? null : "/estoque-publico/" + publicSlug + "/veiculo/" + lead.getVehicleId(),
                             normalizeNullableText(lead.getSourceType()),
                             normalizeNullableText(lead.getSourceReference()),
+                            resolvePublicCatalogLeadOrigin(lead, influencerNamesBySource),
                             normalizeNullableText(lead.getPagePath()),
                             normalizeNullableText(lead.getSourceUrl()),
                             lead.getSellerUserId(),
@@ -1193,6 +1215,15 @@ public class IoAutoController {
                         (left, right) -> left,
                         LinkedHashMap::new
                 ));
+        Map<UUID, PublicLinkCommissionStats> commissionStatsByLinkId = new LinkedHashMap<>();
+        for (JpaAtendimentoSessionEntity session : sessions.findAllByCompanyIdAndSaleCompletedIsTrueAndSaleInfluencerPublicLinkIdIsNotNullOrderBySaleCompletedAtDesc(companyId)) {
+            UUID linkId = session.getSaleInfluencerPublicLinkId();
+            PublicLinkCommissionStats current = commissionStatsByLinkId.getOrDefault(linkId, PublicLinkCommissionStats.EMPTY);
+            commissionStatsByLinkId.put(linkId, new PublicLinkCommissionStats(
+                    current.totalCommissionCents() + positiveLong(session.getSaleInfluencerCommissionAmountCents()),
+                    current.saleCount() + 1L
+            ));
+        }
 
         List<PublicLinkHttpResponse> response = links.stream()
                 .map(link -> toPublicLinkResponse(
@@ -1200,11 +1231,50 @@ public class IoAutoController {
                         link,
                         vehicleTitlesById,
                         eventStatsBySource,
-                        responsibleUserNames.get(link.getResponsibleUserId())
+                        responsibleUserNames.get(link.getResponsibleUserId()),
+                        commissionStatsByLinkId.getOrDefault(link.getId(), PublicLinkCommissionStats.EMPTY)
                 ))
                 .toList();
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/ioauto/public-links/{linkId}/commissions")
+    public ResponseEntity<PublicLinkCommissionHistoryHttpResponse> getPublicLinkCommissionHistory(@PathVariable UUID linkId) {
+        UUID companyId = currentUser.companyId();
+        planManagementService.assertFeatureEnabled(companyId, SuperAdminPlanManagementService.FEATURE_OWN_SITE);
+        JpaIoAutoPublicLinkEntity link = publicLinks.findByIdAndCompanyId(linkId, companyId)
+                .orElseThrow(() -> new BusinessException("IOAUTO_PUBLIC_LINK_NOT_FOUND", "Link não encontrado."));
+        if (!"INFLUENCER".equalsIgnoreCase(normalizeText(link.getSourceType()))) {
+            throw new BusinessException("IOAUTO_PUBLIC_LINK_COMMISSION_NOT_AVAILABLE", "O histórico de comissão está disponível somente para links de influenciadores.");
+        }
+
+        List<JpaAtendimentoSessionEntity> commissionSales = sessions
+                .findAllByCompanyIdAndSaleCompletedIsTrueAndSaleInfluencerPublicLinkIdOrderBySaleCompletedAtDesc(companyId, linkId);
+        long totalCommissionCents = commissionSales.stream()
+                .mapToLong(session -> positiveLong(session.getSaleInfluencerCommissionAmountCents()))
+                .sum();
+        List<PublicLinkCommissionHistoryHttpResponse.SaleItem> recentSales = commissionSales.stream()
+                .limit(50)
+                .map(session -> new PublicLinkCommissionHistoryHttpResponse.SaleItem(
+                        session.getId(),
+                        session.getSoldVehicleId(),
+                        normalizeText(session.getSoldVehicleTitle(), "Veículo vendido"),
+                        positiveLong(session.getSaleAmountAfterDiscountCents()),
+                        session.getSaleInfluencerCommissionPercentage(),
+                        positiveLong(session.getSaleInfluencerCommissionAmountCents()),
+                        session.getSaleCompletedAt()
+                ))
+                .toList();
+
+        return ResponseEntity.ok(new PublicLinkCommissionHistoryHttpResponse(
+                link.getId(),
+                normalizeText(link.getName(), "Influenciador"),
+                link.getCommissionPercentage(),
+                totalCommissionCents,
+                commissionSales.size(),
+                recentSales
+        ));
     }
 
     @GetMapping("/ioauto/public-catalog-settings")
@@ -1229,7 +1299,11 @@ public class IoAutoController {
                 .orElseThrow(() -> new BusinessException("COMPANY_NOT_FOUND", "Empresa não encontrada."));
 
         String bannerMode = normalizePublicCatalogBannerMode(request.bannerMode());
-        List<String> customImageUrls = sanitizePublicCatalogBannerImages(request.customImageUrls());
+        List<PublicCatalogCustomBannerSettings> customBanners = request.customBanners() == null
+                ? sanitizePublicCatalogBannerImages(request.customImageUrls()).stream()
+                        .map(imageUrl -> new PublicCatalogCustomBannerSettings(imageUrl, "", "", ""))
+                        .toList()
+                : sanitizePublicCatalogCustomBanners(request.customBanners());
 
         var updated = new com.io.appioweb.domain.auth.entity.Company(
                 company.id(),
@@ -1247,7 +1321,7 @@ public class IoAutoController {
                 company.businessHoursEnd(),
                 company.businessHoursWeeklyJson(),
                 bannerMode,
-                writeStringArray(customImageUrls),
+                writePublicCatalogCustomBanners(customBanners),
                 company.createdAt()
         );
         companies.save(updated);
@@ -1277,6 +1351,9 @@ public class IoAutoController {
         }
         String sourceType = "PUBLIC".equals(linkKind) ? null : normalizePublicLinkSourceType(request.sourceType());
         String sourceReference = "PUBLIC".equals(linkKind) ? null : normalizePublicLinkSourceReference(request.sourceReference());
+        BigDecimal commissionPercentage = "INFLUENCER".equals(sourceType)
+                ? requireInfluencerCommissionPercentage(request.commissionPercentage())
+                : null;
         boolean useCompanyWhatsapp = request.useCompanyWhatsapp() == null || request.useCompanyWhatsapp();
         String whatsappNumber;
         if (useCompanyWhatsapp) {
@@ -1311,6 +1388,7 @@ public class IoAutoController {
         entity.setScopeType(scopeType);
         entity.setSourceType(sourceType);
         entity.setSourceReference(sourceReference);
+        entity.setCommissionPercentage(commissionPercentage);
         entity.setUseCompanyWhatsapp(useCompanyWhatsapp);
         entity.setWhatsappNumber(whatsappNumber);
         entity.setResponsibleUserId(responsibleUser.id());
@@ -1326,7 +1404,8 @@ public class IoAutoController {
                 entity,
                 vehicleTitlesById,
                 Map.of(),
-                normalizeText(responsibleUser.fullName(), responsibleUser.email())
+                normalizeText(responsibleUser.fullName(), responsibleUser.email()),
+                PublicLinkCommissionStats.EMPTY
         ));
     }
 
@@ -1461,6 +1540,7 @@ public class IoAutoController {
         entity.setModelYear(resolvedYear);
         entity.setManufactureYear(resolvedYear);
         entity.setPriceCents(request.priceCents());
+        entity.setTradeInPriceCents(request.tradeInPriceCents());
         entity.setMileage(request.mileage());
         entity.setTransmission(normalizeVehicleTransmission(request.transmission()));
         entity.setFuelType(normalizeVehicleFuelType(request.fuelType()));
@@ -1591,6 +1671,7 @@ public class IoAutoController {
                 vehicle.getModelYear(),
                 vehicle.getManufactureYear(),
                 vehicle.getPriceCents(),
+                vehicle.getTradeInPriceCents(),
                 vehicle.getMileage(),
                 normalizeNullableText(vehicle.getTransmission()),
                 normalizeNullableText(vehicle.getFuelType()),
@@ -1645,6 +1726,7 @@ public class IoAutoController {
                 vehicle.getModelYear(),
                 vehicle.getManufactureYear(),
                 vehicle.getPriceCents(),
+                vehicle.getTradeInPriceCents(),
                 vehicle.getMileage(),
                 normalizeNullableText(vehicle.getTransmission()),
                 normalizeNullableText(vehicle.getFuelType()),
@@ -1784,7 +1866,8 @@ public class IoAutoController {
             JpaIoAutoPublicLinkEntity link,
             Map<UUID, String> vehicleTitlesById,
             Map<String, PublicLinkEventStats> eventStatsBySource,
-            String responsibleUserName
+            String responsibleUserName,
+            PublicLinkCommissionStats commissionStats
     ) {
         String sourceType = normalizeNullableText(link.getSourceType());
         String sourceReference = normalizeNullableText(link.getSourceReference());
@@ -1802,6 +1885,9 @@ public class IoAutoController {
                 normalizeText(link.getScopeType(), "CATALOG"),
                 sourceType,
                 sourceReference,
+                link.getCommissionPercentage(),
+                commissionStats.totalCommissionCents(),
+                commissionStats.saleCount(),
                 link.isUseCompanyWhatsapp(),
                 sanitizeWhatsappNumber(link.getWhatsappNumber()),
                 link.getResponsibleUserId(),
@@ -1824,10 +1910,28 @@ public class IoAutoController {
                 + normalizeText(sourceReference).toUpperCase(Locale.ROOT);
     }
 
+    private String resolvePublicCatalogLeadOrigin(
+            JpaIoAutoPublicCatalogLeadEntity lead,
+            Map<String, String> influencerNamesBySource
+    ) {
+        if (!"INFLUENCER".equalsIgnoreCase(normalizeText(lead.getSourceType()))) {
+            return "Catálogo público";
+        }
+        String storedInfluencerName = normalizeNullableText(lead.getInfluencerName());
+        if (storedInfluencerName != null) {
+            return storedInfluencerName;
+        }
+        return influencerNamesBySource.getOrDefault(
+                publicLinkEventStatsKey(lead.getSourceType(), lead.getSourceReference()),
+                "Catálogo público"
+        );
+    }
+
     private PublicCatalogSettingsHttpResponse toPublicCatalogSettingsResponse(com.io.appioweb.domain.auth.entity.Company company) {
+        List<PublicCatalogCustomBannerSettings> customBanners = resolvePublicCatalogCustomBanners(company);
         return new PublicCatalogSettingsHttpResponse(
                 normalizePublicCatalogBannerMode(company.publicStockBannerMode()),
-                sanitizePublicCatalogBannerImages(readStringArray(company.publicStockBannerImagesJson()))
+                customBanners
         );
     }
 
@@ -1859,6 +1963,7 @@ public class IoAutoController {
                         vehicle.getId(),
                         vehicle.getTitle(),
                         buildPublicVehicleSubtitle(vehicle),
+                        null,
                         resolveVehicleImages(vehicle).isEmpty()
                                 ? null
                                 : buildPublicVehicleImagePath(companySlug, vehicle, 0),
@@ -1875,26 +1980,29 @@ public class IoAutoController {
             com.io.appioweb.domain.auth.entity.Company company,
             String companySlug
     ) {
-        List<String> images = resolvePublicCatalogBannerImages(company);
-        if (images.isEmpty()) {
+        List<PublicCatalogCustomBannerSettings> customBanners = resolvePublicCatalogCustomBanners(company);
+        if (customBanners.isEmpty()) {
             return List.of();
         }
 
-        String companyName = normalizeText(company.name(), "Catalogo");
-        return java.util.stream.IntStream.range(0, images.size())
-                .mapToObj(index -> new PublicCatalogBanner(
-                        "custom-image-" + (index + 1),
-                        "CUSTOM_IMAGE",
-                        null,
-                        companyName,
-                        "Confira os carros disponiveis e fale com a loja para receber mais detalhes.",
-                        buildPublicCatalogBannerImagePath(companySlug, index, images.get(index)),
-                        null,
-                        null,
-                        null,
-                        null,
-                        true
-                ))
+        return java.util.stream.IntStream.range(0, customBanners.size())
+                .mapToObj(index -> {
+                    PublicCatalogCustomBannerSettings banner = customBanners.get(index);
+                    return new PublicCatalogBanner(
+                            "custom-image-" + (index + 1),
+                            "CUSTOM_IMAGE",
+                            null,
+                            normalizeText(banner.title()),
+                            normalizeText(banner.description()),
+                            normalizeNullableText(banner.redirectUrl()),
+                            buildPublicCatalogBannerImagePath(companySlug, index, banner.imageUrl()),
+                            null,
+                            null,
+                            null,
+                            null,
+                            true
+                    );
+                })
                 .toList();
     }
 
@@ -1918,6 +2026,7 @@ public class IoAutoController {
                 vehicle.getModelYear(),
                 vehicle.getManufactureYear(),
                 vehicle.getPriceCents(),
+                vehicle.getTradeInPriceCents(),
                 vehicle.getMileage(),
                 normalizeNullableText(vehicle.getTransmission()),
                 normalizeNullableText(vehicle.getFuelType()),
@@ -2031,13 +2140,15 @@ public class IoAutoController {
     }
 
     private List<String> resolvePublicCatalogBannerImages(com.io.appioweb.domain.auth.entity.Company company) {
-        return readStringArray(company.publicStockBannerImagesJson()).stream()
-                .map(this::normalizeNullableText)
-                .filter(java.util.Objects::nonNull)
-                .filter(this::isSupportedPublicCatalogBannerImage)
-                .distinct()
-                .limit(MAX_PUBLIC_CATALOG_BANNER_IMAGES)
+        return resolvePublicCatalogCustomBanners(company).stream()
+                .map(PublicCatalogCustomBannerSettings::imageUrl)
                 .toList();
+    }
+
+    private List<PublicCatalogCustomBannerSettings> resolvePublicCatalogCustomBanners(
+            com.io.appioweb.domain.auth.entity.Company company
+    ) {
+        return readPublicCatalogCustomBanners(company.publicStockBannerImagesJson());
     }
 
     private String buildPublicVehicleImagePath(
@@ -2198,6 +2309,77 @@ public class IoAutoController {
         return List.copyOf(unique);
     }
 
+    private List<PublicCatalogCustomBannerSettings> sanitizePublicCatalogCustomBanners(
+            List<PublicCatalogCustomBannerSettings> values
+    ) {
+        LinkedHashMap<String, PublicCatalogCustomBannerSettings> unique = new LinkedHashMap<>();
+        for (PublicCatalogCustomBannerSettings value : values == null
+                ? List.<PublicCatalogCustomBannerSettings>of()
+                : values) {
+            if (value == null) continue;
+
+            String imageUrl = normalizeText(value.imageUrl());
+            if (imageUrl.isBlank()) continue;
+            if (!isSupportedPublicCatalogBannerImage(imageUrl)) {
+                throw new BusinessException("IOAUTO_PUBLIC_CATALOG_INVALID_IMAGE", "Uma das imagens do banner é inválida.");
+            }
+            if (imageUrl.length() > MAX_PUBLIC_CATALOG_IMAGE_LENGTH) {
+                throw new BusinessException("IOAUTO_PUBLIC_CATALOG_IMAGE_TOO_LARGE", "Uma das imagens do banner excede o tamanho permitido.");
+            }
+
+            String title = normalizeText(value.title());
+            String description = normalizeText(value.description());
+            if (title.length() > MAX_PUBLIC_CATALOG_BANNER_TITLE_LENGTH) {
+                throw new BusinessException("IOAUTO_PUBLIC_CATALOG_TITLE_TOO_LONG", "O título do banner deve ter no máximo 120 caracteres.");
+            }
+            if (description.length() > MAX_PUBLIC_CATALOG_BANNER_DESCRIPTION_LENGTH) {
+                throw new BusinessException("IOAUTO_PUBLIC_CATALOG_DESCRIPTION_TOO_LONG", "A descrição do banner deve ter no máximo 300 caracteres.");
+            }
+
+            unique.putIfAbsent(imageUrl, new PublicCatalogCustomBannerSettings(
+                    imageUrl,
+                    title,
+                    description,
+                    sanitizePublicCatalogBannerRedirectUrl(value.redirectUrl())
+            ));
+            if (unique.size() > MAX_PUBLIC_CATALOG_BANNER_IMAGES) {
+                throw new BusinessException(
+                        "IOAUTO_PUBLIC_CATALOG_IMAGE_LIMIT",
+                        "Você pode salvar até " + MAX_PUBLIC_CATALOG_BANNER_IMAGES + " imagens no banner."
+                );
+            }
+        }
+        return List.copyOf(unique.values());
+    }
+
+    private String sanitizePublicCatalogBannerRedirectUrl(String value) {
+        String normalized = normalizeText(value);
+        if (normalized.isBlank()) return "";
+        if (normalized.length() > MAX_PUBLIC_CATALOG_BANNER_REDIRECT_URL_LENGTH) {
+            throw new BusinessException(
+                    "IOAUTO_PUBLIC_CATALOG_REDIRECT_URL_TOO_LONG",
+                    "O link do banner excede o tamanho permitido."
+            );
+        }
+        if (normalized.startsWith("/") && !normalized.startsWith("//")) {
+            return normalized;
+        }
+
+        try {
+            URI uri = URI.create(normalized);
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+            if (("http".equals(scheme) || "https".equals(scheme)) && uri.getHost() != null) {
+                return normalized;
+            }
+        } catch (IllegalArgumentException ignored) {
+            // A mensagem de validação abaixo orienta o formato aceito.
+        }
+        throw new BusinessException(
+                "IOAUTO_PUBLIC_CATALOG_INVALID_REDIRECT_URL",
+                "Informe um link válido iniciado por http://, https:// ou uma rota interna iniciada por /."
+        );
+    }
+
     private boolean isSupportedPublicCatalogBannerImage(String value) {
         String normalized = normalizeText(value).toLowerCase(Locale.ROOT);
         if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
@@ -2209,6 +2391,41 @@ public class IoAutoController {
                 || normalized.startsWith("data:image/webp;base64,")
                 || normalized.startsWith("data:image/gif;base64,")
                 || normalized.startsWith("data:image/avif;base64,");
+    }
+
+    private String writePublicCatalogCustomBanners(List<PublicCatalogCustomBannerSettings> values) {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(values == null ? List.of() : values);
+        } catch (Exception exception) {
+            throw new BusinessException("IOAUTO_JSON_SERIALIZATION_FAILED", "Não foi possível salvar os dados do cadastro.");
+        }
+    }
+
+    private List<PublicCatalogCustomBannerSettings> readPublicCatalogCustomBanners(String raw) {
+        try {
+            List<Object> values = OBJECT_MAPPER.readValue(
+                    normalizeText(raw, "[]"),
+                    new TypeReference<List<Object>>() {
+                    }
+            );
+            List<PublicCatalogCustomBannerSettings> banners = new ArrayList<>();
+            for (Object value : values) {
+                if (value instanceof String imageUrl) {
+                    banners.add(new PublicCatalogCustomBannerSettings(imageUrl, "", "", ""));
+                    continue;
+                }
+                if (!(value instanceof Map<?, ?> item)) continue;
+                banners.add(new PublicCatalogCustomBannerSettings(
+                        item.get("imageUrl") instanceof String imageUrl ? imageUrl : "",
+                        item.get("title") instanceof String title ? title : "",
+                        item.get("description") instanceof String description ? description : "",
+                        item.get("redirectUrl") instanceof String redirectUrl ? redirectUrl : ""
+                ));
+            }
+            return sanitizePublicCatalogCustomBanners(banners);
+        } catch (Exception ignored) {
+            return List.of();
+        }
     }
 
     private String writeStringArray(List<String> values) {
@@ -2689,6 +2906,20 @@ public class IoAutoController {
         return trimToMaxLength(slug, 160);
     }
 
+    private BigDecimal requireInfluencerCommissionPercentage(BigDecimal raw) {
+        if (raw == null || raw.signum() <= 0 || raw.compareTo(BigDecimal.valueOf(100)) > 0) {
+            throw new BusinessException(
+                    "IOAUTO_PUBLIC_LINK_INVALID_COMMISSION",
+                    "Informe uma comissão maior que 0% e menor ou igual a 100%."
+            );
+        }
+        return raw.setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private long positiveLong(Long value) {
+        return value == null ? 0L : Math.max(0L, value);
+    }
+
     private String slugifyPublicPathSegment(String raw) {
         String normalized = normalizeText(raw)
                 .toLowerCase(Locale.ROOT)
@@ -2944,6 +3175,7 @@ public class IoAutoController {
             Integer modelYear,
             Integer manufactureYear,
             Long priceCents,
+            Long tradeInPriceCents,
             Integer mileage,
             boolean consigned,
             String consignedOwnerName,
@@ -2987,6 +3219,7 @@ public class IoAutoController {
             Integer modelYear,
             Integer manufactureYear,
             Long priceCents,
+            Long tradeInPriceCents,
             Integer mileage,
             String transmission,
             String fuelType,
@@ -3053,6 +3286,7 @@ public class IoAutoController {
             UUID vehicleId,
             String title,
             String subtitle,
+            String redirectUrl,
             String imageUrl,
             Long priceCents,
             String city,
@@ -3074,6 +3308,7 @@ public class IoAutoController {
             Integer modelYear,
             Integer manufactureYear,
             Long priceCents,
+            Long tradeInPriceCents,
             Integer mileage,
             String transmission,
             String fuelType,
@@ -3145,6 +3380,7 @@ public class IoAutoController {
                 String publicVehiclePath,
                 String sourceType,
                 String sourceReference,
+                String originName,
                 String pagePath,
                 String sourceUrl,
                 UUID sellerUserId,
@@ -3162,6 +3398,9 @@ public class IoAutoController {
             String scopeType,
             String sourceType,
             String sourceReference,
+            BigDecimal commissionPercentage,
+            long totalCommissionCents,
+            long commissionSaleCount,
             boolean useCompanyWhatsapp,
             String whatsappNumber,
             UUID responsibleUserId,
@@ -3180,7 +3419,35 @@ public class IoAutoController {
 
     public record PublicCatalogSettingsHttpResponse(
             String bannerMode,
-            List<String> customImageUrls
+            List<PublicCatalogCustomBannerSettings> customBanners
+    ) {
+    }
+
+    public record PublicLinkCommissionHistoryHttpResponse(
+            UUID linkId,
+            String influencerName,
+            BigDecimal commissionPercentage,
+            long totalCommissionCents,
+            long totalSales,
+            List<SaleItem> sales
+    ) {
+        public record SaleItem(
+                UUID saleId,
+                UUID vehicleId,
+                String vehicleTitle,
+                long saleAmountCents,
+                BigDecimal commissionPercentage,
+                long commissionAmountCents,
+                Instant soldAt
+        ) {
+        }
+    }
+
+    public record PublicCatalogCustomBannerSettings(
+            String imageUrl,
+            String title,
+            String description,
+            String redirectUrl
     ) {
     }
 
@@ -3250,6 +3517,7 @@ public class IoAutoController {
             Integer modelYear,
             Integer manufactureYear,
             Long priceCents,
+            @Positive(message = "O valor de troca deve ser maior que zero.") Long tradeInPriceCents,
             Integer mileage,
             String transmission,
             String fuelType,
@@ -3334,6 +3602,7 @@ public class IoAutoController {
             UUID vehicleId,
             String sourceType,
             String sourceReference,
+            BigDecimal commissionPercentage,
             Boolean useCompanyWhatsapp,
             String whatsappNumber,
             @NotNull(message = "Selecione o usuário responsável pelos leads.") UUID responsibleUserId
@@ -3342,8 +3611,13 @@ public class IoAutoController {
 
     public record SavePublicCatalogSettingsHttpRequest(
             String bannerMode,
-            List<String> customImageUrls
+            List<String> customImageUrls,
+            List<PublicCatalogCustomBannerSettings> customBanners
     ) {
+    }
+
+    private record PublicLinkCommissionStats(long totalCommissionCents, long saleCount) {
+        private static final PublicLinkCommissionStats EMPTY = new PublicLinkCommissionStats(0L, 0L);
     }
 
     public record UpdateIntegrationHttpRequest(

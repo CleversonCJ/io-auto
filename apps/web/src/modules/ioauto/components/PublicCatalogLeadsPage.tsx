@@ -332,7 +332,9 @@ export function PublicCatalogLeadsPage() {
     }, [saleLead, vehiclesById]);
 
     const saleFinancialPreview = useMemo(() => {
-        const originalAmountCents = saleVehicle?.priceCents ?? saleLead?.vehiclePriceCents ?? 0;
+        const originalAmountCents = saleFinancial.hasTradeInVehicle && saleVehicle?.tradeInPriceCents
+            ? saleVehicle.tradeInPriceCents
+            : saleVehicle?.priceCents ?? saleLead?.vehiclePriceCents ?? 0;
         return computeSaleClosingFinancialPreview(
             originalAmountCents,
             saleFinancial,
@@ -847,6 +849,10 @@ export function PublicCatalogLeadsPage() {
                             <p className="text-sm font-semibold text-io-dark">{saleLead.customerName}</p>
                             <p className="mt-1 text-sm text-black/55">{formatPhone(saleLead.customerPhone)}</p>
                             <p className="mt-2 text-sm text-black/55">{saleLead.vehicleTitle || "Veículo de interesse"}</p>
+                            <p className="mt-2 text-sm font-semibold text-io-dark">Valor padrão: {formatMoney(saleVehicle?.priceCents ?? saleLead.vehiclePriceCents)}</p>
+                            {saleVehicle?.tradeInPriceCents != null ? (
+                                <p className="mt-1 text-sm font-semibold text-io-purple">Valor de troca: {formatMoney(saleVehicle.tradeInPriceCents)}</p>
+                            ) : null}
                             {saleVehicle?.consigned ? (
                                 <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
                                     Consignado • {saleVehicle.consignedOwnerName ?? "Dono não informado"}
@@ -912,7 +918,7 @@ export function PublicCatalogLeadsPage() {
                                         />
                                     </label>
                                     <label className="grid gap-2">
-                                        <span className="text-xs uppercase tracking-[0.18em] text-black/40">Valor da troca</span>
+                                        <span className="text-xs uppercase tracking-[0.18em] text-black/40">Valor do veículo recebido</span>
                                         <input
                                             type="text"
                                             value={formatCurrencyDigits(saleFinancial.tradeInAmountDigits)}
@@ -1039,10 +1045,13 @@ export function PublicCatalogLeadsPage() {
                         </div>
 
                         <div className="mt-4 grid gap-2 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                            <p>Valor original: <span className="font-semibold">{formatMoney(saleFinancialPreview.originalAmountCents)}</span></p>
+                            <p>
+                                Valor aplicado{saleFinancial.hasTradeInVehicle && saleVehicle?.tradeInPriceCents ? " (condição de troca)" : " (padrão)"}: {" "}
+                                <span className="font-semibold">{formatMoney(saleFinancialPreview.originalAmountCents)}</span>
+                            </p>
                             <p>Desconto: <span className="font-semibold">{saleFinancialPreview.discountPercentage}% ({formatMoney(saleFinancialPreview.discountAmountCents)})</span></p>
                             <p>Valor com desconto: <span className="font-semibold">{formatMoney(saleFinancialPreview.amountAfterDiscountCents)}</span></p>
-                            <p>Troca: <span className="font-semibold">{formatMoney(saleFinancialPreview.tradeInAmountCents)}</span></p>
+                            <p>Veículo recebido: <span className="font-semibold">{formatMoney(saleFinancialPreview.tradeInAmountCents)}</span></p>
                             <p>Total real da venda: <span className="font-semibold">{formatMoney(saleFinancialPreview.totalRealAmountCents)}</span></p>
                             <p>Consignado: <span className="font-semibold">{saleFinancialPreview.consigned ? "Sim" : "Não"}</span></p>
                             {saleFinancialPreview.consigned ? (

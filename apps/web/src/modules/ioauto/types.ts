@@ -271,6 +271,7 @@ export type VehicleRecord = {
     modelYear: number | null;
     manufactureYear: number | null;
     priceCents: number | null;
+    tradeInPriceCents: number | null;
     mileage: number | null;
     transmission: string | null;
     fuelType: string | null;
@@ -312,6 +313,7 @@ export type InventoryVehicleSummary = {
     modelYear: number | null;
     manufactureYear: number | null;
     priceCents: number | null;
+    tradeInPriceCents: number | null;
     mileage: number | null;
     consigned: boolean;
     consignedOwnerName: string | null;
@@ -658,6 +660,7 @@ export type PublicInventoryBanner = {
     vehicleId: string | null;
     title: string;
     subtitle: string;
+    redirectUrl: string | null;
     imageUrl: string | null;
     priceCents: number | null;
     city: string | null;
@@ -678,6 +681,7 @@ export type PublicInventoryVehicle = {
     modelYear: number | null;
     manufactureYear: number | null;
     priceCents: number | null;
+    tradeInPriceCents: number | null;
     mileage: number | null;
     transmission: string | null;
     fuelType: string | null;
@@ -705,7 +709,15 @@ export type PublicInventoryCatalog = {
 
 export type PublicCatalogSettings = {
     bannerMode: PublicCatalogBannerMode;
-    customImageUrls: string[];
+    customBanners: PublicCatalogCustomBanner[];
+    customImageUrls?: string[];
+};
+
+export type PublicCatalogCustomBanner = {
+    imageUrl: string;
+    title: string;
+    description: string;
+    redirectUrl: string;
 };
 
 export type PublicVehicleDetail = {
@@ -756,6 +768,7 @@ export type PublicCatalogLeadList = {
         publicVehiclePath: string | null;
         sourceType: string | null;
         sourceReference: string | null;
+        originName: string;
         pagePath: string | null;
         sourceUrl: string | null;
         sellerUserId: string | null;
@@ -772,6 +785,9 @@ export type PublicLinkRecord = {
     scopeType: string;
     sourceType: string | null;
     sourceReference: string | null;
+    commissionPercentage: number | null;
+    totalCommissionCents: number;
+    commissionSaleCount: number;
     useCompanyWhatsapp: boolean;
     whatsappNumber: string | null;
     responsibleUserId: string | null;
@@ -785,4 +801,21 @@ export type PublicLinkRecord = {
     lastInteractionAt: string | null;
     createdAt: string | null;
     updatedAt: string | null;
+};
+
+export type PublicLinkCommissionHistory = {
+    linkId: string;
+    influencerName: string;
+    commissionPercentage: number | null;
+    totalCommissionCents: number;
+    totalSales: number;
+    sales: Array<{
+        saleId: string;
+        vehicleId: string | null;
+        vehicleTitle: string;
+        saleAmountCents: number;
+        commissionPercentage: number | null;
+        commissionAmountCents: number;
+        soldAt: string | null;
+    }>;
 };

@@ -17,6 +17,8 @@ public interface AtendimentoSessionRepositoryJpa extends JpaRepository<JpaAtendi
     List<JpaAtendimentoSessionEntity> findAllByCompanyIdAndArrivedAtGreaterThanEqualAndArrivedAtLessThanOrderByArrivedAtAsc(UUID companyId, java.time.Instant startAt, java.time.Instant endAt);
     List<JpaAtendimentoSessionEntity> findAllByCompanyIdAndSaleCompletedIsTrueAndSaleCompletedAtGreaterThanEqualAndSaleCompletedAtLessThanOrderBySaleCompletedAtAsc(UUID companyId, java.time.Instant startAt, java.time.Instant endAt);
     List<JpaAtendimentoSessionEntity> findAllByCompanyIdAndSaleCompletedIsTrueOrderBySaleCompletedAtDesc(UUID companyId);
+    List<JpaAtendimentoSessionEntity> findAllByCompanyIdAndSaleCompletedIsTrueAndSaleInfluencerPublicLinkIdIsNotNullOrderBySaleCompletedAtDesc(UUID companyId);
+    List<JpaAtendimentoSessionEntity> findAllByCompanyIdAndSaleCompletedIsTrueAndSaleInfluencerPublicLinkIdOrderBySaleCompletedAtDesc(UUID companyId, UUID publicLinkId);
 
     @Query(value = """
             select distinct on (conversation_id) session.*

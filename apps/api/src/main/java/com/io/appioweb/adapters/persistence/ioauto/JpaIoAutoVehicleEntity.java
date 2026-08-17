@@ -47,6 +47,9 @@ public class JpaIoAutoVehicleEntity {
     @Column(name = "price_cents")
     private Long priceCents;
 
+    @Column(name = "trade_in_price_cents")
+    private Long tradeInPriceCents;
+
     @Column
     private Integer mileage;
 
@@ -257,6 +260,14 @@ public class JpaIoAutoVehicleEntity {
 
     public void setPriceCents(Long priceCents) {
         this.priceCents = priceCents;
+    }
+
+    public Long getTradeInPriceCents() {
+        return tradeInPriceCents;
+    }
+
+    public void setTradeInPriceCents(Long tradeInPriceCents) {
+        this.tradeInPriceCents = tradeInPriceCents;
     }
 
     public Integer getMileage() {

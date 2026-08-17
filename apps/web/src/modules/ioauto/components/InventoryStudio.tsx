@@ -55,6 +55,7 @@ type VehicleFormState = {
     year: string;
     mileage: string;
     priceCents: string;
+    tradeInPriceCents: string;
     transmission: string;
     fuelType: string;
     bodyType: string;
@@ -209,6 +210,7 @@ function emptyForm(): VehicleFormState {
         year: "",
         mileage: "",
         priceCents: "",
+        tradeInPriceCents: "",
         transmission: "",
         fuelType: "",
         bodyType: "",
@@ -262,6 +264,7 @@ function vehicleToForm(vehicle: VehicleRecord): VehicleFormState {
         year: vehicle.year ? String(vehicle.year) : vehicle.modelYear ? String(vehicle.modelYear) : vehicle.manufactureYear ? String(vehicle.manufactureYear) : "",
         mileage: vehicle.mileage ? String(vehicle.mileage) : "",
         priceCents: vehicle.priceCents ? String(vehicle.priceCents) : "",
+        tradeInPriceCents: vehicle.tradeInPriceCents ? String(vehicle.tradeInPriceCents) : "",
         transmission: vehicle.transmission ?? "",
         fuelType: vehicle.fuelType ?? "",
         bodyType: vehicle.bodyType ?? "",
@@ -637,13 +640,19 @@ export function InventoryStudio() {
     const soldVehiclesCount = vehiclesByAvailability.sold.length;
     const requiresBuyerLead = Boolean(billing?.features.leadManagement);
     const saleFinancialPreview = useMemo(
-        () => computeSaleClosingFinancialPreview(saleVehicle?.priceCents ?? 0, saleFinancial, saleVehicle == null
+        () => computeSaleClosingFinancialPreview(
+            saleFinancial.hasTradeInVehicle && saleVehicle?.tradeInPriceCents
+                ? saleVehicle.tradeInPriceCents
+                : saleVehicle?.priceCents ?? 0,
+            saleFinancial,
+            saleVehicle == null
             ? null
             : {
                 consigned: saleVehicle.consigned,
                 consignedOwnerName: saleVehicle.consignedOwnerName,
                 consignmentCommissionPercentage: saleVehicle.consignmentCommissionPercentage,
-            }),
+            }
+        ),
         [saleFinancial, saleVehicle]
     );
 
@@ -1348,6 +1357,7 @@ export function InventoryStudio() {
                 manufactureYear: year,
                 mileage: form.mileage ? Number(form.mileage) : null,
                 priceCents: form.priceCents ? Number(form.priceCents) : null,
+                tradeInPriceCents: form.tradeInPriceCents ? Number(form.tradeInPriceCents) : null,
                 transmission: form.transmission || null,
                 fuelType: form.fuelType || null,
                 bodyType: form.bodyType || null,
@@ -1537,7 +1547,8 @@ export function InventoryStudio() {
                                                 <Field label="Motor" value={form.engine} onChange={(value) => updateField("engine", value)} placeholder="Ex.: 1.6 Flex" />
                                                 <Field label="Ano" value={form.year} onChange={(value) => updateField("year", value.replace(/\D/g, "").slice(0, 4))} required inputMode="numeric" />
                                                 <Field label="Quilometragem (KM)" value={form.mileage} onChange={(value) => updateField("mileage", value.replace(/\D/g, ""))} inputMode="numeric" />
-                                                <MoneyField label="Preço (R$)" value={form.priceCents} onChange={(value) => updateField("priceCents", value)} required />
+                                                <MoneyField label="Valor padrão (R$)" value={form.priceCents} onChange={(value) => updateField("priceCents", value)} required />
+                                                <MoneyField label="Valor de troca (R$)" value={form.tradeInPriceCents} onChange={(value) => updateField("tradeInPriceCents", value)} />
                                                 <SelectField label="Câmbio" value={form.transmission} options={TRANSMISSION_OPTIONS} onChange={(value) => updateField("transmission", value)} />
                                                 <SelectField label="Combustível" value={form.fuelType} options={FUEL_TYPE_OPTIONS} onChange={(value) => updateField("fuelType", value)} />
                                                 <SelectField label="Carroceria" value={form.bodyType} options={BODY_TYPE_OPTIONS} onChange={(value) => updateField("bodyType", value)} />
@@ -1584,6 +1595,9 @@ export function InventoryStudio() {
                                                     placeholder="SP"
                                                 />
                                             </div>
+                                            <p className="mt-3 text-xs text-black/45">
+                                                O valor de troca é opcional e será usado como preço-base no fechamento quando houver um veículo recebido na negociação.
+                                            </p>
 
                                             <div className="mt-5 rounded-[22px] border border-black/10 bg-[#fafafa] px-4 py-4">
                                                 <label className="inline-flex items-center gap-2 text-sm font-medium text-black/70">
@@ -1919,7 +1933,10 @@ export function InventoryStudio() {
                         <div className="mt-5 rounded-[24px] bg-black/[0.03] px-4 py-4">
                             <p className="text-sm font-semibold text-io-dark">{saleVehicle.title}</p>
                             <p className="mt-1 text-sm text-black/55">{buildVehicleSubtitle(saleVehicle)}</p>
-                            <p className="mt-2 text-sm font-semibold text-io-dark">{formatMoney(saleVehicle.priceCents)}</p>
+                            <p className="mt-2 text-sm font-semibold text-io-dark">Valor padrão: {formatMoney(saleVehicle.priceCents)}</p>
+                            {saleVehicle.tradeInPriceCents != null ? (
+                                <p className="mt-1 text-sm font-semibold text-io-purple">Valor de troca: {formatMoney(saleVehicle.tradeInPriceCents)}</p>
+                            ) : null}
                             {saleVehicle.consigned ? (
                                 <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
                                     Consignado • {saleVehicle.consignedOwnerName ?? "Dono não informado"}
@@ -1987,7 +2004,7 @@ export function InventoryStudio() {
                                         />
                                     </label>
                                     <label className="grid gap-2">
-                                        <span className="text-xs uppercase tracking-[0.18em] text-black/40">Valor da troca</span>
+                                        <span className="text-xs uppercase tracking-[0.18em] text-black/40">Valor do veículo recebido</span>
                                         <input
                                             type="text"
                                             value={formatCurrencyInput(saleFinancial.tradeInAmountDigits)}
@@ -2114,10 +2131,13 @@ export function InventoryStudio() {
                         </div>
 
                         <div className="mt-4 grid gap-2 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                            <p>Valor original: <span className="font-semibold">{formatMoney(saleFinancialPreview.originalAmountCents)}</span></p>
+                            <p>
+                                Valor aplicado{saleFinancial.hasTradeInVehicle && saleVehicle.tradeInPriceCents ? " (condição de troca)" : " (padrão)"}: {" "}
+                                <span className="font-semibold">{formatMoney(saleFinancialPreview.originalAmountCents)}</span>
+                            </p>
                             <p>Desconto: <span className="font-semibold">{saleFinancialPreview.discountPercentage}% ({formatMoney(saleFinancialPreview.discountAmountCents)})</span></p>
                             <p>Valor com desconto: <span className="font-semibold">{formatMoney(saleFinancialPreview.amountAfterDiscountCents)}</span></p>
-                            <p>Troca: <span className="font-semibold">{formatMoney(saleFinancialPreview.tradeInAmountCents)}</span></p>
+                            <p>Veículo recebido: <span className="font-semibold">{formatMoney(saleFinancialPreview.tradeInAmountCents)}</span></p>
                             <p>Total real da venda: <span className="font-semibold">{formatMoney(saleFinancialPreview.totalRealAmountCents)}</span></p>
                             <p>Consignado: <span className="font-semibold">{saleFinancialPreview.consigned ? "Sim" : "Não"}</span></p>
                             {saleFinancialPreview.consigned ? (
@@ -2353,8 +2373,11 @@ function InventoryVehicleCard({
 
                 <div className="mt-auto flex flex-col gap-5 pt-6">
                     <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/36">Preço</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/36">Valor padrão</p>
                         <p className="mt-1 text-3xl font-bold tracking-tight text-io-dark">{formatMoney(vehicle.priceCents)}</p>
+                        {vehicle.tradeInPriceCents != null ? (
+                            <p className="mt-2 text-sm font-semibold text-io-purple">Na troca: {formatMoney(vehicle.tradeInPriceCents)}</p>
+                        ) : null}
                         <p className="mt-1 text-[10px] text-black/35 font-medium">Atualizado em {formatDateTime(vehicle.updatedAt)}</p>
                     </div>
 

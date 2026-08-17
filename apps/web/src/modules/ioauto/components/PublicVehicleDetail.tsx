@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
     ArrowLeft,
@@ -56,8 +55,13 @@ function getInitials(name?: string | null) {
 }
 
 export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail }) {
+    const router = useRouter();
     const searchParams = useSearchParams();
     const tracking = useMemo(() => readPublicLeadTracking(searchParams), [searchParams]);
+    const catalogHref = useMemo(
+        () => withPublicLeadTracking(`/estoque-publico/${data.company.publicSlug}`, tracking),
+        [data.company.publicSlug, tracking]
+    );
 
     const images = useMemo(() => getVehicleImages(data.vehicle), [data.vehicle]);
     const [selectedImage, setSelectedImage] = useState(images[0] ?? null);
@@ -66,6 +70,10 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
     useEffect(() => {
         setSelectedImage(images[0] ?? null);
     }, [images]);
+
+    useEffect(() => {
+        router.prefetch(catalogHref);
+    }, [catalogHref, router]);
 
     useEffect(() => {
         if (tracking.sourceReference) {
@@ -85,6 +93,22 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
         `Olá! Tenho interesse no veículo ${data.vehicle.title}.`,
         tracking
     );
+    const financingTerms = data.vehicle.financing.installmentCount != null
+        && data.vehicle.financing.installmentCount > 0
+        && data.vehicle.financing.installmentValueCents != null
+        && data.vehicle.financing.installmentValueCents > 0
+        ? `${data.vehicle.financing.downPaymentCents != null && data.vehicle.financing.downPaymentCents > 0
+            ? `Entrada de ${formatMoney(data.vehicle.financing.downPaymentCents)} + em`
+            : "Em"} até ${data.vehicle.financing.installmentCount} vezes de ${formatMoney(data.vehicle.financing.installmentValueCents)} ou à vista por`
+        : null;
+
+    function returnToCatalog() {
+        if (searchParams?.get("from") === "catalog" && window.history.length > 1) {
+            router.back();
+            return;
+        }
+        router.push(catalogHref);
+    }
 
     const specifications = [
         { label: "Marca", value: data.vehicle.brand, icon: <CarFront className="h-4 w-4" /> },
@@ -137,13 +161,14 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                 </header>
 
                 <div className="mt-6">
-                    <Link
-                        href={withPublicLeadTracking(`/estoque-publico/${data.company.publicSlug}`, tracking)}
+                    <button
+                        type="button"
+                        onClick={returnToCatalog}
                         className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-medium text-black/65 shadow-[0_10px_30px_rgba(15,23,42,0.07)] transition hover:text-io-dark"
                     >
                         <ArrowLeft className="h-4 w-4" />
                         Voltar ao catálogo
-                    </Link>
+                    </button>
                 </div>
 
                 <section className="mt-5 grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-stretch">
@@ -203,8 +228,17 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                         </div>
 
                         <div className="mt-6 flex-1 rounded-[28px] border border-black/10 bg-black/5 px-5 py-5 flex flex-col justify-center">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-black/38">Preço sugerido</p>
-                            <p className="mt-2 text-4xl font-bold tracking-tight text-io-dark">{formatMoney(data.vehicle.priceCents)}</p>
+                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-black/38">Valor da venda</p>
+                            {financingTerms ? (
+                                <p className="mt-2 text-sm font-semibold leading-6 text-black/62">{financingTerms}</p>
+                            ) : null}
+                            <p className={`${financingTerms ? "mt-1" : "mt-2"} text-4xl font-bold tracking-tight text-io-dark`}>{formatMoney(data.vehicle.priceCents)}</p>
+                            {data.vehicle.tradeInPriceCents != null ? (
+                                <div className="mt-3 border-t border-black/10 pt-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-black/38">Valor com troca</p>
+                                    <p className="mt-1 text-2xl font-bold tracking-tight text-io-dark/75">{formatMoney(data.vehicle.tradeInPriceCents)}</p>
+                                </div>
+                            ) : null}
                         </div>
 
                         <button

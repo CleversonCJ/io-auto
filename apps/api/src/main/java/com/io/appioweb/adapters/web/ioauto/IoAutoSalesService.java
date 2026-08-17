@@ -8,11 +8,13 @@ import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoSessionEn
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoDreSubcategoryRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoFinancialEntryRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoPublicCatalogLeadRepositoryJpa;
+import com.io.appioweb.adapters.persistence.ioauto.IoAutoPublicLinkRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoVehiclePublicationRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.IoAutoVehicleRepositoryJpa;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoDreSubcategoryEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoFinancialEntryEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoPublicCatalogLeadEntity;
+import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoPublicLinkEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehicleEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehiclePublicationEntity;
 import com.io.appioweb.adapters.persistence.ioauto.WebmotorsAdRepositoryJpa;
@@ -62,6 +64,7 @@ public class IoAutoSalesService {
     private final WebmotorsAdsService webmotorsAdsService;
     private final AtendimentoConversationRepositoryJpa conversations;
     private final IoAutoPublicCatalogLeadRepositoryJpa publicCatalogLeads;
+    private final IoAutoPublicLinkRepositoryJpa publicLinks;
     private final AtendimentoSessionLifecycleService sessionLifecycleService;
     private final UserRepositoryPort users;
     private final TeamRepositoryPort teams;
@@ -79,6 +82,7 @@ public class IoAutoSalesService {
             WebmotorsAdsService webmotorsAdsService,
             AtendimentoConversationRepositoryJpa conversations,
             IoAutoPublicCatalogLeadRepositoryJpa publicCatalogLeads,
+            IoAutoPublicLinkRepositoryJpa publicLinks,
             AtendimentoSessionLifecycleService sessionLifecycleService,
             UserRepositoryPort users,
             TeamRepositoryPort teams,
@@ -95,6 +99,7 @@ public class IoAutoSalesService {
         this.webmotorsAdsService = webmotorsAdsService;
         this.conversations = conversations;
         this.publicCatalogLeads = publicCatalogLeads;
+        this.publicLinks = publicLinks;
         this.sessionLifecycleService = sessionLifecycleService;
         this.users = users;
         this.teams = teams;
@@ -141,15 +146,19 @@ public class IoAutoSalesService {
         JpaIoAutoVehicleEntity vehicle = vehicles.findByIdAndCompanyId(soldVehicleId, companyId)
                 .orElseThrow(() -> new BusinessException("IOAUTO_SOLD_VEHICLE_NOT_FOUND", "Veiculo nao encontrado para concluir a venda."));
 
+        IoAutoSaleCalculationService.SaleClosingCommand normalizedSaleClosingCommand = saleClosingCommand == null
+                ? IoAutoSaleCalculationService.SaleClosingCommand.empty()
+                : saleClosingCommand;
+        Long salePriceCents = resolveSalePriceCents(vehicle, normalizedSaleClosingCommand);
         LocalDate soldDate = soldAt.atZone(SALES_ZONE).toLocalDate();
         IoAutoSaleCalculationService.SaleCalculationResult saleCalculation = saleCalculationService.calculate(
-                vehicle.getPriceCents(),
+                salePriceCents,
                 new IoAutoSaleCalculationService.ConsignmentVehicleContext(
                         vehicle.isConsigned(),
                         vehicle.getConsignedOwnerName(),
                         vehicle.getConsignmentCommissionPercentage()
                 ),
-                saleClosingCommand == null ? IoAutoSaleCalculationService.SaleClosingCommand.empty() : saleClosingCommand,
+                normalizedSaleClosingCommand,
                 soldDate
         );
 
@@ -209,6 +218,18 @@ public class IoAutoSalesService {
         return new SaleVehicleSnapshot(vehicle.getId(), vehicle.getTitle(), normalizeStatus(vehicle.getStatus()));
     }
 
+    static Long resolveSalePriceCents(
+            JpaIoAutoVehicleEntity vehicle,
+            IoAutoSaleCalculationService.SaleClosingCommand saleClosingCommand
+    ) {
+        if (Boolean.TRUE.equals(saleClosingCommand.hasTradeInVehicle())
+                && vehicle.getTradeInPriceCents() != null
+                && vehicle.getTradeInPriceCents() > 0L) {
+            return vehicle.getTradeInPriceCents();
+        }
+        return vehicle.getPriceCents();
+    }
+
     @Transactional
     public SaleVehicleSnapshot registerPublicCatalogLeadSale(
             UUID companyId,
@@ -261,12 +282,65 @@ public class IoAutoSalesService {
                 saleClosingCommand
         );
 
+        registerInfluencerCommission(companyId, lead, session);
+
         lead.setSellerUserId(seller.user().id());
         lead.setConvertedToSale(true);
         lead.setConvertedSaleId(session.getId());
         publicCatalogLeads.saveAndFlush(lead);
 
         return snapshot;
+    }
+
+    private void registerInfluencerCommission(
+            UUID companyId,
+            JpaIoAutoPublicCatalogLeadEntity lead,
+            JpaAtendimentoSessionEntity session
+    ) {
+        if (!"INFLUENCER".equalsIgnoreCase(safeTrim(lead.getSourceType()))) {
+            return;
+        }
+
+        String sourceReference = safeTrim(lead.getSourceReference());
+        if (sourceReference == null) {
+            return;
+        }
+
+        JpaIoAutoPublicLinkEntity link = lead.getPublicLinkId() == null
+                ? null
+                : publicLinks.findByIdAndCompanyId(lead.getPublicLinkId(), companyId).orElse(null);
+        if (link == null) {
+            link = publicLinks.findAllByCompanyIdOrderByCreatedAtDesc(companyId).stream()
+                    .filter(item -> "INFLUENCER".equalsIgnoreCase(safeTrim(item.getSourceType())))
+                    .filter(item -> sourceReference.equalsIgnoreCase(safeTrim(item.getSourceReference())))
+                    .findFirst()
+                    .orElse(null);
+        }
+        if (link == null || link.getCommissionPercentage() == null || link.getCommissionPercentage().signum() <= 0) {
+            return;
+        }
+
+        long saleAmountCents = session.getSaleAmountAfterDiscountCents() == null
+                ? 0L
+                : session.getSaleAmountAfterDiscountCents();
+        session.setSaleInfluencerPublicLinkId(link.getId());
+        session.setSaleInfluencerName(firstNonBlank(lead.getInfluencerName(), link.getName(), "Influenciador"));
+        session.setSaleInfluencerCommissionPercentage(link.getCommissionPercentage());
+        session.setSaleInfluencerCommissionAmountCents(calculateInfluencerCommissionCents(
+                saleAmountCents,
+                link.getCommissionPercentage()
+        ));
+        sessions.saveAndFlush(session);
+    }
+
+    static long calculateInfluencerCommissionCents(long saleAmountCents, BigDecimal commissionPercentage) {
+        if (saleAmountCents <= 0L || commissionPercentage == null || commissionPercentage.signum() <= 0) {
+            return 0L;
+        }
+        return BigDecimal.valueOf(saleAmountCents)
+                .multiply(commissionPercentage)
+                .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP)
+                .longValueExact();
     }
 
     @Transactional

@@ -133,6 +133,18 @@ public class JpaAtendimentoSessionEntity {
     @Column(name = "sale_consignment_owner_transfer_amount_cents")
     private Long saleConsignmentOwnerTransferAmountCents;
 
+    @Column(name = "sale_influencer_public_link_id")
+    private UUID saleInfluencerPublicLinkId;
+
+    @Column(name = "sale_influencer_name", length = 160)
+    private String saleInfluencerName;
+
+    @Column(name = "sale_influencer_commission_percentage", precision = 7, scale = 4)
+    private java.math.BigDecimal saleInfluencerCommissionPercentage;
+
+    @Column(name = "sale_influencer_commission_amount_cents")
+    private Long saleInfluencerCommissionAmountCents;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private AtendimentoSessionStatus status;
@@ -259,6 +271,18 @@ public class JpaAtendimentoSessionEntity {
 
     public Long getSaleConsignmentOwnerTransferAmountCents() { return saleConsignmentOwnerTransferAmountCents; }
     public void setSaleConsignmentOwnerTransferAmountCents(Long saleConsignmentOwnerTransferAmountCents) { this.saleConsignmentOwnerTransferAmountCents = saleConsignmentOwnerTransferAmountCents; }
+
+    public UUID getSaleInfluencerPublicLinkId() { return saleInfluencerPublicLinkId; }
+    public void setSaleInfluencerPublicLinkId(UUID saleInfluencerPublicLinkId) { this.saleInfluencerPublicLinkId = saleInfluencerPublicLinkId; }
+
+    public String getSaleInfluencerName() { return saleInfluencerName; }
+    public void setSaleInfluencerName(String saleInfluencerName) { this.saleInfluencerName = saleInfluencerName; }
+
+    public java.math.BigDecimal getSaleInfluencerCommissionPercentage() { return saleInfluencerCommissionPercentage; }
+    public void setSaleInfluencerCommissionPercentage(java.math.BigDecimal saleInfluencerCommissionPercentage) { this.saleInfluencerCommissionPercentage = saleInfluencerCommissionPercentage; }
+
+    public Long getSaleInfluencerCommissionAmountCents() { return saleInfluencerCommissionAmountCents; }
+    public void setSaleInfluencerCommissionAmountCents(Long saleInfluencerCommissionAmountCents) { this.saleInfluencerCommissionAmountCents = saleInfluencerCommissionAmountCents; }
 
     public AtendimentoSessionStatus getStatus() { return status; }
     public void setStatus(AtendimentoSessionStatus status) { this.status = status; }

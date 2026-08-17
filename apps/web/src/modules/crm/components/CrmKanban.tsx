@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ExternalLink, MessageCircleMore, Search, Trash2, X } from "lucide-react";
+import { ChevronDown, MessageCircleMore, Search, Trash2, X } from "lucide-react";
 import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 import {
     CRM_VALUE_FIELD_ID,
@@ -110,13 +110,11 @@ function normalizePhone(value: string) {
     return value.replace(/\D/g, "");
 }
 
-function sourceTypeLabel(value?: string | null) {
-    const normalized = String(value ?? "").trim().toUpperCase();
-    if (normalized === "CAMPAIGN") return "Campanha";
-    if (normalized === "INFLUENCER") return "Influenciador";
-    if (normalized === "DIRECT") return "Direto";
-    if (!normalized) return "Catálogo público";
-    return normalized.replaceAll("_", " ");
+function buildWhatsappHref(phone: string) {
+    const rawDigits = normalizePhone(phone);
+    if (rawDigits.length < 10) return null;
+    const digits = rawDigits.length <= 11 ? `55${rawDigits}` : rawDigits;
+    return `https://wa.me/${digits}`;
 }
 
 function parseCurrencyAmount(value?: string | null) {
@@ -362,7 +360,6 @@ export function CrmKanban() {
     const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([]);
     const [createdFrom, setCreatedFrom] = useState("");
     const [createdTo, setCreatedTo] = useState("");
-    const [isOpeningAtendimento, setIsOpeningAtendimento] = useState(false);
     const crmStateRef = useRef<CrmState>(EMPTY_CRM_STATE);
     const filterPanelRef = useRef<HTMLDivElement | null>(null);
 
@@ -412,10 +409,10 @@ export function CrmKanban() {
 
             const catalogLeads = publicCatalogLeads.map((item) => {
                 const vehicleLabel = (item.vehicleTitle ?? "").trim();
-                const sourceLabel = sourceTypeLabel(item.sourceType);
+                const sourceLabel = item.originName?.trim() || "Catálogo público";
                 const description = vehicleLabel
-                    ? `Interesse em ${vehicleLabel}. Origem: ${sourceLabel}.`
-                    : `Lead captado pelo catálogo público. Origem: ${sourceLabel}.`;
+                    ? `Interesse em ${vehicleLabel}.`
+                    : "Lead captado pelo catálogo público.";
                 return {
                     id: item.id,
                     kind: "public_catalog" as const,
@@ -477,6 +474,10 @@ export function CrmKanban() {
         [availableLabels]
     );
     const selectedLead = useMemo(() => leads.find((lead) => lead.id === selectedLeadId) ?? null, [leads, selectedLeadId]);
+    const selectedLeadWhatsappHref = useMemo(
+        () => selectedLead ? buildWhatsappHref(selectedLead.phone) : null,
+        [selectedLead]
+    );
     const selectedLeadLabels = useMemo(() => {
         if (!selectedLead) return [] as ContactLabel[];
         const key = normalizePhone(selectedLead.phone);
@@ -722,23 +723,6 @@ export function CrmKanban() {
             persistCrmStatePatch({ leadFieldValues: next });
             return next;
         });
-    }
-
-    function prefetchAtendimento(conversationId: string) {
-        router.prefetch(`/protected/atendimentos/${conversationId}?tab=auto`);
-    }
-
-    function openAtendimento(conversationId: string) {
-        const path = `/protected/atendimentos/${conversationId}?tab=auto`;
-        setIsOpeningAtendimento(true);
-        router.prefetch(path);
-        router.push(path);
-    }
-
-    function openPublicLeadDesk() {
-        const path = "/protected/leads";
-        router.prefetch(path);
-        router.push(path);
     }
 
     function exportCrmCsv() {
@@ -1108,6 +1092,7 @@ export function CrmKanban() {
                                 </header>
                                 <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                                     {stageLeads.length === 0 ? <div className="rounded-[22px] border border-dashed border-black/15 bg-io-light px-3 py-5 text-center text-xs text-black/45">Nenhum lead nesta etapa.</div> : stageLeads.map((lead) => {
+                                        const whatsappHref = buildWhatsappHref(lead.phone);
                                         return (
                                             <div
                                                 key={lead.id}
@@ -1130,41 +1115,36 @@ export function CrmKanban() {
                                                         <span className="max-w-[50%] truncate rounded-full bg-io-light px-2.5 py-1 text-[11px] font-medium text-black/62">{lead.owner}</span>
                                                     </div>
                                                     <p className="mt-2 pr-10 line-clamp-3 text-xs leading-5 text-black/58">{lead.description}</p>
+                                                    <p className="mt-2 truncate text-[11px] font-semibold text-io-purple">
+                                                        Origem: {lead.sourceLabel ?? "Catálogo público"}
+                                                    </p>
                                                     <div className="mt-3 flex items-center gap-2 text-[11px] text-black/45">
                                                         <span className="rounded-full bg-black/[0.04] px-2.5 py-1">{lead.phone}</span>
                                                         <span className="rounded-full bg-black/[0.04] px-2.5 py-1">{lead.lastAt}</span>
                                                     </div>
-                                                    {lead.kind === "conversation" ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={(event) => {
-                                                                event.stopPropagation();
-                                                                openAtendimento(lead.id);
-                                                            }}
-                                                            onMouseEnter={() => prefetchAtendimento(lead.id)}
-                                                            className="absolute bottom-4 right-4 grid h-9 w-9 place-items-center rounded-full border border-black/12 bg-io-purple text-white transition hover:bg-io-purple"
-                                                            aria-label={`Abrir atendimento${lead.unreadCount > 0 ? ` com ${lead.unreadCount} mensagens não lidas` : ""}`}
-                                                            title="Abrir atendimento"
+                                                    {whatsappHref ? (
+                                                        <a
+                                                            href={whatsappHref}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            onClick={(event) => event.stopPropagation()}
+                                                            onKeyDown={(event) => event.stopPropagation()}
+                                                            className="absolute bottom-4 right-4 grid h-9 w-9 place-items-center rounded-full border border-emerald-600 bg-emerald-500 text-white transition hover:bg-emerald-600"
+                                                            aria-label={`Conversar com ${lead.name} no WhatsApp`}
+                                                            title="Conversar no WhatsApp"
                                                         >
                                                             <MessageCircleMore className="h-3.5 w-3.5" strokeWidth={2} />
-                                                            {lead.unreadCount > 0 && (
-                                                                <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-red-600 px-1 text-center text-[10px] font-bold leading-4 text-white">
-                                                                    {lead.unreadCount > 9 ? "9+" : lead.unreadCount}
-                                                                </span>
-                                                            )}
-                                                        </button>
+                                                        </a>
                                                     ) : (
                                                         <button
                                                             type="button"
-                                                            onClick={(event) => {
-                                                                event.stopPropagation();
-                                                                openPublicLeadDesk();
-                                                            }}
-                                                            className="absolute bottom-4 right-4 grid h-9 w-9 place-items-center rounded-full border border-black/12 bg-emerald-600 text-white transition hover:bg-emerald-700"
-                                                            aria-label="Abrir lista de leads"
-                                                            title="Abrir lista de leads"
+                                                            disabled
+                                                            onClick={(event) => event.stopPropagation()}
+                                                            className="absolute bottom-4 right-4 grid h-9 w-9 cursor-not-allowed place-items-center rounded-full border border-black/10 bg-black/[0.05] text-black/30"
+                                                            aria-label="Telefone inválido para WhatsApp"
+                                                            title="Telefone inválido para WhatsApp"
                                                         >
-                                                            <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} />
+                                                            <MessageCircleMore className="h-3.5 w-3.5" strokeWidth={2} />
                                                         </button>
                                                     )}
                                             </div>
@@ -1245,25 +1225,26 @@ export function CrmKanban() {
                                             ) : null}
                                         </div>
                                     </div>
-                                    {selectedLead.kind === "conversation" ? (
-                                        <button
-                                            type="button"
-                                            onClick={() => openAtendimento(selectedLead.id)}
-                                            onMouseEnter={() => prefetchAtendimento(selectedLead.id)}
-                                            className="grid h-10 w-10 place-items-center rounded-full border border-black/12 bg-io-purple text-white transition hover:bg-io-purple"
-                                            aria-label="Abrir atendimento"
-                                            title="Abrir atendimento"
+                                    {selectedLeadWhatsappHref ? (
+                                        <a
+                                            href={selectedLeadWhatsappHref}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600"
+                                            aria-label={`Conversar com ${selectedLead.name} no WhatsApp`}
                                         >
-                                            <MessageCircleMore className="h-5 w-5" strokeWidth={2} />
-                                        </button>
+                                            <MessageCircleMore className="h-4 w-4" strokeWidth={2} />
+                                            WhatsApp
+                                        </a>
                                     ) : (
                                         <button
                                             type="button"
-                                            onClick={openPublicLeadDesk}
-                                            className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                                            disabled
+                                            className="inline-flex cursor-not-allowed items-center gap-2 rounded-full border border-black/10 bg-black/[0.05] px-4 py-2 text-sm font-semibold text-black/35"
+                                            title="Telefone inválido para WhatsApp"
                                         >
-                                            <ExternalLink className="h-4 w-4" strokeWidth={2} />
-                                            Abrir lista de leads
+                                            <MessageCircleMore className="h-4 w-4" strokeWidth={2} />
+                                            WhatsApp indisponível
                                         </button>
                                     )}
                                 </div>
@@ -1342,14 +1323,6 @@ export function CrmKanban() {
                             </div>
                             <div className="h-4 border-t border-black/10" />
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {isOpeningAtendimento && (
-                <div className="fixed inset-0 z-[80] grid place-items-center bg-black/25">
-                    <div className="rounded-[24px] border border-black/10 bg-white px-5 py-4 text-sm font-medium text-io-dark shadow-[0_18px_45px_rgba(15,23,42,0.12)]">
-                        Abrindo atendimento...
                     </div>
                 </div>
             )}

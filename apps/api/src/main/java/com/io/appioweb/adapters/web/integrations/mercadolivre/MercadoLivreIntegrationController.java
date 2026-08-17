@@ -103,10 +103,17 @@ public class MercadoLivreIntegrationController {
     }
 
     @PostMapping("/api/integrations/mercadolivre/disconnect")
-    @Transactional
-    public ResponseEntity<Void> disconnect() {
-        accountService.disconnect(currentUser.companyId());
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<ActionMessageResponse> disconnect() {
+        MeliOAuthService.DisconnectResult result = oauthService.disconnect(currentUser.companyId());
+        return ResponseEntity.ok(new ActionMessageResponse(result.message()));
+    }
+
+    @PostMapping("/api/integrations/mercadolivre/switch-account")
+    public ResponseEntity<ConnectUrlResponse> switchAccount() {
+        UUID companyId = currentUser.companyId();
+        oauthService.disconnect(companyId);
+        MeliOAuthService.AuthorizationUrlResponse response = oauthService.buildAuthorizationUrl(companyId);
+        return ResponseEntity.ok(new ConnectUrlResponse(response.url()));
     }
 
     @PostMapping("/api/integrations/mercadolivre/tokens/refresh")

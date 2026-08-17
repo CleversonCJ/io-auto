@@ -2,6 +2,7 @@ package com.io.appioweb.application.ioauto.meli;
 
 import com.io.appioweb.adapters.integrations.mercadolivre.MeliOAuthStateStore;
 import com.io.appioweb.adapters.integrations.mercadolivre.MeliProperties;
+import com.io.appioweb.adapters.integrations.mercadolivre.MeliAuthorizationRevocationClient;
 import com.io.appioweb.shared.errors.BusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,7 @@ public class MeliOAuthService {
     private final MeliOAuthStateStore stateStore;
     private final MeliAccountService accountService;
     private final MeliTokenService tokenService;
+    private final MeliAuthorizationRevocationClient authorizationRevocationClient;
     private final RestClient restClient;
     private final String publicAppUrl;
 
@@ -41,6 +43,7 @@ public class MeliOAuthService {
             MeliOAuthStateStore stateStore,
             MeliAccountService accountService,
             MeliTokenService tokenService,
+            MeliAuthorizationRevocationClient authorizationRevocationClient,
             @Qualifier("meliRestClient") RestClient restClient,
             @Value("${APP_PUBLIC_URL:http://localhost:3000}") String publicAppUrl
     ) {
@@ -48,6 +51,7 @@ public class MeliOAuthService {
         this.stateStore = stateStore;
         this.accountService = accountService;
         this.tokenService = tokenService;
+        this.authorizationRevocationClient = authorizationRevocationClient;
         this.restClient = restClient;
         this.publicAppUrl = trimTrailingSlash(publicAppUrl == null ? "" : publicAppUrl.trim(), "http://localhost:3000");
     }
@@ -125,6 +129,74 @@ public class MeliOAuthService {
         );
         log.info("MELI OAuth connected companyId={} meliUserId={} nickname={} fullName={}", payload.companyId(), userId, nickname, fullName);
         return accountService.getStatus(payload.companyId());
+    }
+
+    public DisconnectResult disconnect(UUID companyId) {
+        properties.validateConfigured();
+        MeliAccountService.MeliConnectionSnapshot status = accountService.getStatus(companyId);
+        if (!status.connected() || status.userId() == null) {
+            accountService.disconnect(companyId);
+            return new DisconnectResult(false, "Conta Mercado Livre já estava desconectada.");
+        }
+
+        String accessToken;
+        try {
+            accessToken = tokenService.getValidAccessToken(companyId);
+        } catch (BusinessException exception) {
+            if (!isInactiveCredentialError(exception)) {
+                throw exception;
+            }
+            log.info("MELI authorization already inactive during disconnect companyId={} meliUserId={} code={}",
+                    companyId, status.userId(), exception.code());
+            accountService.disconnect(companyId);
+            return new DisconnectResult(
+                    false,
+                    "Conta desconectada. As credenciais do Mercado Livre já estavam inativas."
+            );
+        }
+
+        MeliAuthorizationRevocationClient.RevocationOutcome outcome = authorizationRevocationClient.revoke(
+                status.userId(),
+                properties.getClientId(),
+                accessToken
+        );
+        if (outcome == MeliAuthorizationRevocationClient.RevocationOutcome.UNAUTHORIZED) {
+            String refreshedAccessToken;
+            try {
+                refreshedAccessToken = tokenService.refreshAccessToken(companyId);
+            } catch (BusinessException exception) {
+                if (!isInactiveCredentialError(exception)) {
+                    throw exception;
+                }
+                log.info("MELI authorization could not be refreshed during disconnect companyId={} meliUserId={} code={}",
+                        companyId, status.userId(), exception.code());
+                accountService.disconnect(companyId);
+                return new DisconnectResult(
+                        false,
+                        "Conta desconectada. As credenciais do Mercado Livre já estavam inativas."
+                );
+            }
+            outcome = authorizationRevocationClient.revoke(
+                    status.userId(),
+                    properties.getClientId(),
+                    refreshedAccessToken
+            );
+            if (outcome == MeliAuthorizationRevocationClient.RevocationOutcome.UNAUTHORIZED) {
+                throw new BusinessException(
+                        "MELI_REVOCATION_UNAUTHORIZED",
+                        "O Mercado Livre recusou as credenciais usadas na revogação. Tente desconectar novamente."
+                );
+            }
+        }
+
+        accountService.disconnect(companyId);
+        boolean remotelyRevoked = outcome == MeliAuthorizationRevocationClient.RevocationOutcome.REVOKED;
+        return new DisconnectResult(
+                remotelyRevoked,
+                remotelyRevoked
+                        ? "Autorização revogada no Mercado Livre e conta desconectada."
+                        : "Conta desconectada. A autorização no Mercado Livre já havia sido revogada."
+        );
     }
 
     public String buildFrontendRedirect(boolean success, String message) {
@@ -226,6 +298,15 @@ public class MeliOAuthService {
         return normalized.substring(0, 8) + "...";
     }
 
+    private boolean isInactiveCredentialError(BusinessException exception) {
+        return "MELI_NOT_CONNECTED".equals(exception.code())
+                || "MELI_REFRESH_FAILED".equals(exception.code())
+                || "MELI_REFRESH_TOKEN_MISSING".equals(exception.code());
+    }
+
     public record AuthorizationUrlResponse(String url, String state) {
+    }
+
+    public record DisconnectResult(boolean remotelyRevoked, String message) {
     }
 }

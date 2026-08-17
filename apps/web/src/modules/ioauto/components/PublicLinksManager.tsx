@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type Re
 import {
     CarFront,
     Check,
+    CircleDollarSign,
     Copy,
     Globe2,
     Link2,
@@ -15,8 +16,8 @@ import {
     Trash2,
     X,
 } from "lucide-react";
-import type { PublicCatalogSettings, PublicLinkRecord, VehicleOptionRecord } from "@/modules/ioauto/types";
-import { formatDateTime } from "@/modules/ioauto/formatters";
+import type { PublicCatalogCustomBanner, PublicCatalogSettings, PublicLinkCommissionHistory, PublicLinkRecord, VehicleOptionRecord } from "@/modules/ioauto/types";
+import { formatDateTime, formatMoney } from "@/modules/ioauto/formatters";
 import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 type MePayload = {
@@ -39,6 +40,7 @@ type LinkFormState = {
     scopeType: "CATALOG" | "VEHICLE";
     vehicleId: string;
     sourceReference: string;
+    commissionPercentage: string;
     useCompanyWhatsapp: boolean;
     whatsappNumber: string;
     responsibleUserId: string;
@@ -47,7 +49,7 @@ type LinkFormState = {
 const MAX_BANNER_IMAGES = 6;
 const DEFAULT_PUBLIC_CATALOG_SETTINGS: PublicCatalogSettings = {
     bannerMode: "VEHICLES",
-    customImageUrls: [],
+    customBanners: [],
 };
 
 function emptyForm(): LinkFormState {
@@ -58,6 +60,7 @@ function emptyForm(): LinkFormState {
         scopeType: "CATALOG",
         vehicleId: "",
         sourceReference: "",
+        commissionPercentage: "",
         useCompanyWhatsapp: true,
         whatsappNumber: "",
         responsibleUserId: "",
@@ -105,8 +108,41 @@ function scopeLabel(value: string) {
     return "Estoque completo";
 }
 
+function parseCommissionPercentage(value: string) {
+    const normalized = value.trim().replace(",", ".");
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatPercentage(value?: number | null) {
+    if (value == null || !Number.isFinite(value)) return "-";
+    return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 4 }).format(value) + "%";
+}
+
 function isCustomBannerMode(value: PublicCatalogSettings["bannerMode"]) {
     return value === "CUSTOM_IMAGES";
+}
+
+function normalizeCatalogSettings(payload: PublicCatalogSettings): PublicCatalogSettings {
+    const customBanners = Array.isArray(payload.customBanners) && payload.customBanners.length
+        ? payload.customBanners
+        : (payload.customImageUrls ?? []).map((imageUrl) => ({
+            imageUrl,
+            title: "",
+            description: "",
+            redirectUrl: "",
+        }));
+
+    return {
+        bannerMode: payload.bannerMode,
+        customBanners: customBanners.map((banner) => ({
+            imageUrl: banner.imageUrl ?? "",
+            title: banner.title ?? "",
+            description: banner.description ?? "",
+            redirectUrl: banner.redirectUrl ?? "",
+        })),
+    };
 }
 
 async function compressBannerImage(file: File) {
@@ -168,6 +204,10 @@ export function PublicLinksManager() {
     const [error, setError] = useState<string | null>(null);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
+    const [commissionLink, setCommissionLink] = useState<PublicLinkRecord | null>(null);
+    const [commissionHistory, setCommissionHistory] = useState<PublicLinkCommissionHistory | null>(null);
+    const [commissionHistoryLoading, setCommissionHistoryLoading] = useState(false);
+    const [commissionHistoryError, setCommissionHistoryError] = useState<string | null>(null);
     const [form, setForm] = useState<LinkFormState>(emptyForm());
 
     const filteredLinks = useMemo(() => {
@@ -270,7 +310,7 @@ export function PublicLinksManager() {
             const response = await fetch("/api/ioauto/public-catalog-settings", { cache: "no-store" });
             if (!response.ok) throw new Error("Falha ao carregar as configurações do banner.");
 
-            const payload = await response.json() as PublicCatalogSettings;
+            const payload = normalizeCatalogSettings(await response.json() as PublicCatalogSettings);
             setCatalogSettings(payload);
             setSavedCatalogSettings(payload);
         } catch (cause) {
@@ -311,6 +351,12 @@ export function PublicLinksManager() {
             setError("Selecione o usuário responsável pelos leads deste link.");
             return;
         }
+        const commissionPercentage = parseCommissionPercentage(form.commissionPercentage);
+        if (form.linkKind === "CAMPAIGN" && form.sourceType === "INFLUENCER"
+            && (commissionPercentage == null || commissionPercentage <= 0 || commissionPercentage > 100)) {
+            setError("Informe uma comissão maior que 0% e menor ou igual a 100%.");
+            return;
+        }
 
         setSaving(true);
         const payload = {
@@ -320,6 +366,9 @@ export function PublicLinksManager() {
             vehicleId: form.scopeType === "VEHICLE" ? form.vehicleId || null : null,
             sourceType: form.linkKind === "CAMPAIGN" ? form.sourceType : null,
             sourceReference: form.linkKind === "CAMPAIGN" ? slugifyReference(form.sourceReference) : null,
+            commissionPercentage: form.linkKind === "CAMPAIGN" && form.sourceType === "INFLUENCER"
+                ? commissionPercentage
+                : null,
             useCompanyWhatsapp: form.useCompanyWhatsapp,
             whatsappNumber: form.useCompanyWhatsapp ? null : normalizeWhatsappNumber(form.whatsappNumber),
             responsibleUserId: form.responsibleUserId,
@@ -370,13 +419,39 @@ export function PublicLinksManager() {
         }
     }
 
+    async function openCommissionHistory(link: PublicLinkRecord) {
+        setCommissionLink(link);
+        setCommissionHistory(null);
+        setCommissionHistoryError(null);
+        setCommissionHistoryLoading(true);
+
+        try {
+            const response = await fetch(`/api/ioauto/public-links/${link.id}/commissions`, { cache: "no-store" });
+            if (!response.ok) {
+                const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+                throw new Error(payload?.message ?? "Falha ao carregar o histórico de comissão.");
+            }
+            setCommissionHistory(await response.json() as PublicLinkCommissionHistory);
+        } catch (cause) {
+            setCommissionHistoryError(cause instanceof Error ? cause.message : "Falha ao carregar o histórico de comissão.");
+        } finally {
+            setCommissionHistoryLoading(false);
+        }
+    }
+
+    function closeCommissionHistory() {
+        setCommissionLink(null);
+        setCommissionHistory(null);
+        setCommissionHistoryError(null);
+    }
+
     async function handleCatalogImagesSelected(event: ChangeEvent<HTMLInputElement>) {
         const files = Array.from(event.target.files ?? []);
         event.target.value = "";
 
         if (!files.length) return;
 
-        const remainingSlots = Math.max(0, MAX_BANNER_IMAGES - catalogSettings.customImageUrls.length);
+        const remainingSlots = Math.max(0, MAX_BANNER_IMAGES - catalogSettings.customBanners.length);
         if (remainingSlots === 0) {
             setError(`Você pode manter no máximo ${MAX_BANNER_IMAGES} imagens no banner.`);
             return;
@@ -388,8 +463,12 @@ export function PublicLinksManager() {
         try {
             const preparedImages = await Promise.all(files.slice(0, remainingSlots).map((file) => compressBannerImage(file)));
             setCatalogSettings((current) => ({
+                ...current,
                 bannerMode: "CUSTOM_IMAGES",
-                customImageUrls: [...current.customImageUrls, ...preparedImages].slice(0, MAX_BANNER_IMAGES),
+                customBanners: [
+                    ...current.customBanners,
+                    ...preparedImages.map((imageUrl) => ({ imageUrl, title: "", description: "", redirectUrl: "" })),
+                ].slice(0, MAX_BANNER_IMAGES),
             }));
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : "Falha ao processar as imagens do banner.");
@@ -401,7 +480,16 @@ export function PublicLinksManager() {
     function handleRemoveCatalogImage(index: number) {
         setCatalogSettings((current) => ({
             ...current,
-            customImageUrls: current.customImageUrls.filter((_, currentIndex) => currentIndex !== index),
+            customBanners: current.customBanners.filter((_, currentIndex) => currentIndex !== index),
+        }));
+    }
+
+    function updateCustomBanner(index: number, nextValue: Partial<PublicCatalogCustomBanner>) {
+        setCatalogSettings((current) => ({
+            ...current,
+            customBanners: current.customBanners.map((banner, currentIndex) =>
+                currentIndex === index ? { ...banner, ...nextValue } : banner
+            ),
         }));
     }
 
@@ -422,7 +510,7 @@ export function PublicLinksManager() {
             return;
         }
 
-        const payload = (await response.json()) as PublicCatalogSettings;
+        const payload = normalizeCatalogSettings((await response.json()) as PublicCatalogSettings);
         setCatalogSettings(payload);
         setSavedCatalogSettings(payload);
         setSavingCatalogSettings(false);
@@ -538,24 +626,68 @@ export function PublicLinksManager() {
                                             </label>
                                         </div>
 
-                                        {catalogSettings.customImageUrls.length ? (
-                                            <div className="mt-4 grid gap-3 md:grid-cols-2">
-                                                {catalogSettings.customImageUrls.map((imageUrl, index) => (
-                                                    <article key={`${index}-${imageUrl.slice(0, 24)}`} className="overflow-hidden rounded-[24px] border border-black/10 bg-white">
-                                                        <div className="aspect-[16/9] bg-black/5">
+                                        {catalogSettings.customBanners.length ? (
+                                            <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                                {catalogSettings.customBanners.map((banner, index) => (
+                                                    <article key={`${index}-${banner.imageUrl.slice(0, 24)}`} className="overflow-hidden rounded-[24px] border border-black/10 bg-white">
+                                                        <div className="relative aspect-[16/9] bg-black/5">
                                                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                            <img src={imageUrl} alt={`Banner ${index + 1}`} className="h-full w-full object-cover" />
+                                                            <img src={banner.imageUrl} alt={`Banner ${index + 1}`} className="h-full w-full object-cover" />
+                                                            {banner.title.trim() || banner.description.trim() ? (
+                                                                <>
+                                                                    <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/35 to-transparent" />
+                                                                    <div className="absolute inset-y-0 left-0 flex w-4/5 flex-col justify-center p-4 text-white">
+                                                                        {banner.title ? <p className="font-display text-lg font-bold leading-tight">{banner.title}</p> : null}
+                                                                        {banner.description ? <p className={`${banner.title ? "mt-1" : ""} line-clamp-2 text-xs leading-5 text-white/80`}>{banner.description}</p> : null}
+                                                                    </div>
+                                                                </>
+                                                            ) : null}
                                                         </div>
-                                                        <div className="flex items-center justify-between gap-3 px-4 py-3">
-                                                            <span className="text-sm font-medium text-black/60">Imagem {index + 1}</span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleRemoveCatalogImage(index)}
-                                                                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-100 bg-red-50 text-red-600 transition hover:bg-red-100"
-                                                                aria-label={`Remover imagem ${index + 1}`}
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </button>
+                                                        <div className="space-y-3 p-4">
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <span className="text-sm font-semibold text-black/60">Banner {index + 1}</span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRemoveCatalogImage(index)}
+                                                                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-100 bg-red-50 text-red-600 transition hover:bg-red-100"
+                                                                    aria-label={`Remover imagem ${index + 1}`}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                            <label className="block">
+                                                                <span className="text-xs font-semibold text-black/50">Título (opcional)</span>
+                                                                <input
+                                                                    value={banner.title}
+                                                                    onChange={(event) => updateCustomBanner(index, { title: event.target.value })}
+                                                                    maxLength={120}
+                                                                    placeholder="Ex.: Feirão de seminovos"
+                                                                    className="mt-1.5 h-11 w-full rounded-2xl border border-black/10 bg-black/[0.02] px-4 text-sm text-io-dark outline-none transition focus:border-io-purple/45 focus:bg-white"
+                                                                />
+                                                            </label>
+                                                            <label className="block">
+                                                                <span className="text-xs font-semibold text-black/50">Descrição (opcional)</span>
+                                                                <textarea
+                                                                    value={banner.description}
+                                                                    onChange={(event) => updateCustomBanner(index, { description: event.target.value })}
+                                                                    maxLength={300}
+                                                                    rows={3}
+                                                                    placeholder="Apresente a oferta ou chamada deste banner"
+                                                                    className="mt-1.5 w-full resize-none rounded-2xl border border-black/10 bg-black/[0.02] px-4 py-3 text-sm text-io-dark outline-none transition focus:border-io-purple/45 focus:bg-white"
+                                                                />
+                                                            </label>
+                                                            <label className="block">
+                                                                <span className="text-xs font-semibold text-black/50">Link de redirecionamento (opcional)</span>
+                                                                <input
+                                                                    type="url"
+                                                                    value={banner.redirectUrl}
+                                                                    onChange={(event) => updateCustomBanner(index, { redirectUrl: event.target.value })}
+                                                                    maxLength={2048}
+                                                                    placeholder="https://exemplo.com/oferta"
+                                                                    className="mt-1.5 h-11 w-full rounded-2xl border border-black/10 bg-black/[0.02] px-4 text-sm text-io-dark outline-none transition focus:border-io-purple/45 focus:bg-white"
+                                                                />
+                                                                <span className="mt-1.5 block text-[11px] leading-4 text-black/38">O banner inteiro ficará clicável quando este campo for preenchido.</span>
+                                                            </label>
                                                         </div>
                                                     </article>
                                                 ))}
@@ -599,7 +731,7 @@ export function PublicLinksManager() {
                                     <div className="mt-6 space-y-3">
                                         <div className="flex items-center justify-between rounded-2xl bg-black/5 px-4 py-3.5 text-sm">
                                             <span className="text-black/50">Imagens preparadas</span>
-                                            <span className="font-bold text-io-dark">{catalogSettings.customImageUrls.length}</span>
+                                            <span className="font-bold text-io-dark">{catalogSettings.customBanners.length}</span>
                                         </div>
                                         <div className="flex items-center justify-between rounded-2xl bg-black/5 px-4 py-3.5 text-sm">
                                             <span className="text-black/50">Status das alterações</span>
@@ -636,6 +768,7 @@ export function PublicLinksManager() {
                             links={publicLinks}
                             copiedLinkId={copiedLinkId}
                             onCopyLink={handleCopyLink}
+                            onOpenCommissionHistory={openCommissionHistory}
                             onDeleteLink={handleDeleteLink}
                         />
 
@@ -646,6 +779,7 @@ export function PublicLinksManager() {
                             links={campaignLinks}
                             copiedLinkId={copiedLinkId}
                             onCopyLink={handleCopyLink}
+                            onOpenCommissionHistory={openCommissionHistory}
                             onDeleteLink={handleDeleteLink}
                         />
                     </div>
@@ -709,6 +843,30 @@ export function PublicLinksManager() {
                                             required
                                         />
                                     </div>
+                                ) : null}
+
+                                {form.linkKind === "CAMPAIGN" && form.sourceType === "INFLUENCER" ? (
+                                    <label className="grid gap-2">
+                                        <span className="text-sm font-medium text-black/60">Comissão sobre o valor da venda (%)</span>
+                                        <div className="flex h-12 items-center rounded-2xl border border-black/10 bg-[#f7f7f7] px-4 transition focus-within:border-black/30 focus-within:bg-white">
+                                            <input
+                                                type="text"
+                                                value={form.commissionPercentage}
+                                                onChange={(event) => {
+                                                    const value = event.target.value.replace(/[^\d,.]/g, "").slice(0, 8);
+                                                    updateForm("commissionPercentage", value);
+                                                    setError(null);
+                                                }}
+                                                placeholder="Ex.: 2,5"
+                                                inputMode="decimal"
+                                                maxLength={8}
+                                                required
+                                                className="h-full min-w-0 flex-1 bg-transparent text-sm text-io-dark outline-none placeholder:text-black/32"
+                                            />
+                                            <span className="ml-3 text-sm font-semibold text-black/45">%</span>
+                                        </div>
+                                        <span className="text-xs text-black/42">O percentual será calculado sobre o valor negociado da venda.</span>
+                                    </label>
                                 ) : null}
 
                                 {form.linkKind === "CAMPAIGN" ? (
@@ -882,6 +1040,7 @@ export function PublicLinksManager() {
                                             || !form.responsibleUserId
                                             || !responsibleUsers.length
                                             || (form.linkKind === "CAMPAIGN" && form.scopeType === "VEHICLE" && !form.vehicleId)
+                                            || (form.linkKind === "CAMPAIGN" && form.sourceType === "INFLUENCER" && !form.commissionPercentage)
                                         }
                                         className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-io-purple px-5 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:bg-black/30"
                                     >
@@ -890,6 +1049,79 @@ export function PublicLinksManager() {
                                     </button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {commissionLink ? (
+                <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/55 px-4 py-6">
+                    <div className="mx-auto flex min-h-full max-w-4xl items-center justify-center">
+                        <div className="w-full rounded-[34px] border border-white/15 bg-white p-6 shadow-[0_24px_80px_rgba(0,0,0,0.28)] md:p-7">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-io-purple">Histórico de comissão</p>
+                                    <h2 className="mt-2 font-display text-2xl font-bold text-io-dark">{commissionLink.name}</h2>
+                                    <p className="mt-2 text-sm text-black/56">Últimas vendas atribuídas a este link de influenciador.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={closeCommissionHistory}
+                                    className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 text-black/65 transition hover:border-black/20 hover:text-io-dark"
+                                    aria-label="Fechar histórico de comissão"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+
+                            {commissionHistoryLoading ? (
+                                <div className="grid min-h-64 place-items-center">
+                                    <LoaderCircle className="h-7 w-7 animate-spin text-io-purple" />
+                                </div>
+                            ) : commissionHistoryError ? (
+                                <p className="mt-6 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{commissionHistoryError}</p>
+                            ) : commissionHistory ? (
+                                <>
+                                    <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                                        <CommissionSummaryCard label="Percentual" value={formatPercentage(commissionHistory.commissionPercentage)} />
+                                        <CommissionSummaryCard label="Vendas pelo link" value={String(commissionHistory.totalSales)} />
+                                        <CommissionSummaryCard label="Comissão total" value={formatMoney(commissionHistory.totalCommissionCents)} accent />
+                                    </div>
+
+                                    {commissionHistory.sales.length ? (
+                                        <div className="mt-6 overflow-x-auto rounded-[26px] border border-black/10">
+                                            <table className="w-full min-w-[680px] border-collapse text-left">
+                                                <thead className="bg-black/[0.035] text-[11px] font-semibold uppercase tracking-[0.16em] text-black/42">
+                                                    <tr>
+                                                        <th className="px-4 py-3">Data da venda</th>
+                                                        <th className="px-4 py-3">Veículo</th>
+                                                        <th className="px-4 py-3">Valor total</th>
+                                                        <th className="px-4 py-3">Percentual</th>
+                                                        <th className="px-4 py-3">Comissão</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {commissionHistory.sales.map((sale) => (
+                                                        <tr key={sale.saleId} className="border-t border-black/8 text-sm text-black/65">
+                                                            <td className="whitespace-nowrap px-4 py-4">{formatDateTime(sale.soldAt)}</td>
+                                                            <td className="px-4 py-4 font-semibold text-io-dark">{sale.vehicleTitle}</td>
+                                                            <td className="whitespace-nowrap px-4 py-4">{formatMoney(sale.saleAmountCents)}</td>
+                                                            <td className="whitespace-nowrap px-4 py-4">{formatPercentage(sale.commissionPercentage)}</td>
+                                                            <td className="whitespace-nowrap px-4 py-4 font-bold text-io-purple">{formatMoney(sale.commissionAmountCents)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-6 rounded-[26px] border border-dashed border-black/12 bg-black/[0.02] px-6 py-10 text-center">
+                                            <CircleDollarSign className="mx-auto h-8 w-8 text-black/30" />
+                                            <p className="mt-3 text-sm font-semibold text-io-dark">Nenhuma comissão registrada</p>
+                                            <p className="mt-1 text-sm text-black/50">As vendas concluídas a partir deste link aparecerão aqui.</p>
+                                        </div>
+                                    )}
+                                </>
+                            ) : null}
                         </div>
                     </div>
                 </div>
@@ -905,6 +1137,7 @@ function LinkSection({
     links,
     copiedLinkId,
     onCopyLink,
+    onOpenCommissionHistory,
     onDeleteLink,
 }: {
     title: string;
@@ -913,6 +1146,7 @@ function LinkSection({
     links: PublicLinkRecord[];
     copiedLinkId: string | null;
     onCopyLink: (link: PublicLinkRecord) => void;
+    onOpenCommissionHistory: (link: PublicLinkRecord) => void;
     onDeleteLink: (link: PublicLinkRecord) => void;
 }) {
     return (
@@ -930,7 +1164,7 @@ function LinkSection({
                     {links.map((link, index) => (
                         <article
                             key={link.id}
-                            className={`grid gap-4 bg-white px-4 py-4 xl:grid-cols-[1.2fr_0.85fr_0.9fr_0.85fr_0.55fr_0.55fr_0.55fr_0.85fr_auto] xl:items-center ${index === 0 ? "" : "border-t border-black/8"
+                            className={`grid gap-4 bg-white px-4 py-4 xl:grid-cols-[1.2fr_0.8fr_0.85fr_0.8fr_0.65fr_0.5fr_0.5fr_0.5fr_0.8fr_auto] xl:items-center ${index === 0 ? "" : "border-t border-black/8"
                                 }`}
                         >
                             <div className="min-w-0">
@@ -939,6 +1173,9 @@ function LinkSection({
                                     {linkKindLabel(link.linkKind)} • {scopeLabel(link.scopeType)}
                                     {link.vehicleTitle ? ` • ${link.vehicleTitle}` : ""}
                                 </p>
+                                {link.sourceType === "INFLUENCER" && link.commissionPercentage != null ? (
+                                    <p className="mt-1 text-xs font-semibold text-io-purple">Comissão de {formatPercentage(link.commissionPercentage)}</p>
+                                ) : null}
                             </div>
 
                             <div>
@@ -961,6 +1198,13 @@ function LinkSection({
                                     {link.useCompanyWhatsapp
                                         ? "Padrão da empresa"
                                         : formatWhatsappInput(link.whatsappNumber ?? "") || "Personalizado"}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/35">Comissão total</p>
+                                <p className={`mt-1 text-sm ${link.sourceType === "INFLUENCER" ? "font-semibold text-io-purple" : "text-black/40"}`}>
+                                    {link.sourceType === "INFLUENCER" ? formatMoney(link.totalCommissionCents) : "Não se aplica"}
                                 </p>
                             </div>
 
@@ -994,6 +1238,17 @@ function LinkSection({
                                 >
                                     {copiedLinkId === link.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                                 </button>
+                                {link.sourceType === "INFLUENCER" ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => onOpenCommissionHistory(link)}
+                                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-io-purple/20 bg-io-purple/5 text-io-purple transition hover:bg-io-purple/10"
+                                        aria-label={`Abrir histórico de comissão de ${link.name}`}
+                                        title="Histórico de comissão"
+                                    >
+                                        <CircleDollarSign className="h-4 w-4" />
+                                    </button>
+                                ) : null}
                                 <button
                                     type="button"
                                     onClick={() => onDeleteLink(link)}
@@ -1017,6 +1272,15 @@ function LinkSection({
                 </div>
             )}
         </section>
+    );
+}
+
+function CommissionSummaryCard({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+    return (
+        <div className={`rounded-[24px] border px-5 py-4 ${accent ? "border-io-purple/15 bg-io-purple/5" : "border-black/10 bg-black/[0.025]"}`}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/42">{label}</p>
+            <p className={`mt-2 text-xl font-bold ${accent ? "text-io-purple" : "text-io-dark"}`}>{value}</p>
+        </div>
     );
 }
 

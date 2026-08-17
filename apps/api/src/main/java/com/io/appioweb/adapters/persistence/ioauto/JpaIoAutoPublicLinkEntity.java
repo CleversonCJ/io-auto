@@ -6,6 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
@@ -35,6 +36,9 @@ public class JpaIoAutoPublicLinkEntity {
 
     @Column(name = "source_reference", length = 160)
     private String sourceReference;
+
+    @Column(name = "commission_percentage", precision = 7, scale = 4)
+    private BigDecimal commissionPercentage;
 
     @Column(name = "use_company_whatsapp", nullable = false)
     private boolean useCompanyWhatsapp = true;
@@ -113,6 +117,14 @@ public class JpaIoAutoPublicLinkEntity {
 
     public void setSourceReference(String sourceReference) {
         this.sourceReference = sourceReference;
+    }
+
+    public BigDecimal getCommissionPercentage() {
+        return commissionPercentage;
+    }
+
+    public void setCommissionPercentage(BigDecimal commissionPercentage) {
+        this.commissionPercentage = commissionPercentage;
     }
 
     public boolean isUseCompanyWhatsapp() {

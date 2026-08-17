@@ -23,6 +23,7 @@ public interface IoAutoVehicleRepositoryJpa extends JpaRepository<JpaIoAutoVehic
         Integer getModelYear();
         Integer getManufactureYear();
         Long getPriceCents();
+        Long getTradeInPriceCents();
         Integer getMileage();
         boolean getConsigned();
         String getConsignedOwnerName();
@@ -51,6 +52,7 @@ public interface IoAutoVehicleRepositoryJpa extends JpaRepository<JpaIoAutoVehic
         Integer getModelYear();
         Integer getManufactureYear();
         Long getPriceCents();
+        Long getTradeInPriceCents();
         Integer getMileage();
         String getTransmission();
         String getFuelType();
@@ -102,6 +104,7 @@ public interface IoAutoVehicleRepositoryJpa extends JpaRepository<JpaIoAutoVehic
                    vehicle.model_year as "modelYear",
                    vehicle.manufacture_year as "manufactureYear",
                    vehicle.price_cents as "priceCents",
+                   vehicle.trade_in_price_cents as "tradeInPriceCents",
                    vehicle.mileage as "mileage",
                    vehicle.transmission as "transmission",
                    vehicle.fuel_type as "fuelType",
@@ -176,6 +179,7 @@ public interface IoAutoVehicleRepositoryJpa extends JpaRepository<JpaIoAutoVehic
                    vehicle.model_year as "modelYear",
                    vehicle.manufacture_year as "manufactureYear",
                    vehicle.price_cents as "priceCents",
+                   vehicle.trade_in_price_cents as "tradeInPriceCents",
                    vehicle.mileage as "mileage",
                    vehicle.is_consigned as "consigned",
                    vehicle.consigned_owner_name as "consignedOwnerName",

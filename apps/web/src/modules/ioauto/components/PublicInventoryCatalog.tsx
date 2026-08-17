@@ -61,6 +61,12 @@ function getInitials(name?: string | null) {
     return `${first}${second}`.toUpperCase();
 }
 
+function withCatalogReturn(path: string) {
+    const url = new URL(path, "http://localhost");
+    url.searchParams.set("from", "catalog");
+    return `${url.pathname}${url.search}`;
+}
+
 function CatalogBanner({
     banner,
     detailHref,
@@ -75,15 +81,53 @@ function CatalogBanner({
     const isCustomImage = banner.kind === "CUSTOM_IMAGE";
 
     if (isCustomImage) {
-        return (
-            <div className="relative min-h-[300px] overflow-hidden rounded-[34px] bg-black/[0.03] shadow-[0_24px_70px_rgba(0,0,0,0.08)] md:min-h-[420px]">
+        const title = banner.title.trim();
+        const description = banner.subtitle.trim();
+        const hasTextContent = Boolean(title || description);
+        const content = (
+            <>
                 {banner.imageUrl ? (
-                    <img src={banner.imageUrl} alt={banner.title} className="absolute inset-0 h-full w-full object-cover" />
+                    <img src={banner.imageUrl} alt={title || "Banner do catálogo"} className="absolute inset-0 h-full w-full object-cover" />
                 ) : (
                     <div className="absolute inset-0 flex items-center justify-center">
                         <span className="text-sm text-black/32">Imagem do banner indisponível</span>
                     </div>
                 )}
+                {hasTextContent ? (
+                    <>
+                        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/55 to-black/5" />
+                        <div className="relative z-10 flex min-h-[300px] items-center px-6 py-10 md:min-h-[420px] md:px-12">
+                            <div className="max-w-2xl text-white">
+                                {title ? (
+                                    <h2 className="font-display text-3xl font-bold leading-tight drop-shadow-sm md:text-5xl">{title}</h2>
+                                ) : null}
+                                {description ? (
+                                    <p className={`${title ? "mt-4" : ""} max-w-xl text-sm leading-6 text-white/82 drop-shadow-sm md:text-lg md:leading-8`}>{description}</p>
+                                ) : null}
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <div className="relative min-h-[300px] md:min-h-[420px]" aria-hidden="true" />
+                )}
+            </>
+        );
+
+        if (banner.redirectUrl) {
+            return (
+                <a
+                    href={banner.redirectUrl}
+                    className="relative block min-h-[300px] cursor-pointer overflow-hidden rounded-[34px] bg-black/[0.03] shadow-[0_24px_70px_rgba(0,0,0,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_28px_80px_rgba(0,0,0,0.14)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-io-purple/25 md:min-h-[420px]"
+                    aria-label={title ? `Abrir link do banner: ${title}` : "Abrir link do banner"}
+                >
+                    {content}
+                </a>
+            );
+        }
+
+        return (
+            <div className="relative min-h-[300px] overflow-hidden rounded-[34px] bg-black/[0.03] shadow-[0_24px_70px_rgba(0,0,0,0.08)] md:min-h-[420px]">
+                {content}
             </div>
         );
     }
@@ -174,7 +218,12 @@ function VehicleCard({
     const imageUrl = images[0] ?? null;
 
     return (
-        <article className="group flex flex-col overflow-hidden rounded-[32px] border border-black/10 bg-white p-3 shadow-[0_18px_55px_rgba(15,23,42,0.08)] transition hover:-translate-y-1 hover:shadow-[0_26px_75px_rgba(15,23,42,0.16)]">
+        <article className="group relative flex cursor-pointer flex-col overflow-hidden rounded-[32px] border border-black/10 bg-white p-3 shadow-[0_18px_55px_rgba(15,23,42,0.08)] transition hover:-translate-y-1 hover:shadow-[0_26px_75px_rgba(15,23,42,0.16)]">
+            <Link
+                href={detailHref}
+                aria-label={`Ver detalhes de ${vehicle.title}`}
+                className="absolute inset-0 z-10 rounded-[32px] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-io-purple/35"
+            />
             <div className="relative overflow-hidden rounded-[26px] bg-black/[0.04]">
                 {imageUrl ? (
                     <img src={imageUrl} alt={vehicle.title} className="h-64 w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
@@ -222,7 +271,7 @@ function VehicleCard({
                     <button
                         type="button"
                         onClick={onContactClick}
-                        className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition ${
+                        className={`relative z-20 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition ${
                             contactEnabled
                                 ? "border border-black/10 bg-white text-black/75 hover:border-black/20 hover:text-io-dark shadow-sm"
                                 : "cursor-not-allowed border border-black/8 bg-black/[0.03] text-black/35"
@@ -233,7 +282,7 @@ function VehicleCard({
                     </button>
                     <Link
                         href={detailHref}
-                        className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-io-dark px-5 text-sm font-bold text-white transition hover:bg-black/85 shadow-sm"
+                        className="relative z-20 inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-io-dark px-5 text-sm font-bold text-white transition hover:bg-black/85 shadow-sm"
                     >
                         Ver detalhes
                         <ArrowRight className="h-4 w-4" />
@@ -267,6 +316,7 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
         vehicleId: vehicle.id,
         title: vehicle.title,
         subtitle: buildVehicleSubtitle(vehicle),
+        redirectUrl: null,
         imageUrl: getVehicleImages(vehicle)[0] ?? null,
         priceCents: vehicle.priceCents,
         city: vehicle.city,
@@ -400,7 +450,7 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                                 banner={currentBanner}
                                 detailHref={
                                     currentBanner.kind === "VEHICLE" && currentBanner.vehicleId
-                                        ? withPublicLeadTracking(`/estoque-publico/${data.company.publicSlug}/veiculo/${currentBanner.vehicleId}`, tracking)
+                                        ? withCatalogReturn(withPublicLeadTracking(`/estoque-publico/${data.company.publicSlug}/veiculo/${currentBanner.vehicleId}`, tracking))
                                         : `#${stockSectionId}`
                                 }
                                 contactEnabled={Boolean(data.company.whatsappNumber)}
@@ -505,7 +555,7 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                                 <VehicleCard
                                     key={vehicle.id}
                                     vehicle={vehicle}
-                                    detailHref={withPublicLeadTracking(`/estoque-publico/${data.company.publicSlug}/veiculo/${vehicle.id}`, tracking)}
+                                    detailHref={withCatalogReturn(withPublicLeadTracking(`/estoque-publico/${data.company.publicSlug}/veiculo/${vehicle.id}`, tracking))}
                                     contactEnabled={Boolean(data.company.whatsappNumber)}
                                     onContactClick={() =>
                                         setLeadCapture({
