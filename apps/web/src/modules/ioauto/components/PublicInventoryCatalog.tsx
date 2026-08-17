@@ -15,7 +15,7 @@ import {
     SlidersHorizontal,
     Sparkles,
 } from "lucide-react";
-import { formatMoney, statusLabel } from "@/modules/ioauto/formatters";
+import { formatMoney } from "@/modules/ioauto/formatters";
 import {
     buildTrackedWhatsappHref,
     readPublicLeadTracking,
@@ -41,9 +41,12 @@ function formatVehicleYears(vehicle: Pick<PublicInventoryVehicle, "modelYear" | 
     return "Ano não informado";
 }
 
-function buildVehicleSubtitle(vehicle: Pick<PublicInventoryVehicle, "version" | "fuelType" | "transmission">) {
+function buildVehicleSubtitle(
+    vehicle: Pick<PublicInventoryVehicle, "version" | "fuelType" | "transmission">,
+    fallback = "Veículo disponível para negociação"
+) {
     const parts = [vehicle.version, vehicle.fuelType, vehicle.transmission].filter(Boolean);
-    return parts.length ? parts.join(" • ") : "Veículo disponível para negociação";
+    return parts.length ? parts.join(" • ") : fallback;
 }
 
 function buildVehicleLocation(vehicle: Pick<PublicInventoryVehicle, "city" | "state">) {
@@ -287,6 +290,50 @@ function VehicleCard({
                         Ver detalhes
                         <ArrowRight className="h-4 w-4" />
                     </Link>
+                </div>
+            </div>
+        </article>
+    );
+}
+
+function SoldVehicleCard({ vehicle }: { vehicle: PublicInventoryVehicle }) {
+    const imageUrl = getVehicleImages(vehicle)[0] ?? null;
+
+    return (
+        <article className="flex flex-col overflow-hidden rounded-[32px] border border-black/10 bg-white p-3 shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
+            <div className="overflow-hidden rounded-[26px] bg-black/[0.04]">
+                {imageUrl ? (
+                    <img src={imageUrl} alt={vehicle.title} className="h-64 w-full object-cover" />
+                ) : (
+                    <div className="flex h-64 items-center justify-center bg-white text-sm text-black/45">
+                        Sem imagem principal
+                    </div>
+                )}
+            </div>
+
+            <div className="flex flex-1 flex-col px-2 pb-3 pt-5">
+                <div className="flex-1">
+                    <h3 className="font-display text-[1.7rem] font-bold leading-[1.05] tracking-tight text-io-dark">{vehicle.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-black/58">{buildVehicleSubtitle(vehicle, "Informações do veículo")}</p>
+
+                    <div className="mt-5 grid gap-2 text-sm text-black/62">
+                        <span className="inline-flex items-center gap-2 rounded-full bg-black/[0.04] px-3 py-2">
+                            <CalendarDays className="h-4 w-4" />
+                            {formatVehicleYears(vehicle)}
+                        </span>
+                        <span className="inline-flex items-center gap-2 rounded-full bg-black/[0.04] px-3 py-2">
+                            <Gauge className="h-4 w-4" />
+                            {formatMileage(vehicle.mileage)}
+                        </span>
+                        <span className="inline-flex items-center gap-2 rounded-full bg-black/[0.04] px-3 py-2">
+                            <MapPin className="h-4 w-4" />
+                            {buildVehicleLocation(vehicle)}
+                        </span>
+                    </div>
+                </div>
+
+                <div className="mt-5 rounded-2xl bg-red-600 px-5 py-3 text-center text-sm font-extrabold uppercase tracking-[0.22em] text-white">
+                    Vendido
                 </div>
             </div>
         </article>
@@ -581,6 +628,20 @@ export function PublicInventoryCatalogView({ data }: { data: PublicInventoryCata
                             <p className="mt-2 text-sm text-black/56">Tente ajustar os filtros para explorar todo o estoque disponível.</p>
                         </div>
                     )}
+
+                    {data.recentlySoldVehicles.length ? (
+                        <div className="mt-12 border-t border-black/10 pt-8">
+                            <div className="mb-5">
+                                <p className="text-xs font-bold uppercase tracking-[0.22em] text-red-600">Negócios concluídos</p>
+                                <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-io-dark md:text-3xl">Vendidos recentemente</h2>
+                            </div>
+                            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                                {data.recentlySoldVehicles.map((vehicle) => (
+                                    <SoldVehicleCard key={vehicle.id} vehicle={vehicle} />
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
                 </section>
             </div>
 

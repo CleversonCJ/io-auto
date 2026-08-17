@@ -82,6 +82,7 @@ public class IoAutoController {
     private static final int MAX_PUBLIC_CATALOG_BANNER_TITLE_LENGTH = 120;
     private static final int MAX_PUBLIC_CATALOG_BANNER_DESCRIPTION_LENGTH = 300;
     private static final int MAX_PUBLIC_CATALOG_BANNER_REDIRECT_URL_LENGTH = 2_048;
+    private static final int MAX_RECENTLY_SOLD_PUBLIC_VEHICLES = 6;
     private static final Map<String, String> VEHICLE_TRANSMISSION_OPTIONS = Map.ofEntries(
             Map.entry("automatica", "Automatica"),
             Map.entry("automatico", "Automatica"),
@@ -514,11 +515,17 @@ public class IoAutoController {
         List<PublicInventoryVehicleHttpResponse> catalogVehicles = publicVehicles.stream()
                 .map(vehicle -> toPublicVehicleResponse(vehicle, companySlug))
                 .toList();
+        List<PublicInventoryVehicleHttpResponse> recentlySoldVehicles = companyVehicles.stream()
+                .filter(this::isVehicleSold)
+                .limit(MAX_RECENTLY_SOLD_PUBLIC_VEHICLES)
+                .map(vehicle -> toPublicVehicleResponse(vehicle, companySlug, true))
+                .toList();
 
         return ResponseEntity.ok(new PublicInventoryCatalogHttpResponse(
                 toPublicCompanySummary(company, resolvePublicLinkWhatsappNumber(company, sourceType, sourceReference)),
                 buildResolvedPublicCatalogBanners(company, companySlug, publicVehicles),
-                catalogVehicles
+                catalogVehicles,
+                recentlySoldVehicles
         ));
     }
 
@@ -570,7 +577,7 @@ public class IoAutoController {
 
         List<JpaIoAutoVehiclePublicationEntity> vehiclePublications =
                 publications.findAllByCompanyIdAndVehicleId(company.id(), vehicleId);
-        if (!isVehiclePubliclyVisible(vehicle, vehiclePublications)) {
+        if (!isVehiclePubliclyVisible(vehicle, vehiclePublications) && !isVehicleSold(vehicle)) {
             return ResponseEntity.notFound().build();
         }
 
@@ -2010,6 +2017,14 @@ public class IoAutoController {
             JpaIoAutoVehicleEntity vehicle,
             String companySlug
     ) {
+        return toPublicVehicleResponse(vehicle, companySlug, false);
+    }
+
+    private PublicInventoryVehicleHttpResponse toPublicVehicleResponse(
+            JpaIoAutoVehicleEntity vehicle,
+            String companySlug,
+            boolean hideCommercialData
+    ) {
         List<String> sourceImages = resolveVehicleImages(vehicle);
         List<String> publicImages = java.util.stream.IntStream.range(0, sourceImages.size())
                 .mapToObj(index -> buildPublicVehicleImagePath(companySlug, vehicle, index))
@@ -2025,8 +2040,8 @@ public class IoAutoController {
                 resolveVehicleYear(vehicle),
                 vehicle.getModelYear(),
                 vehicle.getManufactureYear(),
-                vehicle.getPriceCents(),
-                vehicle.getTradeInPriceCents(),
+                hideCommercialData ? null : vehicle.getPriceCents(),
+                hideCommercialData ? null : vehicle.getTradeInPriceCents(),
                 vehicle.getMileage(),
                 normalizeNullableText(vehicle.getTransmission()),
                 normalizeNullableText(vehicle.getFuelType()),
@@ -2042,7 +2057,9 @@ public class IoAutoController {
                 publicImages.isEmpty() ? null : publicImages.get(0),
                 publicImages.size() <= 1 ? List.of() : publicImages.subList(1, publicImages.size()),
                 readStringArray(vehicle.getOptionalsJson()),
-                readVehicleFinancing(vehicle.getFinancingJson()),
+                hideCommercialData
+                        ? new VehicleFinancingHttpResponse(null, null, null)
+                        : readVehicleFinancing(vehicle.getFinancingJson()),
                 vehicle.getUpdatedAt()
         );
     }
@@ -2745,6 +2762,10 @@ public class IoAutoController {
                 .noneMatch("SOLD"::equals);
     }
 
+    private boolean isVehicleSold(JpaIoAutoVehicleEntity vehicle) {
+        return "SOLD".equalsIgnoreCase(normalizeText(vehicle.getStatus()));
+    }
+
     private String sanitizeWhatsappNumber(String raw) {
         String digits = normalizeText(raw).replaceAll("\\D", "");
         if ((digits.length() == 12 || digits.length() == 13) && digits.startsWith("55")) {
@@ -3261,7 +3282,8 @@ public class IoAutoController {
     public record PublicInventoryCatalogHttpResponse(
             PublicCompanySummary company,
             List<PublicCatalogBanner> banners,
-            List<PublicInventoryVehicleHttpResponse> vehicles
+            List<PublicInventoryVehicleHttpResponse> vehicles,
+            List<PublicInventoryVehicleHttpResponse> recentlySoldVehicles
     ) {
     }
 

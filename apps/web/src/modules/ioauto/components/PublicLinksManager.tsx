@@ -1164,7 +1164,10 @@ function LinkSection({
                     {links.map((link, index) => (
                         <article
                             key={link.id}
-                            className={`grid gap-4 bg-white px-4 py-4 xl:grid-cols-[1.2fr_0.8fr_0.85fr_0.8fr_0.65fr_0.5fr_0.5fr_0.5fr_0.8fr_auto] xl:items-center ${index === 0 ? "" : "border-t border-black/8"
+                            className={`grid gap-4 bg-white px-4 py-4 ${link.sourceType === "INFLUENCER"
+                                ? "xl:grid-cols-[1.2fr_0.8fr_0.85fr_0.8fr_0.65fr_0.5fr_0.5fr_0.5fr_0.8fr_auto]"
+                                : "xl:grid-cols-[1.2fr_0.85fr_0.9fr_0.85fr_0.55fr_0.55fr_0.55fr_0.85fr_auto]"
+                            } xl:items-center ${index === 0 ? "" : "border-t border-black/8"
                                 }`}
                         >
                             <div className="min-w-0">
@@ -1201,12 +1204,12 @@ function LinkSection({
                                 </p>
                             </div>
 
-                            <div>
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/35">Comissão total</p>
-                                <p className={`mt-1 text-sm ${link.sourceType === "INFLUENCER" ? "font-semibold text-io-purple" : "text-black/40"}`}>
-                                    {link.sourceType === "INFLUENCER" ? formatMoney(link.totalCommissionCents) : "Não se aplica"}
-                                </p>
-                            </div>
+                            {link.sourceType === "INFLUENCER" ? (
+                                <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/35">Comissão total</p>
+                                    <p className="mt-1 text-sm font-semibold text-io-purple">{formatMoney(link.totalCommissionCents)}</p>
+                                </div>
+                            ) : null}
 
                             <div>
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/35">Interações</p>

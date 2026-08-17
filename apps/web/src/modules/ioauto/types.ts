@@ -705,6 +705,7 @@ export type PublicInventoryCatalog = {
     company: PublicInventoryCompany;
     banners: PublicInventoryBanner[];
     vehicles: PublicInventoryVehicle[];
+    recentlySoldVehicles: PublicInventoryVehicle[];
 };
 
 export type PublicCatalogSettings = {
