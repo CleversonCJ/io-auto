@@ -143,7 +143,7 @@ export function PublicPartnerLeadPage({ initialRef }: { initialRef: string }) {
 
                     <div className="bg-white/96 p-6 md:p-10">
                         <div className="max-w-3xl">
-                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Solicite seu atendimento</p>
+                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/40">Solicite um contato</p>
                             <h2 className="mt-3 text-[1.9rem] font-bold leading-tight text-io-dark">
                                 Preencha os dados e conheça o sistema IO Auto.
                             </h2>

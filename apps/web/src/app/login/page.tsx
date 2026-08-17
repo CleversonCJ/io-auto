@@ -29,7 +29,7 @@ export default async function LoginPage() {
                         <div className="grid gap-3">
                             <div className="rounded-[28px] bg-io-purple p-5 text-white">
                                 <p className="text-xs uppercase tracking-[0.28em] text-white/45">Operação</p>
-                                <p className="mt-3 text-lg font-semibold">Atendimento 100% humano com origem do lead visível</p>
+                                <p className="mt-3 text-lg font-semibold">Contato direto por WhatsApp com origem do lead visível</p>
                             </div>
                             <div className="rounded-[28px] border border-black/10 bg-[#f6f6f6] p-5">
                                 <p className="text-sm text-black/55">Use o mesmo e-mail e senha configurados na ativação da assinatura para entrar.</p>

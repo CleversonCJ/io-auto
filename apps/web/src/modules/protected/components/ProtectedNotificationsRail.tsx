@@ -21,7 +21,7 @@ const GUIDED_QUESTIONS: string[] = [
     "Em qual tela ou funcionalidade aconteceu?",
     "Houve alguma mensagem de erro?",
     "Você já tentou atualizar a página ou sair e entrar novamente?",
-    "Quantos usuários ou atendimentos estão impactados?",
+    "Quantos usuários ou operações estão impactados?",
 ];
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;

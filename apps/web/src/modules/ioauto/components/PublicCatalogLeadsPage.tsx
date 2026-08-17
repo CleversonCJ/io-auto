@@ -257,7 +257,7 @@ export function PublicCatalogLeadsPage() {
     useEffect(() => {
         let active = true;
 
-        fetch("/api/atendimentos/users", {
+        fetch("/api/ioauto/collaborators", {
             cache: "no-store",
             credentials: "include",
         })

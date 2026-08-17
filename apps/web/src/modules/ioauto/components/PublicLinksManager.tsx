@@ -276,7 +276,7 @@ export function PublicLinksManager() {
             const [linksResponse, vehiclesResponse, usersResponse, meResponse] = await Promise.all([
                 fetch("/api/ioauto/public-links", { cache: "no-store" }),
                 fetch("/api/ioauto/vehicles/options", { cache: "no-store" }),
-                fetch("/api/atendimentos/users", { cache: "no-store" }),
+                fetch("/api/ioauto/collaborators", { cache: "no-store" }),
                 fetch("/api/auth/me", { cache: "no-store" }),
             ]);
 

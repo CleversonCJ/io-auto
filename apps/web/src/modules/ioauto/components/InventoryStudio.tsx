@@ -978,7 +978,7 @@ export function InventoryStudio() {
 
         setSaleContextLoading(true);
         try {
-            const usersRequest = fetch("/api/atendimentos/users", { cache: "no-store", credentials: "include" });
+            const usersRequest = fetch("/api/ioauto/collaborators", { cache: "no-store", credentials: "include" });
             let currentBilling = billing;
             if (!currentBilling) {
                 const billingResponse = await fetch("/api/ioauto/billing", { cache: "no-store", credentials: "include" });
@@ -988,7 +988,7 @@ export function InventoryStudio() {
             }
 
             const conversationsRequest = currentBilling.features.leadManagement
-                ? fetch("/api/atendimentos/conversations", { cache: "no-store", credentials: "include" })
+                ? fetch("/api/ioauto/crm/leads", { cache: "no-store", credentials: "include" })
                 : null;
 
             const usersResponse = await usersRequest;
@@ -1570,7 +1570,7 @@ export function InventoryStudio() {
                                                     placeholder="0"
                                                 />
                                                 <Field
-                                                    label="Telefone para atendimento"
+                                                    label="Telefone para contato"
                                                     value={form.contactPhone}
                                                     onChange={(value) => updateField("contactPhone", formatPhoneInput(value))}
                                                     placeholder="(11) 99999-9999"

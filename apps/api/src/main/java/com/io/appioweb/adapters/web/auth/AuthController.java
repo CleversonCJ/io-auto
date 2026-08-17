@@ -183,9 +183,6 @@ public class AuthController {
                     existingCompany.cnpj(),
                     existingCompany.openedAt(),
                     existingCompany.whatsappNumber(),
-                    existingCompany.zapiInstanceId(),
-                    existingCompany.zapiInstanceToken(),
-                    existingCompany.zapiClientToken(),
                     existingCompany.businessHoursStart(),
                     existingCompany.businessHoursEnd(),
                     existingCompany.businessHoursWeeklyJson(),
@@ -354,7 +351,7 @@ public class AuthController {
             throw new BusinessException("TEAM_HAS_USERS", "Não é possível excluir uma equipe com usuários vinculados");
         }
         if (conversations.existsByCompanyIdAndAssignedTeamId(companyId, existing.id())) {
-            throw new BusinessException("TEAM_HAS_CONVERSATIONS", "Não é possível excluir uma equipe com atendimentos vinculados");
+            throw new BusinessException("TEAM_HAS_CONVERSATIONS", "Não é possível excluir uma equipe com leads vinculados");
         }
 
         teams.deleteById(existing.id());
@@ -459,9 +456,6 @@ public class AuthController {
                 cnpjDigits,
                 req.openedAt(),
                 whatsappDigits,
-                existing.zapiInstanceId(),
-                existing.zapiInstanceToken(),
-                existing.zapiClientToken(),
                 req.businessHoursStart().trim(),
                 req.businessHoursEnd().trim(),
                 businessHoursWeeklyJson,
@@ -560,7 +554,7 @@ public class AuthController {
         try {
             return OBJECT_MAPPER.writeValueAsString(root);
         } catch (Exception ex) {
-            throw new BusinessException("COMPANY_BUSINESS_HOURS_INVALID", "Não foi possível processar horários de atendimento");
+            throw new BusinessException("COMPANY_BUSINESS_HOURS_INVALID", "Não foi possível processar horários de funcionamento");
         }
     }
 

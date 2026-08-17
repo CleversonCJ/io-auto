@@ -33,9 +33,6 @@ public class JpaAtendimentoMessageEntity {
     @Column(name = "from_me", nullable = false)
     private boolean fromMe;
 
-    @Column(name = "zapi_message_id", length = 160)
-    private String zapiMessageId;
-
     @Column(length = 20)
     private String status;
 
@@ -68,9 +65,6 @@ public class JpaAtendimentoMessageEntity {
 
     public boolean isFromMe() { return fromMe; }
     public void setFromMe(boolean fromMe) { this.fromMe = fromMe; }
-
-    public String getZapiMessageId() { return zapiMessageId; }
-    public void setZapiMessageId(String zapiMessageId) { this.zapiMessageId = zapiMessageId; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

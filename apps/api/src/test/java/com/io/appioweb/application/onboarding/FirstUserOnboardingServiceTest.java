@@ -79,14 +79,14 @@ class FirstUserOnboardingServiceTest {
                         "João Silva", "joao@empresa.com", "47999999999", "INACTIVE"
                 ),
                 new FirstUserRegisterRequest.Comercial(197, "mensal", "2026-05-08", "meta-campanha"),
-                new FirstUserRegisterRequest.Billing("pay_xxx", "sub_xxx", "IO Connect - Plano Mensal")
+                new FirstUserRegisterRequest.Billing("pay_xxx", "sub_xxx", "IO Auto - Plano Mensal")
         );
     }
 
     private FirstUserActivateRequest buildActivateRequest(String idempotencyKey, String paymentStatus) {
         return new FirstUserActivateRequest(
                 idempotencyKey, "pay_xxx", "sub_xxx", paymentStatus,
-                197, "mensal", "2026-05-08", "meta-campanha", "IO Connect - Plano Mensal"
+                197, "mensal", "2026-05-08", "meta-campanha", "IO Auto - Plano Mensal"
         );
     }
 
@@ -338,7 +338,7 @@ class FirstUserOnboardingServiceTest {
 
             service.activate(buildActivateRequest("act-5", "CONFIRMED"), "{}");
 
-            verify(asaasSubscriptionService).syncDescription(any(), eq("IO Connect - Plano Mensal"), eq(companyId.toString()));
+            verify(asaasSubscriptionService).syncDescription(any(), eq("IO Auto - Plano Mensal"), eq(companyId.toString()));
         }
 
         @Test

@@ -78,7 +78,7 @@ async function readLabelsResponse(response: Response) {
 }
 
 export async function loadContactLabels(): Promise<ContactLabel[]> {
-    const response = await fetch("/api/atendimentos/labels", { cache: "no-store" });
+    const response = await fetch("/api/ioauto/crm/labels", { cache: "no-store" });
     const serverLabels = await readLabelsResponse(response);
     const legacyLabels = readLegacyContactLabels();
 
@@ -94,7 +94,7 @@ export async function loadContactLabels(): Promise<ContactLabel[]> {
 
 export async function saveContactLabels(labels: ContactLabel[]): Promise<ContactLabel[]> {
     const normalized = normalizeLabels(labels);
-    const response = await fetch("/api/atendimentos/labels", {
+    const response = await fetch("/api/ioauto/crm/labels", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

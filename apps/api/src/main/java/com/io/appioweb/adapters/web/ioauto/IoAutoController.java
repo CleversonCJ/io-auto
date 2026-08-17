@@ -1321,9 +1321,6 @@ public class IoAutoController {
                 company.cnpj(),
                 company.openedAt(),
                 company.whatsappNumber(),
-                company.zapiInstanceId(),
-                company.zapiInstanceToken(),
-                company.zapiClientToken(),
                 company.businessHoursStart(),
                 company.businessHoursEnd(),
                 company.businessHoursWeeklyJson(),
@@ -3109,12 +3106,12 @@ public class IoAutoController {
     }
 
     private boolean isSupportedProvider(String providerKey) {
-        return "zapi".equalsIgnoreCase(normalizeProviderKey(providerKey)) == false;
+        return !normalizeProviderKey(providerKey).isBlank();
     }
 
     private boolean isSupportedLeadSource(String sourcePlatform) {
         String normalized = normalizeSourcePlatform(sourcePlatform);
-        return !"ZAPI".equals(normalized) && !"WHATSAPP".equals(normalized) && !"SYSTEM_SALE".equals(normalized);
+        return !"LEGACY_CHANNEL".equals(normalized) && !"WHATSAPP".equals(normalized) && !"SYSTEM_SALE".equals(normalized);
     }
 
     private record DashboardPeriodSelection(

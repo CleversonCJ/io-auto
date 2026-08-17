@@ -45,7 +45,7 @@ type NavItem = {
     href: string;
     icon:
         | "dashboard"
-        | "conversas"
+        | "leads"
         | "crm"
         | "estoque"
         | "financeiro"
@@ -103,7 +103,7 @@ function hasSuperAdminRole(roles?: string[] | null) {
 
 function NavIcon({ icon }: { icon: NavItem["icon"] }) {
     if (icon === "dashboard") return <LayoutDashboard className="h-5 w-5" strokeWidth={2} />;
-    if (icon === "conversas") return <MessageSquareText className="h-5 w-5" strokeWidth={2} />;
+    if (icon === "leads") return <MessageSquareText className="h-5 w-5" strokeWidth={2} />;
     if (icon === "crm") return <Users2 className="h-5 w-5" strokeWidth={2} />;
     if (icon === "estoque") return <CarFront className="h-5 w-5" strokeWidth={2} />;
     if (icon === "financeiro") return <HandCoins className="h-5 w-5" strokeWidth={2} />;
@@ -129,7 +129,7 @@ function NavIcon({ icon }: { icon: NavItem["icon"] }) {
 function getDefaultSidebarItems(): SidebarItem[] {
     return [
         { label: "Dashboard", href: "/protected/dashboard", icon: "dashboard" },
-        { label: "Leads", href: "/protected/leads", icon: "conversas", accessKey: "leadManagement" },
+        { label: "Leads", href: "/protected/leads", icon: "leads", accessKey: "leadManagement" },
         { label: "CRM", href: "/protected/crm", icon: "crm", accessKey: "crmKanban" },
         { label: "Estoque", href: "/protected/estoque", icon: "estoque" },
         { label: "Financeiro", href: "/protected/financeiro", icon: "financeiro", accessKey: "finance" },

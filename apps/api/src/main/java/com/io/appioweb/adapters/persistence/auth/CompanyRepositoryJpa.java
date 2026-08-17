@@ -18,7 +18,6 @@ public interface CompanyRepositoryJpa extends JpaRepository<JpaCompanyEntity, UU
     }
 
     Optional<JpaCompanyEntity> findByEmail(String email);
-    Optional<JpaCompanyEntity> findByZapiInstanceId(String zapiInstanceId);
     Optional<JpaCompanyEntity> findByCnpj(String cnpj);
 
     @Query("select c.name from JpaCompanyEntity c where c.id = :companyId")

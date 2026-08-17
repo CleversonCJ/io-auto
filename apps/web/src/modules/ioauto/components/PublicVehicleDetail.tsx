@@ -289,7 +289,7 @@ export function PublicVehicleDetailView({ data }: { data: PublicVehicleDetail })
                             <div className="rounded-[28px] bg-[#212121] px-5 py-5 text-white">
                                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Descrição</p>
                                 <p className="mt-4 text-sm leading-7 text-white/76">
-                                    {data.vehicle.description?.trim() || "Este veículo está disponível para atendimento e negociação. Fale com a loja para receber fotos, condições e simulações."}
+                                    {data.vehicle.description?.trim() || "Este veículo está disponível para negociação. Fale com a loja para receber fotos, condições e simulações."}
                                 </p>
                             </div>
 

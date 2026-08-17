@@ -78,7 +78,7 @@ Importante: `JWT_SECRET_FOR_MIDDLEWARE` precisa ser igual a `JWT_SECRET`.
 
 ## 3.2 Deploy Tool blue/green
 
-Para o IO Connect Deploy Tool, use:
+Para a ferramenta de deploy, use:
 
 - compose: `docker-compose.deploy.yml`
 - env base: `.env.vps`
@@ -209,5 +209,4 @@ docker compose -f docker-compose.vps.yml up -d --build
 
 ## 12. Integracoes operacionais
 
-- Z-API: configure os webhooks publicos apontando para sua API
 - WebMotors: a camada de tenant, credenciais e publicacoes ja esta pronta para receber a integracao oficial

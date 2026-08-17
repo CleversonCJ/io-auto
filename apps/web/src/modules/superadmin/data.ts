@@ -586,7 +586,7 @@ export const superAdminSections: Record<SuperAdminSectionKey, SuperAdminSection>
             { label: "Resposta média", value: "18 min", hint: "Primeiro toque do time", delta: "-7 min na semana", tone: "sky" },
             { label: "Resolução média", value: "6,4 h", hint: "Tempo até encerrar", delta: "-1,1 h", tone: "violet" },
             { label: "Bugs reportados", value: "9", hint: "Incidentes ativos", delta: "+2 desde sexta", tone: "amber" },
-            { label: "SLA cumprido", value: "93%", hint: "Atendimentos dentro do alvo", delta: "+4 p.p.", tone: "rose" },
+            { label: "SLA cumprido", value: "93%", hint: "Operações dentro do alvo", delta: "+4 p.p.", tone: "rose" },
         ],
         alerts: [
             { title: "Fila de bugs nas integrações", description: "5 dos 9 bugs ativos estão ligados a publicação ou retorno de canal.", severity: "critical" },
@@ -610,7 +610,7 @@ export const superAdminSections: Record<SuperAdminSectionKey, SuperAdminSection>
             },
             {
                 title: "SLA por fila",
-                subtitle: "Comparativo do atendimento",
+                subtitle: "Comparativo da operação",
                 type: "column",
                 categories: ["Suporte N1", "Suporte técnico", "Onboarding", "Financeiro"],
                 series: [{ name: "SLA", data: [96, 89, 94, 92], color: "#14b8a6" }],

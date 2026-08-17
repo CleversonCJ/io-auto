@@ -599,15 +599,11 @@ export type ConversationRecord = {
     arrivedAt?: string | null;
     firstResponseAt?: string | null;
     completedAt?: string | null;
-    classificationResult?: string | null;
-    classificationLabel?: string | null;
     saleCompleted?: boolean | null;
     soldVehicleId?: string | null;
     soldVehicleTitle?: string | null;
     saleCompletedAt?: string | null;
     latestCompletedAt?: string | null;
-    latestCompletedClassificationResult?: string | null;
-    latestCompletedClassificationLabel?: string | null;
     latestCompletedSaleCompleted?: boolean | null;
     latestCompletedSoldVehicleId?: string | null;
     latestCompletedSoldVehicleTitle?: string | null;

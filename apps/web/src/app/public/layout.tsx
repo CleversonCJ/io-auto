@@ -1,6 +1,6 @@
 export const metadata = {
-    title: "área Pública - IO Connect",
-    description: "área pública do IO Connect",
+    title: "Catálogo público - IO Auto",
+    description: "Catálogo público de veículos do IO Auto",
 };
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {

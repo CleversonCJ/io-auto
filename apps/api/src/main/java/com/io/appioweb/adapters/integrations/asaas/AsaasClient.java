@@ -22,7 +22,7 @@ public class AsaasClient {
             .connectTimeout(Duration.ofSeconds(10))
             .build();
     private static final int MAX_DESCRIPTION_LENGTH = 500;
-    private static final String DEFAULT_DESCRIPTION = "Assinatura IO Connect";
+    private static final String DEFAULT_DESCRIPTION = "Assinatura IO Auto";
 
     private final AsaasProperties properties;
 

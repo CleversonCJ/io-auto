@@ -726,7 +726,7 @@ export function SuperAdminLiveSection({ section }: Props) {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <p className="text-sm font-semibold text-io-dark">Mesa de suporte</p>
-                            <p className="text-xs text-black/55">Todos os tickets existentes. Clique em uma linha para abrir o atendimento completo.</p>
+                            <p className="text-xs text-black/55">Todos os tickets existentes. Clique em uma linha para abrir os detalhes completos.</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <select

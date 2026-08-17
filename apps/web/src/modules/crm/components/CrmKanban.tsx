@@ -562,8 +562,8 @@ export function CrmKanban() {
     }
 
     async function refreshConversations() {
-        const res = await fetch("/api/atendimentos/conversations", { cache: "no-store" });
-        if (!res.ok) throw new Error("Falha ao carregar atendimentos.");
+        const res = await fetch("/api/ioauto/crm/leads", { cache: "no-store" });
+        if (!res.ok) throw new Error("Falha ao carregar leads.");
         const data = (await res.json().catch(() => [])) as ApiConversation[];
         const nextConversations = Array.isArray(data) ? data : [];
         setConversations(nextConversations);
@@ -580,7 +580,7 @@ export function CrmKanban() {
     }
 
     async function refreshUsers() {
-        const res = await fetch("/api/atendimentos/users", { cache: "no-store" });
+        const res = await fetch("/api/ioauto/collaborators", { cache: "no-store" });
         if (!res.ok) throw new Error("Falha ao carregar usuários.");
         const data = (await res.json().catch(() => [])) as AtendimentoUser[];
         setAvailableUsers(Array.isArray(data) ? data : []);
@@ -916,13 +916,13 @@ export function CrmKanban() {
             <section className="flex h-full w-full flex-col bg-io-light pt-4 md:pt-6">
                 <div className="mx-4 grid flex-1 place-items-center rounded-[32px] border border-dashed border-black/15 bg-white p-8 text-center shadow-[0_18px_45px_rgba(15,23,42,0.04)] md:mx-6">
                     <div>
-                        <p className="text-base font-semibold text-io-dark">Nenhuma etapa de atendimento cadastrada.</p>
+                        <p className="text-base font-semibold text-io-dark">Nenhuma etapa do CRM cadastrada.</p>
                         <button
                             type="button"
                             onClick={() => router.push("/protected/configuracoes?view=stages")}
                             className="mt-5 rounded-full bg-io-purple px-5 py-3 text-sm font-semibold text-white transition hover:bg-black/85"
                         >
-                            Gerenciar etapas de atendimento
+                            Gerenciar etapas do CRM
                         </button>
                     </div>
                 </div>

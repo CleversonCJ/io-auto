@@ -54,13 +54,6 @@ public class JpaAtendimentoSessionEntity {
     @Column(name = "completed_at")
     private Instant completedAt;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "classification_result", length = 40)
-    private AtendimentoClassificationResult classificationResult;
-
-    @Column(name = "classification_label", length = 180)
-    private String classificationLabel;
-
     @Column(name = "sale_completed", nullable = false)
     private boolean saleCompleted;
 
@@ -193,12 +186,6 @@ public class JpaAtendimentoSessionEntity {
 
     public Instant getCompletedAt() { return completedAt; }
     public void setCompletedAt(Instant completedAt) { this.completedAt = completedAt; }
-
-    public AtendimentoClassificationResult getClassificationResult() { return classificationResult; }
-    public void setClassificationResult(AtendimentoClassificationResult classificationResult) { this.classificationResult = classificationResult; }
-
-    public String getClassificationLabel() { return classificationLabel; }
-    public void setClassificationLabel(String classificationLabel) { this.classificationLabel = classificationLabel; }
 
     public boolean isSaleCompleted() { return saleCompleted; }
     public void setSaleCompleted(boolean saleCompleted) { this.saleCompleted = saleCompleted; }

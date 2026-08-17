@@ -1,6 +1,5 @@
 package com.io.appioweb.adapters.web.ioauto;
 
-import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoClassificationResult;
 import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoConversationRepositoryJpa;
 import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoSessionRepositoryJpa;
 import com.io.appioweb.adapters.persistence.atendimentos.JpaAtendimentoConversationEntity;
@@ -18,7 +17,6 @@ import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoPublicLinkEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehicleEntity;
 import com.io.appioweb.adapters.persistence.ioauto.JpaIoAutoVehiclePublicationEntity;
 import com.io.appioweb.adapters.persistence.ioauto.WebmotorsAdRepositoryJpa;
-import com.io.appioweb.adapters.web.atendimentos.AtendimentoSessionLifecycleService;
 import com.io.appioweb.application.auth.port.out.TeamRepositoryPort;
 import com.io.appioweb.application.auth.port.out.UserRepositoryPort;
 import com.io.appioweb.application.ioauto.meli.MeliAdService;
@@ -65,7 +63,7 @@ public class IoAutoSalesService {
     private final AtendimentoConversationRepositoryJpa conversations;
     private final IoAutoPublicCatalogLeadRepositoryJpa publicCatalogLeads;
     private final IoAutoPublicLinkRepositoryJpa publicLinks;
-    private final AtendimentoSessionLifecycleService sessionLifecycleService;
+    private final IoAutoSalesLeadLifecycleService salesLeadLifecycleService;
     private final UserRepositoryPort users;
     private final TeamRepositoryPort teams;
     private final OlxAdService olxAdService;
@@ -83,7 +81,7 @@ public class IoAutoSalesService {
             AtendimentoConversationRepositoryJpa conversations,
             IoAutoPublicCatalogLeadRepositoryJpa publicCatalogLeads,
             IoAutoPublicLinkRepositoryJpa publicLinks,
-            AtendimentoSessionLifecycleService sessionLifecycleService,
+            IoAutoSalesLeadLifecycleService salesLeadLifecycleService,
             UserRepositoryPort users,
             TeamRepositoryPort teams,
             OlxAdService olxAdService,
@@ -100,7 +98,7 @@ public class IoAutoSalesService {
         this.conversations = conversations;
         this.publicCatalogLeads = publicCatalogLeads;
         this.publicLinks = publicLinks;
-        this.sessionLifecycleService = sessionLifecycleService;
+        this.salesLeadLifecycleService = salesLeadLifecycleService;
         this.users = users;
         this.teams = teams;
         this.olxAdService = olxAdService;
@@ -250,7 +248,7 @@ public class IoAutoSalesService {
 
         ResolvedSeller seller = resolveSeller(companyId, sellerUserId);
         JpaAtendimentoConversationEntity conversation = resolveCatalogConversation(companyId, lead, seller, soldAt);
-        JpaAtendimentoSessionEntity session = sessionLifecycleService.ensureSessionForHumanAction(
+        JpaAtendimentoSessionEntity session = salesLeadLifecycleService.ensureSalesSession(
                 companyId,
                 conversation,
                 soldAt,
@@ -260,12 +258,9 @@ public class IoAutoSalesService {
                 seller.user().fullName(),
                 true
         );
-        session = sessionLifecycleService.concludeConversation(
+        session = salesLeadLifecycleService.completeSaleSession(
                 companyId,
                 conversation,
-                AtendimentoClassificationResult.OBJECTIVE_ACHIEVED,
-                "Venda concluida",
-                List.of(),
                 soldAt
         );
 
@@ -375,7 +370,7 @@ public class IoAutoSalesService {
                 requireBuyerLead,
                 soldAt
         );
-        JpaAtendimentoSessionEntity session = sessionLifecycleService.ensureSessionForHumanAction(
+        JpaAtendimentoSessionEntity session = salesLeadLifecycleService.ensureSalesSession(
                 companyId,
                 conversation,
                 soldAt,
@@ -385,12 +380,9 @@ public class IoAutoSalesService {
                 seller.user().fullName(),
                 true
         );
-        session = sessionLifecycleService.concludeConversation(
+        session = salesLeadLifecycleService.completeSaleSession(
                 companyId,
                 conversation,
-                AtendimentoClassificationResult.OBJECTIVE_ACHIEVED,
-                "Venda concluida pelo estoque",
-                List.of(),
                 soldAt
         );
 
@@ -632,11 +624,6 @@ public class IoAutoSalesService {
         entity.setLastMessageText(buildCatalogLeadSummary(lead));
         entity.setLastMessageAt(firstNonNull(lead.getCreatedAt(), referenceAt));
         entity.setStatus("NEW");
-        entity.setHumanHandoffRequested(false);
-        entity.setHumanHandoffQueue(null);
-        entity.setHumanHandoffRequestedAt(null);
-        entity.setHumanUserChoiceRequired(false);
-        entity.setHumanChoiceOptionsJson("[]");
         entity.setCreatedAt(firstNonNull(lead.getCreatedAt(), referenceAt));
         entity.setUpdatedAt(referenceAt);
         return entity;
@@ -661,11 +648,6 @@ public class IoAutoSalesService {
         entity.setAssignedTeamId(seller.teamId());
         entity.setAssignedUserId(seller.user().id());
         entity.setAssignedUserName(seller.user().fullName());
-        entity.setHumanHandoffRequested(false);
-        entity.setHumanHandoffQueue(null);
-        entity.setHumanHandoffRequestedAt(null);
-        entity.setHumanUserChoiceRequired(false);
-        entity.setHumanChoiceOptionsJson("[]");
         entity.setStartedAt(referenceAt);
         entity.setCreatedAt(referenceAt);
         entity.setUpdatedAt(referenceAt);
@@ -689,11 +671,6 @@ public class IoAutoSalesService {
         entity.setLastMessageText(buildInventorySaleSummary(vehicle));
         entity.setLastMessageAt(referenceAt);
         entity.setStatus("NEW");
-        entity.setHumanHandoffRequested(false);
-        entity.setHumanHandoffQueue(null);
-        entity.setHumanHandoffRequestedAt(null);
-        entity.setHumanUserChoiceRequired(false);
-        entity.setHumanChoiceOptionsJson("[]");
         entity.setCreatedAt(referenceAt);
         entity.setUpdatedAt(referenceAt);
         return conversations.saveAndFlush(entity);

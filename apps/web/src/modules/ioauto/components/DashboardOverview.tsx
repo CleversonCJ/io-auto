@@ -163,7 +163,7 @@ export function DashboardOverview() {
             series: [
                 {
                     type: "spline",
-                    name: "Atendimentos",
+                    name: "Leads",
                     data: points.map((item) => item.leads),
                     color: "#6b00e3",
                 },
@@ -340,7 +340,7 @@ export function DashboardOverview() {
             <section className="rounded-[34px] border border-black/10 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.06)]">
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                     <div>
-                        <h2 className="mt-2 font-display text-3xl font-bold text-io-dark">Vendas x atendimentos no período</h2>
+                        <h2 className="mt-2 font-display text-3xl font-bold text-io-dark">Vendas x leads no período</h2>
                         <p className="mt-2 max-w-2xl text-sm text-black/55">
                             Compare o volume de leads que chegaram com as vendas concluídas dentro do mesmo intervalo.
                         </p>
@@ -391,7 +391,7 @@ export function DashboardOverview() {
 
                 <div className="mt-6 grid gap-4 md:grid-cols-3">
                     <MetricPill
-                        label="Atendimentos no período"
+                        label="Leads no período"
                         value={String(totalPeriodLeads)}
                         description={`${data?.periodFilter?.from ?? "-"} até ${data?.periodFilter?.to ?? "-"}`}
                     />
@@ -421,7 +421,7 @@ export function DashboardOverview() {
                 <div>
                     <h2 className="mt-2 font-display text-3xl font-bold text-io-dark">Total de vendas por vendedor</h2>
                     <p className="mt-2 text-sm text-black/55">
-                        Cada venda concluída entra automaticamente no ranking do vendedor responsável pelo atendimento.
+                        Cada venda concluída entra automaticamente no ranking do vendedor responsável pela negociação.
                     </p>
                 </div>
 
@@ -432,7 +432,7 @@ export function DashboardOverview() {
                         <HighchartsReact highcharts={Highcharts} options={sellerChartOptions} />
                     ) : (
                         <div className="grid h-[320px] place-items-center rounded-[26px] border border-dashed border-black/10 bg-white px-6 text-center text-sm text-black/45">
-                            Assim que as primeiras vendas forem concluídas pelos atendimentos integrados, o comparativo entre vendedores aparecerá aqui.
+                            Assim que as primeiras vendas forem concluídas a partir dos leads, o comparativo entre vendedores aparecerá aqui.
                         </div>
                     )}
                 </div>
@@ -477,7 +477,7 @@ export function DashboardOverview() {
                             ))
                         ) : (
                             <p className="rounded-2xl border border-dashed border-black/10 px-4 py-4 text-sm text-black/45">
-                                As origens dos leads vão aparecer aqui assim que os atendimentos entrarem pelas integrações de marketplace.
+                                As origens dos leads vão aparecer aqui assim que os contatos entrarem pelas integrações de marketplace.
                             </p>
                         )}
                     </div>

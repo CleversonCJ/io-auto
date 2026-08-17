@@ -10,7 +10,7 @@ Hoje o projeto entrega uma base completa para:
 - provisionamento automatico da conta apos pagamento
 - autenticacao e area protegida por tenant
 - dashboard operacional da loja
-- gestao de conversas e leads
+- gestão de leads e funil comercial
 - cadastro e gestao de estoque de veiculos
 - central de integracoes
 - fila e acompanhamento de publicacoes
@@ -18,8 +18,6 @@ Hoje o projeto entrega uma base completa para:
 
 Nao faz parte do escopo atual:
 
-- integracao com Z-API
-- automacoes baseadas nesse canal
 - billing com Stripe
 
 ## Stack
@@ -37,7 +35,7 @@ apps/
 |   |-- src/main/java/com/io/appioweb/
 |   |   |-- adapters/persistence/ioauto
 |   |   |-- adapters/web/ioauto
-|   |   |-- adapters/web/atendimentos
+|   |   |-- adapters/web/auth
 |   |   |-- application/auth
 |   |   `-- config
 |   `-- src/main/resources/db/migration
@@ -79,7 +77,8 @@ apps/
 ### Area protegida
 
 - `/protected/dashboard`
-- `/protected/conversas`
+- `/protected/leads`
+- `/protected/crm`
 - `/protected/estoque`
 - `/protected/publicacoes`
 - `/protected/integracoes`
@@ -89,8 +88,8 @@ apps/
 ### Operacao IOAuto
 
 - dashboard com indicadores da operacao
-- acompanhamento de leads e conversas
-- origem da conversa visivel no inbox
+- acompanhamento de leads no CRM
+- origem do lead visível nos cards
 - cadastro unificado de veiculos
 - controle de publicacoes por integracao
 - visao de status de assinatura
@@ -300,7 +299,7 @@ curl -X POST https://api.ioauto.com.br/v1/onboarding/first-user/register \
     "billing": {
       "paymentId": "pay_xxx",
       "subscriptionId": "sub_xxx",
-      "planName": "IO Connect - Plano Mensal"
+      "planName": "IO Auto - Plano Mensal"
     }
   }'
 ```
@@ -322,7 +321,7 @@ curl -X POST https://api.ioauto.com.br/v1/onboarding/first-user/activate \
     "recorrenciaPagamento": "mensal",
     "dataAssinatura": "2026-05-08",
     "origem": "meta-campanha-maio",
-    "planName": "IO Connect - Plano Mensal"
+    "planName": "IO Auto - Plano Mensal"
   }'
 ```
 
@@ -379,7 +378,7 @@ curl -X POST https://api.ioauto.com.br/v1/onboarding/asaas/payment-event \
       "recorrenciaPagamento": "mensal",
       "dataAssinatura": "2026-05-08",
       "origem": "meta-campanha-maio",
-      "planName": "IO Connect - Plano Mensal"
+      "planName": "IO Auto - Plano Mensal"
     }
   }'
 ```

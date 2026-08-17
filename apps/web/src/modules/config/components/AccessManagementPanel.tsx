@@ -12,14 +12,6 @@ import {
 } from "lucide-react";
 import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 import {
-    listAtendimentoClassificationCategories,
-    loadCustomAtendimentoClassifications,
-    saveCustomAtendimentoClassifications,
-    type AtendimentoClassificationCategoryId,
-    type AtendimentoClassification,
-} from "@/modules/classificacoes/storage";
-import { AtendimentoClassificationCategoryIcon } from "@/modules/classificacoes/icons";
-import {
     getLabelTextColor,
     loadContactLabels,
     normalizeHexColor,
@@ -110,7 +102,6 @@ type UserModulePermissions = {
     manageCampaigns: boolean;
     manageCollaborators: boolean;
     manageProducts: boolean;
-    atendimentos: boolean;
     reports: boolean;
     crm: boolean;
 };
@@ -137,7 +128,6 @@ function getInitialUserModules(): UserModulePermissions {
         manageCampaigns: false,
         manageCollaborators: false,
         manageProducts: false,
-        atendimentos: false,
         reports: false,
         crm: false,
     };
@@ -163,7 +153,6 @@ function modulesFromKeys(keys?: string[] | null): UserModulePermissions {
         manageCampaigns: set.has("manageCampaigns"),
         manageCollaborators: set.has("manageCollaborators"),
         manageProducts: set.has("manageProducts"),
-        atendimentos: set.has("atendimentos"),
         reports: set.has("reports"),
         crm: set.has("crm"),
     };
@@ -272,7 +261,7 @@ function getStageKindLabel(kind: CrmStageKind) {
     return "Fase intermediária";
 }
 
-type View = "home" | "users" | "teams" | "companies" | "labels" | "classifications" | "stages";
+type View = "home" | "users" | "teams" | "companies" | "labels" | "stages";
 type Modal =
     | { type: "none" }
     | { type: "create-user" }
@@ -289,12 +278,6 @@ type LabelModal =
     | { type: "create" }
     | { type: "edit"; item: ContactLabel }
     | { type: "delete"; item: ContactLabel };
-type ClassificationModal =
-    | { type: "none" }
-    | { type: "create" }
-    | { type: "edit"; item: AtendimentoClassification }
-    | { type: "delete"; item: AtendimentoClassification };
-
 type CrmStageDraft = {
     id: string;
     title: string;
@@ -325,7 +308,6 @@ export function AccessManagementPanel() {
     const [view, setView] = useState<View>("home");
     const [modal, setModal] = useState<Modal>({ type: "none" });
     const [labelModal, setLabelModal] = useState<LabelModal>({ type: "none" });
-    const [classificationModal, setClassificationModal] = useState<ClassificationModal>({ type: "none" });
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [companyModalMsg, setCompanyModalMsg] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -351,12 +333,6 @@ export function AccessManagementPanel() {
     const [contactLabels, setContactLabels] = useState<ContactLabel[]>([]);
     const [labelForm, setLabelForm] = useState({ title: "", color: "#7C3AED" });
     const [labelModalMsg, setLabelModalMsg] = useState<string | null>(null);
-    const [customClassifications, setCustomClassifications] = useState<AtendimentoClassification[]>([]);
-    const [classificationFormTitle, setClassificationFormTitle] = useState("");
-    const [classificationFormCategoryId, setClassificationFormCategoryId] = useState<AtendimentoClassificationCategoryId>("other");
-    const [classificationFormHasValue, setClassificationFormHasValue] = useState(false);
-    const [classificationFormValue, setClassificationFormValue] = useState("");
-    const [classificationModalMsg, setClassificationModalMsg] = useState<string | null>(null);
     const [crmStages, setCrmStages] = useState<CrmStage[]>([]);
     const [isStagesModalOpen, setIsStagesModalOpen] = useState(false);
     const [crmStageDrafts, setCrmStageDrafts] = useState<CrmStageDraft[]>([]);
@@ -366,7 +342,6 @@ export function AccessManagementPanel() {
     const isSuperAdmin = useMemo(() => me?.roles.some((r) => r.toUpperCase() === "SUPERADMIN") ?? false, [me]);
     const canManageUsers = isAdmin || isSuperAdmin;
     const roleOptions = useMemo(() => roles.filter((r) => isSuperAdmin || r.toUpperCase() !== "SUPERADMIN"), [roles, isSuperAdmin]);
-    const classificationCategories = useMemo(() => listAtendimentoClassificationCategories(), []);
     useEffect(() => {
         const initialView = searchParams?.get("view");
         if (initialView === "stages") {
@@ -395,7 +370,6 @@ export function AccessManagementPanel() {
                 fetch("/api/auth/roles"),
                 loadTeams().catch(() => setTeams([])),
                 loadLabels().catch(() => setContactLabels([])),
-                loadCustomClassifications().catch(() => setCustomClassifications([])),
                 loadCrmStages(),
             ]);
             if (!meRes.ok) {
@@ -435,10 +409,6 @@ export function AccessManagementPanel() {
 
     async function loadLabels() {
         setContactLabels(await loadContactLabels());
-    }
-
-    async function loadCustomClassifications() {
-        setCustomClassifications(await loadCustomAtendimentoClassifications());
     }
 
     async function loadCrmStages() {
@@ -526,7 +496,7 @@ export function AccessManagementPanel() {
                 stages: normalized,
             });
             await loadCrmStages();
-            pushToast("Etapas de atendimento atualizadas.", "success");
+            pushToast("Etapas do CRM atualizadas.", "success");
             closeStagesModal();
         } catch {
             setCrmStageModalMsg("Não foi possível salvar as etapas no servidor.");
@@ -539,24 +509,8 @@ export function AccessManagementPanel() {
         setLabelForm({ title: "", color: "#7C3AED" });
     }
 
-    function closeClassificationModal() {
-        setClassificationModal({ type: "none" });
-        setClassificationModalMsg(null);
-        setClassificationFormTitle("");
-        setClassificationFormCategoryId("other");
-        setClassificationFormHasValue(false);
-        setClassificationFormValue("");
-    }
-
     function isLabelFormValid() {
         return labelForm.title.trim().length > 0;
-    }
-
-    function isClassificationFormValid() {
-        if (classificationFormTitle.trim().length === 0) return false;
-        if (!classificationFormHasValue) return true;
-        const parsed = Number(classificationFormValue);
-        return Number.isFinite(parsed);
     }
 
     async function upsertLabel(action: "create" | "edit", current?: ContactLabel) {
@@ -596,47 +550,6 @@ export function AccessManagementPanel() {
             closeLabelModal();
         } catch (error) {
             setLabelModalMsg(error instanceof Error ? error.message : "Não foi possível excluir a etiqueta.");
-        }
-    }
-
-    async function upsertClassification(action: "create" | "edit", current?: AtendimentoClassification) {
-        setClassificationModalMsg(null);
-        if (!isClassificationFormValid()) {
-            setClassificationModalMsg(classificationFormHasValue ? "Informe um valor numérico válido." : "Informe o título da classificação.");
-            return;
-        }
-        const cleanTitle = classificationFormTitle.trim();
-        const duplicate = customClassifications.some((item) => item.id !== current?.id && item.title.trim().toLowerCase() === cleanTitle.toLowerCase());
-        if (duplicate) {
-            setClassificationModalMsg("Já existe uma classificação com esse título.");
-            return;
-        }
-        const parsedValue = Number(classificationFormValue);
-        const normalizedValue = classificationFormHasValue && Number.isFinite(parsedValue) ? parsedValue : null;
-        const now = new Date().toISOString();
-        const next = action === "create"
-            ? [...customClassifications, { id: `classification_${Date.now()}`, title: cleanTitle, categoryId: classificationFormCategoryId, hasValue: classificationFormHasValue, value: normalizedValue, system: false, createdAt: now, updatedAt: now }]
-            : customClassifications.map((item) => (item.id === current?.id ? { ...item, title: cleanTitle, categoryId: classificationFormCategoryId, hasValue: classificationFormHasValue, value: normalizedValue, updatedAt: now } : item));
-
-        try {
-            const saved = await saveCustomAtendimentoClassifications(next);
-            setCustomClassifications(saved);
-            pushToast(action === "create" ? "Classificação criada com sucesso." : "Classificação atualizada com sucesso.", "success");
-            closeClassificationModal();
-        } catch (error) {
-            setClassificationModalMsg(error instanceof Error ? error.message : "Não foi possível salvar a classificação.");
-        }
-    }
-
-    async function removeClassification(item: AtendimentoClassification) {
-        const next = customClassifications.filter((classification) => classification.id !== item.id);
-        try {
-            const saved = await saveCustomAtendimentoClassifications(next);
-            setCustomClassifications(saved);
-            pushToast("Classificação excluída com sucesso.", "success");
-            closeClassificationModal();
-        } catch (error) {
-            setClassificationModalMsg(error instanceof Error ? error.message : "Não foi possível excluir a classificação.");
         }
     }
 
@@ -756,7 +669,7 @@ export function AccessManagementPanel() {
         if (modules.manageCollaborators) {
             return [pickAvailableRole("ADMIN", ["MANAGER", "AGENT"])];
         }
-        const hasOperationalAccess = modules.manageCampaigns || modules.manageProducts || modules.atendimentos || modules.reports || modules.crm;
+        const hasOperationalAccess = modules.manageCampaigns || modules.manageProducts || modules.reports || modules.crm;
         if (hasOperationalAccess) {
             return [pickAvailableRole("MANAGER", ["ADMIN", "AGENT"])];
         }
@@ -1099,7 +1012,7 @@ export function AccessManagementPanel() {
         }
         if (!isCompanyStepTwoValid()) {
             setCompanyCreateStep(2);
-            setCompanyModalMsg("Informe um horário de atendimento válido na etapa 2.");
+            setCompanyModalMsg("Informe um horário de funcionamento válido na etapa 2.");
             return;
         }
 
@@ -1139,7 +1052,7 @@ export function AccessManagementPanel() {
         }
         if (!isCompanyEditStepTwoValid()) {
             setCompanyEditStep(2);
-            setCompanyEditModalMsg("Informe um horário de atendimento válido na etapa 2.");
+            setCompanyEditModalMsg("Informe um horário de funcionamento válido na etapa 2.");
             return;
         }
 
@@ -1198,7 +1111,7 @@ export function AccessManagementPanel() {
                         <button type="button" onClick={async () => { await loadTeams(); setView("teams"); }} className="mt-3 rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white">Abrir gerenciamento</button>
                     </section>
                     <section className="rounded-2xl border border-black/10 bg-white p-5 shadow-soft">
-                        <h2 className="text-lg font-semibold text-io-dark">Gerenciar etapas de atendimento</h2>
+                        <h2 className="text-lg font-semibold text-io-dark">Gerenciar etapas do CRM</h2>
                         <button type="button" onClick={() => { loadCrmStages(); setView("stages"); }} className="mt-3 rounded-xl bg-slate-700 px-4 py-2 text-sm font-semibold text-white">Abrir gerenciamento</button>
                     </section>
                     {isSuperAdmin && (
@@ -1438,84 +1351,6 @@ export function AccessManagementPanel() {
                 </section>
             )}
 
-            {view === "classifications" && (
-                <section className="mt-4 rounded-2xl border border-black/10 bg-white p-5 shadow-soft">
-                    <div className="mb-3 flex justify-between">
-                        <h2 className="font-semibold">Classificações personalizadas</h2>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setClassificationFormTitle("");
-                                setClassificationFormCategoryId("other");
-                                setClassificationFormHasValue(false);
-                                setClassificationFormValue("");
-                                setClassificationModalMsg(null);
-                                setClassificationModal({ type: "create" });
-                            }}
-                            className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white"
-                        >
-                            Nova
-                        </button>
-                    </div>
-                    <p className="mb-3 text-xs text-black/60">
-                        Classificações padrão disponíveis no atendimento: Objetivo atingido, Objetivo perdido, Dúvidas e Outro.
-                    </p>
-                    <div className="grid gap-2">
-                        {customClassifications.length === 0 && (
-                            <div className="rounded-xl border border-dashed border-black/20 p-4 text-sm text-black/60">
-                                Nenhuma classificação personalizada criada ainda.
-                            </div>
-                        )}
-                        {customClassifications.map((classification) => (
-                            <div key={classification.id} className="rounded-xl border border-black/10 p-3">
-                                <div className="flex items-center justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <p className="truncate text-sm font-semibold text-io-dark">{classification.title}</p>
-                                        <p className="inline-flex items-center gap-1.5 text-xs text-black/55">
-                                            <AtendimentoClassificationCategoryIcon categoryId={classification.categoryId} className="h-3.5 w-3.5" />
-                                            {classificationCategories.find((item) => item.id === classification.categoryId)?.label ?? "Outro"}
-                                        </p>
-                                        {classification.hasValue && classification.value != null ? (
-                                            <p className="text-xs text-black/55">Valor: {classification.value}</p>
-                                        ) : null}
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setClassificationFormTitle(classification.title);
-                                                setClassificationFormCategoryId(classification.categoryId);
-                                                setClassificationFormHasValue(Boolean(classification.hasValue));
-                                                setClassificationFormValue(classification.value != null ? String(classification.value) : "");
-                                                setClassificationModalMsg(null);
-                                                setClassificationModal({ type: "edit", item: classification });
-                                            }}
-                                            className="grid h-8 w-8 place-items-center rounded-lg border text-black/70 hover:bg-black/5"
-                                            aria-label="Editar classificação"
-                                            title="Editar"
-                                        >
-                                            <Pencil className="h-4 w-4" strokeWidth={2} />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setClassificationModalMsg(null);
-                                                setClassificationModal({ type: "delete", item: classification });
-                                            }}
-                                            className="grid h-8 w-8 place-items-center rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                                            aria-label="Excluir classificação"
-                                            title="Excluir"
-                                        >
-                                            <Trash2 className="h-4 w-4" strokeWidth={2} />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            )}
-
             {view === "stages" && (
                 <section className="mt-4 rounded-2xl border border-black/10 bg-white p-5 shadow-soft">
                     <div className="mb-3 flex items-center justify-between gap-3">
@@ -1631,7 +1466,6 @@ export function AccessManagementPanel() {
                                         <label className="text-sm"><input type="checkbox" className="mr-2" checked={userCreateForm.modules.manageCampaigns} onChange={(e) => setUserCreateForm((p) => ({ ...p, modules: { ...p.modules, manageCampaigns: e.target.checked } }))} />Gerenciar campanhas</label>
                                         <label className="text-sm"><input type="checkbox" className="mr-2" checked={userCreateForm.modules.manageCollaborators} onChange={(e) => setUserCreateForm((p) => ({ ...p, modules: { ...p.modules, manageCollaborators: e.target.checked } }))} />Gerenciar colaboradores</label>
                                         <label className="text-sm"><input type="checkbox" className="mr-2" checked={userCreateForm.modules.manageProducts} onChange={(e) => setUserCreateForm((p) => ({ ...p, modules: { ...p.modules, manageProducts: e.target.checked } }))} />Gerenciar produtos</label>
-                                        <label className="text-sm"><input type="checkbox" className="mr-2" checked={userCreateForm.modules.atendimentos} onChange={(e) => setUserCreateForm((p) => ({ ...p, modules: { ...p.modules, atendimentos: e.target.checked } }))} />Atendimentos</label>
                                         <label className="text-sm"><input type="checkbox" className="mr-2" checked={userCreateForm.modules.reports} onChange={(e) => setUserCreateForm((p) => ({ ...p, modules: { ...p.modules, reports: e.target.checked } }))} />Relatórios</label>
                                         <label className="text-sm"><input type="checkbox" className="mr-2" checked={userCreateForm.modules.crm} onChange={(e) => setUserCreateForm((p) => ({ ...p, modules: { ...p.modules, crm: e.target.checked } }))} />CRM</label>
                                     </div>
@@ -1747,7 +1581,6 @@ export function AccessManagementPanel() {
                                         <label className="text-sm"><input type="checkbox" className="mr-2" checked={userEditForm.modules.manageCampaigns} onChange={(e) => setUserEditForm((p) => ({ ...p, modules: { ...p.modules, manageCampaigns: e.target.checked } }))} />Gerenciar campanhas</label>
                                         <label className="text-sm"><input type="checkbox" className="mr-2" checked={userEditForm.modules.manageCollaborators} onChange={(e) => setUserEditForm((p) => ({ ...p, modules: { ...p.modules, manageCollaborators: e.target.checked } }))} />Gerenciar colaboradores</label>
                                         <label className="text-sm"><input type="checkbox" className="mr-2" checked={userEditForm.modules.manageProducts} onChange={(e) => setUserEditForm((p) => ({ ...p, modules: { ...p.modules, manageProducts: e.target.checked } }))} />Gerenciar produtos</label>
-                                        <label className="text-sm"><input type="checkbox" className="mr-2" checked={userEditForm.modules.atendimentos} onChange={(e) => setUserEditForm((p) => ({ ...p, modules: { ...p.modules, atendimentos: e.target.checked } }))} />Atendimentos</label>
                                         <label className="text-sm"><input type="checkbox" className="mr-2" checked={userEditForm.modules.reports} onChange={(e) => setUserEditForm((p) => ({ ...p, modules: { ...p.modules, reports: e.target.checked } }))} />Relatórios</label>
                                         <label className="text-sm"><input type="checkbox" className="mr-2" checked={userEditForm.modules.crm} onChange={(e) => setUserEditForm((p) => ({ ...p, modules: { ...p.modules, crm: e.target.checked } }))} />CRM</label>
                                     </div>
@@ -1852,7 +1685,7 @@ export function AccessManagementPanel() {
             {modal.type === "delete-team" && (
                 <ModalWrap title="Excluir equipe" onClose={closeModal}>
                     <p className="text-sm">Excluir a equipe {modal.item.name}?</p>
-                    <p className="mt-1 text-xs text-black/60">A exclusão só será permitida quando não houver colaboradores nem atendimentos vinculados.</p>
+                    <p className="mt-1 text-xs text-black/60">A exclusão só será permitida quando não houver colaboradores nem registros vinculados.</p>
                     <div className="mt-3 flex gap-2">
                         <button type="button" onClick={closeModal} className="rounded-xl border px-3 py-2 text-sm">Cancelar</button>
                         <button type="button" onClick={() => removeTeam(modal.item.id)} disabled={submitting} className="rounded-xl bg-red-600 px-3 py-2 text-sm font-semibold text-white">
@@ -1872,7 +1705,7 @@ export function AccessManagementPanel() {
                                 <div className={`h-8 w-8 rounded-full text-center text-sm leading-8 ${companyCreateStep === 2 ? "bg-io-purple2 text-white" : "bg-black/10 text-black/60"}`}>2</div>
                                 
                             </div>
-                            <p className="text-xs text-black/60">{companyCreateStep === 1 ? "Etapa 1: Dados da empresa" : "Etapa 2: Horário de atendimento"}</p>
+                            <p className="text-xs text-black/60">{companyCreateStep === 1 ? "Etapa 1: Dados da empresa" : "Etapa 2: Horário de funcionamento"}</p>
                         </div>
 
                         {companyCreateStep === 1 && (
@@ -1904,7 +1737,7 @@ export function AccessManagementPanel() {
 
                         {companyCreateStep === 2 && (
                             <div className="grid gap-2">
-                                <p className="text-sm font-semibold text-io-dark">Horários de atendimento</p>
+                                <p className="text-sm font-semibold text-io-dark">Horários de funcionamento</p>
                                 <div className="rounded-xl border border-black/10">
                                     <table className="w-full text-sm">
                                         <thead className="bg-black/5 text-left">
@@ -1990,7 +1823,7 @@ export function AccessManagementPanel() {
                                 <div className={`h-8 w-8 rounded-full text-center text-sm leading-8 ${companyEditStep === 2 ? "bg-io-purple2 text-white" : "bg-black/10 text-black/60"}`}>2</div>
                                 
                             </div>
-                            <p className="text-xs text-black/60">{companyEditStep === 1 ? "Etapa 1: Dados da empresa" : "Etapa 2: Horário de atendimento"}</p>
+                            <p className="text-xs text-black/60">{companyEditStep === 1 ? "Etapa 1: Dados da empresa" : "Etapa 2: Horário de funcionamento"}</p>
                         </div>
 
                         {companyEditStep === 1 && (
@@ -2022,7 +1855,7 @@ export function AccessManagementPanel() {
 
                         {companyEditStep === 2 && (
                             <div className="grid gap-2">
-                                <p className="text-sm font-semibold text-io-dark">Horários de atendimento</p>
+                                <p className="text-sm font-semibold text-io-dark">Horários de funcionamento</p>
                                 <div className="rounded-xl border border-black/10">
                                     <table className="w-full text-sm">
                                         <thead className="bg-black/5 text-left">
@@ -2191,119 +2024,6 @@ export function AccessManagementPanel() {
                     <div className="mt-3 flex gap-2">
                         <button type="button" onClick={closeLabelModal} className="rounded-xl border px-3 py-2 text-sm">Cancelar</button>
                         <button type="button" onClick={() => removeLabel(labelModal.item)} className="rounded-xl bg-red-600 px-3 py-2 text-sm font-semibold text-white">Excluir</button>
-                    </div>
-                </ModalWrap>
-            )}
-            {classificationModal.type === "create" && (
-                <ModalWrap title="Nova classificação" onClose={closeClassificationModal}>
-                    <form
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            upsertClassification("create");
-                        }}
-                        className="grid gap-3"
-                    >
-                        {classificationModalMsg && <section className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{classificationModalMsg}</section>}
-                        <input
-                            value={classificationFormTitle}
-                            onChange={(event) => setClassificationFormTitle(event.target.value)}
-                            placeholder="Título da classificação"
-                            className="h-10 rounded-xl border px-3"
-                            maxLength={60}
-                            required
-                        />
-                        <select
-                            value={classificationFormCategoryId}
-                            onChange={(event) => setClassificationFormCategoryId(event.target.value as AtendimentoClassificationCategoryId)}
-                            className="h-10 rounded-xl border px-3 text-sm"
-                        >
-                            {classificationCategories.map((category) => (
-                                <option key={category.id} value={category.id}>{category.label}</option>
-                            ))}
-                        </select>
-                        <label className="flex items-center gap-2 text-sm text-io-dark">
-                            <input
-                                type="checkbox"
-                                checked={classificationFormHasValue}
-                                onChange={(event) => setClassificationFormHasValue(event.target.checked)}
-                            />
-                            Possui valor
-                        </label>
-                        {classificationFormHasValue && (
-                            <input
-                                value={classificationFormValue}
-                                onChange={(event) => setClassificationFormValue(event.target.value)}
-                                placeholder="Valor da classificação"
-                                inputMode="decimal"
-                                className="h-10 rounded-xl border px-3 text-sm"
-                                required
-                            />
-                        )}
-                        <div className="flex gap-2">
-                            <button type="button" onClick={closeClassificationModal} className="h-10 rounded-xl border px-4 text-sm">Cancelar</button>
-                            <button type="submit" className="h-10 flex-1 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white">Criar</button>
-                        </div>
-                    </form>
-                </ModalWrap>
-            )}
-            {classificationModal.type === "edit" && (
-                <ModalWrap title="Editar classificação" onClose={closeClassificationModal}>
-                    <form
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            upsertClassification("edit", classificationModal.item);
-                        }}
-                        className="grid gap-3"
-                    >
-                        {classificationModalMsg && <section className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{classificationModalMsg}</section>}
-                        <input
-                            value={classificationFormTitle}
-                            onChange={(event) => setClassificationFormTitle(event.target.value)}
-                            placeholder="Título da classificação"
-                            className="h-10 rounded-xl border px-3"
-                            maxLength={60}
-                            required
-                        />
-                        <select
-                            value={classificationFormCategoryId}
-                            onChange={(event) => setClassificationFormCategoryId(event.target.value as AtendimentoClassificationCategoryId)}
-                            className="h-10 rounded-xl border px-3 text-sm"
-                        >
-                            {classificationCategories.map((category) => (
-                                <option key={category.id} value={category.id}>{category.label}</option>
-                            ))}
-                        </select>
-                        <label className="flex items-center gap-2 text-sm text-io-dark">
-                            <input
-                                type="checkbox"
-                                checked={classificationFormHasValue}
-                                onChange={(event) => setClassificationFormHasValue(event.target.checked)}
-                            />
-                            Possui valor
-                        </label>
-                        {classificationFormHasValue && (
-                            <input
-                                value={classificationFormValue}
-                                onChange={(event) => setClassificationFormValue(event.target.value)}
-                                placeholder="Valor da classificação"
-                                inputMode="decimal"
-                                className="h-10 rounded-xl border px-3 text-sm"
-                                required
-                            />
-                        )}
-                        <div className="flex gap-2">
-                            <button type="button" onClick={closeClassificationModal} className="h-10 rounded-xl border px-4 text-sm">Cancelar</button>
-                            <button type="submit" className="h-10 flex-1 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white">Salvar</button>
-                        </div>
-                    </form>
-                </ModalWrap>
-            )}
-            {classificationModal.type === "delete" && (
-                <ModalWrap title="Excluir classificação" onClose={closeClassificationModal}>
-                    <p className="text-sm">Excluir a classificação {classificationModal.item.title}?</p>
-                    <div className="mt-3 flex gap-2">
-                        <button type="button" onClick={closeClassificationModal} className="rounded-xl border px-3 py-2 text-sm">Cancelar</button>
-                        <button type="button" onClick={() => removeClassification(classificationModal.item)} className="rounded-xl bg-red-600 px-3 py-2 text-sm font-semibold text-white">Excluir</button>
                     </div>
                 </ModalWrap>
             )}

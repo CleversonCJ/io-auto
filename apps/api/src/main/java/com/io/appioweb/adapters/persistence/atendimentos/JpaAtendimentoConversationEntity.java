@@ -60,24 +60,6 @@ public class JpaAtendimentoConversationEntity {
     @Column(name = "assigned_user_name", length = 180)
     private String assignedUserName;
 
-    @Column(name = "assigned_agent_id", length = 120)
-    private String assignedAgentId;
-
-    @Column(name = "human_handoff_requested", nullable = false)
-    private boolean humanHandoffRequested;
-
-    @Column(name = "human_handoff_queue", length = 120)
-    private String humanHandoffQueue;
-
-    @Column(name = "human_handoff_requested_at")
-    private Instant humanHandoffRequestedAt;
-
-    @Column(name = "human_user_choice_required", nullable = false)
-    private boolean humanUserChoiceRequired;
-
-    @Column(name = "human_choice_options_json", nullable = false, columnDefinition = "text")
-    private String humanChoiceOptionsJson = "[]";
-
     @Column(name = "started_at")
     private Instant startedAt;
 
@@ -143,24 +125,6 @@ public class JpaAtendimentoConversationEntity {
 
     public String getAssignedUserName() { return assignedUserName; }
     public void setAssignedUserName(String assignedUserName) { this.assignedUserName = assignedUserName; }
-
-    public String getAssignedAgentId() { return assignedAgentId; }
-    public void setAssignedAgentId(String assignedAgentId) { this.assignedAgentId = assignedAgentId; }
-
-    public boolean isHumanHandoffRequested() { return humanHandoffRequested; }
-    public void setHumanHandoffRequested(boolean humanHandoffRequested) { this.humanHandoffRequested = humanHandoffRequested; }
-
-    public String getHumanHandoffQueue() { return humanHandoffQueue; }
-    public void setHumanHandoffQueue(String humanHandoffQueue) { this.humanHandoffQueue = humanHandoffQueue; }
-
-    public Instant getHumanHandoffRequestedAt() { return humanHandoffRequestedAt; }
-    public void setHumanHandoffRequestedAt(Instant humanHandoffRequestedAt) { this.humanHandoffRequestedAt = humanHandoffRequestedAt; }
-
-    public boolean isHumanUserChoiceRequired() { return humanUserChoiceRequired; }
-    public void setHumanUserChoiceRequired(boolean humanUserChoiceRequired) { this.humanUserChoiceRequired = humanUserChoiceRequired; }
-
-    public String getHumanChoiceOptionsJson() { return humanChoiceOptionsJson; }
-    public void setHumanChoiceOptionsJson(String humanChoiceOptionsJson) { this.humanChoiceOptionsJson = humanChoiceOptionsJson; }
 
     public Instant getStartedAt() { return startedAt; }
     public void setStartedAt(Instant startedAt) { this.startedAt = startedAt; }

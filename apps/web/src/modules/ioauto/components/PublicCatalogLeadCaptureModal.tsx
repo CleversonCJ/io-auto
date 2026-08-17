@@ -121,13 +121,13 @@ export function PublicCatalogLeadCaptureModal({
                         <div>
                             <span className="inline-flex items-center gap-2 rounded-full border border-[#6b00e3]/12 bg-[#f4ebff] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-io-purple">
                                 <ShieldCheck className="h-3.5 w-3.5" />
-                                {"Atendimento protegido"}
+                                {"Contato protegido"}
                             </span>
                             <h3 className="mt-4 font-display text-[1.95rem] font-bold leading-tight text-io-dark">
                                 {"Antes de ir para o WhatsApp"}
                             </h3>
                             <p className="mt-2 text-sm leading-6 text-black/60">
-                                {"\u00C9 rapidinho: preencha seu nome e telefone para a loja identificar seu atendimento e continuar a conversa."}
+                                {"\u00C9 rapidinho: preencha seu nome e telefone para a loja identificar seu contato e continuar a conversa."}
                             </p>
                         </div>
 
@@ -201,7 +201,7 @@ export function PublicCatalogLeadCaptureModal({
                     ) : null}
 
                     <div className="rounded-[24px] border border-[#6b00e3]/10 bg-[#f7f0ff] px-4 py-4 text-sm text-black/58">
-                        {"Seus dados ser\u00E3o usados apenas para registrar o lead e continuar o atendimento no WhatsApp."}
+                        {"Seus dados ser\u00E3o usados apenas para registrar o lead e continuar o contato no WhatsApp."}
                     </div>
 
                     <div className="flex flex-wrap justify-end gap-3">

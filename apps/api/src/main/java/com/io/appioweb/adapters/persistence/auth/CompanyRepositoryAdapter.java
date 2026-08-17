@@ -25,9 +25,6 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
                 entity.getCnpj(),
                 entity.getOpenedAt(),
                 entity.getWhatsappNumber(),
-                entity.getZapiInstanceId(),
-                entity.getZapiInstanceToken(),
-                entity.getZapiClientToken(),
                 entity.getBusinessHoursStart(),
                 entity.getBusinessHoursEnd(),
                 entity.getBusinessHoursWeeklyJson(),
@@ -53,32 +50,6 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
                 entity.getCnpj(),
                 entity.getOpenedAt(),
                 entity.getWhatsappNumber(),
-                entity.getZapiInstanceId(),
-                entity.getZapiInstanceToken(),
-                entity.getZapiClientToken(),
-                entity.getBusinessHoursStart(),
-                entity.getBusinessHoursEnd(),
-                entity.getBusinessHoursWeeklyJson(),
-                entity.getPublicStockBannerMode(),
-                entity.getPublicStockBannerImagesJson(),
-                entity.getCreatedAt()
-        ));
-    }
-
-    @Override
-    public Optional<Company> findByZapiInstanceId(String zapiInstanceId) {
-        return jpa.findByZapiInstanceId(zapiInstanceId).map(entity -> new Company(
-                entity.getId(),
-                entity.getName(),
-                entity.getProfileImageUrl(),
-                entity.getEmail(),
-                entity.getContractEndDate(),
-                entity.getCnpj(),
-                entity.getOpenedAt(),
-                entity.getWhatsappNumber(),
-                entity.getZapiInstanceId(),
-                entity.getZapiInstanceToken(),
-                entity.getZapiClientToken(),
                 entity.getBusinessHoursStart(),
                 entity.getBusinessHoursEnd(),
                 entity.getBusinessHoursWeeklyJson(),
@@ -100,9 +71,6 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
                         entity.getCnpj(),
                         entity.getOpenedAt(),
                         entity.getWhatsappNumber(),
-                        entity.getZapiInstanceId(),
-                        entity.getZapiInstanceToken(),
-                        entity.getZapiClientToken(),
                         entity.getBusinessHoursStart(),
                         entity.getBusinessHoursEnd(),
                         entity.getBusinessHoursWeeklyJson(),
@@ -144,9 +112,6 @@ public class CompanyRepositoryAdapter implements CompanyRepositoryPort {
         entity.setCnpj(company.cnpj() == null ? "" : company.cnpj());
         entity.setOpenedAt(company.openedAt());
         entity.setWhatsappNumber(company.whatsappNumber() == null ? "" : company.whatsappNumber());
-        entity.setZapiInstanceId(company.zapiInstanceId());
-        entity.setZapiInstanceToken(company.zapiInstanceToken());
-        entity.setZapiClientToken(company.zapiClientToken());
         entity.setBusinessHoursStart(company.businessHoursStart());
         entity.setBusinessHoursEnd(company.businessHoursEnd());
         entity.setBusinessHoursWeeklyJson(company.businessHoursWeeklyJson());

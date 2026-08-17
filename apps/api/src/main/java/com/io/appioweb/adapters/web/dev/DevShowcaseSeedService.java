@@ -1,6 +1,5 @@
 package com.io.appioweb.adapters.web.dev;
 
-import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoClassificationResult;
 import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoConversationRepositoryJpa;
 import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoMessageRepositoryJpa;
 import com.io.appioweb.adapters.persistence.atendimentos.AtendimentoSessionRepositoryJpa;
@@ -370,12 +369,6 @@ public class DevShowcaseSeedService {
             conversation.setAssignedTeamId(salesTeam.getId());
             conversation.setAssignedUserId(seller.getId());
             conversation.setAssignedUserName(seller.getFullName());
-            conversation.setAssignedAgentId(null);
-            conversation.setHumanHandoffRequested(false);
-            conversation.setHumanHandoffQueue(null);
-            conversation.setHumanHandoffRequestedAt(null);
-            conversation.setHumanUserChoiceRequired(false);
-            conversation.setHumanChoiceOptionsJson("[]");
             conversation.setPresenceStatus("online");
             conversation.setPresenceLastSeen(lastMessageAt.minus(3, ChronoUnit.MINUTES));
             conversation.setPresenceUpdatedAt(lastMessageAt.minus(3, ChronoUnit.MINUTES));
@@ -411,8 +404,6 @@ public class DevShowcaseSeedService {
             if (seed.saleCompleted() && seed.saleCompletedDaysAgo() != null) {
                 Instant saleCompletedAt = now.minus(seed.saleCompletedDaysAgo(), ChronoUnit.DAYS).plus(3, ChronoUnit.HOURS);
                 session.setCompletedAt(saleCompletedAt);
-                session.setClassificationResult(AtendimentoClassificationResult.OBJECTIVE_ACHIEVED);
-                session.setClassificationLabel("Venda concluida");
                 session.setSaleCompleted(true);
                 session.setSoldVehicleId(interestedVehicle.getId());
                 session.setSoldVehicleTitle(interestedVehicle.getTitle());
@@ -420,8 +411,6 @@ public class DevShowcaseSeedService {
                 session.setStatus(AtendimentoSessionStatus.COMPLETED);
             } else {
                 session.setCompletedAt(null);
-                session.setClassificationResult(null);
-                session.setClassificationLabel(null);
                 session.setSaleCompleted(false);
                 session.setSoldVehicleId(null);
                 session.setSoldVehicleTitle(null);

@@ -12,7 +12,7 @@ const poppins = Poppins({
 
 export const metadata: Metadata = {
     title: "IOAuto",
-    description: "Micro-saas multi-tenant para operação automotiva com atendimento humano e publicação multicanal.",
+    description: "Plataforma multiempresa para estoque, leads, CRM e publicação automotiva multicanal.",
     icons: {
         icon: "/favicon.ico",
         shortcut: "/favicon.ico",

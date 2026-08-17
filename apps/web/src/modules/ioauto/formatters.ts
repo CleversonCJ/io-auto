@@ -76,7 +76,7 @@ export function statusLabel(status?: string | null) {
         ARCHIVED: "Arquivado",
         NEW: "Novo",
         OPEN: "Aberto",
-        IN_PROGRESS: "Em atendimento",
+        IN_PROGRESS: "Em andamento",
         WAITING_CUSTOMER: "Aguardando cliente",
         RESOLVED: "Resolvido",
         CONFIGURATION_REQUIRED: "Configurar",
