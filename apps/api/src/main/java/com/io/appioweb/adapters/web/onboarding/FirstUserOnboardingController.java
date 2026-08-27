@@ -15,8 +15,10 @@ import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
@@ -78,7 +80,28 @@ public class FirstUserOnboardingController {
     }
 
     @PostMapping("/asaas/payment-event")
-    public ResponseEntity<Map<String, Object>> handlePaymentEvent(@RequestBody JsonNode rawRequest) {
+    public ResponseEntity<Map<String, Object>> handlePaymentEvent(
+            @RequestHeader(name = "x-asaas-forwarded-app", required = false) String forwardedApp,
+            @RequestBody JsonNode rawRequest
+    ) {
+        verifyForwardedApp(forwardedApp);
+        if (rawRequest == null || rawRequest.isMissingNode() || rawRequest.isNull()) {
+            throw new BusinessException("ONBOARDING_INVALID_PAYLOAD", "Payload de payment-event vazio.");
+        }
+
+        String receivedEvent = firstNonBlank(
+                text(rawRequest, "eventType"),
+                text(rawRequest, "event"),
+                text(rawRequest.path("payment"), "status")
+        ).toUpperCase(Locale.ROOT);
+        if (!eventShouldActivateAccount(receivedEvent)) {
+            Map<String, Object> ignored = new LinkedHashMap<>();
+            ignored.put("ok", true);
+            ignored.put("ignored", true);
+            ignored.put("event", receivedEvent);
+            return ResponseEntity.ok(ignored);
+        }
+
         PaymentEventRequest request = normalizePaymentEventRequest(rawRequest);
         log.info("[OnboardingController] POST /asaas/payment-event - idempotencyKey={}", request.idempotencyKey());
 
@@ -154,6 +177,20 @@ public class FirstUserOnboardingController {
             response.put("message", emailMessage);
         }
         return ResponseEntity.ok(response);
+    }
+
+    private void verifyForwardedApp(String forwardedApp) {
+        if (forwardedApp == null || !"io_auto".equalsIgnoreCase(forwardedApp.trim())) {
+            throw new AccessDeniedException("Evento encaminhado para o aplicativo incorreto");
+        }
+    }
+
+    private boolean eventShouldActivateAccount(String eventType) {
+        return "PAYMENT_CONFIRMED".equals(eventType)
+                || "PAYMENT_RECEIVED".equals(eventType)
+                || "CONFIRMED".equals(eventType)
+                || "RECEIVED".equals(eventType)
+                || "RECEIVED_IN_CASH".equals(eventType);
     }
 
     private FirstUserRegisterRequest mapToRegisterRequest(PaymentEventRequest event, String baseKey) {
@@ -267,7 +304,7 @@ public class FirstUserOnboardingController {
                 text(rawRequest, "eventType"),
                 text(rawRequest, "event"),
                 text(paymentNode, "status"),
-                "PAYMENT_CONFIRMED"
+                "UNKNOWN"
         );
 
         String paymentId = firstNonBlank(text(billingNode, "paymentId"), text(paymentNode, "id"));
@@ -275,7 +312,7 @@ public class FirstUserOnboardingController {
 
         String idempotencyKey = normalizeText(text(rawRequest, "idempotencyKey"));
         if (idempotencyKey.isBlank()) {
-            idempotencyKey = "asaas:" + eventType + ":" + firstNonBlank(paymentId, subscriptionId, text(rawRequest, "id"), Instant.now().toString());
+            idempotencyKey = "asaas:" + eventType + ":" + firstNonBlank(text(rawRequest, "id"), paymentId, subscriptionId, Instant.now().toString());
             idempotencyKey = idempotencyKey.replaceAll("\\s+", "_");
         }
 
