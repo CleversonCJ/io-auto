@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Layers3 } from "lucide-react";
 import type { PublicationRecord } from "@/modules/ioauto/types";
-import { formatDateTime, statusLabel } from "@/modules/ioauto/formatters";
+import { formatDateTime, isHiddenPlatform, statusLabel } from "@/modules/ioauto/formatters";
 import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 export function PublicationsHub() {
@@ -21,7 +21,7 @@ export function PublicationsHub() {
                 return response.json();
             })
             .then((payload: PublicationRecord[]) => {
-                setPublications(payload);
+                setPublications(payload.filter((publication) => !isHiddenPlatform(publication.providerKey, publication.providerName)));
                 setError(null);
             })
             .catch((cause: Error) => setError(cause.message))

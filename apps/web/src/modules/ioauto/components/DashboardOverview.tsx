@@ -6,7 +6,7 @@ import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 import { BadgeDollarSign, Cable, CarFront, MessagesSquare, Stars, TrendingUp, DollarSign, Target, CalendarDays, Wallet } from "lucide-react";
 import type { DashboardResponse } from "@/modules/ioauto/types";
-import { formatDateTime, formatMoney, statusLabel } from "@/modules/ioauto/formatters";
+import { formatDateTime, formatMoney, isHiddenPlatform, statusLabel } from "@/modules/ioauto/formatters";
 import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 const statCards = [
@@ -242,6 +242,10 @@ export function DashboardOverview() {
 
     const totalPeriodLeads = useMemo(() => sum((data?.leadVsSales ?? []).map((item) => item.leads)), [data?.leadVsSales]);
     const totalPeriodSales = useMemo(() => sum((data?.leadVsSales ?? []).map((item) => item.sales)), [data?.leadVsSales]);
+    const visibleLeadSources = useMemo(
+        () => (data?.leadSources ?? []).filter((source) => !isHiddenPlatform(source.key, source.label)),
+        [data?.leadSources]
+    );
 
     const financialMetrics = useMemo(() => {
         const salesCount = data?.totalSalesCount ?? 0;
@@ -468,8 +472,8 @@ export function DashboardOverview() {
                     <h2 className="font-display text-2xl font-bold text-io-dark">Ranking de origem de leads</h2>
                     <p className="mt-1 text-sm text-black/55">Veja a plataforma que mais está trazendo leads para sua operação.</p>
                     <div className="mt-5 grid gap-3">
-                        {(data?.leadSources ?? []).length ? (
-                            data!.leadSources.map((source) => (
+                        {visibleLeadSources.length ? (
+                            visibleLeadSources.map((source) => (
                                 <div key={source.key} className="flex items-center justify-between rounded-2xl bg-black/[0.03] px-4 py-3">
                                     <span className="text-sm font-medium text-black/65">{source.label}</span>
                                     <span className="rounded-full bg-io-purple px-3 py-1 text-sm font-semibold text-white">{source.total}</span>

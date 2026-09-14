@@ -448,16 +448,16 @@ function resolveMarketplacesAlert(section: SuperAdminSection, index: number): Re
 
     if (index === 0) {
         const severity = webmotorsCloseRate >= 17 ? "stable" : webmotorsCloseRate >= 13 ? "attention" : "critical";
-        if (severity === "critical") return { title: "Webmotors perdeu eficiência", description: `A taxa de fechamento do canal está em ${section.leaderboard[0]?.value ?? "0%"}. O desempenho já está abaixo do padrão esperado.`, severity };
-        if (severity === "attention") return { title: "Webmotors em atenção", description: `A taxa de fechamento do canal está em ${section.leaderboard[0]?.value ?? "0%"}. O canal segue relevante, mas sem a mesma folga de performance.`, severity };
-        return { title: "Webmotors lidera conversão", description: `A taxa de fechamento do canal está em ${section.leaderboard[0]?.value ?? "0%"}. O desempenho segue como referência entre os canais premium.`, severity };
+        if (severity === "critical") return { title: "Canal premium perdeu eficiência", description: `A taxa de fechamento do canal está em ${section.leaderboard[0]?.value ?? "0%"}. O desempenho já está abaixo do padrão esperado.`, severity };
+        if (severity === "attention") return { title: "Canal premium em atenção", description: `A taxa de fechamento do canal está em ${section.leaderboard[0]?.value ?? "0%"}. O canal segue relevante, mas sem a mesma folga de performance.`, severity };
+        return { title: "Canal premium lidera conversão", description: `A taxa de fechamento do canal está em ${section.leaderboard[0]?.value ?? "0%"}. O desempenho segue como referência entre os canais premium.`, severity };
     }
 
     if (index === 1) {
         const severity = iCarrosRoi < 10 ? "critical" : iCarrosRoi < 18 ? "attention" : "stable";
-        if (severity === "critical") return { title: "iCarros com tração crítica", description: `O ROI atual do canal está em ${section.leaderboard[2]?.value ?? "0%"}. O retorno já compromete a alocação desse marketplace.`, severity };
-        if (severity === "attention") return { title: "iCarros em atenção", description: `O ROI atual do canal está em ${section.leaderboard[2]?.value ?? "0%"}. O canal ainda entrega pouco frente aos demais.`, severity };
-        return { title: "iCarros com retorno saudável", description: `O ROI atual do canal está em ${section.leaderboard[2]?.value ?? "0%"}. O desempenho já é mais equilibrado na carteira.`, severity };
+        if (severity === "critical") return { title: "Canal com tração crítica", description: `O ROI atual do canal está em ${section.leaderboard[2]?.value ?? "0%"}. O retorno já compromete a alocação desse marketplace.`, severity };
+        if (severity === "attention") return { title: "Canal com retorno em atenção", description: `O ROI atual do canal está em ${section.leaderboard[2]?.value ?? "0%"}. O canal ainda entrega pouco frente aos demais.`, severity };
+        return { title: "Canal com retorno saudável", description: `O ROI atual do canal está em ${section.leaderboard[2]?.value ?? "0%"}. O desempenho já é mais equilibrado na carteira.`, severity };
     }
 
     if (index === 2) {

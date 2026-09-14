@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { isHiddenPlatform } from "@/modules/ioauto/formatters";
 import { SuperAdminDashboardSection } from "@/modules/superadmin/components/SuperAdminDashboardSection";
 import { buildSuperAdminVisualSection, type CatalogLeadRow, type CustomerHealthRow, type SupportTicketSummary, type TenantSnapshot } from "@/modules/superadmin/components/SuperAdminLiveSectionVisual";
 import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
@@ -552,9 +553,9 @@ export function SuperAdminLiveSection({ section }: Props) {
     }
 
     function renderMarketplaces() {
-        const adsByPlatform = Array.isArray(dashboardData?.adsByPlatform) ? dashboardData.adsByPlatform : [];
-        const salesByPlatform = Array.isArray(dashboardData?.salesByPlatform) ? dashboardData.salesByPlatform : [];
-        const performance = Array.isArray(dashboardData?.platformPerformance) ? dashboardData.platformPerformance : [];
+        const adsByPlatform = (Array.isArray(dashboardData?.adsByPlatform) ? dashboardData.adsByPlatform : []).filter((row: Record<string, any>) => !isHiddenPlatform(row.platform));
+        const salesByPlatform = (Array.isArray(dashboardData?.salesByPlatform) ? dashboardData.salesByPlatform : []).filter((row: Record<string, any>) => !isHiddenPlatform(row.platform));
+        const performance = (Array.isArray(dashboardData?.platformPerformance) ? dashboardData.platformPerformance : []).filter((row: Record<string, any>) => !isHiddenPlatform(row.platform));
 
         return (
             <div className="grid gap-5">

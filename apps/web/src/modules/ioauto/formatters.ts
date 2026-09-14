@@ -55,10 +55,17 @@ export function formatShortDate(value?: string | null) {
     });
 }
 
+const HIDDEN_PLATFORM_TOKENS = ["WEBMOTORS", "ICARROS"];
+
+export function isHiddenPlatform(...values: Array<string | null | undefined>) {
+    return values.some((value) => {
+        const normalized = String(value ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        return HIDDEN_PLATFORM_TOKENS.some((token) => normalized.includes(token));
+    });
+}
+
 export function platformLabel(platform?: string | null) {
     const normalized = String(platform ?? "").trim().toUpperCase();
-    if (normalized === "WEBMOTORS") return "Webmotors";
-    if (normalized === "ICARROS") return "iCarros";
     if (normalized === "OLX" || normalized === "OLX_AUTOS") return "OLX";
     if (normalized === "MERCADOLIVRE" || normalized === "MERCADO_LIVRE") return "Mercado Livre";
     if (normalized === "PUBLIC_CATALOG" || normalized === "CATALOG") return "Catálogo";

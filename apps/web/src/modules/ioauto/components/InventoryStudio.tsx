@@ -34,7 +34,7 @@ import type {
     VehiclePublication,
     VehicleRecord,
 } from "@/modules/ioauto/types";
-import { formatDateTime, formatMoney, formatShortDate, platformLabel, statusLabel } from "@/modules/ioauto/formatters";
+import { formatDateTime, formatMoney, formatShortDate, isHiddenPlatform, platformLabel, statusLabel } from "@/modules/ioauto/formatters";
 import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 import {
     buildSaleClosingFinancialPayload,
@@ -520,8 +520,6 @@ function formatFinancingSummary(vehicle: VehicleRecord) {
 
 function getPublicationBadgeConfig(publication: VehiclePublication) {
     const normalized = publication.providerKey.trim().toUpperCase();
-    if (normalized === "WEBMOTORS") return { shortLabel: "WM", label: "Webmotors", className: "border-transparent bg-[#e52629] text-white" };
-    if (normalized === "ICARROS") return { shortLabel: "IC", label: "iCarros", className: "border-transparent bg-[#171717] text-white" };
     if (normalized === "OLX" || normalized === "OLX_AUTOS") return { shortLabel: "OLX", label: "OLX", className: "border-transparent bg-[#f57c00] text-white" };
     if (normalized === "MERCADOLIVRE" || normalized === "MERCADO_LIVRE") {
         return { shortLabel: "ML", label: "Mercado Livre", className: "border-[#d5c228] bg-[#ffe84e] text-[#2f2a05]" };
@@ -573,6 +571,10 @@ export function InventoryStudio() {
     const readyPublicationIntegrations = useMemo(
         () => connectedIntegrations.filter((integration) => integration.supportsPublication),
         [connectedIntegrations]
+    );
+    const visiblePublicationIntegrations = useMemo(
+        () => readyPublicationIntegrations.filter((integration) => !isHiddenPlatform(integration.providerKey, integration.displayName)),
+        [readyPublicationIntegrations]
     );
     const readyPublicationProviderKeys = useMemo(
         () => new Set(readyPublicationIntegrations.map((integration) => canonicalPublicationProviderKey(integration.providerKey))),
@@ -1644,8 +1646,8 @@ export function InventoryStudio() {
                                             </div>
 
                                             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                                                {readyPublicationIntegrations.length ? (
-                                                    readyPublicationIntegrations.map((integration) => {
+                                                {visiblePublicationIntegrations.length ? (
+                                                    visiblePublicationIntegrations.map((integration) => {
                                                         const selected = form.targetIntegrations.some(
                                                             (providerKey) =>
                                                                 canonicalPublicationProviderKey(providerKey) === canonicalPublicationProviderKey(integration.providerKey)
@@ -2206,7 +2208,7 @@ export function InventoryStudio() {
                                                 <option key={conversation.id} value={conversation.id}>
                                                     {(conversation.displayName || "Lead sem nome")}
                                                     {conversation.phone ? ` • ${formatPhoneInput(conversation.phone)}` : ""}
-                                                    {conversation.sourcePlatform ? ` • ${platformLabel(conversation.sourcePlatform)}` : ""}
+                                                    {conversation.sourcePlatform && !isHiddenPlatform(conversation.sourcePlatform) ? ` • ${platformLabel(conversation.sourcePlatform)}` : ""}
                                                 </option>
                                             ))}
                                         </select>
@@ -2333,7 +2335,7 @@ function InventoryVehicleCard({
                 )}
 
                 <div className="absolute inset-x-0 top-0 flex flex-wrap gap-1.5 p-3">
-                    {vehicle.publications.map((publication) => (
+                    {vehicle.publications.filter((publication) => !isHiddenPlatform(publication.providerKey, publication.providerName)).map((publication) => (
                         <PublicationBadge key={publication.id} publication={publication} size="sm" />
                     ))}
                 </div>

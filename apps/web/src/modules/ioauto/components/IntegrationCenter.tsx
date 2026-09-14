@@ -7,7 +7,7 @@ import { MercadoLivreSetupCard } from "@/modules/ioauto/components/MercadoLivreS
 import { OlxSetupCard } from "@/modules/ioauto/components/OlxSetupCard";
 import { WebmotorsSetupCard } from "@/modules/ioauto/components/WebmotorsSetupCard";
 import type { IntegrationRecord } from "@/modules/ioauto/types";
-import { formatDateTime, statusLabel } from "@/modules/ioauto/formatters";
+import { formatDateTime, isHiddenPlatform, statusLabel } from "@/modules/ioauto/formatters";
 import { SystemPageLoader } from "@/modules/shared/components/SystemPageLoader";
 
 type IntegrationDraft = {
@@ -41,12 +41,6 @@ const SUPPORTED_INTEGRATIONS: SupportedIntegration[] = [
         description: "Conecte a conta da loja via OAuth para publicar, atualizar e acompanhar anúncios.",
         nextStepLabel: "Conectar via OAuth",
     },
-    {
-        providerKey: "webmotors",
-        displayName: "Webmotors / Estoque e Leads",
-        description: "Informe as credenciais da loja e valide o acesso da API Webmotors pelo painel interno.",
-        nextStepLabel: "Configurar credenciais",
-    },
 ];
 
 function toDraft(record: IntegrationRecord): IntegrationDraft {
@@ -74,7 +68,6 @@ function defaultIntegrationLabel(providerKey: string) {
     const normalized = normalizeProviderKey(providerKey);
     if (normalized === "mercadolivre") return "Mercado Livre";
     if (normalized === "olx") return "OLX";
-    if (normalized === "webmotors") return "Webmotors / Estoque e Leads";
     if (!normalized) return "Integração";
     return normalized.substring(0, 1).toUpperCase() + normalized.substring(1);
 }
@@ -104,6 +97,7 @@ function mergeIntegrationCatalog(payload: IntegrationRecord[]) {
     }
 
     for (const record of payload) {
+        if (isHiddenPlatform(record.providerKey, record.displayName)) continue;
         const normalized = normalizeProviderKey(record.providerKey);
         const current = merged.get(normalized);
         merged.set(normalized, {
@@ -207,6 +201,7 @@ export function IntegrationCenter() {
 
         return orderedKeys
             .filter((providerKey, index, array) => array.indexOf(providerKey) === index)
+            .filter((providerKey) => !isHiddenPlatform(providerKey))
             .filter((providerKey) => isProviderConnected(providerKey) || openedProviderKeys.includes(providerKey))
             .map((providerKey) => integrationMap.get(providerKey) ?? buildFallbackIntegration(providerKey, readPlatformDetails(providerKey).displayName));
     }, [integrations, openedProviderKeys, connectionOverrides]);

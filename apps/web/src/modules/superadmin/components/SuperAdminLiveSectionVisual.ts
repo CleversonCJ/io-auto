@@ -1,5 +1,6 @@
 "use client";
 
+import { isHiddenPlatform } from "@/modules/ioauto/formatters";
 import { superAdminSections, type SuperAdminAlert, type SuperAdminChart, type SuperAdminInsight, type SuperAdminLeaderboardRow, type SuperAdminMetric, type SuperAdminSection, type SuperAdminSectionKey, type SuperAdminStatCard } from "@/modules/superadmin/data";
 
 export type LiveVisualSectionKey = Exclude<SuperAdminSectionKey, "tenants">;
@@ -649,9 +650,9 @@ function buildProductSection(args: BuildArgs): SuperAdminSection {
 
 function buildMarketplaceSection(args: BuildArgs): SuperAdminSection {
     const meta = superAdminSections.marketplaces;
-    const adsByPlatform = Array.isArray(args.dashboardData?.adsByPlatform) ? args.dashboardData.adsByPlatform : [];
-    const salesByPlatform = Array.isArray(args.dashboardData?.salesByPlatform) ? args.dashboardData.salesByPlatform : [];
-    const performance = Array.isArray(args.dashboardData?.platformPerformance) ? args.dashboardData.platformPerformance : [];
+    const adsByPlatform = (Array.isArray(args.dashboardData?.adsByPlatform) ? args.dashboardData.adsByPlatform : []).filter((row: Record<string, any>) => !isHiddenPlatform(row.platform));
+    const salesByPlatform = (Array.isArray(args.dashboardData?.salesByPlatform) ? args.dashboardData.salesByPlatform : []).filter((row: Record<string, any>) => !isHiddenPlatform(row.platform));
+    const performance = (Array.isArray(args.dashboardData?.platformPerformance) ? args.dashboardData.platformPerformance : []).filter((row: Record<string, any>) => !isHiddenPlatform(row.platform));
     const adsPairs = adsByPlatform.map((row: Record<string, any>) => ({ label: platformLabel(row.platform), value: toNumber(row.count) }));
     const salesPairs = salesByPlatform.map((row: Record<string, any>) => ({ label: platformLabel(row.platform), value: toNumber(row.salesCount) }));
     const conversionPairs = performance.map((row: Record<string, any>) => ({ label: platformLabel(row.platform), value: toNumber(row.conversionRate) }));
